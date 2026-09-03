@@ -1,0 +1,6 @@
+if(BUILD_DAEMON)
+    add_subdirectory(src)
+    if(BUILD_TESTING)
+        add_subdirectory(tests)
+    endif()
+endif()
