@@ -8,8 +8,10 @@ url='https://github.com/swim233/desktop_lyrics'
 license=('GPL-2.0-or-later')
 # Arch ships the KF6 libraries without a kf6- prefix. libplasma and ksvg are
 # named explicitly rather than leaned on through plasma-workspace, because the
-# QML this widget imports comes from them directly.
-depends=('plasma-workspace' 'libplasma' 'kirigami' 'ksvg' 'ki18n'
+# QML this widget imports comes from them directly. kdeclarative owns
+# org.kde.kquickcontrols, whose ColorButton the config dialog needs -- missing
+# it breaks only the config dialog, so the widget itself still looks fine.
+depends=('plasma-workspace' 'libplasma' 'kirigami' 'ksvg' 'ki18n' 'kdeclarative'
          'qt6-base' 'qt6-declarative')
 # gettext supplies msgfmt, which builds the translation catalogues.
 makedepends=('git' 'cmake' 'ninja' 'extra-cmake-modules' 'gettext')

@@ -9,6 +9,7 @@ Item {
     property bool strokeEnabled: false
     property color strokeColor: "black"
     property int fontSize: 34
+    property int fontWeight: Font.Normal
     property string overflowMode: "fit"
 
     readonly property real lineHeight: Math.ceil(fontSize * 1.25)
@@ -50,12 +51,13 @@ Item {
         height: root.height
         text: root.lineText
         color: root.textColor
-        // The family follows the Plasma font setting; size and colour stay with
-        // the widget's own configuration, because lyrics sit on the wallpaper
-        // where a theme colour is not guaranteed to be readable -- DESIGN.md
-        // decision 30.
+        // The family follows the Plasma font setting; size, weight and colour
+        // stay with the widget's own configuration, because lyrics sit on the
+        // wallpaper, where a theme colour is not guaranteed to be readable --
+        // DESIGN.md decision 30.
         font.family: Kirigami.Theme.defaultFont.family
         font.pixelSize: root.fontSize
+        font.weight: root.fontWeight
         fontSizeMode: root.overflowMode === "fit" ? Text.HorizontalFit : Text.FixedSize
         minimumPixelSize: Math.round(root.fontSize * 0.6)
         wrapMode: root.overflowMode === "wrap" ? Text.WordWrap : Text.NoWrap

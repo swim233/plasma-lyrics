@@ -9,6 +9,7 @@ Item {
     property bool strokeEnabled: false
     property color strokeColor: "black"
     property int fontSize: 34
+    property int fontWeight: Font.Normal
     property string overflowMode: "fit"
 
     implicitHeight: origin.implicitHeight + (translation.visible ? translation.implicitHeight : 0)
@@ -24,6 +25,7 @@ Item {
         strokeEnabled: root.strokeEnabled
         strokeColor: root.strokeColor
         fontSize: root.fontSize
+        fontWeight: root.fontWeight
         overflowMode: root.overflowMode
     }
 
@@ -38,6 +40,7 @@ Item {
         strokeEnabled: root.strokeEnabled
         strokeColor: root.strokeColor
         fontSize: root.fontSize
+        fontWeight: root.fontWeight
         overflowMode: root.overflowMode
     }
 }

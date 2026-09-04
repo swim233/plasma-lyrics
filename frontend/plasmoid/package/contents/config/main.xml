@@ -14,6 +14,7 @@
     <entry name="desktopStroke" type="Bool"><default>false</default></entry>
     <entry name="desktopStrokeColor" type="String"><default>#cc000000</default></entry>
     <entry name="desktopFontSize" type="Int"><default>34</default></entry>
+    <entry name="desktopFontWeight" type="Int"><default>400</default></entry>
     <entry name="desktopOverflow" type="String"><default>fit</default></entry>
     <entry name="desktopAnimation" type="String"><default>slide</default></entry>
     <entry name="desktopShowTranslation" type="Bool"><default>true</default></entry>
@@ -24,6 +25,7 @@
     <entry name="panelStroke" type="Bool"><default>false</default></entry>
     <entry name="panelStrokeColor" type="String"><default>#cc000000</default></entry>
     <entry name="panelFontSize" type="Int"><default>16</default></entry>
+    <entry name="panelFontWeight" type="Int"><default>400</default></entry>
     <entry name="panelOverflow" type="String"><default>fit</default></entry>
     <entry name="panelAnimation" type="String"><default>slide</default></entry>
     <entry name="panelShowTranslation" type="Bool"><default>true</default></entry>

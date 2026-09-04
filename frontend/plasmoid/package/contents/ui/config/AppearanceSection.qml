@@ -12,6 +12,7 @@ Kirigami.Card {
     property string textColor: "#fffaf5"
     property bool strokeEnabled: false
     property string strokeColor: "#cc000000"
+    property int fontWeight: Font.Normal
     property string overflowMode: "fit"
     property string animationMode: "slide"
     required property var fontSizeControl
@@ -22,8 +23,18 @@ Kirigami.Card {
     signal textColorEdited(string value)
     signal strokeEnabledEdited(bool value)
     signal strokeColorEdited(string value)
+    signal fontWeightEdited(int value)
     signal overflowModeEdited(string value)
     signal animationModeEdited(string value)
+
+    // Qt snaps a weight the family has no face for onto the nearest one it does
+    // have, so offering all nine standard steps would mostly produce duplicates.
+    // These six are the ones a typical family ships; the Plasma default here,
+    // Noto Sans CJK SC, has a real face for every one of them except DemiBold.
+    readonly property var fontWeightValues: [
+        Font.Light, Font.Normal, Font.Medium,
+        Font.DemiBold, Font.Bold, Font.Black
+    ]
 
     header: Kirigami.Heading { text: root.title; level: 3 }
     contentItem: Kirigami.FormLayout {
@@ -33,16 +44,16 @@ Kirigami.Card {
             currentIndex: ["none", "ksvg", "solid"].indexOf(root.plateMode)
             onActivated: root.plateModeEdited(["none", "ksvg", "solid"][currentIndex])
         }
-        QQC2.TextField {
+        ColorField {
             Kirigami.FormData.label: i18n("Background color:")
             visible: root.plateMode === "solid"
-            text: root.solidColor
-            onEditingFinished: root.solidColorEdited(text)
+            value: root.solidColor
+            onEdited: hexColor => root.solidColorEdited(hexColor)
         }
-        QQC2.TextField {
+        ColorField {
             Kirigami.FormData.label: i18n("Text color:")
-            text: root.textColor
-            onEditingFinished: root.textColorEdited(text)
+            value: root.textColor
+            onEdited: hexColor => root.textColorEdited(hexColor)
         }
         QQC2.SpinBox {
             Kirigami.FormData.label: i18n("Font size:")
@@ -51,16 +62,34 @@ Kirigami.Card {
             value: root.fontSizeControl.value
             onValueModified: root.fontSizeControl.value = value
         }
+        QQC2.ComboBox {
+            Kirigami.FormData.label: i18n("Font weight:")
+            model: [
+                i18nc("@item:inlistbox font weight", "Light"),
+                i18nc("@item:inlistbox font weight", "Regular"),
+                i18nc("@item:inlistbox font weight", "Medium"),
+                i18nc("@item:inlistbox font weight", "Demi bold"),
+                i18nc("@item:inlistbox font weight", "Bold"),
+                i18nc("@item:inlistbox font weight", "Black")
+            ]
+            currentIndex: {
+                const known = root.fontWeightValues.indexOf(root.fontWeight);
+                // Fall back to Regular rather than to index 0, so an unknown
+                // stored weight does not silently read as Light.
+                return known >= 0 ? known : root.fontWeightValues.indexOf(Font.Normal);
+            }
+            onActivated: root.fontWeightEdited(root.fontWeightValues[currentIndex])
+        }
         QQC2.CheckBox {
             Kirigami.FormData.label: i18n("Outline:")
             checked: root.strokeEnabled
             onToggled: root.strokeEnabledEdited(checked)
         }
-        QQC2.TextField {
+        ColorField {
             Kirigami.FormData.label: i18n("Outline color:")
             visible: root.strokeEnabled
-            text: root.strokeColor
-            onEditingFinished: root.strokeColorEdited(text)
+            value: root.strokeColor
+            onEdited: hexColor => root.strokeColorEdited(hexColor)
         }
         QQC2.CheckBox {
             Kirigami.FormData.label: i18n("Translation:")
@@ -81,4 +110,3 @@ Kirigami.Card {
         }
     }
 }
-
