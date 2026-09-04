@@ -18,6 +18,15 @@ Kirigami.Card {
     required property var fontSizeControl
     required property var translationControl
 
+    property bool showTrackInfo: true
+    property string trackInfoLayout: "single"
+    property int trackInfoFontWeight: Font.Normal
+    property string trackInfoColor: "#b3fffaf5"
+    property bool trackInfoStrokeEnabled: false
+    property string trackInfoStrokeColor: "#cc000000"
+    property string trackInfoOverflow: "fit"
+    required property var trackInfoFontSizeControl
+
     signal plateModeEdited(string value)
     signal solidColorEdited(string value)
     signal textColorEdited(string value)
@@ -26,6 +35,14 @@ Kirigami.Card {
     signal fontWeightEdited(int value)
     signal overflowModeEdited(string value)
     signal animationModeEdited(string value)
+
+    signal showTrackInfoEdited(bool value)
+    signal trackInfoLayoutEdited(string value)
+    signal trackInfoFontWeightEdited(int value)
+    signal trackInfoColorEdited(string value)
+    signal trackInfoStrokeEnabledEdited(bool value)
+    signal trackInfoStrokeColorEdited(string value)
+    signal trackInfoOverflowEdited(string value)
 
     // Qt snaps a weight the family has no face for onto the nearest one it does
     // have, so offering all nine standard steps would mostly produce duplicates.
@@ -107,6 +124,73 @@ Kirigami.Card {
             model: [i18n("None"), i18n("Fade"), i18n("Slide up")]
             currentIndex: ["none", "fade", "slide"].indexOf(root.animationMode)
             onActivated: root.animationModeEdited(["none", "fade", "slide"][currentIndex])
+        }
+
+        Kirigami.Separator {
+            Kirigami.FormData.isSection: true
+            Kirigami.FormData.label: i18n("Track info")
+        }
+        QQC2.CheckBox {
+            Kirigami.FormData.label: i18n("Show track info:")
+            checked: root.showTrackInfo
+            onToggled: root.showTrackInfoEdited(checked)
+        }
+        QQC2.ComboBox {
+            Kirigami.FormData.label: i18n("Layout:")
+            visible: root.showTrackInfo
+            model: [i18n("Single line"), i18n("Two lines")]
+            currentIndex: ["single", "double"].indexOf(root.trackInfoLayout)
+            onActivated: root.trackInfoLayoutEdited(["single", "double"][currentIndex])
+        }
+        QQC2.SpinBox {
+            Kirigami.FormData.label: i18n("Font size:")
+            visible: root.showTrackInfo
+            from: 8
+            to: 64
+            value: root.trackInfoFontSizeControl.value
+            onValueModified: root.trackInfoFontSizeControl.value = value
+        }
+        QQC2.ComboBox {
+            Kirigami.FormData.label: i18n("Font weight:")
+            visible: root.showTrackInfo
+            model: [
+                i18nc("@item:inlistbox font weight", "Light"),
+                i18nc("@item:inlistbox font weight", "Regular"),
+                i18nc("@item:inlistbox font weight", "Medium"),
+                i18nc("@item:inlistbox font weight", "Demi bold"),
+                i18nc("@item:inlistbox font weight", "Bold"),
+                i18nc("@item:inlistbox font weight", "Black")
+            ]
+            currentIndex: {
+                const known = root.fontWeightValues.indexOf(root.trackInfoFontWeight);
+                return known >= 0 ? known : root.fontWeightValues.indexOf(Font.Normal);
+            }
+            onActivated: root.trackInfoFontWeightEdited(root.fontWeightValues[currentIndex])
+        }
+        ColorField {
+            Kirigami.FormData.label: i18n("Text color:")
+            visible: root.showTrackInfo
+            value: root.trackInfoColor
+            onEdited: hexColor => root.trackInfoColorEdited(hexColor)
+        }
+        QQC2.CheckBox {
+            Kirigami.FormData.label: i18n("Outline:")
+            visible: root.showTrackInfo
+            checked: root.trackInfoStrokeEnabled
+            onToggled: root.trackInfoStrokeEnabledEdited(checked)
+        }
+        ColorField {
+            Kirigami.FormData.label: i18n("Outline color:")
+            visible: root.showTrackInfo && root.trackInfoStrokeEnabled
+            value: root.trackInfoStrokeColor
+            onEdited: hexColor => root.trackInfoStrokeColorEdited(hexColor)
+        }
+        QQC2.ComboBox {
+            Kirigami.FormData.label: i18n("Overflow:")
+            visible: root.showTrackInfo
+            model: [i18n("Shrink to fit"), i18n("Truncate")]
+            currentIndex: ["fit", "elide"].indexOf(root.trackInfoOverflow)
+            onActivated: root.trackInfoOverflowEdited(["fit", "elide"][currentIndex])
         }
     }
 }

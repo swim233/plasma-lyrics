@@ -3,7 +3,9 @@
 A native Plasma 6 widget that shows synchronized lyrics for the current MPRIS
 player. The first release targets NetEase Cloud Music in a browser through
 `plasma-browser-integration`, while keeping the provider and frontend seams
-open for later additions.
+open for later additions. A persistent track-info row above the lyrics shows
+the current title and artist, on by default on the desktop and off in the
+panel; both are independently configurable.
 
 ## Build
 

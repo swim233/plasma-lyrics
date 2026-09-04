@@ -21,6 +21,15 @@ Kirigami.ScrollablePage {
     property string cfg_desktopAnimation
     property alias cfg_desktopShowTranslation: desktopTranslation.checked
 
+    property bool cfg_desktopShowTrackInfo
+    property string cfg_desktopTrackInfoLayout
+    property alias cfg_desktopTrackInfoFontSize: desktopTrackInfoFontSize.value
+    property int cfg_desktopTrackInfoFontWeight
+    property string cfg_desktopTrackInfoColor
+    property bool cfg_desktopTrackInfoStroke
+    property string cfg_desktopTrackInfoStrokeColor
+    property string cfg_desktopTrackInfoOverflow
+
     property string cfg_panelPlateMode
     property string cfg_panelSolidColor
     property string cfg_panelTextColor
@@ -31,6 +40,15 @@ Kirigami.ScrollablePage {
     property string cfg_panelOverflow
     property string cfg_panelAnimation
     property alias cfg_panelShowTranslation: panelTranslation.checked
+
+    property bool cfg_panelShowTrackInfo
+    property string cfg_panelTrackInfoLayout
+    property alias cfg_panelTrackInfoFontSize: panelTrackInfoFontSize.value
+    property int cfg_panelTrackInfoFontWeight
+    property string cfg_panelTrackInfoColor
+    property bool cfg_panelTrackInfoStroke
+    property string cfg_panelTrackInfoStrokeColor
+    property string cfg_panelTrackInfoOverflow
 
     ColumnLayout {
         width: parent.width
@@ -82,10 +100,27 @@ Kirigami.ScrollablePage {
             onFontWeightEdited: value => page.cfg_desktopFontWeight = value
             onOverflowModeEdited: value => page.cfg_desktopOverflow = value
             onAnimationModeEdited: value => page.cfg_desktopAnimation = value
+
+            showTrackInfo: page.cfg_desktopShowTrackInfo
+            trackInfoLayout: page.cfg_desktopTrackInfoLayout
+            trackInfoFontWeight: page.cfg_desktopTrackInfoFontWeight
+            trackInfoColor: page.cfg_desktopTrackInfoColor
+            trackInfoStrokeEnabled: page.cfg_desktopTrackInfoStroke
+            trackInfoStrokeColor: page.cfg_desktopTrackInfoStrokeColor
+            trackInfoOverflow: page.cfg_desktopTrackInfoOverflow
+            trackInfoFontSizeControl: desktopTrackInfoFontSize
+            onShowTrackInfoEdited: value => page.cfg_desktopShowTrackInfo = value
+            onTrackInfoLayoutEdited: value => page.cfg_desktopTrackInfoLayout = value
+            onTrackInfoFontWeightEdited: value => page.cfg_desktopTrackInfoFontWeight = value
+            onTrackInfoColorEdited: value => page.cfg_desktopTrackInfoColor = value
+            onTrackInfoStrokeEnabledEdited: value => page.cfg_desktopTrackInfoStroke = value
+            onTrackInfoStrokeColorEdited: value => page.cfg_desktopTrackInfoStrokeColor = value
+            onTrackInfoOverflowEdited: value => page.cfg_desktopTrackInfoOverflow = value
         }
 
         QQC2.SpinBox { id: desktopFontSize; visible: false }
         QQC2.CheckBox { id: desktopTranslation; visible: false }
+        QQC2.SpinBox { id: desktopTrackInfoFontSize; visible: false }
 
         AppearanceSection {
             Layout.fillWidth: true
@@ -108,9 +143,26 @@ Kirigami.ScrollablePage {
             onFontWeightEdited: value => page.cfg_panelFontWeight = value
             onOverflowModeEdited: value => page.cfg_panelOverflow = value
             onAnimationModeEdited: value => page.cfg_panelAnimation = value
+
+            showTrackInfo: page.cfg_panelShowTrackInfo
+            trackInfoLayout: page.cfg_panelTrackInfoLayout
+            trackInfoFontWeight: page.cfg_panelTrackInfoFontWeight
+            trackInfoColor: page.cfg_panelTrackInfoColor
+            trackInfoStrokeEnabled: page.cfg_panelTrackInfoStroke
+            trackInfoStrokeColor: page.cfg_panelTrackInfoStrokeColor
+            trackInfoOverflow: page.cfg_panelTrackInfoOverflow
+            trackInfoFontSizeControl: panelTrackInfoFontSize
+            onShowTrackInfoEdited: value => page.cfg_panelShowTrackInfo = value
+            onTrackInfoLayoutEdited: value => page.cfg_panelTrackInfoLayout = value
+            onTrackInfoFontWeightEdited: value => page.cfg_panelTrackInfoFontWeight = value
+            onTrackInfoColorEdited: value => page.cfg_panelTrackInfoColor = value
+            onTrackInfoStrokeEnabledEdited: value => page.cfg_panelTrackInfoStroke = value
+            onTrackInfoStrokeColorEdited: value => page.cfg_panelTrackInfoStrokeColor = value
+            onTrackInfoOverflowEdited: value => page.cfg_panelTrackInfoOverflow = value
         }
 
         QQC2.SpinBox { id: panelFontSize; visible: false }
         QQC2.CheckBox { id: panelTranslation; visible: false }
+        QQC2.SpinBox { id: panelTrackInfoFontSize; visible: false }
     }
 }
