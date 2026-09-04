@@ -11,8 +11,10 @@ license=('GPL-2.0-or-later')
 # QML this widget imports comes from them directly. kdeclarative owns
 # org.kde.kquickcontrols, whose ColorButton the config dialog needs -- missing
 # it breaks only the config dialog, so the widget itself still looks fine.
+# glibc, libgcc and libstdc++ are what the binaries actually link against; every
+# other entry only satisfies them by accident, which is what namcap reports.
 depends=('plasma-workspace' 'libplasma' 'kirigami' 'ksvg' 'ki18n' 'kdeclarative'
-         'qt6-base' 'qt6-declarative')
+         'qt6-base' 'qt6-declarative' 'glibc' 'libgcc' 'libstdc++')
 # gettext supplies msgfmt, which builds the translation catalogues.
 makedepends=('git' 'cmake' 'ninja' 'extra-cmake-modules' 'gettext')
 source=("$pkgname::git+$url.git")
