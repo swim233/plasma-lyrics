@@ -40,6 +40,7 @@ PlasmoidItem {
         strokeEnabled: Plasmoid.configuration.panelStroke
         strokeColor: Plasmoid.configuration.panelStrokeColor
         fontSize: Plasmoid.configuration.panelFontSize
+        fontWeight: Plasmoid.configuration.panelFontWeight
         overflowMode: Plasmoid.configuration.panelOverflow
         animationMode: Plasmoid.configuration.panelAnimation
         showTranslation: Plasmoid.configuration.panelShowTranslation
@@ -57,6 +58,7 @@ PlasmoidItem {
         strokeEnabled: Plasmoid.configuration.desktopStroke
         strokeColor: Plasmoid.configuration.desktopStrokeColor
         fontSize: Plasmoid.configuration.desktopFontSize
+        fontWeight: Plasmoid.configuration.desktopFontWeight
         overflowMode: Plasmoid.configuration.desktopOverflow
         animationMode: Plasmoid.configuration.desktopAnimation
         showTranslation: Plasmoid.configuration.desktopShowTranslation

@@ -14,6 +14,7 @@ Item {
     property bool strokeEnabled: false
     property color strokeColor: "#cc000000"
     property int fontSize: 34
+    property int fontWeight: Font.Normal
     property string overflowMode: "fit"
     property string animationMode: "slide"
     property bool showTranslation: true
@@ -69,6 +70,7 @@ Item {
         strokeEnabled: root.strokeEnabled
         strokeColor: root.strokeColor
         fontSize: root.fontSize
+        fontWeight: root.fontWeight
         overflowMode: root.overflowMode
         animationMode: root.animationMode
     }
