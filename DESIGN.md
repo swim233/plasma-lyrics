@@ -181,7 +181,7 @@
 ### 2.3 目录布局
 
 ```
-desktop_lyrics/
+plasma-lyrics/
 ├── CMakeLists.txt              顶层，-DBUILD_DAEMON / -DBUILD_PLASMOID 可分别关闭
 ├── CLAUDE.md  AGENTS.md
 ├── README.md  README.zh-CN.md

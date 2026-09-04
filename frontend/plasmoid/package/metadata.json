@@ -15,7 +15,7 @@
         "Name": "Desktop Lyrics",
         "Name[zh_CN]": "桌面歌词",
         "Version": "0.1.0",
-        "Website": "https://github.com/swim233/desktop_lyrics"
+        "Website": "https://github.com/swim233/plasma-lyrics"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
 }
