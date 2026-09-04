@@ -62,7 +62,8 @@ Item {
         minimumPixelSize: Math.round(root.fontSize * 0.6)
         wrapMode: root.overflowMode === "wrap" ? Text.WordWrap : Text.NoWrap
         maximumLineCount: root.overflowMode === "wrap" ? 2 : 1
-        elide: root.overflowMode === "fit" || root.overflowMode === "wrap" ? Text.ElideRight : Text.ElideNone
+        elide: root.overflowMode === "fit" || root.overflowMode === "wrap" || root.overflowMode === "elide"
+            ? Text.ElideRight : Text.ElideNone
         horizontalAlignment: root.overflowMode === "marquee" ? Text.AlignLeft : Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
     }
