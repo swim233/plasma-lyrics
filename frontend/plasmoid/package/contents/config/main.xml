@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kcfg xmlns="http://www.kde.org/standards/kcfg/1.0"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.kde.org/standards/kcfg/1.0 http://www.kde.org/standards/kcfg/1.0/kcfg.xsd">
+  <kcfgfile name=""/>
+  <group name="General">
+    <entry name="idleText" type="String"><default></default></entry>
+    <entry name="idleTextUseDefault" type="Bool"><default>true</default></entry>
+    <entry name="notFoundText" type="String"><default></default></entry>
+
+    <entry name="desktopPlateMode" type="String"><default>ksvg</default></entry>
+    <entry name="desktopSolidColor" type="String"><default>#99000000</default></entry>
+    <entry name="desktopTextColor" type="String"><default>#fffaf5</default></entry>
+    <entry name="desktopStroke" type="Bool"><default>false</default></entry>
+    <entry name="desktopStrokeColor" type="String"><default>#cc000000</default></entry>
+    <entry name="desktopFontSize" type="Int"><default>34</default></entry>
+    <entry name="desktopOverflow" type="String"><default>fit</default></entry>
+    <entry name="desktopAnimation" type="String"><default>slide</default></entry>
+    <entry name="desktopShowTranslation" type="Bool"><default>true</default></entry>
+
+    <entry name="panelPlateMode" type="String"><default>ksvg</default></entry>
+    <entry name="panelSolidColor" type="String"><default>#99000000</default></entry>
+    <entry name="panelTextColor" type="String"><default>#fffaf5</default></entry>
+    <entry name="panelStroke" type="Bool"><default>false</default></entry>
+    <entry name="panelStrokeColor" type="String"><default>#cc000000</default></entry>
+    <entry name="panelFontSize" type="Int"><default>16</default></entry>
+    <entry name="panelOverflow" type="String"><default>fit</default></entry>
+    <entry name="panelAnimation" type="String"><default>slide</default></entry>
+    <entry name="panelShowTranslation" type="Bool"><default>true</default></entry>
+  </group>
+</kcfg>

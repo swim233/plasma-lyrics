@@ -1,0 +1,22 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "swim"
+            }
+        ],
+        "Category": "Multimedia",
+        "Description": "Shows synchronized lyrics for the current song",
+        "Description[zh_CN]": "显示当前播放歌曲的同步歌词",
+        "Icon": "media-album-track",
+        "Id": "io.github.swim233.plasma-lyrics",
+        "License": "GPL-2.0-or-later",
+        "Name": "Desktop Lyrics",
+        "Name[zh_CN]": "桌面歌词",
+        "Version": "0.1.0",
+        "Website": "https://github.com/swim233/desktop_lyrics"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
+
