@@ -1,0 +1,37 @@
+{
+  "services": [
+    {
+      "service": "org.mpris.MediaPlayer2.chromium.instance3893",
+      "playingSerial": 2,
+      "metadata": {
+        "mpris:trackid": "/org/mpris/MediaPlayer2/Track/1",
+        "mpris:length": 227708345,
+        "xesam:title": "网易云音乐",
+        "xesam:artist": [""]
+      }
+    },
+    {
+      "service": "org.mpris.MediaPlayer2.plasma-browser-integration",
+      "playingSerial": 1,
+      "metadata": {
+        "mpris:trackid": "/org/kde/plasma/browser_integration/1337",
+        "mpris:length": 227708345,
+        "xesam:title": "老街北",
+        "xesam:album": "老街北",
+        "xesam:artist": ["闹闹丶/FFF君/欧Ωhm/洛天依Official"],
+        "xesam:url": "https://music.163.com/st/webplayer",
+        "kde:pid": 3893,
+        "kde:mediaSrc": "https://example/c739729316bedb013393e5a6c543223f.mp3"
+      }
+    }
+  ],
+  "metadataEvents": [
+    {"url": "https://music.163.com/st/webplayer", "music": true},
+    {"url": "https://www.bilibili.com/video/BV1mkg36zEfX/", "music": false}
+  ],
+  "positionSamples": [
+    {"previousUs": 10000000, "previousNs": 1000000000, "positionUs": 11000000, "nowNs": 2000000000, "jump": false},
+    {"previousUs": 10000000, "previousNs": 1000000000, "positionUs": 3000000, "nowNs": 2000000000, "jump": true}
+  ],
+  "signals": {"PropertiesChanged": 10, "Seeked": 0}
+}
