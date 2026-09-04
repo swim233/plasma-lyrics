@@ -16,6 +16,7 @@ Kirigami.ScrollablePage {
     property bool cfg_desktopStroke
     property string cfg_desktopStrokeColor
     property alias cfg_desktopFontSize: desktopFontSize.value
+    property int cfg_desktopFontWeight
     property string cfg_desktopOverflow
     property string cfg_desktopAnimation
     property alias cfg_desktopShowTranslation: desktopTranslation.checked
@@ -26,6 +27,7 @@ Kirigami.ScrollablePage {
     property bool cfg_panelStroke
     property string cfg_panelStrokeColor
     property alias cfg_panelFontSize: panelFontSize.value
+    property int cfg_panelFontWeight
     property string cfg_panelOverflow
     property string cfg_panelAnimation
     property alias cfg_panelShowTranslation: panelTranslation.checked
@@ -67,6 +69,7 @@ Kirigami.ScrollablePage {
             textColor: page.cfg_desktopTextColor
             strokeEnabled: page.cfg_desktopStroke
             strokeColor: page.cfg_desktopStrokeColor
+            fontWeight: page.cfg_desktopFontWeight
             overflowMode: page.cfg_desktopOverflow
             animationMode: page.cfg_desktopAnimation
             fontSizeControl: desktopFontSize
@@ -76,6 +79,7 @@ Kirigami.ScrollablePage {
             onTextColorEdited: value => page.cfg_desktopTextColor = value
             onStrokeEnabledEdited: value => page.cfg_desktopStroke = value
             onStrokeColorEdited: value => page.cfg_desktopStrokeColor = value
+            onFontWeightEdited: value => page.cfg_desktopFontWeight = value
             onOverflowModeEdited: value => page.cfg_desktopOverflow = value
             onAnimationModeEdited: value => page.cfg_desktopAnimation = value
         }
@@ -91,6 +95,7 @@ Kirigami.ScrollablePage {
             textColor: page.cfg_panelTextColor
             strokeEnabled: page.cfg_panelStroke
             strokeColor: page.cfg_panelStrokeColor
+            fontWeight: page.cfg_panelFontWeight
             overflowMode: page.cfg_panelOverflow
             animationMode: page.cfg_panelAnimation
             fontSizeControl: panelFontSize
@@ -100,6 +105,7 @@ Kirigami.ScrollablePage {
             onTextColorEdited: value => page.cfg_panelTextColor = value
             onStrokeEnabledEdited: value => page.cfg_panelStroke = value
             onStrokeColorEdited: value => page.cfg_panelStrokeColor = value
+            onFontWeightEdited: value => page.cfg_panelFontWeight = value
             onOverflowModeEdited: value => page.cfg_panelOverflow = value
             onAnimationModeEdited: value => page.cfg_panelAnimation = value
         }
