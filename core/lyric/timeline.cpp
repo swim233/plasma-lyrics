@@ -34,6 +34,26 @@ int currentLineIndex(const LyricLines &lines, qint64 positionMs, int offsetMs)
     return -1;
 }
 
+std::optional<qint64> nextBoundaryMs(const LyricLines &lines, qint64 positionMs, int offsetMs)
+{
+    // Every index change happens on some line's start or end, but ends are not
+    // ordered -- an overlapping line can end after the next one begins -- so the
+    // whole list is scanned rather than stopping at the first later start.
+    const qint64 adjustedPosition = positionMs - offsetMs;
+    std::optional<qint64> boundary;
+    for (const auto &line : lines) {
+        for (const qint64 candidate : {line.startMs, line.endMs}) {
+            if (candidate > adjustedPosition && (!boundary || candidate < *boundary)) {
+                boundary = candidate;
+            }
+        }
+    }
+    if (!boundary) {
+        return std::nullopt;
+    }
+    return *boundary + offsetMs;
+}
+
 LyricLines filterLeadingCredits(const LyricLines &lines, qint64 introLimitMs)
 {
     // Credits reach us in two shapes. NetEase's structured entries are flagged

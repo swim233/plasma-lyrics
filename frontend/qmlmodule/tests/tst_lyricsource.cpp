@@ -17,7 +17,7 @@ class LyricSourceTest : public QObject
 
 private:
     static void writeSnapshot(const QString &path, int seq, qint64 anchor, const QString &text,
-                              qint64 pid = QCoreApplication::applicationPid())
+                              qint64 pid = QCoreApplication::applicationPid(), qint64 endMs = 2000)
     {
         QDir().mkpath(QFileInfo(path).absolutePath());
         const QJsonObject root{
@@ -34,7 +34,7 @@ private:
                                                       {QStringLiteral("rate"), 1.0}}},
             {QStringLiteral("lyric"), QJsonObject{{QStringLiteral("state"), QStringLiteral("ok")},
                                                    {QStringLiteral("offsetMs"), 0},
-                                                   {QStringLiteral("lines"), QJsonArray{lineToJson({1000, 2000, text, std::nullopt, std::nullopt})}}}}};
+                                                   {QStringLiteral("lines"), QJsonArray{lineToJson({1000, endMs, text, std::nullopt, std::nullopt})}}}}};
         QSaveFile file(path);
         QVERIFY(file.open(QIODevice::WriteOnly));
         file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
@@ -54,6 +54,21 @@ private Q_SLOTS:
         now += 500000000;
         QMetaObject::invokeMethod(&source, "reload");
         QTRY_VERIFY(source.currentPositionMs() >= 1000);
+    }
+
+    void wakesUpAtTheLineBoundary()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        qint64 now = 1000000000;
+        // The line ends 50 ms past the anchored position. Nothing polls any more,
+        // so the source only clears it if it armed a timer on that boundary.
+        writeSnapshot(path, 1, now, QStringLiteral("first"), QCoreApplication::applicationPid(), 1050);
+        LyricSource source([&now] { return now; });
+        source.setSnapshotPath(path);
+        QCOMPARE(source.currentText(), QStringLiteral("first"));
+        now += 100000000;
+        QTRY_VERIFY(source.currentText().isEmpty());
     }
 
     void rearmsAfterAtomicRename()

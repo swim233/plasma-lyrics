@@ -61,6 +61,7 @@ Q_SIGNALS:
 private:
     static qint64 monotonicNowNs();
     void rearm();
+    void rearmFrame();
     void setUnavailable(bool stale);
     void updateServiceHealth();
     void advance();
