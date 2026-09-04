@@ -17,6 +17,8 @@ depends=('plasma-workspace' 'libplasma' 'kirigami' 'ksvg' 'ki18n' 'kdeclarative'
          'qt6-base' 'qt6-declarative' 'glibc' 'libgcc' 'libstdc++')
 # gettext supplies msgfmt, which builds the translation catalogues.
 makedepends=('git' 'cmake' 'ninja' 'extra-cmake-modules' 'gettext')
+provides=("${pkgname%-git}")
+conflicts=("${pkgname%-git}")
 source=("$pkgname::git+$url.git")
 sha256sums=('SKIP')
 
@@ -35,8 +37,11 @@ pkgver() {
 }
 
 build() {
+  # None rather than Release: it leaves the compiler flags to makepkg.conf, so
+  # the package picks up Arch's hardening and debug-package settings instead of
+  # CMake's own -O3 -DNDEBUG. No production code path relies on assert().
   cmake -S "$pkgname" -B build -G Ninja \
-    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_BUILD_TYPE=None \
     -DCMAKE_INSTALL_PREFIX=/usr \
     -DBUILD_TESTING=ON
   cmake --build build
