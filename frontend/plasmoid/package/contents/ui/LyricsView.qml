@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Layouts
 
 import org.kde.kirigami as Kirigami
-import org.kde.ksvg as KSvg
 import org.kde.plasma.components as PlasmaComponents3
 
 Item {
@@ -38,13 +37,6 @@ Item {
     implicitHeight: panelMode ? Kirigami.Units.gridUnit * 2 : Kirigami.Units.gridUnit * 6
     Layout.minimumWidth: panelMode ? Kirigami.Units.gridUnit * 8 : Kirigami.Units.gridUnit * 18
     Layout.minimumHeight: Kirigami.Units.gridUnit * 2
-
-    KSvg.FrameSvgItem {
-        anchors.fill: parent
-        visible: root.plateMode === "ksvg"
-        imagePath: "widgets/background"
-        opacity: 0.92
-    }
 
     Rectangle {
         anchors.fill: parent
