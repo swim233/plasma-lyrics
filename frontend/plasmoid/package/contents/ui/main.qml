@@ -9,8 +9,22 @@ PlasmoidItem {
     id: root
 
     readonly property bool onDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
+    readonly property string activePlateMode: root.onDesktop
+        ? Plasmoid.configuration.desktopPlateMode
+        : Plasmoid.configuration.panelPlateMode
 
-    Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
+    // The themed plate is the shell's to draw, not ours. A FrameSvgItem on
+    // "widgets/background" keeps whatever the theme looked like when it was
+    // created, while the shell's background follows a theme change and is also
+    // what insets the applet's content by the frame margins. Every other plate
+    // mode paints itself, so the shell has to stay out of the way for those.
+    //
+    // ConfigurableBackground is left out on purpose: it adds the shell's own
+    // show-background checkbox beside our three-way plate setting, and the two
+    // would then disagree about the same thing.
+    Plasmoid.backgroundHints: root.activePlateMode === "ksvg"
+        ? PlasmaCore.Types.DefaultBackground
+        : PlasmaCore.Types.NoBackground
     Plasmoid.title: i18n("Desktop Lyrics")
     preferredRepresentation: root.onDesktop ? fullRepresentation : compactRepresentation
 
