@@ -1,0 +1,33 @@
+# Maintainer: swim
+pkgname=plasma-lyrics-git
+pkgver=0.1.0.r0.g0000000
+pkgrel=1
+pkgdesc='Native synchronized desktop lyrics widget for Plasma 6'
+arch=('x86_64')
+url='https://github.com/swim233/desktop_lyrics'
+license=('GPL-2.0-or-later')
+depends=('plasma-workspace' 'qt6-base' 'qt6-declarative' 'kf6-kirigami' 'kf6-ki18n')
+makedepends=('git' 'cmake' 'ninja' 'extra-cmake-modules')
+source=("$pkgname::git+$url.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "$pkgname"
+  git describe --long --tags --abbrev=7 2>/dev/null | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g' || printf '0.1.0.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+  cmake -S "$pkgname" -B build -G Ninja \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DBUILD_TESTING=ON
+  cmake --build build
+}
+
+check() {
+  ctest --test-dir build --output-on-failure
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+}

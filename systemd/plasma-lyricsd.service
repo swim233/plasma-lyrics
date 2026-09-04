@@ -1,0 +1,14 @@
+[Unit]
+Description=Plasma desktop lyrics service
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/plasma-lyricsd
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
+

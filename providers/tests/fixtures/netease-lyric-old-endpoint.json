@@ -1,0 +1,13 @@
+{
+  "_comment": "Real /api/song/lyric (pre-v1) response for NetEase 2699991455, trimmed. This endpoint flattens production credits into timestamped lines and pads the colon -- '作词 : 爆音常安' -- which is the shape that silently defeated the credit filter. Kept as a regression guard even though the provider now requests /api/song/lyric/v1.",
+  "code": 200,
+  "lrc": {
+    "lyric": "[00:00.000] 作词 : 爆音常安\n[00:00.000] 作曲 : 爆音常安\n[00:00.001]歌手：洛天依/乐正绫\n[00:02.000]作曲：爆音常安\n[00:10.672]蝴蝶轻吻花瓣而颤动\n[00:13.355]打开窗户露一个笑容"
+  },
+  "tlyric": {
+    "lyric": ""
+  },
+  "klyric": {
+    "lyric": ""
+  }
+}

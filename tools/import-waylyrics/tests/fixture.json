@@ -1,0 +1,18 @@
+{
+  "olyric": {
+    "type": "LineTimestamp",
+    "content": [
+      {"text": "作词 : Example", "start_time": {"secs": 0, "nanos": 0}},
+      {"text": "第一句", "start_time": {"secs": 12, "nanos": 340000000}},
+      {"text": "第二句", "start_time": {"secs": 16, "nanos": 0}}
+    ]
+  },
+  "tlyric": {
+    "type": "LineTimestamp",
+    "content": [
+      {"text": "First line", "start_time": {"secs": 12, "nanos": 340000000}},
+      {"text": "Second line", "start_time": {"secs": 16, "nanos": 0}}
+    ]
+  },
+  "offset": 250
+}

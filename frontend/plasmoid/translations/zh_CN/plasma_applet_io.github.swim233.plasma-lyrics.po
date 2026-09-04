@@ -1,0 +1,232 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: plasma-lyrics 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-09-04 00:53+0800\n"
+"PO-Revision-Date: 2026-09-04 00:53+0800\n"
+"Last-Translator: swim\n"
+"Language-Team: Chinese (Simplified)\n"
+"Language: zh_CN\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+#: frontend/plasmoid/package/contents/config/config.qml:6
+msgid "Appearance"
+msgstr "外观"
+
+#: frontend/plasmoid/package/contents/config/config.qml:11
+msgid "Lyrics Service"
+msgstr "歌词服务"
+
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:21
+#: frontend/plasmoid/package/contents/ui/main.qml:33
+#: frontend/plasmoid/package/contents/ui/main.qml:50
+#: frontend/plasmoid/package/contents/ui/config/ConfigAppearance.qml:42
+msgid "No media is playing"
+msgstr "当前未在播放"
+
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:27
+msgid "Searching for lyrics…"
+msgstr "搜索中…"
+
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:65
+msgid ""
+"The lyrics service stopped. Restart it with:\n"
+"systemctl --user restart plasma-lyricsd"
+msgstr ""
+"歌词服务已停止。请用以下命令重启：\n"
+"systemctl --user restart plasma-lyricsd"
+
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:66
+msgid ""
+"The lyrics service is not running. Start it with:\n"
+"systemctl --user enable --now plasma-lyricsd"
+msgstr ""
+"歌词服务未运行。请用以下命令启动：\n"
+"systemctl --user enable --now plasma-lyricsd"
+
+#: frontend/plasmoid/package/contents/ui/main.qml:14
+#: frontend/plasmoid/package/contents/ui/main.qml:55
+msgid "Desktop Lyrics"
+msgstr "桌面歌词"
+
+#: frontend/plasmoid/package/contents/ui/main.qml:60
+msgid "Lyrics 0.5 s earlier"
+msgstr "歌词提前 0.5 秒"
+
+#: frontend/plasmoid/package/contents/ui/main.qml:66
+msgid "Lyrics 0.5 s later"
+msgstr "歌词延后 0.5 秒"
+
+#: frontend/plasmoid/package/contents/ui/main.qml:72
+msgid "Reset lyric offset (%1 ms)"
+msgstr "重置歌词偏移（%1 毫秒）"
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:31
+msgid "Background:"
+msgstr "背景："
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:32
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:78
+msgid "None"
+msgstr "无"
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:32
+msgid "Plasma theme"
+msgstr "Plasma 主题"
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:32
+msgid "Solid translucent color"
+msgstr "半透明纯色"
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:37
+msgid "Background color:"
+msgstr "背景颜色："
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:43
+msgid "Text color:"
+msgstr "文字颜色："
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:48
+msgid "Font size:"
+msgstr "字号："
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:55
+msgid "Outline:"
+msgstr "描边："
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:60
+msgid "Outline color:"
+msgstr "描边颜色："
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:66
+msgid "Translation:"
+msgstr "翻译："
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:71
+msgid "Long lyrics:"
+msgstr "过长歌词："
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:72
+msgid "Fit text"
+msgstr "缩小适配"
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:72
+msgid "Wrap to two lines"
+msgstr "最多换行两行"
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:72
+msgid "Marquee"
+msgstr "跑马灯"
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:77
+msgid "Line transition:"
+msgstr "切行动画："
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:78
+msgid "Fade"
+msgstr "淡入淡出"
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:78
+msgid "Slide up"
+msgstr "上移推入"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigAppearance.qml:40
+msgid "Not playing text:"
+msgstr "未播放时文案："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigAppearance.qml:49
+msgid "Empty text:"
+msgstr "文案留空时："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigAppearance.qml:50
+msgid "Use the localized default message"
+msgstr "使用已本地化的默认文案"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigAppearance.qml:55
+msgid "Lyrics not found text:"
+msgstr "未找到歌词时文案："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigAppearance.qml:57
+msgid "Leave empty to hide"
+msgstr "留空则隐藏"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigAppearance.qml:64
+msgid "Desktop appearance"
+msgstr "桌面外观"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigAppearance.qml:88
+msgid "Panel appearance"
+msgstr "面板外观"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:20
+msgid ""
+"These service settings affect every Desktop Lyrics widget. Restart plasma-"
+"lyricsd after saving."
+msgstr "这些服务设置会影响所有桌面歌词部件。保存后请重启 plasma-lyricsd。"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:26
+msgid "NetEase API URL:"
+msgstr "网易云 API 地址："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:31
+msgid "Network timeout:"
+msgstr "网络超时："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:36
+msgid "%1 ms"
+msgstr "%1 毫秒"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:40
+msgid "Music detection:"
+msgstr "音乐检测："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:41
+msgid "Use metadata heuristic"
+msgstr "使用元数据启发式规则"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:46
+msgid "Lyrics cleanup:"
+msgstr "歌词清理："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:47
+msgid "Hide leading production credits"
+msgstr "隐藏开头的制作人员信息"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:52
+msgid "Music URL prefixes:"
+msgstr "音乐 URL 前缀："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:54
+msgid "One prefix per line"
+msgstr "每行一个前缀"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:58
+msgid "Player blacklist:"
+msgstr "播放器黑名单："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:60
+msgid "One D-Bus service wildcard per line"
+msgstr "每行一个 D-Bus 服务通配符"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:64
+msgid "Diagnostics:"
+msgstr "诊断："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:65
+msgid "Also write a log file"
+msgstr "同时写入日志文件"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:70
+msgid "Log file:"
+msgstr "日志文件："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:80
+msgid "Reload"
+msgstr "重新加载"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:85
+msgid "Save service settings"
+msgstr "保存服务设置"
