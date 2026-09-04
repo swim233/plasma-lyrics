@@ -5,19 +5,28 @@
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QDBusReply>
-#include <QDBusServiceWatcher>
 
 namespace PlasmaLyrics {
+namespace {
+
+constexpr QLatin1StringView servicePrefix("org.mpris.MediaPlayer2.");
+
+} // namespace
 
 MprisManager::MprisManager(PolicyConfig config, QObject *parent)
     : QObject(parent)
     , m_config(std::move(config))
-    , m_watcher(new QDBusServiceWatcher(this))
 {
-    m_watcher->setConnection(QDBusConnection::sessionBus());
-    m_watcher->setWatchMode(QDBusServiceWatcher::WatchForRegistration | QDBusServiceWatcher::WatchForUnregistration);
-    connect(m_watcher, &QDBusServiceWatcher::serviceRegistered, this, &MprisManager::addService);
-    connect(m_watcher, &QDBusServiceWatcher::serviceUnregistered, this, &MprisManager::removeService);
+    // Match NameOwnerChanged directly rather than going through
+    // QDBusServiceWatcher. That class only signals for names handed to
+    // addWatchedService(), and it takes no wildcards, so the only names it
+    // could ever announce are the ones already on the bus when this
+    // constructor ran. The daemon starts with the session, before any player
+    // exists, which made every player invisible until it was restarted.
+    QDBusConnection::sessionBus().connect(
+        QStringLiteral("org.freedesktop.DBus"), QStringLiteral("/org/freedesktop/DBus"),
+        QStringLiteral("org.freedesktop.DBus"), QStringLiteral("NameOwnerChanged"), this,
+        SLOT(onNameOwnerChanged(QString,QString,QString)));
 
     const QDBusReply<QStringList> names = QDBusConnection::sessionBus().interface()->registeredServiceNames();
     if (names.isValid()) {
@@ -35,12 +44,28 @@ MprisManager::MprisManager(PolicyConfig config, QObject *parent)
     selectActive();
 }
 
-void MprisManager::addService(const QString &service)
+void MprisManager::onNameOwnerChanged(const QString &service, const QString &oldOwner, const QString &newOwner)
 {
-    if (!service.startsWith(QStringLiteral("org.mpris.MediaPlayer2.")) || m_players.contains(service)) {
+    // Every name on the bus reaches this slot, unique connection names
+    // included, so the prefix test comes first and does nothing the rest of
+    // the time. A name that changes hands arrives with both owners set, and
+    // has to drop the old player before adopting the new one.
+    if (!service.startsWith(servicePrefix)) {
         return;
     }
-    m_watcher->addWatchedService(service);
+    if (!oldOwner.isEmpty()) {
+        removeService(service);
+    }
+    if (!newOwner.isEmpty()) {
+        addService(service);
+    }
+}
+
+void MprisManager::addService(const QString &service)
+{
+    if (!service.startsWith(servicePrefix) || m_players.contains(service)) {
+        return;
+    }
     auto *player = new MprisPlayer(service, this);
     if (player->state().playbackStatus == QStringLiteral("Playing")) {
         m_playingSerials.insert(service, ++m_serial);
