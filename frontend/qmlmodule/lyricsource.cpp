@@ -10,7 +10,9 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <algorithm>
 #include <cerrno>
+#include <cmath>
 #include <csignal>
 #include <time.h>
 #include <unistd.h>
@@ -50,7 +52,11 @@ LyricSource::LyricSource(std::function<qint64()> clock, QObject *parent)
     , m_snapshotPath(defaultSnapshotPath())
 {
     m_retryTimer.setInterval(2000);
-    m_frameTimer.setInterval(33);
+    // The frame timer is armed at the next line boundary rather than polling:
+    // the position is analytic (anchor + monotonic clock), so the switch time is
+    // known exactly. See DESIGN.md decision 38.
+    m_frameTimer.setSingleShot(true);
+    m_frameTimer.setTimerType(Qt::PreciseTimer);
     m_healthTimer.setInterval(2000);
     connect(&m_watcher, &QFileSystemWatcher::fileChanged, this, &LyricSource::reload);
     connect(&m_watcher, &QFileSystemWatcher::directoryChanged, this, &LyricSource::reload);
@@ -181,6 +187,11 @@ void LyricSource::reload()
         Q_EMIT statusChanged();
     }
     if (sequence == m_sequence) {
+        if (statusWasChanged) {
+            // setUnavailable() stopped the frame timer, and a repeat sequence
+            // skips the rest of this function. Nothing else would re-arm it.
+            advance();
+        }
         return;
     }
     m_sequence = sequence;
@@ -219,11 +230,6 @@ void LyricSource::reload()
     if (oldTitle != m_trackTitle || oldArtists != m_trackArtists
         || oldProvider != m_provider || oldTrackId != m_trackId) Q_EMIT trackChanged();
     if (oldOffset != m_offsetMs) Q_EMIT offsetChanged();
-    if (m_playbackStatus == QStringLiteral("Playing")) {
-        m_frameTimer.start();
-    } else {
-        m_frameTimer.stop();
-    }
     advance();
 }
 
@@ -243,6 +249,26 @@ void LyricSource::advance()
         m_currentLine = line;
         Q_EMIT currentLineChanged();
     }
+    rearmFrame();
+}
+
+void LyricSource::rearmFrame()
+{
+    m_frameTimer.stop();
+    // A missing anchor or a non-positive rate means the position never moves on
+    // its own; arming would only spin on an interval that changes nothing.
+    if (m_playbackStatus != QStringLiteral("Playing") || m_anchorMonotonicNs <= 0 || m_rate <= 0.0) {
+        return;
+    }
+    const auto boundary = nextBoundaryMs(m_lines, m_currentPositionMs, m_offsetMs);
+    if (!boundary) {
+        return;
+    }
+    const qint64 delayMs =
+        static_cast<qint64>(std::ceil(static_cast<double>(*boundary - m_currentPositionMs) / m_rate));
+    // The upper bound keeps a malformed timestamp such as [9999999:00.00] inside
+    // the int the timer takes; a long interlude just wakes once a minute.
+    m_frameTimer.start(static_cast<int>(std::clamp<qint64>(delayMs, 1, 60000)));
 }
 
 bool LyricSource::adjustOffset(int deltaMs)
