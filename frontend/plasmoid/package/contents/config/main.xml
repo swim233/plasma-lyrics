@@ -19,6 +19,15 @@
     <entry name="desktopAnimation" type="String"><default>slide</default></entry>
     <entry name="desktopShowTranslation" type="Bool"><default>true</default></entry>
 
+    <entry name="desktopShowTrackInfo" type="Bool"><default>true</default></entry>
+    <entry name="desktopTrackInfoLayout" type="String"><default>single</default></entry>
+    <entry name="desktopTrackInfoFontSize" type="Int"><default>19</default></entry>
+    <entry name="desktopTrackInfoFontWeight" type="Int"><default>400</default></entry>
+    <entry name="desktopTrackInfoColor" type="String"><default>#b3fffaf5</default></entry>
+    <entry name="desktopTrackInfoStroke" type="Bool"><default>false</default></entry>
+    <entry name="desktopTrackInfoStrokeColor" type="String"><default>#cc000000</default></entry>
+    <entry name="desktopTrackInfoOverflow" type="String"><default>fit</default></entry>
+
     <entry name="panelPlateMode" type="String"><default>ksvg</default></entry>
     <entry name="panelSolidColor" type="String"><default>#99000000</default></entry>
     <entry name="panelTextColor" type="String"><default>#fffaf5</default></entry>
@@ -29,5 +38,14 @@
     <entry name="panelOverflow" type="String"><default>fit</default></entry>
     <entry name="panelAnimation" type="String"><default>slide</default></entry>
     <entry name="panelShowTranslation" type="Bool"><default>true</default></entry>
+
+    <entry name="panelShowTrackInfo" type="Bool"><default>false</default></entry>
+    <entry name="panelTrackInfoLayout" type="String"><default>single</default></entry>
+    <entry name="panelTrackInfoFontSize" type="Int"><default>12</default></entry>
+    <entry name="panelTrackInfoFontWeight" type="Int"><default>400</default></entry>
+    <entry name="panelTrackInfoColor" type="String"><default>#b3fffaf5</default></entry>
+    <entry name="panelTrackInfoStroke" type="Bool"><default>false</default></entry>
+    <entry name="panelTrackInfoStrokeColor" type="String"><default>#cc000000</default></entry>
+    <entry name="panelTrackInfoOverflow" type="String"><default>fit</default></entry>
   </group>
 </kcfg>

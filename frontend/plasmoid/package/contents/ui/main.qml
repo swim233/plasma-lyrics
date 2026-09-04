@@ -48,6 +48,14 @@ PlasmoidItem {
             ? i18n("No media is playing") : Plasmoid.configuration.idleText
         notFoundText: Plasmoid.configuration.notFoundText
         panelMode: true
+        showTrackInfo: Plasmoid.configuration.panelShowTrackInfo
+        trackInfoLayout: Plasmoid.configuration.panelTrackInfoLayout
+        trackInfoFontSize: Plasmoid.configuration.panelTrackInfoFontSize
+        trackInfoFontWeight: Plasmoid.configuration.panelTrackInfoFontWeight
+        trackInfoColor: Plasmoid.configuration.panelTrackInfoColor
+        trackInfoStrokeEnabled: Plasmoid.configuration.panelTrackInfoStroke
+        trackInfoStrokeColor: Plasmoid.configuration.panelTrackInfoStrokeColor
+        trackInfoOverflow: Plasmoid.configuration.panelTrackInfoOverflow
     }
 
     fullRepresentation: LyricsView {
@@ -66,6 +74,14 @@ PlasmoidItem {
             ? i18n("No media is playing") : Plasmoid.configuration.idleText
         notFoundText: Plasmoid.configuration.notFoundText
         panelMode: false
+        showTrackInfo: Plasmoid.configuration.desktopShowTrackInfo
+        trackInfoLayout: Plasmoid.configuration.desktopTrackInfoLayout
+        trackInfoFontSize: Plasmoid.configuration.desktopTrackInfoFontSize
+        trackInfoFontWeight: Plasmoid.configuration.desktopTrackInfoFontWeight
+        trackInfoColor: Plasmoid.configuration.desktopTrackInfoColor
+        trackInfoStrokeEnabled: Plasmoid.configuration.desktopTrackInfoStroke
+        trackInfoStrokeColor: Plasmoid.configuration.desktopTrackInfoStrokeColor
+        trackInfoOverflow: Plasmoid.configuration.desktopTrackInfoOverflow
     }
 
     toolTipMainText: lyricSource.trackTitle.length > 0 ? lyricSource.trackTitle : i18n("Desktop Lyrics")
