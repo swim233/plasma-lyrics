@@ -4,7 +4,7 @@ pkgver=0.1.0.r0.g0000000
 pkgrel=1
 pkgdesc='Native synchronized desktop lyrics widget for Plasma 6'
 arch=('x86_64')
-url='https://github.com/swim233/desktop_lyrics'
+url='https://github.com/swim233/plasma-lyrics'
 license=('GPL-2.0-or-later')
 # Arch ships the KF6 libraries without a kf6- prefix. libplasma and ksvg are
 # named explicitly rather than leaned on through plasma-workspace, because the
