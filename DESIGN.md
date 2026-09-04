@@ -257,6 +257,7 @@ desktop_lyrics/
 | # | 决策 |
 |---|---|
 | 9 | 不复用 waylyrics 缓存文件；用 `tools/import-waylyrics/` 一次性导入那 3123 首（格式已知 `{olyric, tlyric, offset}`） |
+| 37 | **播放器发现只能直接匹配 `NameOwnerChanged`，不能用 `QDBusServiceWatcher`**（实测 Qt 6.11.2）：该类只对 `addWatchedService()` 登记过的名字发信号，**且不接受通配符**——`org.mpris.MediaPlayer2.*` 一样收不到。而能登记的名字只有构造时已在总线上的那些，于是形成闭环：新播放器不在监听表里 → 不发 `serviceRegistered` → 永远进不了监听表。daemon 随会话启动、那时一个播放器都还没开，所以这个洞覆盖的是**全部**播放器，表现为"放着歌，部件却一直显示未在播放"，重启 daemon 才好。改为连 `org.freedesktop.DBus` 的 `NameOwnerChanged` 并在槽里按前缀过滤；名字易主时（新旧 owner 都非空）必须先 remove 再 add |
 | 10 | 播放器选择：自动跟随"最近变为 Playing 的"，外加可编辑黑名单（默认含 `org.mpris.MediaPlayer2.kdeconnect.*`）。去重用 `kde:pid` **定向**压制：只删掉服务名后缀为 `.instance<该 pid>` 的那一个，因此"集成代理着另一个浏览器、同时本机浏览器在原生播放"时后者仍然可选；集成未上报可用 pid 时才降级为"只信 pbi" |
 | 11 | 换歌指纹：有 `kde:mediaSrc` 用其路径段，否则用 `(title, artist, album, length)` 四元组；**另加"Position 倒退 > 3s 视为重新对轴"**（覆盖单曲循环与拖动） |
 | 12 | 匹配照 waylyrics 的思路：标题+歌手+专辑搜索 → 时长容差打分（2s 内判为最佳）→ 记录清洗前后关键词与候选打分 |
@@ -384,6 +385,9 @@ public:
    B站/网易云在同一服务内互切、Position 跳变。**这是本项目最独特的测试资产**：
    第 1.1 节那些行为三个月后不会记得，只有写进测试才不会在某次重构里悄悄回归
 7. **快照契约** — `seq` 单调、rename 后监听不丢、stale 判定
+9. **播放器发现**（`tst_mprisdiscovery`）— 在 `dbus-run-session` 起的私有总线上，先建 `MprisManager`、
+   **后**注册假播放器，断言它被发现；再断言它离开总线后不会把最后一句歌词留在屏幕上。
+   必须是真总线上的集成测试：决策 37 那个洞就长在 D-Bus 接线里，纯函数测试看不见它
 
 **其他：** 第 6 项"时间锚点推进（含休眠唤醒后 monotonic 的行为）"通过**可注入时钟**的接口来测
 （否则要真的休眠一次）；第 8 项构建期检查沿用 nethogs 的四道命令。

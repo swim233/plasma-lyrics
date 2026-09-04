@@ -37,6 +37,25 @@ if(BUILD_TESTING)
     target_link_libraries(tst_mprispolicy PRIVATE plasma_lyrics_core Qt6::Test)
     add_test(NAME tst_mprispolicy COMMAND tst_mprispolicy)
 
+    # The bug this covers lives in the D-Bus wiring itself, so the test needs a
+    # real bus. dbus-run-session gives it a private one, which also keeps the
+    # developer's own running players out of the assertions.
+    find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session)
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_executable(tst_mprisdiscovery
+            tests/tst_mprisdiscovery.cpp
+            src/mpris/mprismanager.cpp
+            src/mpris/mprisplayer.cpp
+            src/mpris/mprispolicy.cpp
+        )
+        target_include_directories(tst_mprisdiscovery PRIVATE ${CMAKE_SOURCE_DIR})
+        target_link_libraries(tst_mprisdiscovery PRIVATE plasma_lyrics_core Qt6::DBus Qt6::Test)
+        add_test(NAME tst_mprisdiscovery
+                 COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_mprisdiscovery>)
+    else()
+        message(STATUS "dbus-run-session not found -- skipping tst_mprisdiscovery")
+    endif()
+
     add_executable(tst_snapshot
         tests/tst_snapshot.cpp
         src/snapshot.cpp
