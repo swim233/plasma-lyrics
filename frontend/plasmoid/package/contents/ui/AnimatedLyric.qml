@@ -21,6 +21,16 @@ Item {
     property string previousText: ""
     property string previousTranslation: ""
 
+    // Both halves, not just the lyric. The previous block stays alive at
+    // opacity 0 and, crucially, still `visible`, so whatever text it holds
+    // keeps satisfying LyricLine's marquee arm condition -- leaving the
+    // translation behind left an infinite animation scrolling a line nobody
+    // can see, for as long as the widget was up.
+    function releasePrevious() {
+        previousText = "";
+        previousTranslation = "";
+    }
+
     function switchLine() {
         if (shownText === lyricText && shownTranslation === translationText) return;
         previousText = shownText;
@@ -33,7 +43,7 @@ Item {
         current.opacity = effectiveAnimationMode === "none" ? 1 : 0;
         current.slideOffset = effectiveAnimationMode === "slide" ? height * 0.28 : 0;
         if (effectiveAnimationMode === "none") {
-            previousText = "";
+            releasePrevious();
         } else {
             transition.start();
         }
@@ -114,6 +124,6 @@ Item {
             duration: root.effectiveAnimationMode === "fade" ? 180 : 260
             easing.type: Easing.OutCubic
         }
-        onFinished: root.previousText = ""
+        onFinished: root.releasePrevious()
     }
 }
