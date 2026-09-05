@@ -30,6 +30,10 @@ Item {
     // instantiates LyricsView directly without a VisibilityPolicy at all.
     property bool shouldBeVisible: true
     property bool animationsArmed: false
+    // Whether this widget currently owns the ksvg plate rather than the shell.
+    // Driven by main.qml, which hands it back and forth around the fade -- see
+    // selfDrawnPlate below and main.qml's plateSelfDrawn.
+    property bool ownsPlate: false
     property int hideAnimationMs: 1000
 
     property bool showTrackInfo: true
@@ -73,7 +77,14 @@ Item {
     // (if slightly misleading -- see the "顺带发现" note in decision 40)
     // behaviour: the panel's own container never painted a per-applet plate
     // to begin with, so there is nothing to take over.
-    readonly property bool selfDrawnPlate: root.plateMode === "ksvg" && !root.panelMode
+    // Only while this widget holds the plate. The shell draws a strictly
+    // better ksvg one -- on a theme with blurred-* elements it blurs the
+    // wallpaper behind the frame, which an applet cannot reproduce -- so the
+    // plate comes over only for the fade that needs it and goes straight back
+    // afterwards. Panels never self-draw: their containment paints no
+    // per-applet frame at all, so "ksvg" has always rendered nothing there.
+    readonly property bool selfDrawnPlate: root.plateMode === "ksvg"
+        && !root.panelMode && root.ownsPlate
     readonly property real baseMargin: Math.max(Kirigami.Units.smallSpacing, root.fontSize * 0.35)
     readonly property real plateMarginLeft: root.selfDrawnPlate ? plate.margins.left : 0
     readonly property real plateMarginTop: root.selfDrawnPlate ? plate.margins.top : 0
@@ -194,5 +205,25 @@ Item {
         anchors.fill: parent
         visible: root.selfDrawnPlate
         imagePath: "widgets/background"
+
+        // The same frame graphics the shell picks, so the plate is as
+        // translucent here as it is under a shell-drawn widget: on ChromeOS
+        // the plain frame is 96% opaque and the "blurred" one 60%, over
+        // identical margins. What we cannot bring across is the MultiEffect
+        // the shell stacks behind that frame to blur the wallpaper -- it
+        // reaches into the containment's own window -- so the wallpaper shows
+        // through sharp rather than blurred. Themes without the prefix (Breeze
+        // ships none) fall back to the plain frame, which is what they always
+        // drew anyway.
+        //
+        // hasElementPrefix() is a plain function, not a bindable property, so
+        // the binding is re-established whenever the frame reloads. The shell
+        // does the same thing for the same reason (BasicAppletContainer.qml's
+        // bindBlurEnabled).
+        function bindPrefix() {
+            prefix = Qt.binding(() => hasElementPrefix("blurred") ? "blurred" : "");
+        }
+        Component.onCompleted: bindPrefix()
+        onRepaintNeeded: bindPrefix()
     }
 }

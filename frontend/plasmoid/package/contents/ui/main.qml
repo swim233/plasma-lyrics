@@ -1,5 +1,6 @@
 import QtQuick
 
+import org.kde.kirigami as Kirigami
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
 
@@ -9,22 +10,103 @@ PlasmoidItem {
     id: root
 
     readonly property bool onDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
+    readonly property string activePlateMode: root.onDesktop
+        ? Plasmoid.configuration.desktopPlateMode
+        : Plasmoid.configuration.panelPlateMode
 
-    // The themed "ksvg" plate used to be the shell's to draw (backgroundHints:
-    // DefaultBackground), on the theory that a hand-drawn FrameSvgItem would
-    // be a one-shot snapshot that would not track a later theme or colour
-    // scheme change. DESIGN.md decision 40 disproves that theory outright --
-    // the shell's own plate is nothing but a KSvg.FrameSvgItem on
-    // "widgets/background", the same one LyricsView now draws for itself --
-    // but keeps the shell out of it unconditionally anyway, for a structural
-    // reason rather than a cosmetic one: the shell's plate is a *sibling* of
-    // this applet's content item, so no opacity we set on our side can ever
-    // fade it, which auto-hide needs to do on the desktop.
+    readonly property bool activeAutoHide: root.onDesktop
+        ? Plasmoid.configuration.desktopAutoHide
+        : Plasmoid.configuration.panelAutoHide
+
+    // Who draws the "ksvg" plate depends on whether auto-hide is on, because
+    // the two things the plate has to do are mutually exclusive from inside an
+    // applet.
+    //
+    // The shell's plate is a *sibling* of this applet's content item, so no
+    // opacity we set can fade it -- which is what auto-hide needs on the
+    // desktop. Drawing it ourselves fixes that. But the shell does more than
+    // put a KSvg.FrameSvgItem on "widgets/background": when the theme ships
+    // blurred-* elements (ChromeOS does; Breeze does not), it switches the
+    // frame to prefix "blurred" and stacks a MultiEffect that samples the
+    // wallpaper and blurs it behind the frame, masked by blurred-mask. That
+    // effect reaches into the containment's own window and wallpaper, so an
+    // applet cannot reproduce it -- self-drawing unconditionally turns a
+    // blurred plate into a flat opaque slab on any theme that has one.
+    //
+    // So the shell keeps the plate whenever auto-hide is off, which is the
+    // default and the only state where the plate never has to fade. Turning
+    // auto-hide on trades the blur for a plate that can fade with the rest of
+    // the widget. See DESIGN.md decision 40.
     //
     // ConfigurableBackground is left out on purpose: it adds the shell's own
     // show-background checkbox beside our three-way plate setting, and the two
     // would then disagree about the same thing.
-    Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
+    Plasmoid.backgroundHints: root.activePlateMode === "ksvg" && !root.plateSelfDrawn
+        ? PlasmaCore.Types.DefaultBackground
+        : PlasmaCore.Types.NoBackground
+    // How long the desktop fade actually lasts, or 0 when there will be no
+    // fade at all. Computed here rather than only inside LyricsView because
+    // the plate handover below has to wait exactly as long as the fade does,
+    // and two places disagreeing about whether an animation is running is
+    // precisely what would leave the plate stranded in the wrong hands.
+    readonly property int effectiveFadeMs:
+        Plasmoid.configuration.desktopHideAnimationMs > 0 && Kirigami.Units.longDuration > 1
+            ? Plasmoid.configuration.desktopHideAnimationMs
+            : 0
+
+    // The plate changes hands while auto-hide is on, because the shell draws a
+    // strictly better one but ours is the only one that can fade. The shell
+    // holds it whenever the widget is sitting fully visible; the applet takes
+    // it for the duration of a fade and for as long as the widget is hidden.
+    //
+    // Both consumers -- Plasmoid.backgroundHints above and LyricsView's
+    // `ownsPlate` below -- read this one property, so the handover is a single
+    // binding pass rather than two that could disagree for a frame.
+    property bool platePassedToShell: true
+    readonly property bool plateSelfDrawn: root.activeAutoHide && !root.platePassedToShell
+
+    Timer {
+        id: plateHandbackTimer
+        interval: root.effectiveFadeMs
+        onTriggered: root.platePassedToShell = true
+    }
+
+    // Imperative rather than a binding: "hand back once the fade that just
+    // started has finished" is a sequence, not a function of the current
+    // state, and a binding cannot express the wait.
+    function updatePlateOwner() {
+        if (!root.activeAutoHide) {
+            plateHandbackTimer.stop();
+            root.platePassedToShell = true;
+            return;
+        }
+        if (!visibilityPolicy.shouldBeVisible) {
+            // Take the plate before the fade-out starts: the shell's does not
+            // fade, so leaving it in place would fade the text out inside a
+            // plate that stays put.
+            plateHandbackTimer.stop();
+            root.platePassedToShell = false;
+            return;
+        }
+        if (!root.desktopAnimationsArmed || root.effectiveFadeMs <= 0) {
+            // Nothing to wait for -- the landing transition out of
+            // "undetermined" never animates, and a zero duration means the
+            // widget simply appears.
+            plateHandbackTimer.stop();
+            root.platePassedToShell = true;
+            return;
+        }
+        root.platePassedToShell = false;
+        plateHandbackTimer.restart();
+    }
+
+    onActiveAutoHideChanged: root.updatePlateOwner()
+
+    Connections {
+        target: visibilityPolicy
+        function onShouldBeVisibleChanged() { root.updatePlateOwner(); }
+    }
+
     Plasmoid.title: i18n("Desktop Lyrics")
     preferredRepresentation: root.onDesktop ? fullRepresentation : compactRepresentation
 
@@ -100,6 +182,7 @@ PlasmoidItem {
     }
 
     Component.onCompleted: {
+        root.updatePlateOwner();
         if (!root.onDesktop) {
             root.updateStatus();
         }
@@ -145,6 +228,7 @@ PlasmoidItem {
     compactRepresentation: LyricsView {
         source: lyricSource
         plateMode: Plasmoid.configuration.panelPlateMode
+        ownsPlate: root.plateSelfDrawn
         solidColor: Plasmoid.configuration.panelSolidColor
         textColor: Plasmoid.configuration.panelTextColor
         strokeEnabled: Plasmoid.configuration.panelStroke
@@ -171,6 +255,7 @@ PlasmoidItem {
     fullRepresentation: LyricsView {
         source: lyricSource
         plateMode: Plasmoid.configuration.desktopPlateMode
+        ownsPlate: root.plateSelfDrawn
         solidColor: Plasmoid.configuration.desktopSolidColor
         textColor: Plasmoid.configuration.desktopTextColor
         strokeEnabled: Plasmoid.configuration.desktopStroke
@@ -194,7 +279,7 @@ PlasmoidItem {
         trackInfoOverflow: Plasmoid.configuration.desktopTrackInfoOverflow
         shouldBeVisible: visibilityPolicy.shouldBeVisible
         animationsArmed: root.desktopAnimationsArmed
-        hideAnimationMs: Plasmoid.configuration.desktopHideAnimationMs
+        hideAnimationMs: root.effectiveFadeMs
     }
 
     toolTipMainText: lyricSource.trackTitle.length > 0 ? lyricSource.trackTitle : i18n("Desktop Lyrics")
