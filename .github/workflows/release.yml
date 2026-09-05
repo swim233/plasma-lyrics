@@ -249,10 +249,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG='${{ needs.prepare.outputs.tag }}'
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" out/* --clobber
+          # This job deliberately has no checkout, so gh has no repository to
+          # infer from and every call has to name one.
+          R="$GITHUB_REPOSITORY"
+          if gh release view "$TAG" --repo "$R" >/dev/null 2>&1; then
+            gh release upload "$TAG" out/* --clobber --repo "$R"
           else
             gh release create "$TAG" out/* \
+              --repo "$R" \
               --draft \
               --title "plasma-lyrics $TAG" \
               --notes-file dist/source/notes.md
