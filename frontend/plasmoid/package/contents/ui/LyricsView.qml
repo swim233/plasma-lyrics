@@ -205,5 +205,25 @@ Item {
         anchors.fill: parent
         visible: root.selfDrawnPlate
         imagePath: "widgets/background"
+
+        // The same frame graphics the shell picks, so the plate is as
+        // translucent here as it is under a shell-drawn widget: on ChromeOS
+        // the plain frame is 96% opaque and the "blurred" one 60%, over
+        // identical margins. What we cannot bring across is the MultiEffect
+        // the shell stacks behind that frame to blur the wallpaper -- it
+        // reaches into the containment's own window -- so the wallpaper shows
+        // through sharp rather than blurred. Themes without the prefix (Breeze
+        // ships none) fall back to the plain frame, which is what they always
+        // drew anyway.
+        //
+        // hasElementPrefix() is a plain function, not a bindable property, so
+        // the binding is re-established whenever the frame reloads. The shell
+        // does the same thing for the same reason (BasicAppletContainer.qml's
+        // bindBlurEnabled).
+        function bindPrefix() {
+            prefix = Qt.binding(() => hasElementPrefix("blurred") ? "blurred" : "");
+        }
+        Component.onCompleted: bindPrefix()
+        onRepaintNeeded: bindPrefix()
     }
 }
