@@ -9,6 +9,9 @@ PlasmoidItem {
     id: root
 
     readonly property bool onDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
+    readonly property string activePlateMode: root.onDesktop
+        ? Plasmoid.configuration.desktopPlateMode
+        : Plasmoid.configuration.panelPlateMode
 
     readonly property bool activeAutoHide: root.onDesktop
         ? Plasmoid.configuration.desktopAutoHide
