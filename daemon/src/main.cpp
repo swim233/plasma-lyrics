@@ -41,7 +41,7 @@ int main(int argc, char **argv)
 {
     QCoreApplication application(argc, argv);
     QCoreApplication::setApplicationName(QStringLiteral("plasma-lyricsd"));
-    QCoreApplication::setApplicationVersion(QStringLiteral("0.1.0"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(PLASMA_LYRICS_VERSION));
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("Plasma desktop lyrics service"));
     parser.addHelpOption();
