@@ -1,5 +1,6 @@
 import QtQuick
 
+import org.kde.kirigami as Kirigami
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.plasmoid
 
@@ -40,9 +41,72 @@ PlasmoidItem {
     // ConfigurableBackground is left out on purpose: it adds the shell's own
     // show-background checkbox beside our three-way plate setting, and the two
     // would then disagree about the same thing.
-    Plasmoid.backgroundHints: root.activePlateMode === "ksvg" && !root.activeAutoHide
+    Plasmoid.backgroundHints: root.activePlateMode === "ksvg" && !root.plateSelfDrawn
         ? PlasmaCore.Types.DefaultBackground
         : PlasmaCore.Types.NoBackground
+    // How long the desktop fade actually lasts, or 0 when there will be no
+    // fade at all. Computed here rather than only inside LyricsView because
+    // the plate handover below has to wait exactly as long as the fade does,
+    // and two places disagreeing about whether an animation is running is
+    // precisely what would leave the plate stranded in the wrong hands.
+    readonly property int effectiveFadeMs:
+        Plasmoid.configuration.desktopHideAnimationMs > 0 && Kirigami.Units.longDuration > 1
+            ? Plasmoid.configuration.desktopHideAnimationMs
+            : 0
+
+    // The plate changes hands while auto-hide is on, because the shell draws a
+    // strictly better one but ours is the only one that can fade. The shell
+    // holds it whenever the widget is sitting fully visible; the applet takes
+    // it for the duration of a fade and for as long as the widget is hidden.
+    //
+    // Both consumers -- Plasmoid.backgroundHints above and LyricsView's
+    // `ownsPlate` below -- read this one property, so the handover is a single
+    // binding pass rather than two that could disagree for a frame.
+    property bool platePassedToShell: true
+    readonly property bool plateSelfDrawn: root.activeAutoHide && !root.platePassedToShell
+
+    Timer {
+        id: plateHandbackTimer
+        interval: root.effectiveFadeMs
+        onTriggered: root.platePassedToShell = true
+    }
+
+    // Imperative rather than a binding: "hand back once the fade that just
+    // started has finished" is a sequence, not a function of the current
+    // state, and a binding cannot express the wait.
+    function updatePlateOwner() {
+        if (!root.activeAutoHide) {
+            plateHandbackTimer.stop();
+            root.platePassedToShell = true;
+            return;
+        }
+        if (!visibilityPolicy.shouldBeVisible) {
+            // Take the plate before the fade-out starts: the shell's does not
+            // fade, so leaving it in place would fade the text out inside a
+            // plate that stays put.
+            plateHandbackTimer.stop();
+            root.platePassedToShell = false;
+            return;
+        }
+        if (!root.desktopAnimationsArmed || root.effectiveFadeMs <= 0) {
+            // Nothing to wait for -- the landing transition out of
+            // "undetermined" never animates, and a zero duration means the
+            // widget simply appears.
+            plateHandbackTimer.stop();
+            root.platePassedToShell = true;
+            return;
+        }
+        root.platePassedToShell = false;
+        plateHandbackTimer.restart();
+    }
+
+    onActiveAutoHideChanged: root.updatePlateOwner()
+
+    Connections {
+        target: visibilityPolicy
+        function onShouldBeVisibleChanged() { root.updatePlateOwner(); }
+    }
+
     Plasmoid.title: i18n("Desktop Lyrics")
     preferredRepresentation: root.onDesktop ? fullRepresentation : compactRepresentation
 
@@ -118,6 +182,7 @@ PlasmoidItem {
     }
 
     Component.onCompleted: {
+        root.updatePlateOwner();
         if (!root.onDesktop) {
             root.updateStatus();
         }
@@ -163,7 +228,7 @@ PlasmoidItem {
     compactRepresentation: LyricsView {
         source: lyricSource
         plateMode: Plasmoid.configuration.panelPlateMode
-        autoHideEnabled: root.activeAutoHide
+        ownsPlate: root.plateSelfDrawn
         solidColor: Plasmoid.configuration.panelSolidColor
         textColor: Plasmoid.configuration.panelTextColor
         strokeEnabled: Plasmoid.configuration.panelStroke
@@ -190,7 +255,7 @@ PlasmoidItem {
     fullRepresentation: LyricsView {
         source: lyricSource
         plateMode: Plasmoid.configuration.desktopPlateMode
-        autoHideEnabled: root.activeAutoHide
+        ownsPlate: root.plateSelfDrawn
         solidColor: Plasmoid.configuration.desktopSolidColor
         textColor: Plasmoid.configuration.desktopTextColor
         strokeEnabled: Plasmoid.configuration.desktopStroke
@@ -214,7 +279,7 @@ PlasmoidItem {
         trackInfoOverflow: Plasmoid.configuration.desktopTrackInfoOverflow
         shouldBeVisible: visibilityPolicy.shouldBeVisible
         animationsArmed: root.desktopAnimationsArmed
-        hideAnimationMs: Plasmoid.configuration.desktopHideAnimationMs
+        hideAnimationMs: root.effectiveFadeMs
     }
 
     toolTipMainText: lyricSource.trackTitle.length > 0 ? lyricSource.trackTitle : i18n("Desktop Lyrics")
