@@ -77,6 +77,7 @@ qint64 LyricSource::monotonicNowNs()
 QString LyricSource::snapshotPath() const { return m_snapshotPath; }
 bool LyricSource::serviceAvailable() const { return m_serviceAvailable; }
 bool LyricSource::stale() const { return m_stale; }
+bool LyricSource::determined() const { return m_determined; }
 QString LyricSource::lyricState() const { return m_lyricState; }
 QString LyricSource::playbackStatus() const { return m_playbackStatus; }
 QString LyricSource::trackTitle() const { return m_trackTitle; }
@@ -158,6 +159,37 @@ void LyricSource::updateServiceHealth()
 }
 
 void LyricSource::reload()
+{
+    reloadImpl();
+    // "Determined" means "at least one reload has run to completion",
+    // success or failure alike. Wrapping reloadImpl() rather than sprinkling
+    // a call at each of its several return points keeps that guarantee
+    // structural -- a future new early return in reloadImpl() cannot
+    // silently forget it, the way it would if this lived inline.
+    setDetermined(true);
+}
+
+void LyricSource::setDetermined(bool value)
+{
+    // Deliberately its own signal rather than folding into statusChanged():
+    // on the cold-start-with-a-dead-daemon path, setUnavailable(false) runs
+    // with m_serviceAvailable and m_stale already sitting at their false
+    // initial values, so its own `changed` check comes out false and it
+    // never emits statusChanged() at all (see setUnavailable() below).
+    // determined has to fire regardless of that -- it is the only signal
+    // telling VisibilityPolicy (DESIGN.md decision 40) that the "maybe still
+    // loading" undetermined state is over, one way or the other. Reusing
+    // statusChanged would leave a bound VisibilityPolicy hidden forever, with
+    // no diagnostic text either, on exactly the daemon-down path that
+    // decision 40's "!serviceAvailable 时绝不隐藏" rule exists to protect.
+    if (m_determined == value) {
+        return;
+    }
+    m_determined = value;
+    Q_EMIT determinedChanged();
+}
+
+void LyricSource::reloadImpl()
 {
     rearm();
     QFile file(m_snapshotPath);

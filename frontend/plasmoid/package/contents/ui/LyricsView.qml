@@ -23,6 +23,15 @@ Item {
     property string notFoundText: ""
     property bool panelMode: false
 
+    // Auto-hide (DESIGN.md decision 40) is desktop-only: the panel hides via
+    // Plasmoid.status instead (see main.qml), so panelMode short-circuits
+    // all three of these below. Defaults keep the view fully, statically
+    // visible when nothing wires them up -- autotests/tst_appearance.qml
+    // instantiates LyricsView directly without a VisibilityPolicy at all.
+    property bool shouldBeVisible: true
+    property bool animationsArmed: false
+    property int hideAnimationMs: 1000
+
     property bool showTrackInfo: true
     property string trackInfoLayout: "single"
     property int trackInfoFontSize: 19
@@ -87,6 +96,26 @@ Item {
         + (root.selfDrawnPlate ? plate.margins.horizontal : 0)
     Layout.minimumHeight: trackInfo.implicitHeight + Kirigami.Units.gridUnit * 2
         + (root.selfDrawnPlate ? plate.margins.vertical : 0)
+
+    // Panel is exempt on purpose (decision 40: "面板无动画") -- it hides via
+    // Plasmoid.status/HiddenStatus instead, which pulls the container out of
+    // the layout entirely rather than fading a hole into the panel.
+    opacity: root.panelMode || root.shouldBeVisible ? 1 : 0
+    Behavior on opacity {
+        // hideAnimationMs === 0 means "no animation" (decision 40), and
+        // Kirigami.Units.longDuration <= 1 means the user turned off
+        // animations globally in System Settings -- both skip the Behavior
+        // entirely rather than run a NumberAnimation with duration 0, which
+        // would still take a frame. animationsArmed guards the one landing
+        // transition out of "undetermined": that has to be an instant jump,
+        // never a fade, or the widget visibly fades in on every login.
+        enabled: !root.panelMode && root.animationsArmed
+            && root.hideAnimationMs > 0 && Kirigami.Units.longDuration > 1
+        NumberAnimation {
+            duration: root.hideAnimationMs
+            easing.type: Easing.OutCubic
+        }
+    }
 
     Rectangle {
         anchors.fill: parent
