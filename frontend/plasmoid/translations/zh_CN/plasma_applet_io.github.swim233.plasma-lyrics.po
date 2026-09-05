@@ -342,6 +342,11 @@ msgstr "非音乐媒体："
 msgid "Also hide while playing non-music media"
 msgstr "播放非音乐媒体时也隐藏"
 
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:115
+msgctxt "@label:spinbox"
+msgid "Width:"
+msgstr "宽度："
+
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:40
 msgid "Not playing text:"
 msgstr "未播放时文案："

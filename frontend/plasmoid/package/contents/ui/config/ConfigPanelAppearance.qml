@@ -26,6 +26,12 @@ Kirigami.ScrollablePage {
     property string cfg_panelTrackInfoStrokeColor
     property string cfg_panelTrackInfoOverflow
 
+    // Plain top-level property, same "Pattern 2" as the auto-hide block
+    // below: this SpinBox is declared directly in this file rather than
+    // inside AppearanceSection, so there is no child control for a "cfg_"
+    // property to alias into.
+    property int cfg_panelWidth
+
     // DESIGN.md decision 40: three controls here against the desktop tab's
     // four -- no fade-duration SpinBox, because the panel never animates
     // (it hides via Plasmoid.status, pulling the container out of the
@@ -93,6 +99,27 @@ Kirigami.ScrollablePage {
         QQC2.SpinBox { id: panelFontSize; visible: false }
         QQC2.CheckBox { id: panelTranslation; visible: false }
         QQC2.SpinBox { id: panelTrackInfoFontSize; visible: false }
+
+        // Plasma 6.7 gives panel applets no drag-resize at all, so this is
+        // the only way to size the widget in a panel. A separate FormLayout
+        // rather than a fourth control folded into AppearanceSection: width
+        // is panel-only (the desktop tab sizes itself by dragging its own
+        // widget, see ConfigDesktopAppearance.qml), so there is no shared
+        // control for it to become. twinFormLayouts keeps its label column
+        // aligned with AppearanceSection's above despite being separate.
+        Kirigami.FormLayout {
+            Layout.fillWidth: true
+            twinFormLayouts: [appearanceSection]
+
+            QQC2.SpinBox {
+                Kirigami.FormData.label: i18nc("@label:spinbox", "Width:")
+                from: 80
+                to: 2000
+                stepSize: 10
+                value: page.cfg_panelWidth
+                onValueModified: page.cfg_panelWidth = value
+            }
+        }
 
         Kirigami.FormLayout {
             Layout.fillWidth: true

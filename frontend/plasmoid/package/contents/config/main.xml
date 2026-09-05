@@ -38,6 +38,7 @@
     <entry name="desktopHideNonMusic" type="Bool"><default>true</default></entry>
 
     <entry name="panelPlateMode" type="String"><default>ksvg</default></entry>
+    <entry name="panelWidth" type="Int"><default>280</default></entry>
     <entry name="panelSolidColor" type="String"><default>#99000000</default></entry>
     <entry name="panelTextColor" type="String"><default>#fffaf5</default></entry>
     <entry name="panelStroke" type="Bool"><default>false</default></entry>
