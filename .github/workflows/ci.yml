@@ -28,7 +28,7 @@ jobs:
             plasma-workspace libplasma kirigami ksvg ki18n kdeclarative \
             dbus namcap
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -80,7 +80,7 @@ jobs:
           su builder -c 'cd /work && makepkg -f --noconfirm --nodeps'
           namcap /work/*.pkg.tar.zst || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: plasma-lyrics-${{ github.sha }}-archlinux
           path: /work/*.pkg.tar.zst
@@ -107,7 +107,7 @@ jobs:
             qml6-module-org-kde-kquickcontrols plasma-desktoptheme \
             lintian
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Build
         run: |
@@ -126,7 +126,7 @@ jobs:
           dpkg -I plasma-lyrics_*.deb
           lintian plasma-lyrics_*.deb || true
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: plasma-lyrics-${{ github.sha }}-debian13
           path: build/plasma-lyrics_*.deb
