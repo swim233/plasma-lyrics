@@ -395,25 +395,26 @@ TestCase {
         // created item's `.visible` reads false here regardless of its own
         // binding, so it cannot distinguish correct from broken.
         //
-        // autoHideEnabled is the third dimension and the only one that says
-        // "true" together with ksvg+desktop: with auto-hide off the shell
-        // keeps the plate, because on a theme that ships blurred-* elements
-        // its version blurs the wallpaper behind the frame and ours cannot.
+        // ownsPlate is the third dimension and the only one that says
+        // "true" together with ksvg+desktop. main.qml hands the plate over
+        // only for the duration of a fade: on a theme that ships blurred-*
+        // elements the shell's version blurs the wallpaper behind the frame
+        // and ours cannot, so it goes straight back once the fade is done.
         const modes = ["none", "ksvg", "solid"];
         for (let m = 0; m < modes.length; ++m) {
             for (let p = 0; p < 2; ++p) {
                 for (let a = 0; a < 2; ++a) {
                     const plateMode = modes[m];
                     const panelMode = p === 1;
-                    const autoHideEnabled = a === 1;
-                    const expected = plateMode === "ksvg" && !panelMode && autoHideEnabled;
+                    const ownsPlate = a === 1;
+                    const expected = plateMode === "ksvg" && !panelMode && ownsPlate;
                     const source = createTemporaryObject(fakeSourceComponent, this);
                     const view = createTemporaryObject(lyricsViewComponent, this, {
                         source: source, plateMode: plateMode, panelMode: panelMode,
-                        autoHideEnabled: autoHideEnabled });
+                        ownsPlate: ownsPlate });
                     verify(view !== null);
                     const label = `plateMode=${plateMode} panelMode=${panelMode}`
-                        + ` autoHideEnabled=${autoHideEnabled}`;
+                        + ` ownsPlate=${ownsPlate}`;
                     compare(view.selfDrawnPlate, expected, label);
                 }
             }
@@ -428,14 +429,14 @@ TestCase {
               for (let a = 0; a < 2; ++a) {
                 const panelMode = panelModes[p];
                 const plateMode = modes[m];
-                const autoHideEnabled = a === 1;
+                const ownsPlate = a === 1;
                 const source = createTemporaryObject(fakeSourceComponent, this);
                 const view = createTemporaryObject(lyricsViewComponent, this, {
                     source: source, plateMode: plateMode, panelMode: panelMode,
-                    autoHideEnabled: autoHideEnabled });
+                    ownsPlate: ownsPlate });
                 verify(view !== null);
                 const label = `plateMode=${plateMode} panelMode=${panelMode}`
-                    + ` autoHideEnabled=${autoHideEnabled}`;
+                    + ` ownsPlate=${ownsPlate}`;
                 const plate = view.children[view.children.length - 1];
                 const trackInfo = view.children[2].children[0];
 
@@ -461,7 +462,7 @@ TestCase {
                 // On desktop with "ksvg", the plate must actually contribute
                 // something real -- otherwise this test would pass equally
                 // well against a version that always adds zero.
-                if (plateMode === "ksvg" && !panelMode && autoHideEnabled) {
+                if (plateMode === "ksvg" && !panelMode && ownsPlate) {
                     verify(marginW > 0, label);
                     verify(marginH > 0, label);
                 }

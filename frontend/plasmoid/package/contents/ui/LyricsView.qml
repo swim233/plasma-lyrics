@@ -30,10 +30,10 @@ Item {
     // instantiates LyricsView directly without a VisibilityPolicy at all.
     property bool shouldBeVisible: true
     property bool animationsArmed: false
-    // Whether auto-hide is switched on for this form factor. It decides who
-    // draws the ksvg plate, not just whether the widget can hide: see
-    // selfDrawnPlate below and main.qml's backgroundHints.
-    property bool autoHideEnabled: false
+    // Whether this widget currently owns the ksvg plate rather than the shell.
+    // Driven by main.qml, which hands it back and forth around the fade -- see
+    // selfDrawnPlate below and main.qml's plateSelfDrawn.
+    property bool ownsPlate: false
     property int hideAnimationMs: 1000
 
     property bool showTrackInfo: true
@@ -77,14 +77,14 @@ Item {
     // (if slightly misleading -- see the "顺带发现" note in decision 40)
     // behaviour: the panel's own container never painted a per-applet plate
     // to begin with, so there is nothing to take over.
-    // Only while auto-hide is on. The shell draws a strictly better ksvg
-    // plate -- on a theme with blurred-* elements it blurs the wallpaper
-    // behind the frame, which an applet cannot reproduce -- so we take the
-    // plate over only when something actually needs it to fade. Panels never
-    // self-draw: their containment paints no per-applet frame at all, so
-    // "ksvg" has always rendered nothing there.
+    // Only while this widget holds the plate. The shell draws a strictly
+    // better ksvg one -- on a theme with blurred-* elements it blurs the
+    // wallpaper behind the frame, which an applet cannot reproduce -- so the
+    // plate comes over only for the fade that needs it and goes straight back
+    // afterwards. Panels never self-draw: their containment paints no
+    // per-applet frame at all, so "ksvg" has always rendered nothing there.
     readonly property bool selfDrawnPlate: root.plateMode === "ksvg"
-        && !root.panelMode && root.autoHideEnabled
+        && !root.panelMode && root.ownsPlate
     readonly property real baseMargin: Math.max(Kirigami.Units.smallSpacing, root.fontSize * 0.35)
     readonly property real plateMarginLeft: root.selfDrawnPlate ? plate.margins.left : 0
     readonly property real plateMarginTop: root.selfDrawnPlate ? plate.margins.top : 0
