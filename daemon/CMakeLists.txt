@@ -39,6 +39,13 @@ if(BUILD_TESTING)
     )
     target_include_directories(tst_mprispolicy PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_mprispolicy PRIVATE plasma_lyrics_core Qt6::Test)
+    # Not QFINDTESTDATA: it resolves against __FILE__, which makepkg
+    # rewrites via -ffile-prefix-map when debug packages are enabled, so
+    # the fixture goes missing inside an Arch package build and nowhere
+    # else. A path CMake hands over is a plain string literal and
+    # survives that rewrite.
+    target_compile_definitions(tst_mprispolicy PRIVATE
+        PLASMA_LYRICS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
     add_test(NAME tst_mprispolicy COMMAND tst_mprispolicy)
 
     # The bug this covers lives in the D-Bus wiring itself, so the test needs a

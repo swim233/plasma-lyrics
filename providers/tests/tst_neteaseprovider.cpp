@@ -19,7 +19,7 @@ private Q_SLOTS:
 
 void NeteaseProviderTest::parsesSearchCandidates()
 {
-    QFile fixture(QFINDTESTDATA("fixtures/netease-search-magic-cook.json"));
+    QFile fixture(QStringLiteral(PLASMA_LYRICS_FIXTURES_DIR "/netease-search-magic-cook.json"));
     QVERIFY(fixture.open(QIODevice::ReadOnly));
     const auto candidates = NeteaseProvider::parseSearchResponse(fixture.readAll());
     QCOMPARE(candidates.size(), 3);
@@ -29,7 +29,7 @@ void NeteaseProviderTest::parsesSearchCandidates()
 
 void NeteaseProviderTest::handlesDirtyLyricAndEmptyWordData()
 {
-    QFile fixture(QFINDTESTDATA("fixtures/netease-lyric-dirty.json"));
+    QFile fixture(QStringLiteral(PLASMA_LYRICS_FIXTURES_DIR "/netease-lyric-dirty.json"));
     QVERIFY(fixture.open(QIODevice::ReadOnly));
     const auto document = NeteaseProvider::parseLyricResponse(fixture.readAll());
     QVERIFY(document.has_value());
@@ -49,7 +49,7 @@ void NeteaseProviderTest::creditsFromThePreV1EndpointStillFilter()
     // This fixture is the older route's real answer for the same song, kept
     // because cached rows and any future response shaped like it must still end
     // up showing the first real line rather than a staff list.
-    QFile fixture(QFINDTESTDATA("fixtures/netease-lyric-old-endpoint.json"));
+    QFile fixture(QStringLiteral(PLASMA_LYRICS_FIXTURES_DIR "/netease-lyric-old-endpoint.json"));
     QVERIFY(fixture.open(QIODevice::ReadOnly));
     const auto document = NeteaseProvider::parseLyricResponse(fixture.readAll());
     QVERIFY(document.has_value());
