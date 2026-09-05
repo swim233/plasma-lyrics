@@ -16,3 +16,17 @@ reports `[missing-property]`, which is the only check covering `main.qml`:
 it is a `PlasmoidItem` and cannot be instantiated by the QML test suite, so
 nothing else catches a binding that references a property that no longer
 exists.
+
+Commit messages are in Chinese with an English Conventional Commits prefix:
+`type(scope): 中文主题`, where type is one of feat / fix / perf / docs /
+chore / merge. The subject states what was implemented or fixed and the new
+behaviour; the body is zero to two short declarative sentences stating only
+the new behaviour -- no root-cause narration, no metaphor. Do not add
+`Co-Authored-By` trailers. Example:
+
+    fix(部件): 跑马灯失效时重置偏移
+
+    偏移改为 LyricLine 的属性绑定，失效即归零。
+
+README.md and release notes are written in Chinese; README.en.md carries the
+English copy.
