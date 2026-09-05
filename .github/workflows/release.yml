@@ -1,0 +1,254 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build and attach artifacts to'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Source tarball and release notes
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      version: ${{ steps.resolve.outputs.version }}
+    steps:
+      - id: resolve
+        run: echo "tag=${{ inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          fetch-depth: 0
+
+      # project(VERSION) is the single source of truth. A tag that disagrees
+      # with it would ship a package whose version contradicts the one the
+      # daemon reports and the widget shows.
+      - name: Check the tag against project(VERSION)
+        id: version
+        run: |
+          TAG='${{ steps.resolve.outputs.tag }}'
+          VERSION=$(sed -n 's/^project(plasma-lyrics VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          if [ -z "$VERSION" ]; then
+            echo "could not read project(VERSION) from CMakeLists.txt" >&2
+            exit 1
+          fi
+          if [ "v$VERSION" != "$TAG" ]; then
+            echo "tag $TAG does not match project(VERSION) $VERSION" >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Only a version heading ends a section, so a "## " line inside a
+      # release body cannot truncate the notes.
+      - name: Extract the release notes
+        run: |
+          TAG='${{ steps.resolve.outputs.tag }}'
+          awk -v tag="$TAG" '
+            index($0, "## " tag " - ") == 1 { inside = 1; next }
+            inside && /^## (未发布|v[0-9])/ { exit }
+            inside { print }
+          ' CHANGELOG.md > notes.md
+          if [ ! -s notes.md ]; then
+            echo "CHANGELOG.md has no '## $TAG - <date>' section" >&2
+            exit 1
+          fi
+          cat notes.md
+
+      # Our own tarball, not GitHub's generated one: the AUR package checksums
+      # this file, and the generated tarballs have changed bytes before.
+      - name: Build the source tarball
+        run: |
+          V='${{ steps.version.outputs.version }}'
+          git archive --format=tar.gz \
+            --prefix="plasma-lyrics-$V/" \
+            -o "plasma-lyrics-$V.tar.gz" \
+            '${{ steps.resolve.outputs.tag }}'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source
+          path: |
+            plasma-lyrics-*.tar.gz
+            notes.md
+          if-no-files-found: error
+
+  debian:
+    name: Debian 13 package
+    needs: prepare
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git ca-certificates cmake ninja-build g++ \
+            extra-cmake-modules qt6-base-dev qt6-declarative-dev \
+            libkf6i18n-dev libplasma-dev gettext \
+            dbus-daemon libqt6sql6-sqlite \
+            qml6-module-org-kde-kirigami qml6-module-org-kde-ksvg \
+            qml6-module-org-kde-kquickcontrols plasma-desktoptheme
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      - name: Build, test and package
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DBUILD_TESTING=ON
+          cmake --build build
+          ctest --test-dir build --output-on-failure
+          cd build && cpack -G DEB
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deb
+          path: build/plasma-lyrics_*.deb
+          if-no-files-found: error
+
+  arch:
+    name: Arch package and AUR PKGBUILD
+    needs: prepare
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            git cmake ninja extra-cmake-modules gettext \
+            qt6-base qt6-declarative qt6-tools \
+            plasma-workspace libplasma kirigami ksvg ki18n kdeclarative \
+            dbus namcap
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: source
+
+      - name: Build the Arch package from the tag
+        run: |
+          useradd -m builder
+          git config --system --add safe.directory "$GITHUB_WORKSPACE"
+          install -d -o builder -g builder /work
+          cp packaging/aur/PKGBUILD /work/
+          sed -i "s|^source=.*|source=(\"\$pkgname::git+file://$GITHUB_WORKSPACE\")|" /work/PKGBUILD
+          chown -R builder:builder /work
+          su builder -c 'cd /work && makepkg -f --noconfirm --nodeps'
+
+      # The tagged PKGBUILD is generated, not stored: keeping a second one in
+      # the repo means a pkgver and a checksum that are stale the moment they
+      # are committed.
+      # The tagged PKGBUILD is generated, not stored: keeping a second one in
+      # the repo means a pkgver and a checksum that are stale the moment they
+      # are committed.
+      - name: Generate the AUR PKGBUILD and .SRCINFO
+        run: |
+          V='${{ needs.prepare.outputs.version }}'
+          TAG='${{ needs.prepare.outputs.tag }}'
+          URL='https://github.com/swim233/plasma-lyrics'
+          TARBALL="plasma-lyrics-$V.tar.gz"
+          SUM=$(sha256sum "$TARBALL" | cut -d' ' -f1)
+          install -d -o builder -g builder /aur
+          cp "$TARBALL" "/aur/plasma-lyrics-$V.tar.gz"
+          cat > /aur/PKGBUILD <<PKGBUILD
+          # Maintainer: swim <swim853279614@163.com>
+          pkgname=plasma-lyrics
+          pkgver=$V
+          pkgrel=1
+          pkgdesc='Native synchronized desktop lyrics widget for Plasma 6'
+          arch=('x86_64')
+          url='$URL'
+          license=('GPL-2.0-or-later')
+          depends=('plasma-workspace' 'libplasma' 'kirigami' 'ksvg' 'ki18n' 'kdeclarative'
+                   'qt6-base' 'qt6-declarative' 'glibc' 'libgcc' 'libstdc++')
+          makedepends=('cmake' 'ninja' 'extra-cmake-modules' 'gettext')
+          source=("\$pkgname-\$pkgver.tar.gz::$URL/releases/download/$TAG/$TARBALL")
+          sha256sums=('$SUM')
+
+          build() {
+            # None rather than Release: it leaves the compiler flags to
+            # makepkg.conf, so the package picks up Arch's hardening and
+            # debug-package settings instead of CMake's own -O3 -DNDEBUG.
+            cmake -S "\$pkgname-\$pkgver" -B build -G Ninja \\
+              -DCMAKE_BUILD_TYPE=None \\
+              -DCMAKE_INSTALL_PREFIX=/usr \\
+              -DBUILD_TESTING=ON
+            cmake --build build
+          }
+
+          check() {
+            ctest --test-dir build --output-on-failure
+          }
+
+          package() {
+            DESTDIR="\$pkgdir" cmake --install build
+          }
+          PKGBUILD
+          chown -R builder:builder /aur
+          # Builds from the tarball sitting next to the PKGBUILD, so the
+          # checksum written above is the one that actually gets verified.
+          su builder -c 'cd /aur && makepkg --printsrcinfo > .SRCINFO && makepkg -f --noconfirm --nodeps'
+          namcap /aur/PKGBUILD || true
+
+      - name: Collect
+        run: |
+          mkdir -p out
+          cp /work/*.pkg.tar.zst out/
+          cp /aur/PKGBUILD /aur/.SRCINFO out/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arch
+          path: out/*
+          include-hidden-files: true
+          if-no-files-found: error
+
+  publish:
+    name: Draft release
+    needs: [prepare, debian, arch]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Gather and checksum
+        run: |
+          mkdir -p out
+          find dist -type f \( -name '*.tar.gz' -o -name '*.deb' -o -name '*.pkg.tar.zst' \) \
+            -exec cp {} out/ \;
+          cp dist/arch/PKGBUILD dist/arch/.SRCINFO out/
+          (cd out && sha256sum -- * .SRCINFO) > /tmp/SHA256SUMS
+          mv /tmp/SHA256SUMS out/SHA256SUMS
+          cat out/SHA256SUMS
+
+      # Draft, never published automatically: the notes come out of a file and
+      # a published release cannot be un-announced.
+      - name: Create or update the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG='${{ needs.prepare.outputs.tag }}'
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" out/* --clobber
+          else
+            gh release create "$TAG" out/* \
+              --draft \
+              --title "plasma-lyrics $TAG" \
+              --notes-file dist/source/notes.md
+          fi

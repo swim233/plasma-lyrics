@@ -1,0 +1,134 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A superseded push has nothing left to say; let the newer run speak.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  arch:
+    name: Arch Linux
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      # git has to be here before actions/checkout runs, and the whole history
+      # has to come with it: the PKGBUILD's pkgver() derives the version from
+      # git describe, which needs the tags.
+      - name: Install dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            git cmake ninja extra-cmake-modules gettext \
+            qt6-base qt6-declarative qt6-tools \
+            plasma-workspace libplasma kirigami ksvg ki18n kdeclarative \
+            dbus namcap
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DBUILD_TESTING=ON
+          cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      # Nothing builds this configuration day to day, so it is the one that
+      # rots. ENABLE_PROVIDER_NETEASE=OFF flips a compile definition the rest
+      # of the tree reads.
+      - name: Build without the NetEase provider
+        run: |
+          cmake -S . -B build-no-net -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_PROVIDER_NETEASE=OFF \
+            -DBUILD_TESTING=ON
+          cmake --build build-no-net
+          ctest --test-dir build-no-net --output-on-failure
+
+      # main.qml is a PlasmoidItem and the QML test suite cannot instantiate
+      # it, so this is the only check covering it. unqualified is exempt
+      # because the i18n() calls KI18n injects are unqualified by
+      # construction; every other category must stay silent.
+      - name: qmllint
+        run: |
+          /usr/lib/qt6/bin/qmllint \
+            --unqualified disable --max-warnings 0 \
+            -I build/bin \
+            frontend/plasmoid/package/contents/ui/*.qml
+
+      # The PKGBUILD's own source is the GitHub URL, which on a pull request
+      # would build main instead of the branch under test. Point it at the
+      # checkout so the artifact is this commit.
+      - name: Build the Arch package
+        run: |
+          useradd -m builder
+          git config --system --add safe.directory "$GITHUB_WORKSPACE"
+          install -d -o builder -g builder /work
+          cp packaging/aur/PKGBUILD /work/
+          sed -i "s|^source=.*|source=(\"\$pkgname::git+file://$GITHUB_WORKSPACE\")|" /work/PKGBUILD
+          chown -R builder:builder /work
+          su builder -c 'cd /work && makepkg -f --noconfirm --nodeps'
+          namcap /work/*.pkg.tar.zst || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plasma-lyrics-${{ github.sha }}-archlinux
+          path: /work/*.pkg.tar.zst
+          retention-days: 14
+          if-no-files-found: error
+
+  debian:
+    name: Debian 13
+    runs-on: ubuntu-latest
+    container: debian:trixie
+    steps:
+      # dbus-run-session lives in dbus-daemon on trixie, not in dbus. With the
+      # wrong package CMake silently drops tst_mprisdiscovery and the suite
+      # still reports success.
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git ca-certificates cmake ninja-build g++ \
+            extra-cmake-modules qt6-base-dev qt6-declarative-dev \
+            libkf6i18n-dev libplasma-dev gettext \
+            dbus-daemon libqt6sql6-sqlite \
+            qml6-module-org-kde-kirigami qml6-module-org-kde-ksvg \
+            qml6-module-org-kde-kquickcontrols plasma-desktoptheme \
+            lintian
+
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DBUILD_TESTING=ON
+          cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Package
+        run: |
+          cd build && cpack -G DEB
+          dpkg -I plasma-lyrics_*.deb
+          lintian plasma-lyrics_*.deb || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plasma-lyrics-${{ github.sha }}-debian13
+          path: build/plasma-lyrics_*.deb
+          retention-days: 14
+          if-no-files-found: error
