@@ -29,4 +29,5 @@ the new behaviour -- no root-cause narration, no metaphor. Do not add
     偏移改为 LyricLine 的属性绑定，失效即归零。
 
 README.md and release notes are written in Chinese; README.en.md carries the
-English copy.
+English copy. Release notes are a plain bullet list -- 新增了 / 修改了 /
+修复了, one change per line with its new behaviour, nothing else.
