@@ -4,6 +4,8 @@
 
 ## 未发布
 
+## v0.2.1 - 2026-09-06
+
 ### Added
 - 新增 Debian 13 的 `.deb` 安装包。
 - 新增 Arch 的 `.pkg.tar.zst` 与源码 tarball，随 GitHub Release 一并发布，附 `SHA256SUMS` 校验文件。
@@ -14,6 +16,8 @@
 ### Fixed
 - 修复在 Debian 等多架构发行版上守护进程服务文件装错目录、`systemctl --user` 找不到服务的问题。
 - 修复在启用 debug 选项的 Arch 环境下构建 AUR 包时，测试因找不到 fixture 而失败的问题。
+
+完整变更列表：https://github.com/swim233/plasma-lyrics/compare/v0.2.0...v0.2.1
 
 ## v0.2.0 - 2026-09-05
 
