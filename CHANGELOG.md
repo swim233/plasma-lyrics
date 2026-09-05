@@ -10,6 +10,9 @@
 ### Changed
 - waylyrics 导入工具更名为 `plasma-lyrics-import-waylyrics` 并改装到 `/usr/bin`，可直接调用；原路径 `/usr/libexec/plasma-lyrics/import-waylyrics` 不再提供。
 
+### Fixed
+- 修复在 Debian 等多架构发行版上守护进程服务文件装错目录、`systemctl --user` 找不到服务的问题。
+
 ## v0.2.0 - 2026-09-05
 
 概要：新增自动隐藏与面板宽度设置，外观设置按形态拆分。

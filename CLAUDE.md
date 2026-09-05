@@ -50,6 +50,13 @@ changes go under `## 未发布` until a tag is cut. The `v0.1.0` / `v0.1.1` /
 `v0.2.0` entries were copied verbatim from the pre-existing GitHub Releases
 via `gh release view` and must not be rewritten.
 
+Cutting a release: rename `## 未发布` to `## v<x.y.z> - <YYYY-MM-DD>`, add
+the 完整变更列表 compare link to the previous tag, open a fresh empty
+`## 未发布` above it, bump `project(VERSION)` (and `metadata.json`, which the
+build checks) to match, then tag `v<x.y.z>` on that commit. CI matches a
+section by the tag name followed by ` - `, so the heading and the tag must
+agree exactly.
+
 After pushing a release tag, push the `plasma-lyrics` package to AUR by
 hand. CI only generates and validates the PKGBUILD and `.SRCINFO`; it holds
 no AUR credentials.
