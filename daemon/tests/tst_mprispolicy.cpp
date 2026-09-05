@@ -16,10 +16,8 @@ class MprisPolicyTest : public QObject
 private Q_SLOTS:
     void replaysRecordedPbiDirtyData()
     {
-        const QString path = QFINDTESTDATA("fixtures/pbi-dirty-replay.json");
-        QVERIFY2(!path.isEmpty(), "recorded MPRIS fixture was not found");
-        QFile file(path);
-        QVERIFY(file.open(QIODevice::ReadOnly));
+        QFile file(QStringLiteral(PLASMA_LYRICS_FIXTURES_DIR "/pbi-dirty-replay.json"));
+        QVERIFY2(file.open(QIODevice::ReadOnly), "recorded MPRIS fixture was not found");
         const auto root = QJsonDocument::fromJson(file.readAll()).object();
         const PolicyConfig config{{QStringLiteral("org.mpris.MediaPlayer2.kdeconnect.*")},
                                   {QStringLiteral("https://music.163.com/")}, true};
