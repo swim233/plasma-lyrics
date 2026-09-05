@@ -133,6 +133,60 @@ TestCase {
         compare(line.height, line.lineHeight);
     }
 
+    // The marquee scrolls by animating LyricLine's own marqueeOffset, and the
+    // Text's x is a binding over it, so every way of leaving marquee mode
+    // lands back at 0 without anyone having to write x. Asserting on x rather
+    // than on marqueeOffset is the point: a regression that goes back to
+    // animating mainText.x directly would still leave marqueeOffset looking
+    // right here while stranding the visible line.
+    //
+    // These drive marqueeOffset by hand instead of letting the animation run.
+    // It cannot run: marqueeRunning requires `visible`, which is
+    // ancestor-combined and false throughout this suite (see
+    // test_trackInfoStaysUpThroughBlankLyricStates). marqueeApplies, which is
+    // what the x binding reads, deliberately excludes `visible` so that these
+    // two tests have something to observe at all.
+    function test_marqueeOffsetClearsWhenLeavingMarqueeMode() {
+        const line = createTemporaryObject(lyricLineComponent, this,
+            { overflowMode: "marquee" });
+        verify(line !== null);
+        verify(line.marqueeApplies);
+        const texts = textChildrenOf(line);
+        compare(texts.length, 1);
+        line.marqueeOffset = -100;
+        compare(texts[0].x, -100);
+        line.overflowMode = "fit";
+        compare(texts[0].x, 0);
+        line.overflowMode = "wrap";
+        compare(texts[0].x, 0);
+    }
+
+    function test_marqueeOffsetClearsWhenTheLineChanges() {
+        const line = createTemporaryObject(lyricLineComponent, this,
+            { overflowMode: "marquee" });
+        verify(line !== null);
+        const texts = textChildrenOf(line);
+        line.marqueeOffset = -100;
+        compare(texts[0].x, -100);
+        line.lineText = "A different and also deliberately long lyric line";
+        compare(texts[0].x, 0);
+    }
+
+    // The faded-out block keeps both of its lines alive and `visible`, so a
+    // translation left behind there goes on driving an infinite marquee that
+    // nobody can see. Passes on either animation path: with animations off,
+    // switchLine releases the block synchronously instead.
+    function test_transitionReleasesBothHalvesOfThePreviousBlock() {
+        const lyric = createTemporaryObject(animatedLyricComponent, this,
+            { animationMode: "fade" });
+        verify(lyric !== null);
+        tryVerify(() => lyric.shownText === "first");
+        lyric.lyricText = "second";
+        lyric.translationText = "translation two";
+        tryVerify(() => lyric.shownText === "second");
+        tryVerify(() => lyric.previousText === "" && lyric.previousTranslation === "");
+    }
+
     function test_outlineIsOptIn() {
         const line = createTemporaryObject(lyricLineComponent, this);
         compare(line.strokeEnabled, false);
