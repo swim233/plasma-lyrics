@@ -16,6 +16,7 @@ class LyricSource : public QObject
     Q_PROPERTY(QString snapshotPath READ snapshotPath WRITE setSnapshotPath NOTIFY snapshotPathChanged)
     Q_PROPERTY(bool serviceAvailable READ serviceAvailable NOTIFY statusChanged)
     Q_PROPERTY(bool stale READ stale NOTIFY statusChanged)
+    Q_PROPERTY(bool determined READ determined NOTIFY determinedChanged)
     Q_PROPERTY(QString lyricState READ lyricState NOTIFY lyricStateChanged)
     Q_PROPERTY(QString playbackStatus READ playbackStatus NOTIFY playbackChanged)
     Q_PROPERTY(QString trackTitle READ trackTitle NOTIFY trackChanged)
@@ -34,6 +35,7 @@ public:
     void setSnapshotPath(const QString &path);
     bool serviceAvailable() const;
     bool stale() const;
+    bool determined() const;
     QString lyricState() const;
     QString playbackStatus() const;
     QString trackTitle() const;
@@ -51,6 +53,7 @@ public:
 Q_SIGNALS:
     void snapshotPathChanged();
     void statusChanged();
+    void determinedChanged();
     void lyricStateChanged();
     void playbackChanged();
     void trackChanged();
@@ -63,7 +66,9 @@ private:
     void rearm();
     void rearmFrame();
     void setUnavailable(bool stale);
+    void setDetermined(bool value);
     void updateServiceHealth();
+    void reloadImpl();
     void advance();
 
     QFileSystemWatcher m_watcher;
@@ -74,6 +79,7 @@ private:
     QString m_snapshotPath;
     bool m_serviceAvailable = false;
     bool m_stale = false;
+    bool m_determined = false;
     qint64 m_pid = 0;
     qint64 m_sequence = -1;
     QString m_lyricState = QStringLiteral("filtered");
