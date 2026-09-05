@@ -28,6 +28,15 @@
     <entry name="desktopTrackInfoStrokeColor" type="String"><default>#cc000000</default></entry>
     <entry name="desktopTrackInfoOverflow" type="String"><default>fit</default></entry>
 
+    <!-- DESIGN.md decision 40: deliberately asymmetric with the panel group
+         below. desktopHideAnimationMs has no panel counterpart because the
+         panel never animates, it hides via Plasmoid.status, not opacity,
+         so a panel copy would be a SpinBox that visibly does nothing. -->
+    <entry name="desktopAutoHide" type="Bool"><default>false</default></entry>
+    <entry name="desktopHideDelaySec" type="Int"><default>5</default></entry>
+    <entry name="desktopHideAnimationMs" type="Int"><default>1000</default></entry>
+    <entry name="desktopHideNonMusic" type="Bool"><default>true</default></entry>
+
     <entry name="panelPlateMode" type="String"><default>ksvg</default></entry>
     <entry name="panelSolidColor" type="String"><default>#99000000</default></entry>
     <entry name="panelTextColor" type="String"><default>#fffaf5</default></entry>
@@ -47,5 +56,9 @@
     <entry name="panelTrackInfoStroke" type="Bool"><default>false</default></entry>
     <entry name="panelTrackInfoStrokeColor" type="String"><default>#cc000000</default></entry>
     <entry name="panelTrackInfoOverflow" type="String"><default>fit</default></entry>
+
+    <entry name="panelAutoHide" type="Bool"><default>false</default></entry>
+    <entry name="panelHideDelaySec" type="Int"><default>5</default></entry>
+    <entry name="panelHideNonMusic" type="Bool"><default>true</default></entry>
   </group>
 </kcfg>

@@ -3,10 +3,16 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
-Kirigami.Card {
+// A bare FormLayout rather than a Card wrapping one: this section now lives
+// directly on its own config tab (DESIGN.md decision 40 split it out of the
+// combined appearance page), and the tab name in the sidebar already carries
+// the title a Card header would have repeated. Being a FormLayout itself
+// (rather than containing one) also means the auto-hide section that follows
+// it on the same page can list this as one of its own twinFormLayouts, so
+// the two forms' label columns line up.
+Kirigami.FormLayout {
     id: root
 
-    required property string title
     property string plateMode: "ksvg"
     property string solidColor: "#99000000"
     property string textColor: "#fffaf5"
@@ -53,144 +59,141 @@ Kirigami.Card {
         Font.DemiBold, Font.Bold, Font.Black
     ]
 
-    header: Kirigami.Heading { text: root.title; level: 3 }
-    contentItem: Kirigami.FormLayout {
-        QQC2.ComboBox {
-            Kirigami.FormData.label: i18n("Background:")
-            model: [i18n("None"), i18n("Plasma theme"), i18n("Solid translucent color")]
-            currentIndex: ["none", "ksvg", "solid"].indexOf(root.plateMode)
-            onActivated: root.plateModeEdited(["none", "ksvg", "solid"][currentIndex])
+    QQC2.ComboBox {
+        Kirigami.FormData.label: i18n("Background:")
+        model: [i18n("None"), i18n("Plasma theme"), i18n("Solid translucent color")]
+        currentIndex: ["none", "ksvg", "solid"].indexOf(root.plateMode)
+        onActivated: root.plateModeEdited(["none", "ksvg", "solid"][currentIndex])
+    }
+    ColorField {
+        Kirigami.FormData.label: i18n("Background color:")
+        visible: root.plateMode === "solid"
+        value: root.solidColor
+        onEdited: hexColor => root.solidColorEdited(hexColor)
+    }
+    ColorField {
+        Kirigami.FormData.label: i18n("Text color:")
+        value: root.textColor
+        onEdited: hexColor => root.textColorEdited(hexColor)
+    }
+    QQC2.SpinBox {
+        Kirigami.FormData.label: i18n("Font size:")
+        from: 10
+        to: 96
+        value: root.fontSizeControl.value
+        onValueModified: root.fontSizeControl.value = value
+    }
+    QQC2.ComboBox {
+        Kirigami.FormData.label: i18n("Font weight:")
+        model: [
+            i18nc("@item:inlistbox font weight", "Light"),
+            i18nc("@item:inlistbox font weight", "Regular"),
+            i18nc("@item:inlistbox font weight", "Medium"),
+            i18nc("@item:inlistbox font weight", "Demi bold"),
+            i18nc("@item:inlistbox font weight", "Bold"),
+            i18nc("@item:inlistbox font weight", "Black")
+        ]
+        currentIndex: {
+            const known = root.fontWeightValues.indexOf(root.fontWeight);
+            // Fall back to Regular rather than to index 0, so an unknown
+            // stored weight does not silently read as Light.
+            return known >= 0 ? known : root.fontWeightValues.indexOf(Font.Normal);
         }
-        ColorField {
-            Kirigami.FormData.label: i18n("Background color:")
-            visible: root.plateMode === "solid"
-            value: root.solidColor
-            onEdited: hexColor => root.solidColorEdited(hexColor)
-        }
-        ColorField {
-            Kirigami.FormData.label: i18n("Text color:")
-            value: root.textColor
-            onEdited: hexColor => root.textColorEdited(hexColor)
-        }
-        QQC2.SpinBox {
-            Kirigami.FormData.label: i18n("Font size:")
-            from: 10
-            to: 96
-            value: root.fontSizeControl.value
-            onValueModified: root.fontSizeControl.value = value
-        }
-        QQC2.ComboBox {
-            Kirigami.FormData.label: i18n("Font weight:")
-            model: [
-                i18nc("@item:inlistbox font weight", "Light"),
-                i18nc("@item:inlistbox font weight", "Regular"),
-                i18nc("@item:inlistbox font weight", "Medium"),
-                i18nc("@item:inlistbox font weight", "Demi bold"),
-                i18nc("@item:inlistbox font weight", "Bold"),
-                i18nc("@item:inlistbox font weight", "Black")
-            ]
-            currentIndex: {
-                const known = root.fontWeightValues.indexOf(root.fontWeight);
-                // Fall back to Regular rather than to index 0, so an unknown
-                // stored weight does not silently read as Light.
-                return known >= 0 ? known : root.fontWeightValues.indexOf(Font.Normal);
-            }
-            onActivated: root.fontWeightEdited(root.fontWeightValues[currentIndex])
-        }
-        QQC2.CheckBox {
-            Kirigami.FormData.label: i18n("Outline:")
-            checked: root.strokeEnabled
-            onToggled: root.strokeEnabledEdited(checked)
-        }
-        ColorField {
-            Kirigami.FormData.label: i18n("Outline color:")
-            visible: root.strokeEnabled
-            value: root.strokeColor
-            onEdited: hexColor => root.strokeColorEdited(hexColor)
-        }
-        QQC2.CheckBox {
-            Kirigami.FormData.label: i18n("Translation:")
-            checked: root.translationControl.checked
-            onToggled: root.translationControl.checked = checked
-        }
-        QQC2.ComboBox {
-            Kirigami.FormData.label: i18n("Long lyrics:")
-            model: [i18n("Fit text"), i18n("Wrap to two lines"), i18n("Marquee")]
-            currentIndex: ["fit", "wrap", "marquee"].indexOf(root.overflowMode)
-            onActivated: root.overflowModeEdited(["fit", "wrap", "marquee"][currentIndex])
-        }
-        QQC2.ComboBox {
-            Kirigami.FormData.label: i18n("Line transition:")
-            model: [i18n("None"), i18n("Fade"), i18n("Slide up")]
-            currentIndex: ["none", "fade", "slide"].indexOf(root.animationMode)
-            onActivated: root.animationModeEdited(["none", "fade", "slide"][currentIndex])
-        }
+        onActivated: root.fontWeightEdited(root.fontWeightValues[currentIndex])
+    }
+    QQC2.CheckBox {
+        Kirigami.FormData.label: i18n("Outline:")
+        checked: root.strokeEnabled
+        onToggled: root.strokeEnabledEdited(checked)
+    }
+    ColorField {
+        Kirigami.FormData.label: i18n("Outline color:")
+        visible: root.strokeEnabled
+        value: root.strokeColor
+        onEdited: hexColor => root.strokeColorEdited(hexColor)
+    }
+    QQC2.CheckBox {
+        Kirigami.FormData.label: i18n("Translation:")
+        checked: root.translationControl.checked
+        onToggled: root.translationControl.checked = checked
+    }
+    QQC2.ComboBox {
+        Kirigami.FormData.label: i18n("Long lyrics:")
+        model: [i18n("Fit text"), i18n("Wrap to two lines"), i18n("Marquee")]
+        currentIndex: ["fit", "wrap", "marquee"].indexOf(root.overflowMode)
+        onActivated: root.overflowModeEdited(["fit", "wrap", "marquee"][currentIndex])
+    }
+    QQC2.ComboBox {
+        Kirigami.FormData.label: i18n("Line transition:")
+        model: [i18n("None"), i18n("Fade"), i18n("Slide up")]
+        currentIndex: ["none", "fade", "slide"].indexOf(root.animationMode)
+        onActivated: root.animationModeEdited(["none", "fade", "slide"][currentIndex])
+    }
 
-        Kirigami.Separator {
-            Kirigami.FormData.isSection: true
-            Kirigami.FormData.label: i18n("Track info")
+    Kirigami.Separator {
+        Kirigami.FormData.isSection: true
+        Kirigami.FormData.label: i18n("Track info")
+    }
+    QQC2.CheckBox {
+        Kirigami.FormData.label: i18n("Show track info:")
+        checked: root.showTrackInfo
+        onToggled: root.showTrackInfoEdited(checked)
+    }
+    QQC2.ComboBox {
+        Kirigami.FormData.label: i18n("Layout:")
+        visible: root.showTrackInfo
+        model: [i18n("Single line"), i18n("Two lines")]
+        currentIndex: ["single", "double"].indexOf(root.trackInfoLayout)
+        onActivated: root.trackInfoLayoutEdited(["single", "double"][currentIndex])
+    }
+    QQC2.SpinBox {
+        Kirigami.FormData.label: i18n("Font size:")
+        visible: root.showTrackInfo
+        from: 8
+        to: 64
+        value: root.trackInfoFontSizeControl.value
+        onValueModified: root.trackInfoFontSizeControl.value = value
+    }
+    QQC2.ComboBox {
+        Kirigami.FormData.label: i18n("Font weight:")
+        visible: root.showTrackInfo
+        model: [
+            i18nc("@item:inlistbox font weight", "Light"),
+            i18nc("@item:inlistbox font weight", "Regular"),
+            i18nc("@item:inlistbox font weight", "Medium"),
+            i18nc("@item:inlistbox font weight", "Demi bold"),
+            i18nc("@item:inlistbox font weight", "Bold"),
+            i18nc("@item:inlistbox font weight", "Black")
+        ]
+        currentIndex: {
+            const known = root.fontWeightValues.indexOf(root.trackInfoFontWeight);
+            return known >= 0 ? known : root.fontWeightValues.indexOf(Font.Normal);
         }
-        QQC2.CheckBox {
-            Kirigami.FormData.label: i18n("Show track info:")
-            checked: root.showTrackInfo
-            onToggled: root.showTrackInfoEdited(checked)
-        }
-        QQC2.ComboBox {
-            Kirigami.FormData.label: i18n("Layout:")
-            visible: root.showTrackInfo
-            model: [i18n("Single line"), i18n("Two lines")]
-            currentIndex: ["single", "double"].indexOf(root.trackInfoLayout)
-            onActivated: root.trackInfoLayoutEdited(["single", "double"][currentIndex])
-        }
-        QQC2.SpinBox {
-            Kirigami.FormData.label: i18n("Font size:")
-            visible: root.showTrackInfo
-            from: 8
-            to: 64
-            value: root.trackInfoFontSizeControl.value
-            onValueModified: root.trackInfoFontSizeControl.value = value
-        }
-        QQC2.ComboBox {
-            Kirigami.FormData.label: i18n("Font weight:")
-            visible: root.showTrackInfo
-            model: [
-                i18nc("@item:inlistbox font weight", "Light"),
-                i18nc("@item:inlistbox font weight", "Regular"),
-                i18nc("@item:inlistbox font weight", "Medium"),
-                i18nc("@item:inlistbox font weight", "Demi bold"),
-                i18nc("@item:inlistbox font weight", "Bold"),
-                i18nc("@item:inlistbox font weight", "Black")
-            ]
-            currentIndex: {
-                const known = root.fontWeightValues.indexOf(root.trackInfoFontWeight);
-                return known >= 0 ? known : root.fontWeightValues.indexOf(Font.Normal);
-            }
-            onActivated: root.trackInfoFontWeightEdited(root.fontWeightValues[currentIndex])
-        }
-        ColorField {
-            Kirigami.FormData.label: i18n("Text color:")
-            visible: root.showTrackInfo
-            value: root.trackInfoColor
-            onEdited: hexColor => root.trackInfoColorEdited(hexColor)
-        }
-        QQC2.CheckBox {
-            Kirigami.FormData.label: i18n("Outline:")
-            visible: root.showTrackInfo
-            checked: root.trackInfoStrokeEnabled
-            onToggled: root.trackInfoStrokeEnabledEdited(checked)
-        }
-        ColorField {
-            Kirigami.FormData.label: i18n("Outline color:")
-            visible: root.showTrackInfo && root.trackInfoStrokeEnabled
-            value: root.trackInfoStrokeColor
-            onEdited: hexColor => root.trackInfoStrokeColorEdited(hexColor)
-        }
-        QQC2.ComboBox {
-            Kirigami.FormData.label: i18n("Overflow:")
-            visible: root.showTrackInfo
-            model: [i18n("Shrink to fit"), i18n("Truncate")]
-            currentIndex: ["fit", "elide"].indexOf(root.trackInfoOverflow)
-            onActivated: root.trackInfoOverflowEdited(["fit", "elide"][currentIndex])
-        }
+        onActivated: root.trackInfoFontWeightEdited(root.fontWeightValues[currentIndex])
+    }
+    ColorField {
+        Kirigami.FormData.label: i18n("Text color:")
+        visible: root.showTrackInfo
+        value: root.trackInfoColor
+        onEdited: hexColor => root.trackInfoColorEdited(hexColor)
+    }
+    QQC2.CheckBox {
+        Kirigami.FormData.label: i18n("Outline:")
+        visible: root.showTrackInfo
+        checked: root.trackInfoStrokeEnabled
+        onToggled: root.trackInfoStrokeEnabledEdited(checked)
+    }
+    ColorField {
+        Kirigami.FormData.label: i18n("Outline color:")
+        visible: root.showTrackInfo && root.trackInfoStrokeEnabled
+        value: root.trackInfoStrokeColor
+        onEdited: hexColor => root.trackInfoStrokeColorEdited(hexColor)
+    }
+    QQC2.ComboBox {
+        Kirigami.FormData.label: i18n("Overflow:")
+        visible: root.showTrackInfo
+        model: [i18n("Shrink to fit"), i18n("Truncate")]
+        currentIndex: ["fit", "elide"].indexOf(root.trackInfoOverflow)
+        onActivated: root.trackInfoOverflowEdited(["fit", "elide"][currentIndex])
     }
 }

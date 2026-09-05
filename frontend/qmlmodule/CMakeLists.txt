@@ -12,6 +12,8 @@ target_sources(plasmalyricssource PRIVATE
     backendconfig.h
     lyricsource.cpp
     lyricsource.h
+    visibilitypolicy.cpp
+    visibilitypolicy.h
 )
 target_include_directories(plasmalyricssource PRIVATE ${CMAKE_SOURCE_DIR})
 target_link_libraries(plasmalyricssource PRIVATE plasma_lyrics_core Qt6::Core Qt6::Qml Qt6::Sql)
@@ -28,5 +30,13 @@ if(BUILD_TESTING)
     target_include_directories(tst_lyricsource PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_lyricsource PRIVATE plasma_lyrics_core Qt6::Core Qt6::Qml Qt6::Sql Qt6::Test)
     add_test(NAME tst_lyricsource COMMAND tst_lyricsource)
+
+    add_executable(tst_visibilitypolicy
+        tests/tst_visibilitypolicy.cpp
+        visibilitypolicy.cpp
+    )
+    target_include_directories(tst_visibilitypolicy PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(tst_visibilitypolicy PRIVATE Qt6::Core Qt6::Qml Qt6::Test)
+    add_test(NAME tst_visibilitypolicy COMMAND tst_visibilitypolicy)
 endif()
 

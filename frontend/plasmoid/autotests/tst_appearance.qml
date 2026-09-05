@@ -1,12 +1,27 @@
 import QtQuick
+import QtQuick.Layouts
 import QtTest
 import org.kde.kirigami as Kirigami
+import org.kde.ksvg as KSvg
 import "../package/contents/ui" as LyricsUi
 import "../package/contents/ui/config" as LyricsConfig
 
 TestCase {
     name: "Appearance"
     when: windowShown
+
+    // KSvg.ImageSet normally resolves the running Plasma session's theme via
+    // KConfig; QUICK_TEST_MAIN bootstraps a bare QGuiApplication with no such
+    // session, so it falls back to a nonexistent test-specific path and every
+    // KSvg.FrameSvgItem's `margins` reads all zero. "default" is guaranteed
+    // to exist wherever plasma-workspace itself is installed (a build-time
+    // dependency already, via ECM/Plasma frameworks), so pointing basePath at
+    // it directly gives test_selfDrawnPlateMarginsFoldIntoSizeOnlyWhenSelfDrawn
+    // real, nonzero margins to check the folding arithmetic against, rather
+    // than a test that would pass just as well with the folding deleted.
+    function initTestCase() {
+        KSvg.ImageSet.basePath = "/usr/share/plasma/desktoptheme";
+    }
 
     Component {
         id: lyricLineComponent
@@ -27,9 +42,17 @@ TestCase {
         }
     }
 
+    // DESIGN.md decision 40 split the old combined ConfigAppearance page
+    // into one tab per form factor, so what used to be "two sections on one
+    // page" is now "two separate page instances, one AppearanceSection each".
     Component {
-        id: configAppearanceComponent
-        LyricsConfig.ConfigAppearance {}
+        id: configDesktopAppearanceComponent
+        LyricsConfig.ConfigDesktopAppearance {}
+    }
+
+    Component {
+        id: configPanelAppearanceComponent
+        LyricsConfig.ConfigPanelAppearance {}
     }
 
     Component {
@@ -186,53 +209,64 @@ TestCase {
     }
 
     function test_sectionEditsReachTheirOwnConfigProperties() {
-        const page = createTemporaryObject(configAppearanceComponent, this);
-        verify(page !== null);
-        const sections = findAll(page, o => typeof o.textColorEdited === "function");
-        // Desktop first, then panel -- decision 31 gives them separate kcfg
-        // entries, and crossing the two only shows up as "the panel setting
-        // moved the desktop widget".
-        compare(sections.length, 2);
-        const desktop = sections[0];
-        const panel = sections[1];
+        // Decision 40 put desktop and panel on separate tabs, so what used
+        // to be "two sections on one page" is now two page instances, each
+        // carrying exactly one AppearanceSection. Crossing the two only
+        // shows up as "the panel setting moved the desktop widget".
+        const desktopPage = createTemporaryObject(configDesktopAppearanceComponent, this);
+        const panelPage = createTemporaryObject(configPanelAppearanceComponent, this);
+        verify(desktopPage !== null);
+        verify(panelPage !== null);
+        const desktopSections = findAll(desktopPage, o => typeof o.textColorEdited === "function");
+        const panelSections = findAll(panelPage, o => typeof o.textColorEdited === "function");
+        compare(desktopSections.length, 1);
+        compare(panelSections.length, 1);
+        const desktop = desktopSections[0];
+        const panel = panelSections[0];
 
         desktop.solidColorEdited("#80112233");
         desktop.textColorEdited("#123456");
         desktop.strokeColorEdited("#40445566");
         desktop.fontWeightEdited(Font.Black);
-        compare(page.cfg_desktopSolidColor, "#80112233");
-        compare(page.cfg_desktopTextColor, "#123456");
-        compare(page.cfg_desktopStrokeColor, "#40445566");
-        compare(page.cfg_desktopFontWeight, Font.Black);
+        compare(desktopPage.cfg_desktopSolidColor, "#80112233");
+        compare(desktopPage.cfg_desktopTextColor, "#123456");
+        compare(desktopPage.cfg_desktopStrokeColor, "#40445566");
+        compare(desktopPage.cfg_desktopFontWeight, Font.Black);
 
         panel.textColorEdited("#abcdef");
         panel.fontWeightEdited(Font.Light);
-        compare(page.cfg_panelTextColor, "#abcdef");
-        compare(page.cfg_panelFontWeight, Font.Light);
-        compare(page.cfg_desktopTextColor, "#123456");
-        compare(page.cfg_desktopFontWeight, Font.Black);
+        compare(panelPage.cfg_panelTextColor, "#abcdef");
+        compare(panelPage.cfg_panelFontWeight, Font.Light);
+        // Editing the panel page's own properties above must never reach
+        // into the desktop page -- they are two separate object instances
+        // now, not two sections sharing one.
+        compare(desktopPage.cfg_desktopTextColor, "#123456");
+        compare(desktopPage.cfg_desktopFontWeight, Font.Black);
     }
 
     function test_configValueReachesTheColorRow() {
-        const page = createTemporaryObject(configAppearanceComponent, this);
-        const sections = findAll(page, o => typeof o.textColorEdited === "function");
-        page.cfg_desktopTextColor = "#0f0f0f";
+        const desktopPage = createTemporaryObject(configDesktopAppearanceComponent, this);
+        const panelPage = createTemporaryObject(configPanelAppearanceComponent, this);
+        const desktopSections = findAll(desktopPage, o => typeof o.textColorEdited === "function");
+        const panelSections = findAll(panelPage, o => typeof o.textColorEdited === "function");
+        desktopPage.cfg_desktopTextColor = "#0f0f0f";
         // Background, text, outline, track-info text, track-info outline --
         // in that order down the form. The track-info section added its own
         // text/outline colour pair, so this went from 3 rows to 5.
-        const rows = findAll(sections[0], o => typeof o.edited === "function");
+        const rows = findAll(desktopSections[0], o => typeof o.edited === "function");
         compare(rows.length, 5);
         compare(rows[1].value, "#0f0f0f");
 
         // Same crosstalk bug test_sectionEditsReachTheirOwnConfigProperties
-        // guards against, but for the new track-info keys.
-        page.cfg_desktopTrackInfoColor = "#111111";
-        page.cfg_panelTrackInfoColor = "#222222";
-        compare(sections[0].trackInfoColor, "#111111");
-        compare(sections[1].trackInfoColor, "#222222");
-        sections[1].trackInfoColorEdited("#333333");
-        compare(page.cfg_panelTrackInfoColor, "#333333");
-        compare(page.cfg_desktopTrackInfoColor, "#111111");
+        // guards against, but for the new track-info keys, and now across
+        // two separate page instances rather than two sections of one page.
+        desktopPage.cfg_desktopTrackInfoColor = "#111111";
+        panelPage.cfg_panelTrackInfoColor = "#222222";
+        compare(desktopSections[0].trackInfoColor, "#111111");
+        compare(panelSections[0].trackInfoColor, "#222222");
+        panelSections[0].trackInfoColorEdited("#333333");
+        compare(panelPage.cfg_panelTrackInfoColor, "#333333");
+        compare(desktopPage.cfg_desktopTrackInfoColor, "#111111");
     }
 
     function test_trackInfoOffKeepsLyricCentered() {
@@ -339,5 +373,88 @@ TestCase {
         const mainCount = texts.filter(t => t.color.toString() === info.textColor.toString()).length;
         compare(strokeCount, 8);
         compare(mainCount, 1);
+    }
+
+    // DESIGN.md decision 40 names the self-drawn plate as the highest
+    // silent-regression-risk part of that refactor: LyricsView.qml now
+    // draws "ksvg" itself instead of leaving it to the shell, and folds the
+    // plate's own margins into implicit/minimum size so the on-screen
+    // footprint stays put. Two things could regress invisibly with no test
+    // here: the plate painting somewhere it should not (or not painting
+    // where it should), and the margin arithmetic double-counting or
+    // dropping the plate's contribution.
+    function test_selfDrawnPlateOnlyOnDesktopKsvg() {
+        // Deliberately does not also assert on the KSvg.FrameSvgItem's own
+        // `.visible` (which is bound in LyricsView.qml as a one-line
+        // `visible: root.selfDrawnPlate`, so selfDrawnPlate's own
+        // correctness is what actually matters): Item.visible is
+        // ancestor-combined, and this TestCase's root item reads `visible
+        // === false` even once windowShown fires -- the same reason
+        // test_trackInfoStaysUpThroughBlankLyricStates below checks height
+        // rather than visible. Confirmed directly: every dynamically
+        // created item's `.visible` reads false here regardless of its own
+        // binding, so it cannot distinguish correct from broken.
+        const cases = [
+            { plateMode: "ksvg", panelMode: false, expected: true },
+            { plateMode: "none", panelMode: false, expected: false },
+            { plateMode: "solid", panelMode: false, expected: false },
+            { plateMode: "ksvg", panelMode: true, expected: false },
+            { plateMode: "none", panelMode: true, expected: false },
+            { plateMode: "solid", panelMode: true, expected: false },
+        ];
+        for (let i = 0; i < cases.length; ++i) {
+            const c = cases[i];
+            const source = createTemporaryObject(fakeSourceComponent, this);
+            const view = createTemporaryObject(lyricsViewComponent, this,
+                { source: source, plateMode: c.plateMode, panelMode: c.panelMode });
+            verify(view !== null);
+            const label = `plateMode=${c.plateMode} panelMode=${c.panelMode}`;
+            compare(view.selfDrawnPlate, c.expected, label);
+        }
+    }
+
+    function test_selfDrawnPlateMarginsFoldIntoSizeOnlyWhenSelfDrawn() {
+        const modes = ["none", "ksvg", "solid"];
+        const panelModes = [false, true];
+        for (let p = 0; p < panelModes.length; ++p) {
+            for (let m = 0; m < modes.length; ++m) {
+                const panelMode = panelModes[p];
+                const plateMode = modes[m];
+                const source = createTemporaryObject(fakeSourceComponent, this);
+                const view = createTemporaryObject(lyricsViewComponent, this,
+                    { source: source, plateMode: plateMode, panelMode: panelMode });
+                verify(view !== null);
+                const label = `plateMode=${plateMode} panelMode=${panelMode}`;
+                const plate = view.children[view.children.length - 1];
+                const trackInfo = view.children[2].children[0];
+
+                // Reads the plate's own actual margins rather than
+                // hardcoding pixel values (theme-dependent) -- what is under
+                // test is whether the `selfDrawnPlate ? ... : 0` gating
+                // applies them at all, not their magnitude. A regression
+                // that folds them in unconditionally would still show up as
+                // a mismatch on the "none"/"solid" and panel rows below,
+                // where the gate must contribute zero.
+                const marginW = view.selfDrawnPlate ? plate.margins.horizontal : 0;
+                const marginH = view.selfDrawnPlate ? plate.margins.vertical : 0;
+                const baseWidth = panelMode ? Kirigami.Units.gridUnit * 14 : Kirigami.Units.gridUnit * 28;
+                const baseHeight = panelMode ? Kirigami.Units.gridUnit * 2 : Kirigami.Units.gridUnit * 7.5;
+                const baseMinWidth = panelMode ? Kirigami.Units.gridUnit * 8 : Kirigami.Units.gridUnit * 18;
+                const baseMinHeight = trackInfo.implicitHeight + Kirigami.Units.gridUnit * 2;
+
+                compare(view.implicitWidth, baseWidth + marginW, label);
+                compare(view.implicitHeight, baseHeight + marginH, label);
+                compare(view.Layout.minimumWidth, baseMinWidth + marginW, label);
+                compare(view.Layout.minimumHeight, baseMinHeight + marginH, label);
+
+                // On desktop with "ksvg", the plate must actually contribute
+                // something real -- otherwise this test would pass equally
+                // well against a version that always adds zero.
+                if (plateMode === "ksvg" && !panelMode) {
+                    verify(marginW > 0, label);
+                    verify(marginH > 0, label);
+                }
+            }
+        }
     }
 }
