@@ -228,6 +228,7 @@ PlasmoidItem {
     compactRepresentation: LyricsView {
         source: lyricSource
         plateMode: Plasmoid.configuration.panelPlateMode
+        panelWidth: Plasmoid.configuration.panelWidth
         ownsPlate: root.plateSelfDrawn
         solidColor: Plasmoid.configuration.panelSolidColor
         textColor: Plasmoid.configuration.panelTextColor

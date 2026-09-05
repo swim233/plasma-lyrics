@@ -53,7 +53,7 @@ To import an existing waylyrics JSON cache:
 
 ```sh
 ctest --test-dir build --output-on-failure
-qmllint -I build/bin frontend/plasmoid/package/contents/ui/*.qml
+/usr/lib/qt6/bin/qmllint -I build/bin frontend/plasmoid/package/contents/ui/*.qml
 xmllint --noout frontend/plasmoid/package/contents/config/main.xml
 QML2_IMPORT_PATH="$PWD/build/bin" plasmoidviewer -a io.github.swim233.plasma-lyrics -f planar
 ```

@@ -22,6 +22,10 @@ Item {
     property string idleText: i18n("No media is playing")
     property string notFoundText: ""
     property bool panelMode: false
+    // Default must stay in sync with the panelWidth entry's default in
+    // config/main.xml -- the autotests instantiate LyricsView directly,
+    // with no kcfg behind it to supply this value.
+    property int panelWidth: 280
 
     // Auto-hide (DESIGN.md decision 40) is desktop-only: the panel hides via
     // Plasmoid.status instead (see main.qml), so panelMode short-circuits
@@ -99,14 +103,27 @@ Item {
     // font-relative margin -- otherwise the plate would sit flush against
     // this item's own edges (using up the width it wants to reserve for its
     // own frame) rather than around the text like before.
+    // AppletQuickItem forwards only the Layout.* hints below up to the
+    // applet container, never implicitWidth/implicitHeight -- so neither of
+    // these two ever determines the widget's actual size in either form
+    // factor. They still exist as this item's own fallback content size.
     implicitWidth: (panelMode ? Kirigami.Units.gridUnit * 14 : Kirigami.Units.gridUnit * 28)
         + (root.selfDrawnPlate ? plate.margins.horizontal : 0)
     implicitHeight: (panelMode ? Kirigami.Units.gridUnit * 2 : Kirigami.Units.gridUnit * 7.5)
         + (root.selfDrawnPlate ? plate.margins.vertical : 0)
-    Layout.minimumWidth: (panelMode ? Kirigami.Units.gridUnit * 8 : Kirigami.Units.gridUnit * 18)
+    // QQuickLayouts never renders an item below its own Layout.minimumWidth
+    // regardless of preferredWidth, so this floor must never sit above a
+    // user's panelWidth or a narrower panelWidth would be silently lost.
+    Layout.minimumWidth: (panelMode ? Math.min(Kirigami.Units.gridUnit * 8, root.panelWidth) : Kirigami.Units.gridUnit * 18)
         + (root.selfDrawnPlate ? plate.margins.horizontal : 0)
     Layout.minimumHeight: trackInfo.implicitHeight + Kirigami.Units.gridUnit * 2
         + (root.selfDrawnPlate ? plate.margins.vertical : 0)
+    // -1 is the QQuickLayouts "unset" sentinel. The desktop path must keep
+    // it: GridLayoutManager.adjustToItemSizeHints() only ever grows items
+    // and runs every session even on restored geometry, so an unconditional
+    // preferred width here would silently enlarge existing users'
+    // hand-shrunk desktop widgets on next login.
+    Layout.preferredWidth: panelMode ? root.panelWidth : -1
 
     // Panel is exempt on purpose (decision 40: "面板无动画") -- it hides via
     // Plasmoid.status/HiddenStatus instead, which pulls the container out of

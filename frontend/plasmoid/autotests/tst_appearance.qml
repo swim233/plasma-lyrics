@@ -505,7 +505,8 @@ TestCase {
                 const marginH = view.selfDrawnPlate ? plate.margins.vertical : 0;
                 const baseWidth = panelMode ? Kirigami.Units.gridUnit * 14 : Kirigami.Units.gridUnit * 28;
                 const baseHeight = panelMode ? Kirigami.Units.gridUnit * 2 : Kirigami.Units.gridUnit * 7.5;
-                const baseMinWidth = panelMode ? Kirigami.Units.gridUnit * 8 : Kirigami.Units.gridUnit * 18;
+                const baseMinWidth = panelMode
+                    ? Math.min(Kirigami.Units.gridUnit * 8, view.panelWidth) : Kirigami.Units.gridUnit * 18;
                 const baseMinHeight = trackInfo.implicitHeight + Kirigami.Units.gridUnit * 2;
 
                 compare(view.implicitWidth, baseWidth + marginW, label);
@@ -523,5 +524,31 @@ TestCase {
               }
             }
         }
+    }
+
+    function test_panelWidthDrivesPreferredWidthOnlyInThePanel() {
+        // AppletQuickItem forwards Layout.preferredWidth up to the applet
+        // container, but only in the panel: the desktop path must keep -1
+        // (the QQuickLayouts "unset" sentinel), or GridLayoutManager would
+        // grow every existing hand-shrunk desktop widget on next login.
+        const source = createTemporaryObject(fakeSourceComponent, this);
+        const panelView = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: true, panelWidth: 400 });
+        verify(panelView !== null);
+        compare(panelView.Layout.preferredWidth, panelView.panelWidth);
+
+        const desktopView = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: false, panelWidth: 400 });
+        verify(desktopView !== null);
+        compare(desktopView.Layout.preferredWidth, -1);
+
+        // A panelWidth below the gridUnit*8 floor must actually win the
+        // Math.min -- otherwise this would pass equally well against a
+        // version that never applied it. selfDrawnPlate is always false
+        // here (it requires !panelMode), so no plate margin to add.
+        const narrowView = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: true, panelWidth: 100 });
+        verify(narrowView !== null);
+        compare(narrowView.Layout.minimumWidth, Math.min(Kirigami.Units.gridUnit * 8, narrowView.panelWidth));
     }
 }
