@@ -1,5 +1,8 @@
 # Plasma 6 桌面歌词
 
+<img width="961" height="409" alt="image" src="https://github.com/user-attachments/assets/e66dc90e-1889-4dab-9531-fb7821eb6000" />
+
+
 [English](README.en.md)
 
 原生 Plasma 6 部件：监听会话中的 MPRIS 播放器并显示同步歌词。首个版本经
