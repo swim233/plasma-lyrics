@@ -1,16 +1,16 @@
-# Desktop Lyrics for Plasma 6
+# Plasma 6 桌面歌词
 
-A native Plasma 6 widget that shows synchronized lyrics for the current MPRIS
-player. The first release targets NetEase Cloud Music in a browser through
-`plasma-browser-integration`, while keeping the provider and frontend seams
-open for later additions. A persistent track-info row above the lyrics shows
-the current title and artist, on by default on the desktop and off in the
-panel; both are independently configurable.
+[English](README.en.md)
 
-## Build
+原生 Plasma 6 部件：监听会话中的 MPRIS 播放器并显示同步歌词。首个版本经
+`plasma-browser-integration` 支持浏览器中的网易云音乐，歌词源与前端留有
+扩展接口。歌词上方有一行常驻的曲目信息（标题 — 歌手），桌面默认开启、
+面板默认关闭，两者可独立配置。
 
-Requirements: CMake 3.24+, Qt 6, KDE Frameworks 6 (ECM and KI18n), Plasma 6,
-SQLite's Qt driver, and a C++20 compiler.
+## 构建
+
+需要 CMake 3.24+、Qt 6、KDE Frameworks 6（ECM 与 KI18n）、Plasma 6、
+Qt SQLite 驱动与 C++20 编译器。
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -18,38 +18,35 @@ cmake --build build
 DESTDIR="$PWD/staging" cmake --install build
 ```
 
-The top-level options `BUILD_DAEMON`, `BUILD_PLASMOID`,
-`BUILD_IMPORT_WAYLYRICS`, and `ENABLE_PROVIDER_NETEASE` can disable individual
-parts.
+顶层选项 `BUILD_DAEMON`、`BUILD_PLASMOID`、`BUILD_IMPORT_WAYLYRICS` 与
+`ENABLE_PROVIDER_NETEASE` 可分别关闭各部分。
 
-After installing the package, start the user service:
+安装后启动用户服务：
 
 ```sh
 systemctl --user enable --now plasma-lyricsd.service
 ```
 
-Then add “Desktop Lyrics” to either the desktop or a panel. A panel configured
-as “Windows Go Below” is Plasma's native way to keep lyrics visible around
-maximized windows; desktop widgets cannot be above normal windows.
+然后把「桌面歌词」添加到桌面或面板。将面板设为「窗口置于下方」是 Plasma
+原生保持歌词在最大化窗口周围可见的方式；桌面部件无法位于普通窗口之上。
 
-## Diagnostics
+## 诊断
 
 ```sh
-plasma-lyricsd --explain "Song title" "Artist"
+plasma-lyricsd --explain "歌名" "歌手"
 journalctl --user -u plasma-lyricsd.service -f
 ```
 
-Per-song timing can be adjusted by 500 ms from the widget context menu. Manual
-LRC replacements belong in
-`~/.local/share/plasma-lyrics/overrides/<provider>:<track-id>.lrc`.
+右键菜单可将当前歌曲的时序前后调整 500 ms。手工覆盖歌词放到
+`~/.local/share/plasma-lyrics/overrides/<provider>:<track-id>.lrc`。
 
-To import an existing waylyrics JSON cache:
+导入 waylyrics JSON 缓存：
 
 ```sh
 /usr/libexec/plasma-lyrics/import-waylyrics --source ~/.cache/waylyrics
 ```
 
-## Development checks
+## 开发检查
 
 ```sh
 ctest --test-dir build --output-on-failure
@@ -58,4 +55,4 @@ xmllint --noout frontend/plasmoid/package/contents/config/main.xml
 QML2_IMPORT_PATH="$PWD/build/bin" plasmoidviewer -a io.github.swim233.plasma-lyrics -f planar
 ```
 
-License: GPL-2.0-or-later.
+许可证：GPL-2.0-or-later。
