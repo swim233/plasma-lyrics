@@ -42,3 +42,14 @@ Release notes follow this format:
 - Code elements (settings, commands, paths) in backticks.
 - Major versions open with a one-line 概要; every release ends with a
   完整变更列表 compare link to the previous tag.
+
+Release notes live in `CHANGELOG.md` at the repo root. CI extracts the
+section whose heading matches the pushed tag and uses it as the GitHub
+Release body; the release is created as a draft and published by hand. New
+changes go under `## 未发布` until a tag is cut. The `v0.1.0` / `v0.1.1` /
+`v0.2.0` entries were copied verbatim from the pre-existing GitHub Releases
+via `gh release view` and must not be rewritten.
+
+After pushing a release tag, push the `plasma-lyrics` package to AUR by
+hand. CI only generates and validates the PKGBUILD and `.SRCINFO`; it holds
+no AUR credentials.
