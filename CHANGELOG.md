@@ -6,6 +6,7 @@
 
 ### Added
 - 新增 Debian 13 的 `.deb` 安装包。
+- 新增 Arch 的 `.pkg.tar.zst` 与源码 tarball，随 GitHub Release 一并发布，附 `SHA256SUMS` 校验文件。
 
 ### Changed
 - waylyrics 导入工具更名为 `plasma-lyrics-import-waylyrics` 并改装到 `/usr/bin`，可直接调用；原路径 `/usr/libexec/plasma-lyrics/import-waylyrics` 不再提供。
