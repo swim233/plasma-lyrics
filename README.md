@@ -46,7 +46,7 @@ journalctl --user -u plasma-lyricsd.service -f
 导入 waylyrics JSON 缓存：
 
 ```sh
-/usr/libexec/plasma-lyrics/import-waylyrics --source ~/.cache/waylyrics
+plasma-lyrics-import-waylyrics --source ~/.cache/waylyrics
 ```
 
 ## 开发检查
