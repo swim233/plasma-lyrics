@@ -48,7 +48,7 @@ LRC replacements belong in
 To import an existing waylyrics JSON cache:
 
 ```sh
-/usr/libexec/plasma-lyrics/import-waylyrics --source ~/.cache/waylyrics
+plasma-lyrics-import-waylyrics --source ~/.cache/waylyrics
 ```
 
 ## Development checks
