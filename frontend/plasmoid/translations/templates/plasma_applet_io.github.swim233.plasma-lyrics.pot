@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-05 10:39+0800\n"
+"POT-Creation-Date: 2026-09-05 12:29+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -35,23 +35,23 @@ msgid "Lyrics Service"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/LyricsView.qml:22
-#: frontend/plasmoid/package/contents/ui/main.qml:242
-#: frontend/plasmoid/package/contents/ui/main.qml:269
+#: frontend/plasmoid/package/contents/ui/main.qml:243
+#: frontend/plasmoid/package/contents/ui/main.qml:270
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:42
 msgid "No media is playing"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:50
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:54
 msgid "Searching for lyrics…"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:151
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:168
 msgid ""
 "The lyrics service stopped. Restart it with:\n"
 "systemctl --user restart plasma-lyricsd"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:152
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:169
 msgid ""
 "The lyrics service is not running. Start it with:\n"
 "systemctl --user enable --now plasma-lyricsd"
@@ -63,19 +63,19 @@ msgid "%1 — %2"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/main.qml:110
-#: frontend/plasmoid/package/contents/ui/main.qml:285
+#: frontend/plasmoid/package/contents/ui/main.qml:286
 msgid "Desktop Lyrics"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:290
+#: frontend/plasmoid/package/contents/ui/main.qml:291
 msgid "Lyrics 0.5 s earlier"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:296
+#: frontend/plasmoid/package/contents/ui/main.qml:297
 msgid "Lyrics 0.5 s later"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:302
+#: frontend/plasmoid/package/contents/ui/main.qml:303
 msgid "Reset lyric offset (%1 ms)"
 msgstr ""
 
@@ -297,7 +297,7 @@ msgid "Save service settings"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:54
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:51
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:57
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:34
 msgid ""
 "These settings apply to this widget only. Every Desktop Lyrics widget keeps "
@@ -305,27 +305,27 @@ msgid ""
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:113
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:103
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:130
 msgid "Auto-hide"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:116
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:106
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:133
 msgid "Auto-hide:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:117
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:107
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:134
 msgid "Hide the widget when nothing is playing"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:122
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:112
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:139
 msgid "Delay:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:128
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:118
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:145
 msgid "%1 second"
 msgid_plural "%1 seconds"
 msgstr[0] ""
@@ -336,13 +336,18 @@ msgid "Fade duration:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:141
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:121
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:148
 msgid "Non-music media:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:143
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:123
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:150
 msgid "Also hide while playing non-music media"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:115
+msgctxt "@label:spinbox"
+msgid "Width:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:40
