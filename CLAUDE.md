@@ -29,5 +29,16 @@ the new behaviour -- no root-cause narration, no metaphor. Do not add
     偏移改为 LyricLine 的属性绑定，失效即归零。
 
 README.md and release notes are written in Chinese; README.en.md carries the
-English copy. Release notes are a plain bullet list -- 新增了 / 修改了 /
-修复了, one change per line with its new behaviour, nothing else.
+English copy.
+
+Release notes follow this format:
+- Grouped by change type with English section headers, in this order:
+  Breaking Changes → Added → Changed → Fixed → Removed → Security.
+  Empty sections are omitted; the project is small enough that module
+  grouping is skipped.
+- One bullet per change, verb-first in Chinese (新增 / 更改 / 修复 / 移除),
+  stating what changed and its user-visible behaviour; for fixes, state the
+  symptom, not the internals. Breaking changes must include migration notes.
+- Code elements (settings, commands, paths) in backticks.
+- Major versions open with a one-line 概要; every release ends with a
+  完整变更列表 compare link to the previous tag.
