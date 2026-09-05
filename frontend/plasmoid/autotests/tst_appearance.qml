@@ -394,22 +394,29 @@ TestCase {
         // rather than visible. Confirmed directly: every dynamically
         // created item's `.visible` reads false here regardless of its own
         // binding, so it cannot distinguish correct from broken.
-        const cases = [
-            { plateMode: "ksvg", panelMode: false, expected: true },
-            { plateMode: "none", panelMode: false, expected: false },
-            { plateMode: "solid", panelMode: false, expected: false },
-            { plateMode: "ksvg", panelMode: true, expected: false },
-            { plateMode: "none", panelMode: true, expected: false },
-            { plateMode: "solid", panelMode: true, expected: false },
-        ];
-        for (let i = 0; i < cases.length; ++i) {
-            const c = cases[i];
-            const source = createTemporaryObject(fakeSourceComponent, this);
-            const view = createTemporaryObject(lyricsViewComponent, this,
-                { source: source, plateMode: c.plateMode, panelMode: c.panelMode });
-            verify(view !== null);
-            const label = `plateMode=${c.plateMode} panelMode=${c.panelMode}`;
-            compare(view.selfDrawnPlate, c.expected, label);
+        //
+        // autoHideEnabled is the third dimension and the only one that says
+        // "true" together with ksvg+desktop: with auto-hide off the shell
+        // keeps the plate, because on a theme that ships blurred-* elements
+        // its version blurs the wallpaper behind the frame and ours cannot.
+        const modes = ["none", "ksvg", "solid"];
+        for (let m = 0; m < modes.length; ++m) {
+            for (let p = 0; p < 2; ++p) {
+                for (let a = 0; a < 2; ++a) {
+                    const plateMode = modes[m];
+                    const panelMode = p === 1;
+                    const autoHideEnabled = a === 1;
+                    const expected = plateMode === "ksvg" && !panelMode && autoHideEnabled;
+                    const source = createTemporaryObject(fakeSourceComponent, this);
+                    const view = createTemporaryObject(lyricsViewComponent, this, {
+                        source: source, plateMode: plateMode, panelMode: panelMode,
+                        autoHideEnabled: autoHideEnabled });
+                    verify(view !== null);
+                    const label = `plateMode=${plateMode} panelMode=${panelMode}`
+                        + ` autoHideEnabled=${autoHideEnabled}`;
+                    compare(view.selfDrawnPlate, expected, label);
+                }
+            }
         }
     }
 
@@ -418,13 +425,17 @@ TestCase {
         const panelModes = [false, true];
         for (let p = 0; p < panelModes.length; ++p) {
             for (let m = 0; m < modes.length; ++m) {
+              for (let a = 0; a < 2; ++a) {
                 const panelMode = panelModes[p];
                 const plateMode = modes[m];
+                const autoHideEnabled = a === 1;
                 const source = createTemporaryObject(fakeSourceComponent, this);
-                const view = createTemporaryObject(lyricsViewComponent, this,
-                    { source: source, plateMode: plateMode, panelMode: panelMode });
+                const view = createTemporaryObject(lyricsViewComponent, this, {
+                    source: source, plateMode: plateMode, panelMode: panelMode,
+                    autoHideEnabled: autoHideEnabled });
                 verify(view !== null);
-                const label = `plateMode=${plateMode} panelMode=${panelMode}`;
+                const label = `plateMode=${plateMode} panelMode=${panelMode}`
+                    + ` autoHideEnabled=${autoHideEnabled}`;
                 const plate = view.children[view.children.length - 1];
                 const trackInfo = view.children[2].children[0];
 
@@ -450,10 +461,11 @@ TestCase {
                 // On desktop with "ksvg", the plate must actually contribute
                 // something real -- otherwise this test would pass equally
                 // well against a version that always adds zero.
-                if (plateMode === "ksvg" && !panelMode) {
+                if (plateMode === "ksvg" && !panelMode && autoHideEnabled) {
                     verify(marginW > 0, label);
                     verify(marginH > 0, label);
                 }
+              }
             }
         }
     }
