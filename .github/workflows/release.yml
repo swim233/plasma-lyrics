@@ -212,7 +212,11 @@ jobs:
             case "$f" in *-debug-*) continue;; esac
             cp "$f" out/
           done
-          cp /aur/PKGBUILD /aur/.SRCINFO out/
+          # Both files together, as a tarball: a shell glob skips .SRCINFO and
+          # it would be listed in SHA256SUMS as an asset nobody can download,
+          # while AUR needs the pair. Extract this into the AUR clone.
+          tar -czf "out/plasma-lyrics-${{ needs.prepare.outputs.version }}-aur.tar.gz" \
+            -C /aur PKGBUILD .SRCINFO
 
       - uses: actions/upload-artifact@v7
         with:
@@ -235,7 +239,6 @@ jobs:
           mkdir -p out
           find dist -type f \( -name '*.tar.gz' -o -name '*.deb' -o -name '*.pkg.tar.zst' \) \
             -exec cp {} out/ \;
-          cp dist/arch/PKGBUILD dist/arch/.SRCINFO out/
           # GitHub rewrites any "~" in an asset name to ".", so checksums taken
           # before the upload would list a name nobody can download. Rename
           # first; the bytes and the package's own version are untouched.
@@ -243,7 +246,7 @@ jobs:
             [ -e "$f" ] || continue
             mv "$f" "$(echo "$f" | tr '~' '.')"
           done
-          (cd out && sha256sum -- * .SRCINFO) > /tmp/SHA256SUMS
+          (cd out && sha256sum -- *) > /tmp/SHA256SUMS
           mv /tmp/SHA256SUMS out/SHA256SUMS
           cat out/SHA256SUMS
 
