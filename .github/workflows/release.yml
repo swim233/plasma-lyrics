@@ -145,15 +145,8 @@ jobs:
         with:
           name: source
 
-      - name: Build the Arch package from the tag
-        run: |
-          useradd -m builder
-          git config --system --add safe.directory "$GITHUB_WORKSPACE"
-          install -d -o builder -g builder /work
-          cp packaging/aur/PKGBUILD /work/
-          sed -i "s|^source=.*|source=(\"\$pkgname::git+file://$GITHUB_WORKSPACE\")|" /work/PKGBUILD
-          chown -R builder:builder /work
-          su builder -c 'cd /work && makepkg -f --noconfirm --nodeps'
+      - name: Create the build user
+        run: useradd -m builder
 
       # The tagged PKGBUILD is generated, not stored: keeping a second one in
       # the repo means a pkgver and a checksum that are stale the moment they
@@ -213,7 +206,12 @@ jobs:
       - name: Collect
         run: |
           mkdir -p out
-          cp /work/*.pkg.tar.zst out/
+          # The container's makepkg.conf enables debug, which drops a separate
+          # multi-megabyte -debug- package next to the real one.
+          for f in /aur/*.pkg.tar.zst; do
+            case "$f" in *-debug-*) continue;; esac
+            cp "$f" out/
+          done
           cp /aur/PKGBUILD /aur/.SRCINFO out/
 
       - uses: actions/upload-artifact@v7
@@ -238,6 +236,13 @@ jobs:
           find dist -type f \( -name '*.tar.gz' -o -name '*.deb' -o -name '*.pkg.tar.zst' \) \
             -exec cp {} out/ \;
           cp dist/arch/PKGBUILD dist/arch/.SRCINFO out/
+          # GitHub rewrites any "~" in an asset name to ".", so checksums taken
+          # before the upload would list a name nobody can download. Rename
+          # first; the bytes and the package's own version are untouched.
+          for f in out/*'~'*; do
+            [ -e "$f" ] || continue
+            mv "$f" "$(echo "$f" | tr '~' '.')"
+          done
           (cd out && sha256sum -- * .SRCINFO) > /tmp/SHA256SUMS
           mv /tmp/SHA256SUMS out/SHA256SUMS
           cat out/SHA256SUMS
