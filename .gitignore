@@ -2,3 +2,15 @@
 /compile_commands.json
 /.cache/
 *.user
+
+# makepkg builds in place when run from packaging/aur, and everything it
+# leaves behind is derived: the cloned source, the build tree, the staged
+# package root and the package itself. One `git add -A` after a build
+# otherwise stages ~90k lines of build output, plus the clone as an embedded
+# repository. Note it also rewrites pkgver in the tracked PKGBUILD, which is
+# a placeholder recomputed by pkgver() -- discard that rather than commit it.
+/packaging/aur/src/
+/packaging/aur/pkg/
+/packaging/aur/plasma-lyrics-git/
+/packaging/aur/*.pkg.tar.*
+/packaging/aur/*.log
