@@ -9,22 +9,22 @@ PlasmoidItem {
     id: root
 
     readonly property bool onDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
-    readonly property string activePlateMode: root.onDesktop
-        ? Plasmoid.configuration.desktopPlateMode
-        : Plasmoid.configuration.panelPlateMode
 
-    // The themed plate is the shell's to draw, not ours. A FrameSvgItem on
-    // "widgets/background" keeps whatever the theme looked like when it was
-    // created, while the shell's background follows a theme change and is also
-    // what insets the applet's content by the frame margins. Every other plate
-    // mode paints itself, so the shell has to stay out of the way for those.
+    // The themed "ksvg" plate used to be the shell's to draw (backgroundHints:
+    // DefaultBackground), on the theory that a hand-drawn FrameSvgItem would
+    // be a one-shot snapshot that would not track a later theme or colour
+    // scheme change. DESIGN.md decision 40 disproves that theory outright --
+    // the shell's own plate is nothing but a KSvg.FrameSvgItem on
+    // "widgets/background", the same one LyricsView now draws for itself --
+    // but keeps the shell out of it unconditionally anyway, for a structural
+    // reason rather than a cosmetic one: the shell's plate is a *sibling* of
+    // this applet's content item, so no opacity we set on our side can ever
+    // fade it, which auto-hide needs to do on the desktop.
     //
     // ConfigurableBackground is left out on purpose: it adds the shell's own
     // show-background checkbox beside our three-way plate setting, and the two
     // would then disagree about the same thing.
-    Plasmoid.backgroundHints: root.activePlateMode === "ksvg"
-        ? PlasmaCore.Types.DefaultBackground
-        : PlasmaCore.Types.NoBackground
+    Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
     Plasmoid.title: i18n("Desktop Lyrics")
     preferredRepresentation: root.onDesktop ? fullRepresentation : compactRepresentation
 
