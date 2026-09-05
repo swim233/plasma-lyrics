@@ -95,6 +95,10 @@ jobs:
       # dbus-run-session lives in dbus-daemon on trixie, not in dbus. With the
       # wrong package CMake silently drops tst_mprisdiscovery and the suite
       # still reports success.
+      # file backs CPACK_DEBIAN_PACKAGE_SHLIBDEPS and appstream supplies the
+      # appstreamcli that appstreamtest needs. Both arrive by accident with
+      # lintian, so a job that does not install lintian silently packages
+      # without dependency scanning and runs one test fewer.
       - name: Install dependencies
         run: |
           apt-get update
@@ -103,6 +107,7 @@ jobs:
             extra-cmake-modules qt6-base-dev qt6-declarative-dev \
             libkf6i18n-dev libplasma-dev gettext \
             dbus-daemon libqt6sql6-sqlite \
+            file appstream \
             qml6-module-org-kde-kirigami qml6-module-org-kde-ksvg \
             qml6-module-org-kde-kquickcontrols plasma-desktoptheme \
             lintian
