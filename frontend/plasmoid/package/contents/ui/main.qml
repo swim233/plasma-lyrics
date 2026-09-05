@@ -10,21 +10,36 @@ PlasmoidItem {
 
     readonly property bool onDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
 
-    // The themed "ksvg" plate used to be the shell's to draw (backgroundHints:
-    // DefaultBackground), on the theory that a hand-drawn FrameSvgItem would
-    // be a one-shot snapshot that would not track a later theme or colour
-    // scheme change. DESIGN.md decision 40 disproves that theory outright --
-    // the shell's own plate is nothing but a KSvg.FrameSvgItem on
-    // "widgets/background", the same one LyricsView now draws for itself --
-    // but keeps the shell out of it unconditionally anyway, for a structural
-    // reason rather than a cosmetic one: the shell's plate is a *sibling* of
-    // this applet's content item, so no opacity we set on our side can ever
-    // fade it, which auto-hide needs to do on the desktop.
+    readonly property bool activeAutoHide: root.onDesktop
+        ? Plasmoid.configuration.desktopAutoHide
+        : Plasmoid.configuration.panelAutoHide
+
+    // Who draws the "ksvg" plate depends on whether auto-hide is on, because
+    // the two things the plate has to do are mutually exclusive from inside an
+    // applet.
+    //
+    // The shell's plate is a *sibling* of this applet's content item, so no
+    // opacity we set can fade it -- which is what auto-hide needs on the
+    // desktop. Drawing it ourselves fixes that. But the shell does more than
+    // put a KSvg.FrameSvgItem on "widgets/background": when the theme ships
+    // blurred-* elements (ChromeOS does; Breeze does not), it switches the
+    // frame to prefix "blurred" and stacks a MultiEffect that samples the
+    // wallpaper and blurs it behind the frame, masked by blurred-mask. That
+    // effect reaches into the containment's own window and wallpaper, so an
+    // applet cannot reproduce it -- self-drawing unconditionally turns a
+    // blurred plate into a flat opaque slab on any theme that has one.
+    //
+    // So the shell keeps the plate whenever auto-hide is off, which is the
+    // default and the only state where the plate never has to fade. Turning
+    // auto-hide on trades the blur for a plate that can fade with the rest of
+    // the widget. See DESIGN.md decision 40.
     //
     // ConfigurableBackground is left out on purpose: it adds the shell's own
     // show-background checkbox beside our three-way plate setting, and the two
     // would then disagree about the same thing.
-    Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
+    Plasmoid.backgroundHints: root.activePlateMode === "ksvg" && !root.activeAutoHide
+        ? PlasmaCore.Types.DefaultBackground
+        : PlasmaCore.Types.NoBackground
     Plasmoid.title: i18n("Desktop Lyrics")
     preferredRepresentation: root.onDesktop ? fullRepresentation : compactRepresentation
 
@@ -145,6 +160,7 @@ PlasmoidItem {
     compactRepresentation: LyricsView {
         source: lyricSource
         plateMode: Plasmoid.configuration.panelPlateMode
+        autoHideEnabled: root.activeAutoHide
         solidColor: Plasmoid.configuration.panelSolidColor
         textColor: Plasmoid.configuration.panelTextColor
         strokeEnabled: Plasmoid.configuration.panelStroke
@@ -171,6 +187,7 @@ PlasmoidItem {
     fullRepresentation: LyricsView {
         source: lyricSource
         plateMode: Plasmoid.configuration.desktopPlateMode
+        autoHideEnabled: root.activeAutoHide
         solidColor: Plasmoid.configuration.desktopSolidColor
         textColor: Plasmoid.configuration.desktopTextColor
         strokeEnabled: Plasmoid.configuration.desktopStroke

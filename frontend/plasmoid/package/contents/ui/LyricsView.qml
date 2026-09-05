@@ -30,6 +30,10 @@ Item {
     // instantiates LyricsView directly without a VisibilityPolicy at all.
     property bool shouldBeVisible: true
     property bool animationsArmed: false
+    // Whether auto-hide is switched on for this form factor. It decides who
+    // draws the ksvg plate, not just whether the widget can hide: see
+    // selfDrawnPlate below and main.qml's backgroundHints.
+    property bool autoHideEnabled: false
     property int hideAnimationMs: 1000
 
     property bool showTrackInfo: true
@@ -73,7 +77,14 @@ Item {
     // (if slightly misleading -- see the "顺带发现" note in decision 40)
     // behaviour: the panel's own container never painted a per-applet plate
     // to begin with, so there is nothing to take over.
-    readonly property bool selfDrawnPlate: root.plateMode === "ksvg" && !root.panelMode
+    // Only while auto-hide is on. The shell draws a strictly better ksvg
+    // plate -- on a theme with blurred-* elements it blurs the wallpaper
+    // behind the frame, which an applet cannot reproduce -- so we take the
+    // plate over only when something actually needs it to fade. Panels never
+    // self-draw: their containment paints no per-applet frame at all, so
+    // "ksvg" has always rendered nothing there.
+    readonly property bool selfDrawnPlate: root.plateMode === "ksvg"
+        && !root.panelMode && root.autoHideEnabled
     readonly property real baseMargin: Math.max(Kirigami.Units.smallSpacing, root.fontSize * 0.35)
     readonly property real plateMarginLeft: root.selfDrawnPlate ? plate.margins.left : 0
     readonly property real plateMarginTop: root.selfDrawnPlate ? plate.margins.top : 0
