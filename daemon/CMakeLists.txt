@@ -17,6 +17,10 @@ add_executable(plasma-lyricsd
     src/mpris/mpristypes.h
 )
 target_include_directories(plasma-lyricsd PRIVATE ${CMAKE_SOURCE_DIR})
+# Wired in rather than retyped in main.cpp, so --version can never drift from
+# project(VERSION).
+target_compile_definitions(plasma-lyricsd PRIVATE
+    PLASMA_LYRICS_VERSION="${PROJECT_VERSION}")
 target_link_libraries(plasma-lyricsd PRIVATE
     plasma_lyrics_core
     plasma_lyrics_providers

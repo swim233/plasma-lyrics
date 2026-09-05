@@ -1,3 +1,16 @@
+# metadata.json's KPlugin.Version is what Plasma shows the user (widget list,
+# System Settings) and cannot be generated from project(VERSION) --
+# plasma_install_package() takes the package directory as-is. Catch drift
+# between the two at configure time instead of at release time.
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/package/metadata.json" _metadata_json)
+string(JSON _metadata_version GET "${_metadata_json}" KPlugin Version)
+if(NOT _metadata_version STREQUAL PROJECT_VERSION)
+    message(FATAL_ERROR
+        "package/metadata.json KPlugin.Version is ${_metadata_version} but "
+        "project(VERSION) is ${PROJECT_VERSION} -- update metadata.json's "
+        "Version field to match.")
+endif()
+
 plasma_install_package(package io.github.swim233.plasma-lyrics)
 ki18n_install(translations)
 
