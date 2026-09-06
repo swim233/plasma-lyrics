@@ -185,7 +185,7 @@ plasma-lyrics/
 ├── CMakeLists.txt              顶层，-DBUILD_DAEMON / -DBUILD_PLASMOID 可分别关闭
 ├── CLAUDE.md  AGENTS.md
 ├── README.md  README.zh-CN.md
-├── LICENSE                     GPL-2.0-or-later
+├── LICENSE                     GPL-2.0
 ├── DESIGN.md                   本文档
 │
 ├── core/                       纯逻辑：依赖 QtCore，禁 QtNetwork / QtDBus
