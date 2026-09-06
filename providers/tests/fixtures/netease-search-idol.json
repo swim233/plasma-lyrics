@@ -1,0 +1,76 @@
+{
+    "code": 200,
+    "result": {
+        "songs": [
+            {
+                "id": 2034742057,
+                "name": "アイドル",
+                "duration": 213233,
+                "artists": [
+                    {
+                        "name": "YOASOBI"
+                    }
+                ],
+                "album": {
+                    "name": "アイドル"
+                },
+                "transNames": [
+                    "偶像"
+                ],
+                "alias": [
+                    "TV动画《我推的孩子》片头曲"
+                ]
+            },
+            {
+                "id": 2083870325,
+                "name": "アイドル",
+                "duration": 211733,
+                "artists": [
+                    {
+                        "name": "YOASOBI"
+                    }
+                ],
+                "album": {
+                    "name": "THE BOOK 3"
+                },
+                "transNames": [
+                    "偶像"
+                ],
+                "alias": [
+                    "TV动画《【我推的孩子】》片头曲"
+                ]
+            },
+            {
+                "id": 2599476826,
+                "name": "アイドル Yoasobi",
+                "duration": 170666,
+                "artists": [
+                    {
+                        "name": "Get A Better Beat"
+                    }
+                ],
+                "album": {
+                    "name": "アイドル Yoasobi"
+                },
+                "transNames": [
+                    "偶像 Yoasobi"
+                ],
+                "alias": []
+            },
+            {
+                "id": 1472480890,
+                "name": "群青",
+                "duration": 248444,
+                "artists": [
+                    {
+                        "name": "YOASOBI"
+                    }
+                ],
+                "album": {
+                    "name": "群青"
+                },
+                "alias": []
+            }
+        ]
+    }
+}

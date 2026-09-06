@@ -19,6 +19,7 @@ struct Candidate {
     QStringList artists;
     QString album;
     qint64 lengthMs = 0;
+    QStringList alternateTitles;   // this track's other known titles (netease transNames)
 };
 
 struct ScoreBreakdown {
@@ -28,6 +29,7 @@ struct ScoreBreakdown {
     double duration = 0;
     double total = 0;
     qint64 durationDifferenceMs = 0;
+    bool titleViaAlternate = false;   // true when an alternateTitles entry beat the primary title
 };
 
 struct RankedCandidate {

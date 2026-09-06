@@ -123,13 +123,24 @@ QList<Candidate> NeteaseProvider::parseSearchResponse(const QByteArray &payload,
         const auto albumObject = song.contains(QStringLiteral("album"))
             ? song.value(QStringLiteral("album")).toObject()
             : song.value(QStringLiteral("al")).toObject();
+        // transNames carries the storefront's localized title (e.g. "偶像" for
+        // "アイドル"); alias is deliberately not read here -- it's anime/show
+        // tie-in text (e.g. "TV动画《我推的孩子》片头曲"), not a title translation.
+        QStringList alternateTitles;
+        for (const auto &alternate : song.value(QStringLiteral("transNames")).toArray()) {
+            const auto text = alternate.toString();
+            if (!text.isEmpty()) {
+                alternateTitles.append(text);
+            }
+        }
         candidates.append({QString::number(song.value(QStringLiteral("id")).toInteger()),
                            song.value(QStringLiteral("name")).toString(),
                            artists,
                            albumObject.value(QStringLiteral("name")).toString(),
                            song.contains(QStringLiteral("duration"))
                                ? song.value(QStringLiteral("duration")).toInteger()
-                               : song.value(QStringLiteral("dt")).toInteger()});
+                               : song.value(QStringLiteral("dt")).toInteger(),
+                           alternateTitles});
     }
     return candidates;
 }

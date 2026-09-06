@@ -98,8 +98,18 @@ QString searchKeywords(const TrackQuery &query)
 ScoreBreakdown scoreCandidate(const TrackQuery &query, const Candidate &candidate)
 {
     ScoreBreakdown score;
-    score.title = textSimilarity(normalizeSearchText(cleanTitle(query.title)),
-                                 normalizeSearchText(cleanTitle(candidate.title)));
+    const QString normalizedQuery = normalizeSearchText(cleanTitle(query.title));
+    score.title = textSimilarity(normalizedQuery, normalizeSearchText(cleanTitle(candidate.title)));
+    // Alternate titles (e.g. netease transNames) are extra evidence, not a
+    // lowered bar: they can only raise score.title, by the same textSimilarity
+    // used for the primary title, and only the best of all of them counts.
+    for (const auto &alternate : candidate.alternateTitles) {
+        const double alternateScore = textSimilarity(normalizedQuery, normalizeSearchText(cleanTitle(alternate)));
+        if (alternateScore > score.title) {
+            score.title = alternateScore;
+            score.titleViaAlternate = true;
+        }
+    }
     score.artists = artistSimilarity(cleanArtists(query.artists), cleanArtists(candidate.artists));
     score.album = textSimilarity(normalizeSearchText(query.album), normalizeSearchText(candidate.album));
     score.durationDifferenceMs = query.lengthMs > 0 && candidate.lengthMs > 0
@@ -156,7 +166,9 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
                << " artists=" << QString::number(item.score.artists, 'f', 3)
                << " album=" << QString::number(item.score.album, 'f', 3)
                << " duration=" << QString::number(item.score.duration, 'f', 3)
-               << " deltaMs=" << item.score.durationDifferenceMs << '\n';
+               << " deltaMs=" << item.score.durationDifferenceMs
+               << " titleVia=" << (item.score.titleViaAlternate ? QStringLiteral("alias") : QStringLiteral("title"))
+               << '\n';
     }
     if (!ranked.isEmpty()) {
         stream << "selected: " << (isAcceptableMatch(ranked.first()) ? ranked.first().candidate.trackId
