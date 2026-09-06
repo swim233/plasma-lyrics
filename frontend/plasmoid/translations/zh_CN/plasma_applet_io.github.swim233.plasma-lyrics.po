@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-05 10:39+0800\n"
+"POT-Creation-Date: 2026-09-06 11:41+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -25,21 +25,25 @@ msgid "Text"
 msgstr "文本"
 
 #: frontend/plasmoid/package/contents/config/config.qml:21
+msgid "Global settings"
+msgstr "全局设置"
+
+#: frontend/plasmoid/package/contents/config/config.qml:26
 msgid "Lyrics Service"
 msgstr "歌词服务"
 
 #: frontend/plasmoid/package/contents/ui/LyricsView.qml:22
-#: frontend/plasmoid/package/contents/ui/main.qml:242
-#: frontend/plasmoid/package/contents/ui/main.qml:269
+#: frontend/plasmoid/package/contents/ui/main.qml:243
+#: frontend/plasmoid/package/contents/ui/main.qml:270
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:42
 msgid "No media is playing"
 msgstr "当前未在播放"
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:50
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:54
 msgid "Searching for lyrics…"
 msgstr "搜索中…"
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:151
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:168
 msgid ""
 "The lyrics service stopped. Restart it with:\n"
 "systemctl --user restart plasma-lyricsd"
@@ -47,7 +51,7 @@ msgstr ""
 "歌词服务已停止。请用以下命令重启：\n"
 "systemctl --user restart plasma-lyricsd"
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:152
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:169
 msgid ""
 "The lyrics service is not running. Start it with:\n"
 "systemctl --user enable --now plasma-lyricsd"
@@ -61,19 +65,31 @@ msgid "%1 — %2"
 msgstr "%1 — %2"
 
 #: frontend/plasmoid/package/contents/ui/main.qml:110
-#: frontend/plasmoid/package/contents/ui/main.qml:285
+#: frontend/plasmoid/package/contents/ui/main.qml:286
 msgid "Desktop Lyrics"
 msgstr "桌面歌词"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:290
+#: frontend/plasmoid/package/contents/ui/main.qml:292
+msgid "Lyrics 0.5 s earlier (all songs)"
+msgstr "歌词提前 0.5 秒（所有歌曲）"
+
+#: frontend/plasmoid/package/contents/ui/main.qml:293
 msgid "Lyrics 0.5 s earlier"
 msgstr "歌词提前 0.5 秒"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:296
+#: frontend/plasmoid/package/contents/ui/main.qml:300
+msgid "Lyrics 0.5 s later (all songs)"
+msgstr "歌词延后 0.5 秒（所有歌曲）"
+
+#: frontend/plasmoid/package/contents/ui/main.qml:301
 msgid "Lyrics 0.5 s later"
 msgstr "歌词延后 0.5 秒"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:302
+#: frontend/plasmoid/package/contents/ui/main.qml:308
+msgid "Reset global lyric offset (%1 ms)"
+msgstr "重置全局歌词偏移（%1 毫秒）"
+
+#: frontend/plasmoid/package/contents/ui/main.qml:309
 msgid "Reset lyric offset (%1 ms)"
 msgstr "重置歌词偏移（%1 毫秒）"
 
@@ -239,6 +255,7 @@ msgstr "网络超时："
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:36
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:138
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:76
 msgid "%1 ms"
 msgstr "%1 毫秒"
 
@@ -295,7 +312,7 @@ msgid "Save service settings"
 msgstr "保存服务设置"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:54
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:51
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:57
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:34
 msgid ""
 "These settings apply to this widget only. Every Desktop Lyrics widget keeps "
@@ -303,27 +320,27 @@ msgid ""
 msgstr "这些设置只作用于当前这个部件。每个桌面歌词部件各自保存一份配置。"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:113
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:103
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:130
 msgid "Auto-hide"
 msgstr "自动隐藏"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:116
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:106
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:133
 msgid "Auto-hide:"
 msgstr "自动隐藏："
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:117
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:107
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:134
 msgid "Hide the widget when nothing is playing"
 msgstr "无播放时隐藏部件"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:122
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:112
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:139
 msgid "Delay:"
 msgstr "延迟："
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:128
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:118
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:145
 msgid "%1 second"
 msgid_plural "%1 seconds"
 msgstr[0] "%1 秒"
@@ -333,14 +350,36 @@ msgid "Fade duration:"
 msgstr "淡入淡出时长："
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:141
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:121
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:148
 msgid "Non-music media:"
 msgstr "非音乐媒体："
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:143
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:123
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:150
 msgid "Also hide while playing non-music media"
 msgstr "播放非音乐媒体时也隐藏"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:51
+msgid ""
+"This setting affects every Desktop Lyrics widget and takes effect "
+"immediately, without restarting the lyrics service."
+msgstr "此设置会影响所有桌面歌词部件，改动立即生效，无需重启歌词服务。"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:58
+msgid "Could not save the global offset. The setting was not applied."
+msgstr "全局偏移保存失败，设置未生效。"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:64
+msgid "Lyric offset:"
+msgstr "歌词偏移："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:65
+msgid "Use one offset for all songs"
+msgstr "所有歌曲共用同一个偏移"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:70
+msgid "Offset:"
+msgstr "偏移："
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:115
 msgctxt "@label:spinbox"

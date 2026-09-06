@@ -10,6 +10,8 @@ ecm_add_qml_module(plasmalyricssource
 target_sources(plasmalyricssource PRIVATE
     backendconfig.cpp
     backendconfig.h
+    globalconfig.cpp
+    globalconfig.h
     lyricsource.cpp
     lyricsource.h
     visibilitypolicy.cpp
