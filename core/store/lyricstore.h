@@ -34,11 +34,20 @@ public:
     std::optional<int> adjustOffset(const TrackRef &ref, int deltaMs);
     int offset(const TrackRef &ref) const;
 
+    bool globalOffsetEnabled() const;
+    bool setGlobalOffsetEnabled(bool enabled);
+    int globalOffsetMs() const;
+    bool setGlobalOffsetMs(int offsetMs);
+    std::optional<int> adjustGlobalOffset(int deltaMs);
+    static constexpr int maximumGlobalOffsetMs() { return 10000; }
+
     static QString defaultPath();
 
 private:
     bool executeSchema(QString *error);
     static qint64 epochSeconds(qint64 supplied);
+    std::optional<QString> setting(const QString &key) const;
+    bool setSetting(const QString &key, const QString &value);
 
     QString m_path;
     QString m_connectionName;
