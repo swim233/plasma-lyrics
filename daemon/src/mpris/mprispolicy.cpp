@@ -9,6 +9,60 @@
 #include <algorithm>
 
 namespace PlasmaLyrics {
+namespace {
+
+struct PlatformRule {
+    QString id;
+    QStringList serviceWildcards;
+    QStringList urlPrefixes;
+};
+
+const QList<PlatformRule> &platformRules()
+{
+    static const QList<PlatformRule> rules{
+        {QStringLiteral("netease"),
+         {},
+         {QStringLiteral("https://music.163.com/"), QStringLiteral("http://music.163.com/")}},
+        {QStringLiteral("apple"),
+         {QStringLiteral("*.sidra"), QStringLiteral("*.cider*")},
+         {QStringLiteral("https://music.apple.com/"), QStringLiteral("http://music.apple.com/"),
+          QStringLiteral("https://classical.music.apple.com/"), QStringLiteral("http://classical.music.apple.com/")}},
+    };
+    return rules;
+}
+
+bool matchesWildcard(const QString &value, const QString &pattern)
+{
+    const QRegularExpression expression(
+        QRegularExpression::wildcardToRegularExpression(pattern),
+        QRegularExpression::CaseInsensitiveOption);
+    return expression.match(value).hasMatch();
+}
+
+} // namespace
+
+QString MprisPolicy::platformFor(const MprisState &state)
+{
+    // Service name first: Sidra's radio/classical entries carry no xesam:url at
+    // all, so the service name is the only signal that can identify them.
+    for (const auto &rule : platformRules()) {
+        for (const auto &pattern : rule.serviceWildcards) {
+            if (matchesWildcard(state.service, pattern)) {
+                return rule.id;
+            }
+        }
+    }
+    if (!state.url.isEmpty()) {
+        for (const auto &rule : platformRules()) {
+            for (const auto &prefix : rule.urlPrefixes) {
+                if (state.url.startsWith(prefix, Qt::CaseInsensitive)) {
+                    return rule.id;
+                }
+            }
+        }
+    }
+    return QString();
+}
 
 QString MprisPolicy::fingerprint(const MprisState &state)
 {
@@ -46,6 +100,13 @@ bool MprisPolicy::isMusic(const MprisState &state, const PolicyConfig &config)
 {
     if (isBlacklisted(state.service, config)) {
         return false;
+    }
+    const QString platform = platformFor(state);
+    if (!platform.isEmpty()) {
+        // A known platform is decided entirely by whether it's checked in
+        // settings; an unlisted platform (D-2) falls through to the untouched
+        // heuristics below rather than becoming unreachable.
+        return config.enabledPlatforms.contains(platform);
     }
     if (!state.url.isEmpty()) {
         for (const auto &prefix : config.musicUrlPrefixes) {

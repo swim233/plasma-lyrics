@@ -266,6 +266,7 @@ plasma-lyrics/
 | 15 | 非音乐过滤：URL 白名单 + 元数据启发式 + "搜不到就算了"，三者均可在设置中配置 |
 | 19/20 | 单个 SQLite；主键为 `(provider, track_id)` 复合键；`overrides/*.lrc` 目录承载手工修正 |
 | 23 | provider 编译期扩展（每个一个 CMake option）；阵容照 waylyrics（网易云 / QQ音乐 / LRCLIB），**第一版只实现网易云**；接口允许每 provider 带自己的配置块 |
+| 42 | **来源平台判定**：在决策 15 的 URL 白名单之上引入「来源平台」概念（`netease` / `apple`），由 D-Bus service 通配（`*.sidra`、`*.cider*`）与 `xesam:url` 前缀（`music.163.com`、`music.apple.com`、`classical.music.apple.com`）共同推导，**service 优先**——Sidra 的电台/古典条目没有 `xesam:url`，只有 service name 能认出它。`*.cider*` 点锚定（而非 `*cider*`）是为了不误吃 `org.mpris.MediaPlayer2.decider` 这类服务名里恰好含 `cider` 子串但并非 Cider 的播放器，和旁边 `*.sidra` 的锚定方式一致；真实 Cider（`ciderapp/Cider` 的 `src/main/plugins/mpris.ts`）注册的服务名就是字面量 `org.mpris.MediaPlayer2.cider`，收紧后仍然命中。`isMusic` 消费同一个判定：平台非空则只看是否在设置里勾选；**平台为空（未知来源）时沿用改动前的 URL 白名单 + 元数据启发式逐字节不变**，绝不能让升级当天所有本地播放器一起变哑。设置只列默认勾选的两个平台（网易云音乐、Apple Music），不列 YouTube Music / QQ音乐 / Spotify——列了又不勾会造成静默回归。`filter/musicUrlPrefixes` 原键原义保留（只装自定义 URL 前缀），新增 `filter/platforms` 装勾选结果，两者互不影响、零迁移 |
 
 ### 工程结构
 | # | 决策 |

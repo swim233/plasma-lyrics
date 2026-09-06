@@ -38,6 +38,8 @@ BackendConfig::BackendConfig(QObject *parent)
 #define GETTER(type, name, member) type BackendConfig::name() const { return member; }
 GETTER(QString, serviceBlacklist, m_serviceBlacklist)
 GETTER(QString, musicUrlPrefixes, m_musicUrlPrefixes)
+GETTER(bool, platformNetease, m_platformNetease)
+GETTER(bool, platformApple, m_platformApple)
 GETTER(bool, metadataHeuristic, m_metadataHeuristic)
 GETTER(bool, filterCredits, m_filterCredits)
 GETTER(QString, neteaseBaseUrl, m_neteaseBaseUrl)
@@ -65,6 +67,8 @@ void BackendConfig::markDirty()
     }
 SETTER(const QString &, setServiceBlacklist, m_serviceBlacklist)
 SETTER(const QString &, setMusicUrlPrefixes, m_musicUrlPrefixes)
+SETTER(bool, setPlatformNetease, m_platformNetease)
+SETTER(bool, setPlatformApple, m_platformApple)
 SETTER(bool, setMetadataHeuristic, m_metadataHeuristic)
 SETTER(bool, setFilterCredits, m_filterCredits)
 SETTER(const QString &, setNeteaseBaseUrl, m_neteaseBaseUrl)
@@ -83,6 +87,11 @@ void BackendConfig::load()
         QStringLiteral("filter/musicUrlPrefixes"),
         QStringList{QStringLiteral("https://music.163.com/"), QStringLiteral("http://music.163.com/")}).toStringList());
     m_metadataHeuristic = config.value(QStringLiteral("filter/metadataHeuristic"), true).toBool();
+    const auto platforms = config.value(
+        QStringLiteral("filter/platforms"),
+        QStringList{QStringLiteral("netease"), QStringLiteral("apple")}).toStringList();
+    m_platformNetease = platforms.contains(QStringLiteral("netease"));
+    m_platformApple = platforms.contains(QStringLiteral("apple"));
     m_filterCredits = config.value(QStringLiteral("lyrics/filterLeadingCredits"), true).toBool();
     m_neteaseBaseUrl = config.value(QStringLiteral("providers/netease/baseUrl"),
                                     QStringLiteral("https://music.163.com")).toString();
@@ -106,6 +115,14 @@ bool BackendConfig::save()
     config.setValue(QStringLiteral("players/blacklist"), list(m_serviceBlacklist));
     config.setValue(QStringLiteral("filter/musicUrlPrefixes"), list(m_musicUrlPrefixes));
     config.setValue(QStringLiteral("filter/metadataHeuristic"), m_metadataHeuristic);
+    QStringList platforms;
+    if (m_platformNetease) {
+        platforms.append(QStringLiteral("netease"));
+    }
+    if (m_platformApple) {
+        platforms.append(QStringLiteral("apple"));
+    }
+    config.setValue(QStringLiteral("filter/platforms"), platforms);
     config.setValue(QStringLiteral("lyrics/filterLeadingCredits"), m_filterCredits);
     config.setValue(QStringLiteral("providers/netease/baseUrl"), m_neteaseBaseUrl);
     config.setValue(QStringLiteral("providers/netease/timeoutMs"), m_networkTimeoutMs);

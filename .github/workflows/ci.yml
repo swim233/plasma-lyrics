@@ -55,16 +55,19 @@ jobs:
           cmake --build build-no-net
           ctest --test-dir build-no-net --output-on-failure
 
-      # main.qml is a PlasmoidItem and the QML test suite cannot instantiate
-      # it, so this is the only check covering it. unqualified is exempt
-      # because the i18n() calls KI18n injects are unqualified by
-      # construction; every other category must stay silent.
+      # main.qml is a PlasmoidItem and the config pages talk to real
+      # QSettings/SQLite paths (DESIGN.md decisions 18/41), so neither can be
+      # safely instantiated by the QML test suite -- this is the only check
+      # covering either. unqualified is exempt because the i18n() calls
+      # KI18n injects are unqualified by construction; every other category
+      # must stay silent.
       - name: qmllint
         run: |
           /usr/lib/qt6/bin/qmllint \
             --unqualified disable --max-warnings 0 \
             -I build/bin \
-            frontend/plasmoid/package/contents/ui/*.qml
+            frontend/plasmoid/package/contents/ui/*.qml \
+            frontend/plasmoid/package/contents/ui/config/*.qml
 
       # The PKGBUILD's own source is the GitHub URL, which on a pull request
       # would build main instead of the branch under test. Point it at the

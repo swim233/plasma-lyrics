@@ -48,8 +48,19 @@ Kirigami.ScrollablePage {
                 checked: backend.filterCredits
                 onToggled: backend.filterCredits = checked
             }
+            QQC2.CheckBox {
+                Kirigami.FormData.label: i18n("Enable lyrics for these platforms:")
+                text: i18n("NetEase Cloud Music (music.163.com)")
+                checked: backend.platformNetease
+                onToggled: backend.platformNetease = checked
+            }
+            QQC2.CheckBox {
+                text: i18n("Apple Music (music.apple.com, Cider, Sidra)")
+                checked: backend.platformApple
+                onToggled: backend.platformApple = checked
+            }
             QQC2.TextArea {
-                Kirigami.FormData.label: i18n("Music URL prefixes:")
+                Kirigami.FormData.label: i18n("Custom URL prefixes:")
                 text: backend.musicUrlPrefixes
                 placeholderText: i18n("One prefix per line")
                 onTextChanged: backend.musicUrlPrefixes = text

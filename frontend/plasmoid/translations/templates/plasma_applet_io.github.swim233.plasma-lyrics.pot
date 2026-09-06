@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-06 11:41+0800\n"
+"POT-Creation-Date: 2026-09-06 23:49+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -278,38 +278,50 @@ msgid "Hide leading production credits"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:52
-msgid "Music URL prefixes:"
+msgid "Enable lyrics for these platforms:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:54
-msgid "One prefix per line"
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:53
+msgid "NetEase Cloud Music (music.163.com)"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:58
-msgid "Player blacklist:"
+msgid "Apple Music (music.apple.com, Cider, Sidra)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:60
-msgid "One D-Bus service wildcard per line"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:64
-msgid "Diagnostics:"
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:63
+msgid "Custom URL prefixes:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:65
+msgid "One prefix per line"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:69
+msgid "Player blacklist:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:71
+msgid "One D-Bus service wildcard per line"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:75
+msgid "Diagnostics:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:76
 msgid "Also write a log file"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:70
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:81
 msgid "Log file:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:80
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:91
 msgid "Reload"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:85
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:96
 msgid "Save service settings"
 msgstr ""
 

@@ -10,6 +10,8 @@ class BackendConfig : public QObject
 
     Q_PROPERTY(QString serviceBlacklist READ serviceBlacklist WRITE setServiceBlacklist NOTIFY changed)
     Q_PROPERTY(QString musicUrlPrefixes READ musicUrlPrefixes WRITE setMusicUrlPrefixes NOTIFY changed)
+    Q_PROPERTY(bool platformNetease READ platformNetease WRITE setPlatformNetease NOTIFY changed)
+    Q_PROPERTY(bool platformApple READ platformApple WRITE setPlatformApple NOTIFY changed)
     Q_PROPERTY(bool metadataHeuristic READ metadataHeuristic WRITE setMetadataHeuristic NOTIFY changed)
     Q_PROPERTY(bool filterCredits READ filterCredits WRITE setFilterCredits NOTIFY changed)
     Q_PROPERTY(QString neteaseBaseUrl READ neteaseBaseUrl WRITE setNeteaseBaseUrl NOTIFY changed)
@@ -23,6 +25,8 @@ public:
 
     QString serviceBlacklist() const;
     QString musicUrlPrefixes() const;
+    bool platformNetease() const;
+    bool platformApple() const;
     bool metadataHeuristic() const;
     bool filterCredits() const;
     QString neteaseBaseUrl() const;
@@ -33,6 +37,8 @@ public:
 
     void setServiceBlacklist(const QString &value);
     void setMusicUrlPrefixes(const QString &value);
+    void setPlatformNetease(bool value);
+    void setPlatformApple(bool value);
     void setMetadataHeuristic(bool value);
     void setFilterCredits(bool value);
     void setNeteaseBaseUrl(const QString &value);
@@ -53,6 +59,8 @@ private:
 
     QString m_serviceBlacklist;
     QString m_musicUrlPrefixes;
+    bool m_platformNetease = true;
+    bool m_platformApple = true;
     bool m_metadataHeuristic = true;
     bool m_filterCredits = true;
     QString m_neteaseBaseUrl;

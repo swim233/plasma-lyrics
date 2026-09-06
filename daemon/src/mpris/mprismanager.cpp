@@ -127,6 +127,7 @@ std::optional<MprisState> MprisManager::activeState() const
     const auto *player = m_players.value(m_activeService);
     if (player) {
         auto state = player->state();
+        state.platform = MprisPolicy::platformFor(state);
         state.music = MprisPolicy::isMusic(state, m_config);
         return state;
     }

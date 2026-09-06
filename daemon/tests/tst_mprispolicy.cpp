@@ -156,6 +156,151 @@ private Q_SLOTS:
         QVERIFY(!MprisPolicy::isPositionJump(10000000, 1000000000, 11000000, 2000000000, 1.0,
                                              QStringLiteral("Playing")));
     }
+
+    void sidraServiceIsRecognizedAsApplePlatform()
+    {
+        MprisState state;
+        state.service = QStringLiteral("org.mpris.MediaPlayer2.sidra");
+        QCOMPARE(MprisPolicy::platformFor(state), QStringLiteral("apple"));
+    }
+
+    void appleMusicWebPlayerIsMusicByDefault()
+    {
+        // Regression test for defect 1: music.apple.com was not in
+        // musicUrlPrefixes, so the pbi non-music URL branch rejected it before
+        // the metadata heuristic ever ran and no search was attempted.
+        PolicyConfig config;
+        MprisState state;
+        state.service = QStringLiteral("org.mpris.MediaPlayer2.plasma-browser-integration");
+        state.url = QStringLiteral("https://music.apple.com/cn/album/foo/123?i=456");
+        QVERIFY(MprisPolicy::isMusic(state, config));
+    }
+
+    void uncheckingAppleDisablesSidraAndWebPlayer()
+    {
+        PolicyConfig config;
+        config.enabledPlatforms = {QStringLiteral("netease")};
+
+        MprisState sidra;
+        sidra.service = QStringLiteral("org.mpris.MediaPlayer2.sidra");
+        sidra.url = QStringLiteral("https://music.apple.com/cn/album/foo/123?i=456");
+        QVERIFY(!MprisPolicy::isMusic(sidra, config));
+
+        MprisState pbi;
+        pbi.service = QStringLiteral("org.mpris.MediaPlayer2.plasma-browser-integration");
+        pbi.url = QStringLiteral("https://music.apple.com/cn/album/foo/123?i=456");
+        QVERIFY(!MprisPolicy::isMusic(pbi, config));
+    }
+
+    void uncheckingNeteaseDisablesWebPlayer()
+    {
+        PolicyConfig config;
+        config.enabledPlatforms = {QStringLiteral("apple")};
+
+        MprisState state;
+        state.service = QStringLiteral("org.mpris.MediaPlayer2.plasma-browser-integration");
+        state.url = QStringLiteral("https://music.163.com/st/webplayer");
+        QVERIFY(!MprisPolicy::isMusic(state, config));
+    }
+
+    void unknownSourceIgnoresPlatformToggles()
+    {
+        // D-2: an unlisted platform must keep working the day this ships,
+        // regardless of which checkboxes are set.
+        MprisState state;
+        state.service = QStringLiteral("org.mpris.MediaPlayer2.mpv");
+        state.title = QStringLiteral("Some Song");
+        state.artists = {QStringLiteral("Some Artist")};
+        state.lengthUs = 200000000;
+
+        PolicyConfig allEnabled;
+        QVERIFY(MprisPolicy::isMusic(state, allEnabled));
+
+        PolicyConfig noneEnabled;
+        noneEnabled.enabledPlatforms = {};
+        QVERIFY(MprisPolicy::isMusic(state, noneEnabled));
+    }
+
+    void ciderWildcardDoesNotMatchUnrelatedServiceSubstring()
+    {
+        // "*cider*" would also match a service like ".decider" (any player
+        // whose name merely contains the substring "cider"); the dot-anchored
+        // "*.cider*" requires "cider" to start a path segment, same as
+        // "*.sidra" right next to it.
+        MprisState state;
+        state.service = QStringLiteral("org.mpris.MediaPlayer2.decider");
+        state.title = QStringLiteral("Some Song");
+        state.artists = {QStringLiteral("Some Artist")};
+        state.lengthUs = 200000000;
+        QVERIFY(MprisPolicy::platformFor(state).isEmpty());
+
+        // It's an unknown platform (D-2), so it must keep working regardless
+        // of whether "apple" is checked.
+        PolicyConfig config;
+        config.enabledPlatforms = {QStringLiteral("netease")};
+        QVERIFY(MprisPolicy::isMusic(state, config));
+    }
+
+    void customUrlPrefixStillMatches()
+    {
+        PolicyConfig config;
+        config.musicUrlPrefixes = {QStringLiteral("https://example-music.test/")};
+
+        MprisState state;
+        state.service = QStringLiteral("org.mpris.MediaPlayer2.plasma-browser-integration");
+        state.url = QStringLiteral("https://example-music.test/track/1");
+        QVERIFY(MprisPolicy::isMusic(state, config));
+    }
+
+    void sidraRadioEntryWithoutUrlIsStillApple()
+    {
+        PolicyConfig config;
+        MprisState state;
+        state.service = QStringLiteral("org.mpris.MediaPlayer2.sidra");
+        // No xesam:url key at all -- radio/classical entries without a catalogId.
+        QCOMPARE(MprisPolicy::platformFor(state), QStringLiteral("apple"));
+        QVERIFY(MprisPolicy::isMusic(state, config));
+    }
+
+    void replaysSidraFixtures_data()
+    {
+        QTest::addColumn<QString>("fixtureName");
+        QTest::newRow("mandarin") << QStringLiteral("sidra-mandarin.json");
+        QTest::newRow("idol") << QStringLiteral("sidra-idol.json");
+        QTest::newRow("gunjou") << QStringLiteral("sidra-gunjou.json");
+    }
+
+    void replaysSidraFixtures()
+    {
+        QFETCH(QString, fixtureName);
+        QFile file(QStringLiteral(PLASMA_LYRICS_FIXTURES_DIR "/") + fixtureName);
+        QVERIFY2(file.open(QIODevice::ReadOnly), "sidra fixture was not found");
+        const auto root = QJsonDocument::fromJson(file.readAll()).object();
+        const auto recorded = root.value(QStringLiteral("services")).toArray().first().toObject();
+        const auto metadata = recorded.value(QStringLiteral("metadata")).toObject();
+
+        MprisState state;
+        state.service = recorded.value(QStringLiteral("service")).toString();
+        state.trackId = metadata.value(QStringLiteral("mpris:trackid")).toString();
+        state.lengthUs = metadata.value(QStringLiteral("mpris:length")).toInteger();
+        state.title = metadata.value(QStringLiteral("xesam:title")).toString();
+        for (const auto &artist : metadata.value(QStringLiteral("xesam:artist")).toArray()) {
+            state.artists.append(artist.toString());
+        }
+        state.album = metadata.value(QStringLiteral("xesam:album")).toString();
+        state.url = metadata.value(QStringLiteral("xesam:url")).toString();
+
+        // §0.2: Sidra's artist array is already clean, unlike pbi's slash-joined string.
+        QCOMPARE(state.artists.size(), 1);
+        QCOMPARE(MprisPolicy::platformFor(state), QStringLiteral("apple"));
+
+        // §0.2: no kde:mediaSrc / kde:pid, so the fingerprint takes the meta: branch.
+        QVERIFY(state.mediaSrc.isEmpty());
+        QVERIFY(MprisPolicy::fingerprint(state).startsWith(QStringLiteral("meta:")));
+
+        PolicyConfig config;
+        QVERIFY(MprisPolicy::isMusic(state, config));
+    }
 };
 
 QTEST_GUILESS_MAIN(MprisPolicyTest)

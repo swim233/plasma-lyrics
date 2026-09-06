@@ -17,6 +17,17 @@ it is a `PlasmoidItem` and cannot be instantiated by the QML test suite, so
 nothing else catches a binding that references a property that no longer
 exists.
 
+On a machine that also has the `plasma-lyrics-git` AUR package installed
+(this project's own daily-use install), `qmllint` resolves
+`io.github.swim233.lyrics` against the system-installed
+`/usr/lib/qt6/qml/io/github/swim233/lyrics/` copy ahead of a freshly built
+`build/bin` -- `-I build/bin` does not win that race, and neither does the
+`QML_IMPORT_PATH` environment variable. A property added since the last
+`makepkg`/install then reads as a false `[missing-property]`. Add
+`--bare -I build/bin -I /usr/lib/qt6/qml` (the second `-I` puts back
+QtQuick/Kirigami, which `--bare` also drops) to get a result that matches
+CI, which never has that package installed.
+
 Commit messages are in Chinese with an English Conventional Commits prefix:
 `type(scope): 中文主题`, where type is one of feat / fix / perf / docs /
 chore / merge. The subject states what was implemented or fixed and the new

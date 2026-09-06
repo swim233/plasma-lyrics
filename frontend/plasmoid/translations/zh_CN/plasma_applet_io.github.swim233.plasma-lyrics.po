@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-06 11:41+0800\n"
+"POT-Creation-Date: 2026-09-06 23:49+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -276,38 +276,50 @@ msgid "Hide leading production credits"
 msgstr "隐藏开头的制作人员信息"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:52
-msgid "Music URL prefixes:"
-msgstr "音乐 URL 前缀："
+msgid "Enable lyrics for these platforms:"
+msgstr "启用以下平台的歌词服务："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:54
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:53
+msgid "NetEase Cloud Music (music.163.com)"
+msgstr "网易云音乐（music.163.com）"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:58
+msgid "Apple Music (music.apple.com, Cider, Sidra)"
+msgstr "Apple Music（music.apple.com、Cider、Sidra）"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:63
+msgid "Custom URL prefixes:"
+msgstr "自定义 URL 前缀："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:65
 msgid "One prefix per line"
 msgstr "每行一个前缀"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:58
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:69
 msgid "Player blacklist:"
 msgstr "播放器黑名单："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:60
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:71
 msgid "One D-Bus service wildcard per line"
 msgstr "每行一个 D-Bus 服务通配符"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:64
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:75
 msgid "Diagnostics:"
 msgstr "诊断："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:65
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:76
 msgid "Also write a log file"
 msgstr "同时写入日志文件"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:70
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:81
 msgid "Log file:"
 msgstr "日志文件："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:80
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:91
 msgid "Reload"
 msgstr "重新加载"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:85
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:96
 msgid "Save service settings"
 msgstr "保存服务设置"
 
@@ -405,6 +417,9 @@ msgstr "未找到歌词时文案："
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:57
 msgid "Leave empty to hide"
 msgstr "留空则隐藏"
+
+#~ msgid "Music URL prefixes:"
+#~ msgstr "音乐 URL 前缀："
 
 #~ msgid "Appearance"
 #~ msgstr "外观"

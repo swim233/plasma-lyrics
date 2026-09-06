@@ -1,0 +1,19 @@
+{
+  "services": [
+    {
+      "service": "org.mpris.MediaPlayer2.sidra",
+      "playingSerial": 1,
+      "metadata": {
+        "mpris:trackid": "/org/sidra/track/6806388273",
+        "mpris:length": 229412000,
+        "xesam:title": "连带保证人",
+        "xesam:artist": ["姚晓棠"],
+        "xesam:album": "连带保证人 - Single",
+        "xesam:url": "https://music.apple.com/cn/album/%E8%BF%9E%E5%B8%A6%E4%BF%9D%E8%AF%81%E4%BA%BA/6806388272?i=6806388273"
+      }
+    }
+  ],
+  "metadataEvents": [],
+  "positionSamples": [],
+  "signals": {}
+}

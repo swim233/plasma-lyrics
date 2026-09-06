@@ -1,0 +1,19 @@
+{
+  "services": [
+    {
+      "service": "org.mpris.MediaPlayer2.sidra",
+      "playingSerial": 1,
+      "metadata": {
+        "mpris:trackid": "/org/sidra/track/1679278167",
+        "mpris:length": 213234000,
+        "xesam:title": "アイドル",
+        "xesam:artist": ["YOASOBI"],
+        "xesam:album": "アイドル - Single",
+        "xesam:url": "https://music.apple.com/cn/album/%E3%82%A2%E3%82%A4%E3%83%89%E3%83%AB/1679276315?i=1679278167"
+      }
+    }
+  ],
+  "metadataEvents": [],
+  "positionSamples": [],
+  "signals": {}
+}

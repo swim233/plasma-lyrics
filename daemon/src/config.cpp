@@ -21,6 +21,9 @@ PolicyConfig Config::policy() const
         QStringLiteral("filter/musicUrlPrefixes"),
         QStringList{QStringLiteral("https://music.163.com/"), QStringLiteral("http://music.163.com/")}).toStringList();
     config.useMetadataHeuristic = m_settings.value(QStringLiteral("filter/metadataHeuristic"), true).toBool();
+    config.enabledPlatforms = m_settings.value(
+        QStringLiteral("filter/platforms"),
+        QStringList{QStringLiteral("netease"), QStringLiteral("apple")}).toStringList();
     return config;
 }
 

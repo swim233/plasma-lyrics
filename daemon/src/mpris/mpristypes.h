@@ -18,6 +18,7 @@ struct MprisState {
     QString url;
     QString mediaSrc;
     QString fingerprint;
+    QString platform;   // 由 MprisPolicy::platformFor 填充，未知为空
     QString playbackStatus = QStringLiteral("Stopped");
     qint64 positionUs = 0;
     qint64 anchorMonotonicNs = 0;

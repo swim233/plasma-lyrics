@@ -1,0 +1,19 @@
+{
+  "services": [
+    {
+      "service": "org.mpris.MediaPlayer2.sidra",
+      "playingSerial": 1,
+      "metadata": {
+        "mpris:trackid": "/org/sidra/track/1528119630",
+        "mpris:length": 248444000,
+        "xesam:title": "群青",
+        "xesam:artist": ["YOASOBI"],
+        "xesam:album": "群青 - Single",
+        "xesam:url": "https://music.apple.com/cn/album/%E7%BE%A4%E9%9D%92/1528119626?i=1528119630"
+      }
+    }
+  ],
+  "metadataEvents": [],
+  "positionSamples": [],
+  "signals": {}
+}
