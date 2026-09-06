@@ -1,5 +1,5 @@
 #!/bin/sh
-# SPDX-License-Identifier: GPL-2.0-or-later
+# SPDX-License-Identifier: GPL-2.0-only
 set -eu
 
 catalog="plasma_applet_io.github.swim233.plasma-lyrics"

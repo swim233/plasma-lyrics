@@ -62,4 +62,4 @@ QML2_IMPORT_PATH="$PWD/build/bin" plasmoidviewer -a io.github.swim233.plasma-lyr
 
 Per-release changes are listed in [CHANGELOG.md](CHANGELOG.md).
 
-License: GPL-2.0-or-later.
+License: GPL-2.0.
