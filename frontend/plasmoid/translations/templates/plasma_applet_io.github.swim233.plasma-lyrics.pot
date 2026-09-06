@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-05 12:29+0800\n"
+"POT-Creation-Date: 2026-09-06 11:41+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -31,6 +31,10 @@ msgid "Text"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/config/config.qml:21
+msgid "Global settings"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/config/config.qml:26
 msgid "Lyrics Service"
 msgstr ""
 
@@ -67,15 +71,27 @@ msgstr ""
 msgid "Desktop Lyrics"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:291
+#: frontend/plasmoid/package/contents/ui/main.qml:292
+msgid "Lyrics 0.5 s earlier (all songs)"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/main.qml:293
 msgid "Lyrics 0.5 s earlier"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:297
+#: frontend/plasmoid/package/contents/ui/main.qml:300
+msgid "Lyrics 0.5 s later (all songs)"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/main.qml:301
 msgid "Lyrics 0.5 s later"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:303
+#: frontend/plasmoid/package/contents/ui/main.qml:308
+msgid "Reset global lyric offset (%1 ms)"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/main.qml:309
 msgid "Reset lyric offset (%1 ms)"
 msgstr ""
 
@@ -241,6 +257,7 @@ msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:36
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:138
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:76
 msgid "%1 ms"
 msgstr ""
 
@@ -343,6 +360,28 @@ msgstr ""
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:143
 #: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:150
 msgid "Also hide while playing non-music media"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:51
+msgid ""
+"This setting affects every Desktop Lyrics widget and takes effect "
+"immediately, without restarting the lyrics service."
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:58
+msgid "Could not save the global offset. The setting was not applied."
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:64
+msgid "Lyric offset:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:65
+msgid "Use one offset for all songs"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:70
+msgid "Offset:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:115

@@ -288,19 +288,25 @@ PlasmoidItem {
 
     Plasmoid.contextualActions: [
         PlasmaCore.Action {
-            text: i18n("Lyrics 0.5 s earlier")
+            text: lyricSource.globalOffsetEnabled
+                ? i18n("Lyrics 0.5 s earlier (all songs)")
+                : i18n("Lyrics 0.5 s earlier")
             icon.name: "go-previous"
             enabled: lyricSource.canAdjustOffset
             onTriggered: lyricSource.adjustOffset(-500)
         },
         PlasmaCore.Action {
-            text: i18n("Lyrics 0.5 s later")
+            text: lyricSource.globalOffsetEnabled
+                ? i18n("Lyrics 0.5 s later (all songs)")
+                : i18n("Lyrics 0.5 s later")
             icon.name: "go-next"
             enabled: lyricSource.canAdjustOffset
             onTriggered: lyricSource.adjustOffset(500)
         },
         PlasmaCore.Action {
-            text: i18n("Reset lyric offset (%1 ms)", lyricSource.offsetMs)
+            text: lyricSource.globalOffsetEnabled
+                ? i18n("Reset global lyric offset (%1 ms)", lyricSource.offsetMs)
+                : i18n("Reset lyric offset (%1 ms)", lyricSource.offsetMs)
             icon.name: "edit-undo"
             enabled: lyricSource.canAdjustOffset && lyricSource.offsetMs !== 0
             onTriggered: lyricSource.resetOffset()

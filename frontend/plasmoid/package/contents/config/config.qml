@@ -18,6 +18,11 @@ ConfigModel {
         source: "config/ConfigText.qml"
     }
     ConfigCategory {
+        name: i18n("Global settings")
+        icon: "chronometer"
+        source: "config/ConfigGlobal.qml"
+    }
+    ConfigCategory {
         name: i18n("Lyrics Service")
         icon: "preferences-system-services"
         source: "config/ConfigBackend.qml"

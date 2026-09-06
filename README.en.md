@@ -41,8 +41,9 @@ plasma-lyricsd --explain "Song title" "Artist"
 journalctl --user -u plasma-lyricsd.service -f
 ```
 
-Per-song timing can be adjusted by 500 ms from the widget context menu. Manual
-LRC replacements belong in
+Timing can be adjusted by 500 ms from the widget context menu, per song by
+default; the "Global settings" configuration tab can switch this to one
+shared offset for every song instead. Manual LRC replacements belong in
 `~/.local/share/plasma-lyrics/overrides/<provider>:<track-id>.lrc`.
 
 To import an existing waylyrics JSON cache:
