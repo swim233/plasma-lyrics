@@ -2,6 +2,8 @@
 
 #include "core/lyric/lyricmodel.h"
 
+#include <algorithm>
+
 #include <QDir>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -64,7 +66,8 @@ bool LyricStore::executeSchema(QString *error)
         QStringLiteral("CREATE TABLE IF NOT EXISTS lyric (provider TEXT NOT NULL, track_id TEXT NOT NULL, fetched_at INTEGER NOT NULL, origin TEXT, translation TEXT, has_words INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(provider, track_id))"),
         QStringLiteral("CREATE TABLE IF NOT EXISTS fingerprint (fingerprint TEXT PRIMARY KEY, provider TEXT NOT NULL, track_id TEXT NOT NULL, matched_at INTEGER NOT NULL, score REAL)"),
         QStringLiteral("CREATE TABLE IF NOT EXISTS miss (fingerprint TEXT PRIMARY KEY, tried_at INTEGER NOT NULL, reason TEXT)"),
-        QStringLiteral("CREATE TABLE IF NOT EXISTS offset (provider TEXT NOT NULL, track_id TEXT NOT NULL, offset_ms INTEGER NOT NULL, PRIMARY KEY(provider, track_id))")};
+        QStringLiteral("CREATE TABLE IF NOT EXISTS offset (provider TEXT NOT NULL, track_id TEXT NOT NULL, offset_ms INTEGER NOT NULL, PRIMARY KEY(provider, track_id))"),
+        QStringLiteral("CREATE TABLE IF NOT EXISTS setting (name TEXT PRIMARY KEY, value TEXT NOT NULL)")};
     for (const auto &statement : statements) {
         QSqlQuery query(m_database);
         if (!query.exec(statement)) {
@@ -205,6 +208,70 @@ int LyricStore::offset(const TrackRef &ref) const
     query.addBindValue(ref.provider);
     query.addBindValue(ref.trackId);
     return query.exec() && query.next() ? query.value(0).toInt() : 0;
+}
+
+std::optional<QString> LyricStore::setting(const QString &key) const
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("SELECT value FROM setting WHERE name=?"));
+    query.addBindValue(key);
+    if (!query.exec() || !query.next()) {
+        return std::nullopt;
+    }
+    return query.value(0).toString();
+}
+
+bool LyricStore::setSetting(const QString &key, const QString &value)
+{
+    QSqlQuery query(m_database);
+    query.prepare(QStringLiteral("INSERT OR REPLACE INTO setting(name, value) VALUES(?, ?)"));
+    query.addBindValue(key);
+    query.addBindValue(value);
+    return query.exec();
+}
+
+bool LyricStore::globalOffsetEnabled() const
+{
+    const auto value = setting(QStringLiteral("globalOffsetEnabled"));
+    return value.has_value() && value->toInt() != 0;
+}
+
+bool LyricStore::setGlobalOffsetEnabled(bool enabled)
+{
+    return setSetting(QStringLiteral("globalOffsetEnabled"), QString::number(enabled ? 1 : 0));
+}
+
+int LyricStore::globalOffsetMs() const
+{
+    const auto value = setting(QStringLiteral("globalOffsetMs"));
+    const qint64 stored = value.has_value() ? value->toLongLong() : 0;
+    return static_cast<int>(std::clamp<qint64>(stored, -maximumGlobalOffsetMs(), maximumGlobalOffsetMs()));
+}
+
+bool LyricStore::setGlobalOffsetMs(int offsetMs)
+{
+    const int clamped = static_cast<int>(std::clamp<qint64>(offsetMs, -maximumGlobalOffsetMs(), maximumGlobalOffsetMs()));
+    return setSetting(QStringLiteral("globalOffsetMs"), QString::number(clamped));
+}
+
+std::optional<int> LyricStore::adjustGlobalOffset(int deltaMs)
+{
+    QSqlQuery begin(m_database);
+    if (!begin.exec(QStringLiteral("BEGIN IMMEDIATE"))) {
+        return std::nullopt;
+    }
+    const qint64 sum = static_cast<qint64>(globalOffsetMs()) + static_cast<qint64>(deltaMs);
+    const int adjusted = static_cast<int>(std::clamp<qint64>(sum, -maximumGlobalOffsetMs(), maximumGlobalOffsetMs()));
+    if (!setGlobalOffsetMs(adjusted)) {
+        m_database.rollback();
+        return std::nullopt;
+    }
+    QSqlQuery commit(m_database);
+    if (!commit.exec(QStringLiteral("COMMIT"))) {
+        m_database.rollback();
+        return std::nullopt;
+    }
+    return adjusted;
 }
 
 } // namespace PlasmaLyrics
