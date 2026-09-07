@@ -74,11 +74,27 @@ QStringList cleanArtists(const QStringList &artists)
     QStringList result;
     static const QRegularExpression separator(QStringLiteral(R"(\s*(?:/|／|、|;|；|\||&|feat\.?|ft\.?)\s*)"),
                                               QRegularExpression::CaseInsensitiveOption);
+    // netease commonly stores one performer as "primary name (native-script
+    // alias)", e.g. "BTS (防弹少年团)" -- that trailing group names the same
+    // person/group under a different script, not a second collaborator, but
+    // normalizeSearchText would otherwise fold both scripts into one blob
+    // that matches neither a bare "BTS" query nor a bare "防弹少年团" one as
+    // well as either name alone would (see DESIGN.md decision 44).
+    static const QRegularExpression trailingAlias(QStringLiteral(R"(^(.+?)[\(（]([^()（）]+)[\)）]\s*$)"));
     for (const auto &rawArtist : artists) {
-        for (const auto &part : rawArtist.split(separator, Qt::SkipEmptyParts)) {
-            const auto normalized = normalizeSearchText(part);
-            if (!normalized.isEmpty() && !result.contains(normalized)) {
-                result.append(normalized);
+        QStringList expanded;
+        if (const auto match = trailingAlias.match(rawArtist); match.hasMatch()) {
+            expanded.append(match.captured(1));
+            expanded.append(match.captured(2));
+        } else {
+            expanded.append(rawArtist);
+        }
+        for (const auto &name : expanded) {
+            for (const auto &part : name.split(separator, Qt::SkipEmptyParts)) {
+                const auto normalized = normalizeSearchText(part);
+                if (!normalized.isEmpty() && !result.contains(normalized)) {
+                    result.append(normalized);
+                }
             }
         }
     }
