@@ -77,12 +77,14 @@ int main(int argc, char **argv)
         const TrackQuery query{arguments.first(),
                                {arguments.value(1)}, QString(), 0};
 #ifdef PLASMA_LYRICS_HAVE_NETEASE
-        const auto candidates = netease.search(query);
-        QTextStream(stdout) << explainMatch(query, candidates, true, false);
-        if (candidates.isEmpty() && !netease.lastError().isEmpty()) {
-            QTextStream(stderr) << netease.lastError() << Qt::endl;
-        }
-        return candidates.isEmpty() ? 1 : 0;
+        netease.search(query, [&application, query](ProviderSearchResult result) {
+            QTextStream(stdout) << explainMatch(query, result.candidates, true, false);
+            if (!result.error.isEmpty()) {
+                QTextStream(stderr) << result.error << Qt::endl;
+            }
+            application.exit(result.candidates.isEmpty() ? 1 : 0);
+        });
+        return application.exec();
 #else
         QTextStream(stderr) << "NetEase provider was disabled at build time." << Qt::endl;
         return 1;
@@ -126,6 +128,7 @@ int main(int argc, char **argv)
     const auto update = [&] (bool trackChanged) {
         const auto state = manager.activeState();
         if (!state) {
+            resolver.cancel();
             fingerprint.clear();
             resolved = {QStringLiteral("filtered"), std::nullopt, {}};
             publish(std::nullopt, resolved);
@@ -136,14 +139,29 @@ int main(int argc, char **argv)
             fingerprint = state->fingerprint;
             const ResolvedLyric searching{state->music ? QStringLiteral("searching") : QStringLiteral("filtered"),
                                           std::nullopt, {}};
-            publish(state, searching);
-            resolved = resolver.resolve(*state);
+            resolved = searching;
+            publish(state, resolved);
+            resolver.resolve(*state);
+            return;
         }
         if (resolved.ref) {
             resolved.document.offsetMs = store.offset(*resolved.ref);
         }
         publish(state, resolved);
     };
+    QObject::connect(&resolver, &Resolver::resolved, &application,
+                     [&](const QString &resolvedFingerprint, const ResolvedLyric &lyric) {
+        const auto state = manager.activeState();
+        if (!state || resolvedFingerprint != fingerprint
+            || state->fingerprint != resolvedFingerprint) {
+            return;
+        }
+        resolved = lyric;
+        if (resolved.ref) {
+            resolved.document.offsetMs = store.offset(*resolved.ref);
+        }
+        publish(state, resolved);
+    });
     QObject::connect(&manager, &MprisManager::activeStateChanged, &application, update);
     update(true);
     return application.exec();

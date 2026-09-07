@@ -28,7 +28,7 @@ Kirigami.ScrollablePage {
                 onTextEdited: backend.neteaseBaseUrl = text
             }
             QQC2.SpinBox {
-                Kirigami.FormData.label: i18n("Network timeout:")
+                Kirigami.FormData.label: i18n("Initial network timeout:")
                 from: 1000
                 to: 30000
                 stepSize: 500

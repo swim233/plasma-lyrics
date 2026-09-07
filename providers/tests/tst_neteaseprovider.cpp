@@ -2,12 +2,95 @@
 
 #include "core/lyric/timeline.h"
 
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QFile>
+#include <QHash>
+#include <QHostAddress>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QTest>
+#include <QTimer>
 
 #include <algorithm>
 
 using namespace PlasmaLyrics;
+
+namespace {
+
+class ScriptedHttpServer : public QTcpServer
+{
+public:
+    enum class Reply { Disconnect, NotFound, InvalidJson, SearchSuccess, Hang };
+
+    explicit ScriptedHttpServer(QList<Reply> replies)
+        : m_replies(std::move(replies))
+    {
+        connect(this, &QTcpServer::newConnection, this, [this] {
+            while (hasPendingConnections()) {
+                auto *socket = nextPendingConnection();
+                connect(socket, &QTcpSocket::readyRead, this, [this, socket] {
+                    m_requests[socket].append(socket->readAll());
+                    if (!m_requests[socket].contains("\r\n\r\n")) {
+                        return;
+                    }
+                    m_requests.remove(socket);
+                    const int index = m_requestCount++;
+                    const Reply reply = m_replies.value(index, m_replies.constLast());
+                    if (reply == Reply::Disconnect) {
+                        socket->abort();
+                        return;
+                    }
+                    if (reply == Reply::Hang) {
+                        return;
+                    }
+                    QByteArray body;
+                    QByteArray status = "200 OK";
+                    if (reply == Reply::NotFound) {
+                        status = "404 Not Found";
+                    } else if (reply == Reply::InvalidJson) {
+                        body = "not json";
+                    } else {
+                        body = R"({"result":{"songs":[{"id":1,"name":"song","artists":[{"name":"artist"}],"album":{"name":"album"},"duration":1000}]}})";
+                    }
+                    socket->write("HTTP/1.1 " + status + "\r\nContent-Type: application/json\r\nContent-Length: "
+                                  + QByteArray::number(body.size()) + "\r\nConnection: close\r\n\r\n" + body);
+                    socket->disconnectFromHost();
+                });
+            }
+        });
+    }
+
+    bool start() { return listen(QHostAddress::LocalHost); }
+    QUrl baseUrl() const
+    {
+        return QUrl(QStringLiteral("http://127.0.0.1:%1").arg(serverPort()));
+    }
+    int requestCount() const { return m_requestCount; }
+
+private:
+    QList<Reply> m_replies;
+    QHash<QTcpSocket *, QByteArray> m_requests;
+    int m_requestCount = 0;
+};
+
+ProviderSearchResult searchAndWait(NeteaseProvider &provider)
+{
+    std::optional<ProviderSearchResult> result;
+    QEventLoop loop;
+    const TrackQuery query{QStringLiteral("song"), {QStringLiteral("artist")}, QString(), 1000};
+    provider.search(query, [&](ProviderSearchResult value) {
+        result = std::move(value);
+        loop.quit();
+    });
+    if (!result) {
+        QTimer::singleShot(2000, &loop, &QEventLoop::quit);
+        loop.exec();
+    }
+    return result.value_or(ProviderSearchResult{{}, QStringLiteral("test timed out")});
+}
+
+} // namespace
 
 class NeteaseProviderTest : public QObject
 {
@@ -18,6 +101,12 @@ private Q_SLOTS:
     void parsesTransNamesIntoAlternateTitles();
     void handlesDirtyLyricAndEmptyWordData();
     void creditsFromThePreV1EndpointStillFilter();
+    void timeoutStaircase();
+    void retriesNetworkErrorsAndCanRecover();
+    void givesUpAfterThreeNetworkTimeouts();
+    void doesNotRetryHttpErrors();
+    void doesNotRetryJsonErrors();
+    void destroyingProviderCancelsPendingRequest();
 };
 
 void NeteaseProviderTest::parsesSearchCandidates()
@@ -91,6 +180,77 @@ void NeteaseProviderTest::creditsFromThePreV1EndpointStillFilter()
     const auto shown = filterLeadingCredits(document->lines);
     QCOMPARE(shown.size(), 2);
     QCOMPARE(shown.first().text, QStringLiteral("蝴蝶轻吻花瓣而颤动"));
+}
+
+void NeteaseProviderTest::timeoutStaircase()
+{
+    QCOMPARE(NeteaseProvider::timeoutForAttempt(4000, 1), 4000);
+    QCOMPARE(NeteaseProvider::timeoutForAttempt(4000, 2), 6000);
+    QCOMPARE(NeteaseProvider::timeoutForAttempt(4000, 3), 8000);
+}
+
+void NeteaseProviderTest::retriesNetworkErrorsAndCanRecover()
+{
+    ScriptedHttpServer server({ScriptedHttpServer::Reply::Disconnect,
+                               ScriptedHttpServer::Reply::Disconnect,
+                               ScriptedHttpServer::Reply::SearchSuccess});
+    QVERIFY(server.start());
+    NeteaseProvider provider(server.baseUrl(), 100);
+    const auto result = searchAndWait(provider);
+    QCOMPARE(server.requestCount(), 3);
+    QCOMPARE(result.error, QString());
+    QCOMPARE(result.candidates.size(), 1);
+    QCOMPARE(result.candidates.first().trackId, QStringLiteral("1"));
+}
+
+void NeteaseProviderTest::givesUpAfterThreeNetworkTimeouts()
+{
+    ScriptedHttpServer server({ScriptedHttpServer::Reply::Hang});
+    QVERIFY(server.start());
+    NeteaseProvider provider(server.baseUrl(), 20);
+    QElapsedTimer elapsed;
+    elapsed.start();
+    const auto result = searchAndWait(provider);
+    QCOMPARE(server.requestCount(), 3);
+    QVERIFY(!result.error.isEmpty());
+    QVERIFY(result.candidates.isEmpty());
+    QVERIFY(elapsed.elapsed() >= 60);
+    QVERIFY(elapsed.elapsed() < 1000);
+}
+
+void NeteaseProviderTest::doesNotRetryHttpErrors()
+{
+    ScriptedHttpServer server({ScriptedHttpServer::Reply::NotFound});
+    QVERIFY(server.start());
+    NeteaseProvider provider(server.baseUrl(), 100);
+    const auto result = searchAndWait(provider);
+    QCOMPARE(server.requestCount(), 1);
+    QVERIFY(!result.error.isEmpty());
+}
+
+void NeteaseProviderTest::doesNotRetryJsonErrors()
+{
+    ScriptedHttpServer server({ScriptedHttpServer::Reply::InvalidJson});
+    QVERIFY(server.start());
+    NeteaseProvider provider(server.baseUrl(), 100);
+    const auto result = searchAndWait(provider);
+    QCOMPARE(server.requestCount(), 1);
+    QVERIFY(!result.error.isEmpty());
+}
+
+void NeteaseProviderTest::destroyingProviderCancelsPendingRequest()
+{
+    ScriptedHttpServer server({ScriptedHttpServer::Reply::Hang});
+    QVERIFY(server.start());
+    bool callbackCalled = false;
+    {
+        NeteaseProvider provider(server.baseUrl(), 1000);
+        provider.search({QStringLiteral("song"), {}, {}, 0},
+                        [&](ProviderSearchResult) { callbackCalled = true; });
+        QTRY_COMPARE_WITH_TIMEOUT(server.requestCount(), 1, 500);
+    }
+    QTest::qWait(20);
+    QVERIFY(!callbackCalled);
 }
 
 QTEST_GUILESS_MAIN(NeteaseProviderTest)

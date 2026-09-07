@@ -12,9 +12,8 @@ public:
     QString id() const override;
     bool isConfigured() const override;
     bool supportsSearch() const override;
-    QList<Candidate> search(const TrackQuery &query) override;
-    std::optional<LyricDocument> fetch(const QString &trackId) override;
-    QString lastError() const override;
+    void search(const TrackQuery &query, SearchCallback callback) override;
+    void fetch(const QString &trackId, FetchCallback callback) override;
     std::optional<LyricDocument> overrideFor(const QString &providerId,
                                              const QString &trackId) override;
 

@@ -2,8 +2,11 @@
 
 #include "core/store/lyricstore.h"
 
+#include <QEventLoop>
+#include <QHash>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QTimer>
 
 using namespace PlasmaLyrics;
 
@@ -17,24 +20,22 @@ public:
 
     QString id() const override { return m_id; }
     bool isConfigured() const override { return true; }
-    QList<Candidate> search(const TrackQuery &query) override
+    void search(const TrackQuery &query, SearchCallback callback) override
     {
         if (m_fail) {
-            m_error = QStringLiteral("simulated network failure");
-            return {};
+            callback({{}, QStringLiteral("simulated network failure")});
+            return;
         }
-        return {{QStringLiteral("track"), query.title, query.artists, query.album, query.lengthMs}};
+        callback({{{QStringLiteral("track"), query.title, query.artists, query.album, query.lengthMs}}, {}});
     }
-    std::optional<LyricDocument> fetch(const QString &) override
+    void fetch(const QString &, FetchCallback callback) override
     {
-        return LyricDocument{{{1000, 2000, QStringLiteral("line"), std::nullopt, std::nullopt}}, 0, false};
+        callback({LyricDocument{{{1000, 2000, QStringLiteral("line"), std::nullopt, std::nullopt}}, 0, false}, {}});
     }
-    QString lastError() const override { return m_error; }
 
 private:
     QString m_id;
     bool m_fail;
-    QString m_error;
 };
 
 // qa-1: every fixture above echoes the query back as a single exact-match
@@ -51,9 +52,9 @@ class LocalizedFallbackProvider final : public Provider
 public:
     QString id() const override { return QStringLiteral("localized-fallback"); }
     bool isConfigured() const override { return true; }
-    QList<Candidate> search(const TrackQuery &) override
+    void search(const TrackQuery &, SearchCallback callback) override
     {
-        return {
+        callback({{
             {QStringLiteral("1875383422"), QStringLiteral("Gunjou (Yoasobi)"), {QStringLiteral("Vangakuz")}, QString(), 243941},
             {QStringLiteral("2042876595"), QStringLiteral("Gunjou (8-Bit YOASOBI Emulation)"), {QStringLiteral("8-Bit Arcade")}, QString(), 246061},
             {QStringLiteral("1472480890"), QStringLiteral("群青"), {QStringLiteral("YOASOBI")}, QString(), 248444},
@@ -66,14 +67,57 @@ public:
             {QStringLiteral("2083182016"), QStringLiteral("勇者"), {QStringLiteral("YOASOBI")}, QString(), 194164},
             {QStringLiteral("2034742057"), QStringLiteral("アイドル"), {QStringLiteral("YOASOBI")}, QString(), 213233,
              {QStringLiteral("偶像")}},
-            {QStringLiteral("1803908863"), QStringLiteral("怪物"), {QStringLiteral("YOASOBI")}, QString(), 206000}};
+            {QStringLiteral("1803908863"), QStringLiteral("怪物"), {QStringLiteral("YOASOBI")}, QString(), 206000}}, {}});
     }
-    std::optional<LyricDocument> fetch(const QString &) override
+    void fetch(const QString &, FetchCallback callback) override
     {
-        return LyricDocument{{{0, 1000, QStringLiteral("line"), std::nullopt, std::nullopt}}, 0, false};
+        callback({LyricDocument{{{0, 1000, QStringLiteral("line"), std::nullopt, std::nullopt}}, 0, false}, {}});
     }
-    QString lastError() const override { return {}; }
 };
+
+class DeferredProvider final : public Provider
+{
+public:
+    QString id() const override { return QStringLiteral("deferred"); }
+    bool isConfigured() const override { return true; }
+    void search(const TrackQuery &query, SearchCallback callback) override
+    {
+        m_searches.insert(query.title, std::move(callback));
+    }
+    void fetch(const QString &, FetchCallback callback) override
+    {
+        callback({LyricDocument{{{0, 1000, QStringLiteral("line"), std::nullopt, std::nullopt}}, 0, false}, {}});
+    }
+    void complete(const QString &title)
+    {
+        auto callback = m_searches.take(title);
+        callback({{{title, title, {QStringLiteral("artist")}, QString(), 1000}}, {}});
+    }
+
+private:
+    QHash<QString, SearchCallback> m_searches;
+};
+
+ResolvedLyric resolveSynchronously(Resolver &resolver, const MprisState &state)
+{
+    std::optional<ResolvedLyric> result;
+    QEventLoop loop;
+    const auto connection = QObject::connect(
+        &resolver, &Resolver::resolved, &loop,
+        [&](const QString &fingerprint, const ResolvedLyric &lyric) {
+            if (fingerprint == state.fingerprint) {
+                result = lyric;
+                loop.quit();
+            }
+        });
+    resolver.resolve(state);
+    if (!result) {
+        QTimer::singleShot(1000, &loop, &QEventLoop::quit);
+        loop.exec();
+    }
+    QObject::disconnect(connection);
+    return result.value_or(ResolvedLyric{QStringLiteral("test-timeout"), std::nullopt, {}});
+}
 
 } // namespace
 
@@ -116,7 +160,7 @@ private Q_SLOTS:
         QVERIFY(store.recordMiss(state.fingerprint, QStringLiteral("no-candidate")));
 
         Resolver resolver(store, {}, true);
-        const auto result = resolver.resolve(state);
+        const auto result = resolveSynchronously(resolver, state);
         QCOMPARE(result.state, QStringLiteral("ok"));
         QCOMPARE(result.ref->provider, QStringLiteral("waylyrics"));
         QCOMPARE(result.document.lines.size(), 1);
@@ -144,7 +188,7 @@ private Q_SLOTS:
         state.album = QStringLiteral("album");
         state.lengthUs = 120000000;
 
-        const auto result = resolver.resolve(state);
+        const auto result = resolveSynchronously(resolver, state);
         QCOMPARE(result.state, QStringLiteral("ok"));
         QCOMPARE(result.ref->provider, QStringLiteral("working"));
     }
@@ -163,11 +207,11 @@ private Q_SLOTS:
         state.artists = {QStringLiteral("artist")};
         state.lengthUs = 120000000;
 
-        QCOMPARE(resolver.resolve(state).state, QStringLiteral("network-error"));
+        QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("network-error"));
         const auto miss = store.freshMiss(state.fingerprint);
         QVERIFY(miss.has_value());
         QCOMPARE(miss->reason, QStringLiteral("network"));
-        QCOMPARE(resolver.resolve(state).state, QStringLiteral("network-error"));
+        QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("network-error"));
     }
 
     void localizedFallbackOnlyAppliesWhenPlatformIsApple()
@@ -194,8 +238,8 @@ private Q_SLOTS:
             QVERIFY(store.open());
             LocalizedFallbackProvider provider;
             Resolver resolver(store, {&provider});
-            const auto result = resolver.resolve(
-                makeState(QStringLiteral("mediaSrc:apple-fallback"), QStringLiteral("apple")));
+            const auto state = makeState(QStringLiteral("mediaSrc:apple-fallback"), QStringLiteral("apple"));
+            const auto result = resolveSynchronously(resolver, state);
             QCOMPARE(result.state, QStringLiteral("ok"));
             QCOMPARE(result.ref->trackId, QStringLiteral("1472480890"));
         }
@@ -206,10 +250,63 @@ private Q_SLOTS:
             QVERIFY(store.open());
             LocalizedFallbackProvider provider;
             Resolver resolver(store, {&provider});
-            const auto result = resolver.resolve(
-                makeState(QStringLiteral("mediaSrc:unknown-platform"), QString()));
+            const auto state = makeState(QStringLiteral("mediaSrc:unknown-platform"), QString());
+            const auto result = resolveSynchronously(resolver, state);
             QCOMPARE(result.state, QStringLiteral("not-found"));
         }
+    }
+
+    void staleAsyncResultCannotReplaceTheCurrentTrack()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        DeferredProvider provider;
+        Resolver resolver(store, {&provider});
+        QStringList emittedFingerprints;
+        connect(&resolver, &Resolver::resolved, this,
+                [&](const QString &fingerprint, const ResolvedLyric &) {
+                    emittedFingerprints.append(fingerprint);
+                });
+        auto state = [](const QString &name) {
+            MprisState value;
+            value.music = true;
+            value.fingerprint = QStringLiteral("mediaSrc:") + name;
+            value.title = name;
+            value.artists = {QStringLiteral("artist")};
+            value.lengthUs = 1000000;
+            return value;
+        };
+
+        resolver.resolve(state(QStringLiteral("old")));
+        resolver.resolve(state(QStringLiteral("new")));
+        provider.complete(QStringLiteral("old"));
+        QVERIFY(emittedFingerprints.isEmpty());
+        QVERIFY(!store.refForFingerprint(QStringLiteral("mediaSrc:old")).has_value());
+
+        provider.complete(QStringLiteral("new"));
+        QCOMPARE(emittedFingerprints, QStringList{QStringLiteral("mediaSrc:new")});
+        QVERIFY(store.refForFingerprint(QStringLiteral("mediaSrc:new")).has_value());
+    }
+
+    void destroyingResolverInvalidatesPendingCallback()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        DeferredProvider provider;
+        {
+            Resolver resolver(store, {&provider});
+            MprisState state;
+            state.music = true;
+            state.fingerprint = QStringLiteral("mediaSrc:gone");
+            state.title = QStringLiteral("gone");
+            state.artists = {QStringLiteral("artist")};
+            state.lengthUs = 1000000;
+            resolver.resolve(state);
+        }
+        provider.complete(QStringLiteral("gone"));
+        QVERIFY(!store.refForFingerprint(QStringLiteral("mediaSrc:gone")).has_value());
     }
 };
 

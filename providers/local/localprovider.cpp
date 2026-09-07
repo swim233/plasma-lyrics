@@ -30,19 +30,14 @@ bool LocalProvider::supportsSearch() const
     return false;
 }
 
-QList<Candidate> LocalProvider::search(const TrackQuery &)
+void LocalProvider::search(const TrackQuery &, SearchCallback callback)
 {
-    return {};
+    callback({{}, {}});
 }
 
-std::optional<LyricDocument> LocalProvider::fetch(const QString &)
+void LocalProvider::fetch(const QString &, FetchCallback callback)
 {
-    return std::nullopt;
-}
-
-QString LocalProvider::lastError() const
-{
-    return {};
+    callback({std::nullopt, {}});
 }
 
 std::optional<LyricDocument> LocalProvider::overrideFor(const QString &providerId,

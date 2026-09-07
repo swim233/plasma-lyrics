@@ -35,7 +35,7 @@ QUrl Config::neteaseBaseUrl() const
 
 int Config::networkTimeoutMs() const
 {
-    return m_settings.value(QStringLiteral("providers/netease/timeoutMs"), 8000).toInt();
+    return m_settings.value(QStringLiteral("providers/netease/timeoutMs"), 4000).toInt();
 }
 
 bool Config::fileLoggingEnabled() const

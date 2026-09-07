@@ -135,7 +135,9 @@ journalctl --user -u plasma-lyricsd.service -f
 
 ```sh
 ctest --test-dir build --output-on-failure
-/usr/lib/qt6/bin/qmllint -I build/bin frontend/plasmoid/package/contents/ui/*.qml
+/usr/lib/qt6/bin/qmllint --bare -I build/bin -I /usr/lib/qt6/qml \
+  frontend/plasmoid/package/contents/ui/*.qml \
+  frontend/plasmoid/package/contents/ui/config/*.qml
 xmllint --noout frontend/plasmoid/package/contents/config/main.xml
 QML2_IMPORT_PATH="$PWD/build/bin" plasmoidviewer -a io.github.swim233.plasma-lyrics -f planar
 ```

@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-07 23:45+0800\n"
+"POT-Creation-Date: 2026-09-08 00:02+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -268,8 +268,8 @@ msgid "NetEase API URL:"
 msgstr "网易云 API 地址："
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:31
-msgid "Network timeout:"
-msgstr "网络超时："
+msgid "Initial network timeout:"
+msgstr "首次网络超时："
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:36
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:138

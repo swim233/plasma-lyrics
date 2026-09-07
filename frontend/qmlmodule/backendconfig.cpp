@@ -96,7 +96,7 @@ void BackendConfig::load()
     m_filterCredits = config.value(QStringLiteral("lyrics/filterLeadingCredits"), true).toBool();
     m_neteaseBaseUrl = config.value(QStringLiteral("providers/netease/baseUrl"),
                                     QStringLiteral("https://music.163.com")).toString();
-    m_networkTimeoutMs = config.value(QStringLiteral("providers/netease/timeoutMs"), 8000).toInt();
+    m_networkTimeoutMs = config.value(QStringLiteral("providers/netease/timeoutMs"), 4000).toInt();
     m_fileLoggingEnabled = config.value(QStringLiteral("logging/fileEnabled"), false).toBool();
     m_logFilePath = config.value(
         QStringLiteral("logging/filePath"),

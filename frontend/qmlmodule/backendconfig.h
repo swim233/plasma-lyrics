@@ -65,7 +65,7 @@ private:
     bool m_metadataHeuristic = true;
     bool m_filterCredits = true;
     QString m_neteaseBaseUrl;
-    int m_networkTimeoutMs = 8000;
+    int m_networkTimeoutMs = 4000;
     bool m_fileLoggingEnabled = false;
     QString m_logFilePath;
     bool m_dirty = false;

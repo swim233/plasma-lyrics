@@ -8,11 +8,22 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDebug>
+#include <QPointer>
 
 namespace PlasmaLyrics {
 
-Resolver::Resolver(LyricStore &store, QList<Provider *> providers, bool filterCredits)
-    : m_store(store)
+struct Resolver::Request {
+    quint64 generation = 0;
+    MprisState state;
+    TrackQuery query;
+    qsizetype providerIndex = 0;
+    bool networkFailed = false;
+};
+
+Resolver::Resolver(LyricStore &store, QList<Provider *> providers, bool filterCredits,
+                   QObject *parent)
+    : QObject(parent)
+    , m_store(store)
     , m_providers(std::move(providers))
     , m_filterCredits(filterCredits)
 {
@@ -85,15 +96,31 @@ QStringList Resolver::legacyWaylyricsIds(const MprisState &state)
     return keys;
 }
 
-ResolvedLyric Resolver::resolve(const MprisState &state)
+void Resolver::finish(const std::shared_ptr<Request> &request, ResolvedLyric lyric)
 {
+    if (request->generation == m_generation) {
+        Q_EMIT resolved(request->state.fingerprint, lyric);
+    }
+}
+
+void Resolver::cancel()
+{
+    ++m_generation;
+}
+
+void Resolver::resolve(const MprisState &state)
+{
+    const auto request = std::make_shared<Request>();
+    request->generation = ++m_generation;
+    request->state = state;
     qInfo().noquote() << QStringLiteral("resolve: fingerprint=%1 platform=%2 music=%3")
                              .arg(state.fingerprint,
                                   state.platform.isEmpty() ? QStringLiteral("unknown") : state.platform,
                                   state.music ? QStringLiteral("true") : QStringLiteral("false"));
     if (!state.music) {
         qInfo() << "state=filtered";
-        return {QStringLiteral("filtered"), std::nullopt, {}};
+        finish(request, {QStringLiteral("filtered"), std::nullopt, {}});
+        return;
     }
     if (const auto mapped = m_store.refForFingerprint(state.fingerprint)) {
         if (const auto override = overridden(*mapped)) {
@@ -103,7 +130,8 @@ ResolvedLyric Resolver::resolve(const MprisState &state)
                                      .arg(mapped->provider, mapped->trackId)
                                      .arg(override->lines.size());
             qInfo().noquote() << QStringLiteral("state=") + resultState;
-            return {resultState, *mapped, *override};
+            finish(request, {resultState, *mapped, *override});
+            return;
         }
         if (const auto cached = m_store.lyric(*mapped)) {
             auto display = forDisplay(*cached, *mapped);
@@ -113,7 +141,8 @@ ResolvedLyric Resolver::resolve(const MprisState &state)
                                      .arg(mapped->provider, mapped->trackId)
                                      .arg(display.lines.size());
             qInfo().noquote() << QStringLiteral("state=") + resultState;
-            return {resultState, *mapped, display};
+            finish(request, {resultState, *mapped, display});
+            return;
         }
     }
 
@@ -128,7 +157,8 @@ ResolvedLyric Resolver::resolve(const MprisState &state)
                                      .arg(legacy.provider, legacy.trackId)
                                      .arg(display.lines.size());
             qInfo().noquote() << QStringLiteral("state=") + resultState;
-            return {resultState, legacy, display};
+            finish(request, {resultState, legacy, display});
+            return;
         }
     }
     qInfo() << "cache miss";
@@ -144,56 +174,90 @@ ResolvedLyric Resolver::resolve(const MprisState &state)
         const QString resultState = miss->reason == QStringLiteral("network")
             ? QStringLiteral("network-error") : QStringLiteral("not-found");
         qInfo().noquote() << QStringLiteral("state=") + resultState;
-        return {resultState, std::nullopt, {}};
+        finish(request, {resultState, std::nullopt, {}});
+        return;
     }
 
-    const TrackQuery query{state.title, state.artists, state.album, state.lengthUs / 1000};
-    bool networkFailed = false;
-    for (auto *provider : m_providers) {
-        if (!provider || !provider->isConfigured() || !provider->supportsSearch()) {
+    request->query = {state.title, state.artists, state.album, state.lengthUs / 1000};
+    continueWithProvider(request);
+}
+
+void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
+{
+    if (request->generation != m_generation) {
+        return;
+    }
+    Provider *provider = nullptr;
+    while (request->providerIndex < m_providers.size()) {
+        auto *candidate = m_providers[request->providerIndex++];
+        if (!candidate || !candidate->isConfigured() || !candidate->supportsSearch()) {
             continue;
         }
-        const auto candidates = provider->search(query);
-        qInfo().noquote() << explainMatch(query, candidates,
-                                           state.platform == QStringLiteral("apple"));
-        if (candidates.isEmpty() && !provider->lastError().isEmpty()) {
-            networkFailed = true;
-            continue;
+        provider = candidate;
+        break;
+    }
+    if (!provider) {
+        const QString missReason = request->networkFailed
+            ? QStringLiteral("network") : QStringLiteral("no-candidate");
+        qInfo().noquote() << QStringLiteral("record miss: reason=") + missReason;
+        m_store.recordMiss(request->state.fingerprint, missReason);
+        const QString resultState = request->networkFailed
+            ? QStringLiteral("network-error") : QStringLiteral("not-found");
+        qInfo().noquote() << QStringLiteral("state=") + resultState;
+        finish(request, {resultState, std::nullopt, {}});
+        return;
+    }
+
+    const QPointer<Resolver> self(this);
+    provider->search(request->query,
+                     [self, request, provider](ProviderSearchResult result) mutable {
+        if (!self || request->generation != self->m_generation) {
+            return;
         }
-        const auto ranked = rankCandidates(query, candidates);
-        const auto chosen = chooseMatch(ranked, state.platform == QStringLiteral("apple"));
+        qInfo().noquote() << explainMatch(request->query, result.candidates,
+                                           request->state.platform == QStringLiteral("apple"));
+        if (result.candidates.isEmpty() && !result.error.isEmpty()) {
+            request->networkFailed = true;
+            self->continueWithProvider(request);
+            return;
+        }
+        const auto ranked = rankCandidates(request->query, result.candidates);
+        const auto chosen = chooseMatch(ranked,
+                                        request->state.platform == QStringLiteral("apple"));
         if (!chosen) {
-            continue;
+            self->continueWithProvider(request);
+            return;
         }
         const TrackRef ref{provider->id(), chosen->candidate.trackId, chosen->score.total};
-        const auto document = provider->fetch(ref.trackId);
-        if (!document) {
-            qInfo().noquote() << QStringLiteral("fetch failed: %1/%2: %3")
-                                     .arg(ref.provider, ref.trackId, provider->lastError());
-            networkFailed = true;
-            continue;
-        }
-        qInfo().noquote() << QStringLiteral("fetched: lines=%1 hasWords=%2")
-                                 .arg(document->lines.size())
-                                 .arg(document->hasWords ? QStringLiteral("true") : QStringLiteral("false"));
-        m_store.putLyric(ref, *document);
-        m_store.mapFingerprint(state.fingerprint, ref);
-        auto finalDocument = forDisplay(*document, ref);
-        qInfo().noquote() << QStringLiteral("after filterLeadingCredits: lines=%1")
-                                 .arg(finalDocument.lines.size());
-        const QString resultState = finalDocument.lines.isEmpty()
-            ? QStringLiteral("no-lyric") : QStringLiteral("ok");
-        qInfo().noquote() << QStringLiteral("state=") + resultState;
-        return {resultState, ref, finalDocument};
-    }
-    const QString missReason = networkFailed
-        ? QStringLiteral("network") : QStringLiteral("no-candidate");
-    qInfo().noquote() << QStringLiteral("record miss: reason=") + missReason;
-    m_store.recordMiss(state.fingerprint, missReason);
-    const QString resultState = networkFailed
-        ? QStringLiteral("network-error") : QStringLiteral("not-found");
-    qInfo().noquote() << QStringLiteral("state=") + resultState;
-    return {resultState, std::nullopt, {}};
+        provider->fetch(ref.trackId,
+                        [self, request, ref](ProviderFetchResult result) mutable {
+            if (!self || request->generation != self->m_generation) {
+                return;
+            }
+            if (!result.document) {
+                qInfo().noquote() << QStringLiteral("fetch failed: %1/%2: %3")
+                                         .arg(ref.provider, ref.trackId,
+                                              result.error.isEmpty()
+                                                  ? QStringLiteral("unknown error") : result.error);
+                request->networkFailed = true;
+                self->continueWithProvider(request);
+                return;
+            }
+            qInfo().noquote() << QStringLiteral("fetched: lines=%1 hasWords=%2")
+                                     .arg(result.document->lines.size())
+                                     .arg(result.document->hasWords
+                                              ? QStringLiteral("true") : QStringLiteral("false"));
+            self->m_store.putLyric(ref, *result.document);
+            self->m_store.mapFingerprint(request->state.fingerprint, ref);
+            auto finalDocument = self->forDisplay(*result.document, ref);
+            qInfo().noquote() << QStringLiteral("after filterLeadingCredits: lines=%1")
+                                     .arg(finalDocument.lines.size());
+            const QString resultState = finalDocument.lines.isEmpty()
+                ? QStringLiteral("no-lyric") : QStringLiteral("ok");
+            qInfo().noquote() << QStringLiteral("state=") + resultState;
+            self->finish(request, {resultState, ref, finalDocument});
+        });
+    });
 }
 
 } // namespace PlasmaLyrics

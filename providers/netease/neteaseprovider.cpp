@@ -3,9 +3,9 @@
 #include "core/lyric/lrcparser.h"
 #include "core/lyric/timeline.h"
 
-#include <QEventLoop>
 #include <QJsonArray>
 #include <QJsonObject>
+#include <QDebug>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QTimer>
@@ -19,6 +19,15 @@ NeteaseProvider::NeteaseProvider(QUrl baseUrl, int timeoutMs)
 {
 }
 
+NeteaseProvider::~NeteaseProvider()
+{
+    const auto replies = m_replies;
+    for (auto *reply : replies) {
+        QObject::disconnect(reply, nullptr, nullptr, nullptr);
+        reply->abort();
+    }
+}
+
 QString NeteaseProvider::id() const
 {
     return QStringLiteral("netease");
@@ -29,37 +38,62 @@ bool NeteaseProvider::isConfigured() const
     return m_baseUrl.isValid() && !m_baseUrl.isEmpty();
 }
 
-QString NeteaseProvider::lastError() const
+int NeteaseProvider::timeoutForAttempt(int baseTimeoutMs, int attempt)
 {
-    return m_lastError;
+    if (attempt <= 1) {
+        return baseTimeoutMs;
+    }
+    if (attempt == 2) {
+        return baseTimeoutMs * 3 / 2;
+    }
+    return baseTimeoutMs * 2;
 }
 
-std::optional<QByteArray> NeteaseProvider::get(const QUrl &url)
+void NeteaseProvider::get(const QUrl &url, GetCallback callback)
 {
-    m_lastError.clear();
+    getAttempt(url, 1, std::move(callback));
+}
+
+void NeteaseProvider::getAttempt(const QUrl &url, int attempt, GetCallback callback)
+{
     QNetworkRequest request(url);
     request.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("plasma-lyricsd/0.1"));
     request.setRawHeader("Referer", "https://music.163.com/");
     auto *reply = m_network.get(request);
-    QTimer timeout;
-    timeout.setSingleShot(true);
-    QEventLoop loop;
-    QObject::connect(reply, &QNetworkReply::finished, &loop, &QEventLoop::quit);
-    QObject::connect(&timeout, &QTimer::timeout, reply, &QNetworkReply::abort);
-    timeout.start(m_timeoutMs);
-    loop.exec();
-    const auto error = reply->error();
-    const auto payload = reply->readAll();
-    if (error != QNetworkReply::NoError) {
-        m_lastError = reply->errorString();
+    m_replies.insert(reply);
+    auto *timeout = new QTimer(reply);
+    timeout->setSingleShot(true);
+    const auto timedOut = std::make_shared<bool>(false);
+    QObject::connect(timeout, &QTimer::timeout, reply, [reply, timedOut] {
+        *timedOut = true;
+        reply->abort();
+    });
+    QObject::connect(reply, &QNetworkReply::finished, reply,
+                     [this, url, attempt, callback = std::move(callback), reply, timeout, timedOut]() mutable {
+        timeout->stop();
+        const auto error = reply->error();
+        const auto payload = reply->readAll();
+        const bool hasHttpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).isValid();
+        const QString errorText = *timedOut
+            ? QStringLiteral("request timed out after %1 ms").arg(timeoutForAttempt(m_timeoutMs, attempt))
+            : reply->errorString();
+        m_replies.remove(reply);
         reply->deleteLater();
-        return std::nullopt;
-    }
-    reply->deleteLater();
-    return payload;
+        if (error == QNetworkReply::NoError) {
+            callback(payload, {});
+            return;
+        }
+        if (!hasHttpStatus && attempt < 3) {
+            qInfo().noquote() << QStringLiteral("retry %1/3 after %2").arg(attempt + 1).arg(errorText);
+            getAttempt(url, attempt + 1, std::move(callback));
+            return;
+        }
+        callback(std::nullopt, errorText);
+    });
+    timeout->start(timeoutForAttempt(m_timeoutMs, attempt));
 }
 
-QList<Candidate> NeteaseProvider::search(const TrackQuery &query)
+void NeteaseProvider::search(const TrackQuery &query, SearchCallback callback)
 {
     QUrl url = m_baseUrl.resolved(QUrl(QStringLiteral("/api/search/get")));
     QUrlQuery urlQuery;
@@ -67,14 +101,18 @@ QList<Candidate> NeteaseProvider::search(const TrackQuery &query)
     urlQuery.addQueryItem(QStringLiteral("type"), QStringLiteral("1"));
     urlQuery.addQueryItem(QStringLiteral("limit"), QStringLiteral("10"));
     url.setQuery(urlQuery);
-    const auto payload = get(url);
-    if (!payload) {
-        return {};
-    }
-    return parseSearchResponse(*payload, &m_lastError);
+    get(url, [callback = std::move(callback)](std::optional<QByteArray> payload, QString error) mutable {
+        if (!payload) {
+            callback({{}, std::move(error)});
+            return;
+        }
+        QString parseError;
+        auto candidates = parseSearchResponse(*payload, &parseError);
+        callback({std::move(candidates), std::move(parseError)});
+    });
 }
 
-std::optional<LyricDocument> NeteaseProvider::fetch(const QString &trackId)
+void NeteaseProvider::fetch(const QString &trackId, FetchCallback callback)
 {
     // /api/song/lyric/v1 rather than /api/song/lyric: the v1 response returns
     // production credits as structured entries carrying the artist's links,
@@ -91,11 +129,15 @@ std::optional<LyricDocument> NeteaseProvider::fetch(const QString &trackId)
     query.addQueryItem(QStringLiteral("rv"), QStringLiteral("0"));
     query.addQueryItem(QStringLiteral("kv"), QStringLiteral("0"));
     url.setQuery(query);
-    const auto payload = get(url);
-    if (!payload) {
-        return std::nullopt;
-    }
-    return parseLyricResponse(*payload, &m_lastError);
+    get(url, [callback = std::move(callback)](std::optional<QByteArray> payload, QString error) mutable {
+        if (!payload) {
+            callback({std::nullopt, std::move(error)});
+            return;
+        }
+        QString parseError;
+        auto document = parseLyricResponse(*payload, &parseError);
+        callback({std::move(document), std::move(parseError)});
+    });
 }
 
 QList<Candidate> NeteaseProvider::parseSearchResponse(const QByteArray &payload, QString *error)
