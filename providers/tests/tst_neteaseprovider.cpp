@@ -21,7 +21,7 @@ namespace {
 class ScriptedHttpServer : public QTcpServer
 {
 public:
-    enum class Reply { Disconnect, NotFound, InvalidJson, SearchSuccess, Hang };
+    enum class Reply { Disconnect, TruncatedSuccess, NotFound, ServerError, InvalidJson, SearchSuccess, Hang };
 
     explicit ScriptedHttpServer(QList<Reply> replies)
         : m_replies(std::move(replies))
@@ -44,10 +44,20 @@ public:
                     if (reply == Reply::Hang) {
                         return;
                     }
+                    if (reply == Reply::TruncatedSuccess) {
+                        const QByteArray partialBody = R"({"result":{"songs":[)";
+                        socket->write("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: "
+                                      + QByteArray::number(partialBody.size() + 100)
+                                      + "\r\nConnection: close\r\n\r\n" + partialBody);
+                        socket->disconnectFromHost();
+                        return;
+                    }
                     QByteArray body;
                     QByteArray status = "200 OK";
                     if (reply == Reply::NotFound) {
                         status = "404 Not Found";
+                    } else if (reply == Reply::ServerError) {
+                        status = "503 Service Unavailable";
                     } else if (reply == Reply::InvalidJson) {
                         body = "not json";
                     } else {
@@ -103,6 +113,7 @@ private Q_SLOTS:
     void creditsFromThePreV1EndpointStillFilter();
     void timeoutStaircase();
     void retriesNetworkErrorsAndCanRecover();
+    void retriesTruncated2xxResponsesAndCanRecover();
     void givesUpAfterThreeNetworkTimeouts();
     void doesNotRetryHttpErrors();
     void doesNotRetryJsonErrors();
@@ -203,6 +214,22 @@ void NeteaseProviderTest::retriesNetworkErrorsAndCanRecover()
     QCOMPARE(result.candidates.first().trackId, QStringLiteral("1"));
 }
 
+void NeteaseProviderTest::retriesTruncated2xxResponsesAndCanRecover()
+{
+    // Receiving a successful status does not make a later transport failure
+    // an HTTP error.  A short body with a larger Content-Length is reported by
+    // QNetworkReply as RemoteHostClosedError and must take the retry path.
+    ScriptedHttpServer server({ScriptedHttpServer::Reply::TruncatedSuccess,
+                               ScriptedHttpServer::Reply::SearchSuccess});
+    QVERIFY(server.start());
+    NeteaseProvider provider(server.baseUrl(), 100);
+    const auto result = searchAndWait(provider);
+    QCOMPARE(server.requestCount(), 2);
+    QCOMPARE(result.error, QString());
+    QCOMPARE(result.candidates.size(), 1);
+    QCOMPARE(result.candidates.first().trackId, QStringLiteral("1"));
+}
+
 void NeteaseProviderTest::givesUpAfterThreeNetworkTimeouts()
 {
     ScriptedHttpServer server({ScriptedHttpServer::Reply::Hang});
@@ -220,12 +247,15 @@ void NeteaseProviderTest::givesUpAfterThreeNetworkTimeouts()
 
 void NeteaseProviderTest::doesNotRetryHttpErrors()
 {
-    ScriptedHttpServer server({ScriptedHttpServer::Reply::NotFound});
-    QVERIFY(server.start());
-    NeteaseProvider provider(server.baseUrl(), 100);
-    const auto result = searchAndWait(provider);
-    QCOMPARE(server.requestCount(), 1);
-    QVERIFY(!result.error.isEmpty());
+    for (const auto scriptedReply : {ScriptedHttpServer::Reply::NotFound,
+                                     ScriptedHttpServer::Reply::ServerError}) {
+        ScriptedHttpServer server({scriptedReply});
+        QVERIFY(server.start());
+        NeteaseProvider provider(server.baseUrl(), 100);
+        const auto result = searchAndWait(provider);
+        QCOMPARE(server.requestCount(), 1);
+        QVERIFY(!result.error.isEmpty());
+    }
 }
 
 void NeteaseProviderTest::doesNotRetryJsonErrors()

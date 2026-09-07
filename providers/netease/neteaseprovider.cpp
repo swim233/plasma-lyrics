@@ -73,7 +73,10 @@ void NeteaseProvider::getAttempt(const QUrl &url, int attempt, GetCallback callb
         timeout->stop();
         const auto error = reply->error();
         const auto payload = reply->readAll();
-        const bool hasHttpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).isValid();
+        const auto httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+        const int httpStatusCode = httpStatus.toInt();
+        const bool isHttpError = httpStatus.isValid()
+            && httpStatusCode >= 400 && httpStatusCode < 600;
         const QString errorText = *timedOut
             ? QStringLiteral("request timed out after %1 ms").arg(timeoutForAttempt(m_timeoutMs, attempt))
             : reply->errorString();
@@ -83,7 +86,12 @@ void NeteaseProvider::getAttempt(const QUrl &url, int attempt, GetCallback callb
             callback(payload, {});
             return;
         }
-        if (!hasHttpStatus && attempt < 3) {
+        // A response can have received its 2xx headers and still fail at the
+        // transport layer (for example, a truncated body reports
+        // RemoteHostClosedError).  That remains retryable.  Conversely,
+        // QNetworkReply also represents HTTP 4xx/5xx as NetworkError values;
+        // those are server answers, not transient transport failures.
+        if (!isHttpError && attempt < 3) {
             qInfo().noquote() << QStringLiteral("retry %1/3 after %2").arg(attempt + 1).arg(errorText);
             getAttempt(url, attempt + 1, std::move(callback));
             return;
