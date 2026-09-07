@@ -6,6 +6,8 @@ import org.kde.plasma.plasmoid
 
 import io.github.swim233.lyrics
 
+import "TextPolicy.js" as TextPolicy
+
 PlasmoidItem {
     id: root
 
@@ -239,14 +241,18 @@ PlasmoidItem {
         overflowMode: Plasmoid.configuration.panelOverflow
         animationMode: Plasmoid.configuration.panelAnimation
         showTranslation: Plasmoid.configuration.panelShowTranslation
-        idleText: Plasmoid.configuration.idleTextUseDefault
-            ? i18n("No media is playing") : Plasmoid.configuration.idleText
-        notFoundText: Plasmoid.configuration.notFoundTextUseDefault
-            ? i18n("Lyrics not found") : Plasmoid.configuration.notFoundText
-        noLyricText: Plasmoid.configuration.noLyricTextUseDefault
-            ? i18n("This track has no lyrics") : Plasmoid.configuration.noLyricText
-        networkErrorText: Plasmoid.configuration.networkErrorTextUseDefault
-            ? i18n("Network error, cannot fetch lyrics") : Plasmoid.configuration.networkErrorText
+        idleText: TextPolicy.effectiveText(Plasmoid.configuration.idleTextUseDefault,
+                                           Plasmoid.configuration.idleText,
+                                           i18n("No media is playing"))
+        notFoundText: TextPolicy.effectiveText(Plasmoid.configuration.notFoundTextUseDefault,
+                                               Plasmoid.configuration.notFoundText,
+                                               i18n("Lyrics not found"))
+        noLyricText: TextPolicy.effectiveText(Plasmoid.configuration.noLyricTextUseDefault,
+                                              Plasmoid.configuration.noLyricText,
+                                              i18n("This track has no lyrics"))
+        networkErrorText: TextPolicy.effectiveText(Plasmoid.configuration.networkErrorTextUseDefault,
+                                                   Plasmoid.configuration.networkErrorText,
+                                                   i18n("Network error, cannot fetch lyrics"))
         panelMode: true
         showTrackInfo: Plasmoid.configuration.panelShowTrackInfo
         trackInfoLayout: Plasmoid.configuration.panelTrackInfoLayout
@@ -271,14 +277,18 @@ PlasmoidItem {
         overflowMode: Plasmoid.configuration.desktopOverflow
         animationMode: Plasmoid.configuration.desktopAnimation
         showTranslation: Plasmoid.configuration.desktopShowTranslation
-        idleText: Plasmoid.configuration.idleTextUseDefault
-            ? i18n("No media is playing") : Plasmoid.configuration.idleText
-        notFoundText: Plasmoid.configuration.notFoundTextUseDefault
-            ? i18n("Lyrics not found") : Plasmoid.configuration.notFoundText
-        noLyricText: Plasmoid.configuration.noLyricTextUseDefault
-            ? i18n("This track has no lyrics") : Plasmoid.configuration.noLyricText
-        networkErrorText: Plasmoid.configuration.networkErrorTextUseDefault
-            ? i18n("Network error, cannot fetch lyrics") : Plasmoid.configuration.networkErrorText
+        idleText: TextPolicy.effectiveText(Plasmoid.configuration.idleTextUseDefault,
+                                           Plasmoid.configuration.idleText,
+                                           i18n("No media is playing"))
+        notFoundText: TextPolicy.effectiveText(Plasmoid.configuration.notFoundTextUseDefault,
+                                               Plasmoid.configuration.notFoundText,
+                                               i18n("Lyrics not found"))
+        noLyricText: TextPolicy.effectiveText(Plasmoid.configuration.noLyricTextUseDefault,
+                                              Plasmoid.configuration.noLyricText,
+                                              i18n("This track has no lyrics"))
+        networkErrorText: TextPolicy.effectiveText(Plasmoid.configuration.networkErrorTextUseDefault,
+                                                   Plasmoid.configuration.networkErrorText,
+                                                   i18n("Network error, cannot fetch lyrics"))
         panelMode: false
         showTrackInfo: Plasmoid.configuration.desktopShowTrackInfo
         trackInfoLayout: Plasmoid.configuration.desktopTrackInfoLayout

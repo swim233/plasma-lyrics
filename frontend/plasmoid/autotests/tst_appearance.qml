@@ -5,6 +5,7 @@ import org.kde.kirigami as Kirigami
 import org.kde.ksvg as KSvg
 import "../package/contents/ui" as LyricsUi
 import "../package/contents/ui/config" as LyricsConfig
+import "../package/contents/ui/TextPolicy.js" as TextPolicy
 
 TestCase {
     name: "Appearance"
@@ -53,6 +54,11 @@ TestCase {
     Component {
         id: configPanelAppearanceComponent
         LyricsConfig.ConfigPanelAppearance {}
+    }
+
+    Component {
+        id: configTextComponent
+        LyricsConfig.ConfigText {}
     }
 
     Component {
@@ -427,6 +433,55 @@ TestCase {
         compare(view.effectiveText, "instrumental");
         source.lyricState = "network-error";
         compare(view.effectiveText, "offline");
+    }
+
+    function test_nonLyricTextDefaultsEditsAndExplicitEmpty() {
+        const page = createTemporaryObject(configTextComponent, this);
+        verify(page !== null);
+
+        const cases = [
+            { text: "cfg_notFoundText", useDefault: "cfg_notFoundTextUseDefault",
+              state: "not-found", viewText: "notFoundText", custom: "missing" },
+            { text: "cfg_noLyricText", useDefault: "cfg_noLyricTextUseDefault",
+              state: "no-lyric", viewText: "noLyricText", custom: "instrumental" },
+            { text: "cfg_networkErrorText", useDefault: "cfg_networkErrorTextUseDefault",
+              state: "network-error", viewText: "networkErrorText", custom: "offline" }
+        ];
+        const fields = findAll(page, o => typeof o.textEdited === "function"
+            && o.placeholderText !== undefined);
+        // The first field is idle text; the remaining three correspond to
+        // the cases above in declaration order.
+        compare(fields.length, 4);
+
+        for (let i = 0; i < cases.length; ++i) {
+            const current = cases[i];
+            const field = fields[i + 1];
+            compare(page[current.useDefault], true);
+
+            field.text = current.custom;
+            field.textEdited();
+            compare(page[current.text], current.custom);
+            compare(page[current.useDefault], false);
+
+            // Empty is a deliberate display choice once the default checkbox
+            // is off.  Exercise the same policy function used by both the
+            // compact and full representations, then pass the result through
+            // LyricsView's state selection to prove it remains hidden.
+            field.text = "";
+            field.textEdited();
+            compare(page[current.text], "");
+            compare(page[current.useDefault], false);
+            const effective = TextPolicy.effectiveText(page[current.useDefault],
+                                                        page[current.text], "localized default");
+            compare(effective, "");
+            const source = createTemporaryObject(fakeSourceComponent, this,
+                { lyricState: current.state });
+            const props = { source: source };
+            props[current.viewText] = effective;
+            const view = createTemporaryObject(lyricsViewComponent, this, props);
+            verify(view !== null);
+            compare(view.effectiveText, "");
+        }
     }
 
     function test_trackInfoOutlineReachesEveryCopy() {

@@ -15,13 +15,13 @@ Kirigami.ScrollablePage {
     id: page
 
     property string cfg_idleText
-    property bool cfg_idleTextUseDefault
+    property bool cfg_idleTextUseDefault: true
     property string cfg_notFoundText
-    property bool cfg_notFoundTextUseDefault
+    property bool cfg_notFoundTextUseDefault: true
     property string cfg_noLyricText
-    property bool cfg_noLyricTextUseDefault
+    property bool cfg_noLyricTextUseDefault: true
     property string cfg_networkErrorText
-    property bool cfg_networkErrorTextUseDefault
+    property bool cfg_networkErrorTextUseDefault: true
 
     ColumnLayout {
         width: parent.width
