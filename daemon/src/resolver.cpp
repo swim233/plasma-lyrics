@@ -206,8 +206,12 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
     if (!provider) {
         const QString missReason = request->networkFailed
             ? QStringLiteral("network") : QStringLiteral("no-candidate");
-        qInfo().noquote() << QStringLiteral("record miss: reason=") + missReason;
-        m_store.recordMiss(request->state.fingerprint, missReason);
+        if (m_store.recordMiss(request->state.fingerprint, missReason)) {
+            qInfo().noquote() << QStringLiteral("record miss: reason=") + missReason;
+        } else {
+            qWarning().noquote() << QStringLiteral("cache miss record failed: fingerprint=%1 reason=%2")
+                                        .arg(request->state.fingerprint, missReason);
+        }
         const QString resultState = request->networkFailed
             ? QStringLiteral("network-error") : QStringLiteral("not-found");
         qInfo().noquote() << QStringLiteral("state=") + resultState;

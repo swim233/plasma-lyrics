@@ -390,6 +390,41 @@ private Q_SLOTS:
         QSqlDatabase::removeDatabase(connectionName);
     }
 
+    void missWriteFailureIsLoggedWithoutSuccess()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        const QString connectionName = QStringLiteral("resolver-miss-fault-%1")
+            .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
+        {
+            auto faultDatabase = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
+            faultDatabase.setDatabaseName(store.path());
+            QVERIFY(faultDatabase.open());
+            QSqlQuery query(faultDatabase);
+            QVERIFY(query.exec(QStringLiteral(
+                "CREATE TRIGGER fail_miss BEFORE INSERT ON miss "
+                "BEGIN SELECT RAISE(FAIL, 'miss write rejected'); END")));
+
+            Resolver resolver(store, {});
+            MprisState state;
+            state.music = true;
+            state.fingerprint = QStringLiteral("mediaSrc:miss-write-failure");
+            state.title = QStringLiteral("song");
+
+            MessageCapture capture;
+            QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("not-found"));
+            QVERIFY(capture.messages().contains(
+                QStringLiteral("cache miss record failed: fingerprint=mediaSrc:miss-write-failure reason=no-candidate")));
+            QVERIFY(!capture.messages().contains(
+                QStringLiteral("record miss: reason=no-candidate")));
+            QVERIFY(!store.freshMiss(state.fingerprint).has_value());
+            faultDatabase.close();
+        }
+        QSqlDatabase::removeDatabase(connectionName);
+    }
+
     void staleAsyncResultCannotReplaceTheCurrentTrack()
     {
         QTemporaryDir directory;

@@ -286,7 +286,7 @@ plasma-lyrics/
 | 49 | **日志配置在单实例锁之前生效**：`Config` 的构造和日志文件安装有意放在 daemon 单实例锁检查之前，使第二个实例的「已在运行」失败原因也能写入用户配置的日志文件 |
 | 50 | **新增文案开关必须迁移旧实例**：`notFoundText` 早于 `notFoundTextUseDefault` 存在，若只给新 Bool 配 `true` 默认值，升级后会遮蔽旧实例已有的非空自定义文案。每实例 kcfg 因此保存 `textConfigVersion`：版本 0 且旧文案非空时把伴生 Bool 置 `false`，空值（新安装）仍使用本地化默认；随后写版本 1。版本闸使迁移幂等，也保证迁移后用户重新选择默认值不会被下次启动覆盖。`noLyricText`/`networkErrorText` 与各自 Bool 同时引入，不参与这次迁移 |
 | 51 | **服务重启结果必须可见且可重试**：`BackendConfig` 用自己持有的异步 `QProcess` 运行 `systemctl --user restart plasma-lyricsd`，分别处理启动失败、非零退出码、crash 与成功，配置页显示成功/失败 InlineMessage。运行中拒绝重复调用并禁用按钮；保存成功会清掉 `dirty`，但重启失败后按钮仍可直接再次执行重启，不要求用户制造一次无意义的配置编辑。对象销毁时终止仍在运行的子进程，避免完成回调访问失效对象 |
-| 52 | **缓存诊断覆盖读写两端**：解析日志把「fingerprint 映射不存在」与「映射存在但歌词正文不存在」分开记录；provider 搜索失败记录 provider id 与原始错误文本。`putLyric`、`mapFingerprint` 的 Bool 结果都必须检查，失败分别写日志；当前播放仍可使用刚获取的内存文档，原子整首快照契约不因缓存持久化失败而改变 |
+| 52 | **缓存诊断覆盖读写两端**：解析日志把「fingerprint 映射不存在」与「映射存在但歌词正文不存在」分开记录；provider 搜索失败记录 provider id 与原始错误文本。`putLyric`、`mapFingerprint`、`recordMiss` 的 Bool 结果都必须检查，失败分别写日志；`record miss` 成功日志只能在负缓存真正落库后输出，不能把失败误报成成功。当前播放仍可使用刚获取的内存文档，原子整首快照契约不因缓存持久化失败而改变 |
 
 ### 工程结构
 | # | 决策 |
