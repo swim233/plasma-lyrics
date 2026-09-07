@@ -21,6 +21,8 @@ Item {
     property bool showTranslation: true
     property string idleText: i18n("No media is playing")
     property string notFoundText: ""
+    property string noLyricText: ""
+    property string networkErrorText: ""
     property bool panelMode: false
     // Default must stay in sync with the panelWidth entry's default in
     // config/main.xml -- the autotests instantiate LyricsView directly,
@@ -53,7 +55,8 @@ Item {
         if (!source.serviceAvailable || source.stale) return "";
         if (source.lyricState === "searching") return i18n("Searching for lyrics…");
         if (source.lyricState === "not-found") return root.notFoundText;
-        if (source.lyricState === "no-lyric") return "";
+        if (source.lyricState === "no-lyric") return root.noLyricText;
+        if (source.lyricState === "network-error") return root.networkErrorText;
         if (source.playbackStatus === "Stopped" || source.trackTitle.length === 0) return root.idleText;
         if (source.lyricState === "filtered") return "";
         return source.currentText;
@@ -63,7 +66,7 @@ Item {
     // TrackInfo already collapses to zero height on an empty title (see
     // TrackInfo.qml), so gating the config off just means feeding it an
     // empty title too -- no separate visibility flag to keep in sync. It
-    // stays up through searching/not-found/filtered/no-lyric on purpose:
+    // stays up through searching/not-found/filtered/no-lyric/network-error on purpose:
     // those are exactly the states where the lyric area is otherwise blank.
     readonly property string trackInfoTitle: root.showTrackInfo ? root.source.trackTitle : ""
 

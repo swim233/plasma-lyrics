@@ -241,7 +241,12 @@ PlasmoidItem {
         showTranslation: Plasmoid.configuration.panelShowTranslation
         idleText: Plasmoid.configuration.idleTextUseDefault
             ? i18n("No media is playing") : Plasmoid.configuration.idleText
-        notFoundText: Plasmoid.configuration.notFoundText
+        notFoundText: Plasmoid.configuration.notFoundTextUseDefault
+            ? i18n("Lyrics not found") : Plasmoid.configuration.notFoundText
+        noLyricText: Plasmoid.configuration.noLyricTextUseDefault
+            ? i18n("This track has no lyrics") : Plasmoid.configuration.noLyricText
+        networkErrorText: Plasmoid.configuration.networkErrorTextUseDefault
+            ? i18n("Network error, cannot fetch lyrics") : Plasmoid.configuration.networkErrorText
         panelMode: true
         showTrackInfo: Plasmoid.configuration.panelShowTrackInfo
         trackInfoLayout: Plasmoid.configuration.panelTrackInfoLayout
@@ -268,7 +273,12 @@ PlasmoidItem {
         showTranslation: Plasmoid.configuration.desktopShowTranslation
         idleText: Plasmoid.configuration.idleTextUseDefault
             ? i18n("No media is playing") : Plasmoid.configuration.idleText
-        notFoundText: Plasmoid.configuration.notFoundText
+        notFoundText: Plasmoid.configuration.notFoundTextUseDefault
+            ? i18n("Lyrics not found") : Plasmoid.configuration.notFoundText
+        noLyricText: Plasmoid.configuration.noLyricTextUseDefault
+            ? i18n("This track has no lyrics") : Plasmoid.configuration.noLyricText
+        networkErrorText: Plasmoid.configuration.networkErrorTextUseDefault
+            ? i18n("Network error, cannot fetch lyrics") : Plasmoid.configuration.networkErrorText
         panelMode: false
         showTrackInfo: Plasmoid.configuration.desktopShowTrackInfo
         trackInfoLayout: Plasmoid.configuration.desktopTrackInfoLayout

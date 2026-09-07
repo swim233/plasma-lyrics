@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-07 23:28+0800\n"
+"POT-Creation-Date: 2026-09-07 23:45+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -40,22 +40,22 @@ msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/LyricsView.qml:22
 #: frontend/plasmoid/package/contents/ui/main.qml:243
-#: frontend/plasmoid/package/contents/ui/main.qml:270
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:42
+#: frontend/plasmoid/package/contents/ui/main.qml:275
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:47
 msgid "No media is playing"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:54
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:56
 msgid "Searching for lyrics…"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:168
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:171
 msgid ""
 "The lyrics service stopped. Restart it with:\n"
 "systemctl --user restart plasma-lyricsd"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:169
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:172
 msgid ""
 "The lyrics service is not running. Start it with:\n"
 "systemctl --user enable --now plasma-lyricsd"
@@ -67,31 +67,49 @@ msgid "%1 — %2"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/main.qml:110
-#: frontend/plasmoid/package/contents/ui/main.qml:286
+#: frontend/plasmoid/package/contents/ui/main.qml:296
 msgid "Desktop Lyrics"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:292
+#: frontend/plasmoid/package/contents/ui/main.qml:245
+#: frontend/plasmoid/package/contents/ui/main.qml:277
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:62
+msgid "Lyrics not found"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/main.qml:247
+#: frontend/plasmoid/package/contents/ui/main.qml:279
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:77
+msgid "This track has no lyrics"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/main.qml:249
+#: frontend/plasmoid/package/contents/ui/main.qml:281
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:92
+msgid "Network error, cannot fetch lyrics"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/main.qml:302
 msgid "Lyrics 0.5 s earlier (all songs)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:293
+#: frontend/plasmoid/package/contents/ui/main.qml:303
 msgid "Lyrics 0.5 s earlier"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:300
+#: frontend/plasmoid/package/contents/ui/main.qml:310
 msgid "Lyrics 0.5 s later (all songs)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:301
+#: frontend/plasmoid/package/contents/ui/main.qml:311
 msgid "Lyrics 0.5 s later"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:308
+#: frontend/plasmoid/package/contents/ui/main.qml:318
 msgid "Reset global lyric offset (%1 ms)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:309
+#: frontend/plasmoid/package/contents/ui/main.qml:319
 msgid "Reset lyric offset (%1 ms)"
 msgstr ""
 
@@ -331,7 +349,7 @@ msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:54
 #: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:57
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:34
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:39
 msgid ""
 "These settings apply to this widget only. Every Desktop Lyrics widget keeps "
 "its own copy."
@@ -405,22 +423,32 @@ msgctxt "@label:spinbox"
 msgid "Width:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:40
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:45
 msgid "Not playing text:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:49
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:54
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:69
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:84
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:99
 msgid "Empty text:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:50
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:55
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:70
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:85
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:100
 msgid "Use the localized default message"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:55
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:60
 msgid "Lyrics not found text:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:57
-msgid "Leave empty to hide"
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:75
+msgid "No lyrics text:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:90
+msgid "Network error text:"
 msgstr ""

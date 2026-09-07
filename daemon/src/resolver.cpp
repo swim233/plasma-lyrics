@@ -141,8 +141,10 @@ ResolvedLyric Resolver::resolve(const MprisState &state)
         qInfo().noquote() << QStringLiteral("fresh miss: reason=%1 age=%2s ttl=7d")
                                  .arg(miss->reason)
                                  .arg(now - miss->triedAt);
-        qInfo() << "state=not-found";
-        return {QStringLiteral("not-found"), std::nullopt, {}};
+        const QString resultState = miss->reason == QStringLiteral("network")
+            ? QStringLiteral("network-error") : QStringLiteral("not-found");
+        qInfo().noquote() << QStringLiteral("state=") + resultState;
+        return {resultState, std::nullopt, {}};
     }
 
     const TrackQuery query{state.title, state.artists, state.album, state.lengthUs / 1000};
@@ -188,8 +190,10 @@ ResolvedLyric Resolver::resolve(const MprisState &state)
         ? QStringLiteral("network") : QStringLiteral("no-candidate");
     qInfo().noquote() << QStringLiteral("record miss: reason=") + missReason;
     m_store.recordMiss(state.fingerprint, missReason);
-    qInfo() << "state=not-found";
-    return {QStringLiteral("not-found"), std::nullopt, {}};
+    const QString resultState = networkFailed
+        ? QStringLiteral("network-error") : QStringLiteral("not-found");
+    qInfo().noquote() << QStringLiteral("state=") + resultState;
+    return {resultState, std::nullopt, {}};
 }
 
 } // namespace PlasmaLyrics

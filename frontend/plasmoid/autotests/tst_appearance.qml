@@ -399,7 +399,7 @@ TestCase {
         // the lyric area is otherwise empty. Height, not `visible` -- Item's
         // visible getter is ancestor-combined and reads false here for every
         // state, since the TestCase root itself is not shown.
-        const states = ["searching", "not-found", "filtered", "no-lyric"];
+        const states = ["searching", "not-found", "filtered", "no-lyric", "network-error"];
         for (let i = 0; i < states.length; ++i) {
             const source = createTemporaryObject(fakeSourceComponent, this, { lyricState: states[i] });
             const view = createTemporaryObject(lyricsViewComponent, this,
@@ -409,6 +409,24 @@ TestCase {
             const trackInfo = column.children[0];
             tryVerify(() => trackInfo.height > 0);
         }
+    }
+
+    function test_nonLyricStatesUseTheirIndependentText() {
+        const source = createTemporaryObject(fakeSourceComponent, this);
+        const view = createTemporaryObject(lyricsViewComponent, this, {
+            source: source,
+            notFoundText: "missing",
+            noLyricText: "instrumental",
+            networkErrorText: "offline"
+        });
+        verify(view !== null);
+
+        source.lyricState = "not-found";
+        compare(view.effectiveText, "missing");
+        source.lyricState = "no-lyric";
+        compare(view.effectiveText, "instrumental");
+        source.lyricState = "network-error";
+        compare(view.effectiveText, "offline");
     }
 
     function test_trackInfoOutlineReachesEveryCopy() {

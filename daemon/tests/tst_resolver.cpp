@@ -149,6 +149,27 @@ private Q_SLOTS:
         QCOMPARE(result.ref->provider, QStringLiteral("working"));
     }
 
+    void networkFailureHasItsOwnStateAndSurvivesNegativeCache()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider failed(QStringLiteral("failed"), true);
+        Resolver resolver(store, {&failed});
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:network-error");
+        state.title = QStringLiteral("song");
+        state.artists = {QStringLiteral("artist")};
+        state.lengthUs = 120000000;
+
+        QCOMPARE(resolver.resolve(state).state, QStringLiteral("network-error"));
+        const auto miss = store.freshMiss(state.fingerprint);
+        QVERIFY(miss.has_value());
+        QCOMPARE(miss->reason, QStringLiteral("network"));
+        QCOMPARE(resolver.resolve(state).state, QStringLiteral("network-error"));
+    }
+
     void localizedFallbackOnlyAppliesWhenPlatformIsApple()
     {
         // Same candidate pool, same query, only state.platform differs --

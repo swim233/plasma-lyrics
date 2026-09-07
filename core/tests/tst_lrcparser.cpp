@@ -1,4 +1,5 @@
 #include "core/lyric/lrcparser.h"
+#include "core/lyric/timeline.h"
 
 #include <QTest>
 
@@ -31,6 +32,19 @@ private Q_SLOTS:
         QVERIFY(document.lines.first().translation.has_value());
         QCOMPARE(*document.lines.first().translation, QStringLiteral("Hello"));
         QVERIFY(!document.lines.first().words.has_value());
+    }
+
+    void onlyJsonCreditsProducesAnEmptyDisplayDocument()
+    {
+        const QString lrc = QStringLiteral(
+            "{\"t\":-1,\"c\":[{\"tx\":\"Lyrics by Foo\",\"li\":\"https://example.test/foo\"}]}\n"
+            "{\"t\":-1,\"c\":[{\"tx\":\"Music by Bar\",\"li\":\"https://example.test/bar\"}]}");
+        auto document = LrcParser::merge(lrc, QString());
+        QCOMPARE(document.lines.size(), 2);
+        QVERIFY(document.lines[0].credit);
+        QVERIFY(document.lines[1].credit);
+        document.lines = filterLeadingCredits(document.lines);
+        QVERIFY(document.lines.isEmpty());
     }
 };
 
