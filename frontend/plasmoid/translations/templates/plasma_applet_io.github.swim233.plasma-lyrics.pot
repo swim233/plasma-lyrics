@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-06 23:49+0800\n"
+"POT-Creation-Date: 2026-09-07 23:28+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -323,6 +323,10 @@ msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:96
 msgid "Save service settings"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:102
+msgid "Save and restart service"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:54

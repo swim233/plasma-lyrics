@@ -48,6 +48,7 @@ public:
 
     Q_INVOKABLE void load();
     Q_INVOKABLE bool save();
+    Q_INVOKABLE bool restartService() const;
 
 Q_SIGNALS:
     void changed();

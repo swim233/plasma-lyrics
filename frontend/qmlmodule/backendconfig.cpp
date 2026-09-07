@@ -1,5 +1,6 @@
 #include "backendconfig.h"
 
+#include <QProcess>
 #include <QSettings>
 #include <QStandardPaths>
 
@@ -138,4 +139,12 @@ bool BackendConfig::save()
     }
     Q_EMIT saved();
     return true;
+}
+
+bool BackendConfig::restartService() const
+{
+    return QProcess::startDetached(QStringLiteral("systemctl"),
+                                   {QStringLiteral("--user"),
+                                    QStringLiteral("restart"),
+                                    QStringLiteral("plasma-lyricsd")});
 }

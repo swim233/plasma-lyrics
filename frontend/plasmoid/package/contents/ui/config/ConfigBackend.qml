@@ -98,6 +98,14 @@ Kirigami.ScrollablePage {
                 enabled: backend.dirty
                 onClicked: backend.save()
             }
+            QQC2.Button {
+                text: i18n("Save and restart service")
+                icon.name: "system-reboot"
+                enabled: backend.dirty
+                onClicked: {
+                    if (backend.save()) backend.restartService();
+                }
+            }
         }
     }
 }

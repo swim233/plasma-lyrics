@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-06 23:49+0800\n"
+"POT-Creation-Date: 2026-09-07 23:28+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -322,6 +322,10 @@ msgstr "重新加载"
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:96
 msgid "Save service settings"
 msgstr "保存服务设置"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:102
+msgid "Save and restart service"
+msgstr "保存并重启服务"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:54
 #: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:57
