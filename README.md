@@ -114,7 +114,7 @@ systemctl --user enable --now plasma-lyricsd.service
 
 | 路径                                              | 用途                                 |
 | ------------------------------------------------- | ------------------------------------ |
-| `~/.config/plasma-lyrics/plasma-lyricsd.conf`     | 守护进程配置（INI）                  |
+| `~/.config/plasma-lyrics/plasma-lyricsd.ini`      | 守护进程配置（INI）                  |
 | `~/.local/share/plasma-lyrics/overrides/`         | 手工 `.lrc` 覆盖目录                 |
 | `~/.local/share/plasma-lyrics/plasma-lyricsd.log` | 可选日志文件（默认关闭）             |
 | `$XDG_RUNTIME_DIR/plasma-lyricsd/state.json`      | 整曲歌词原子快照（前端唯一数据来源） |
