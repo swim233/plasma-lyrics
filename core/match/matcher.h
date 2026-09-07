@@ -3,6 +3,7 @@
 #include <QList>
 #include <QString>
 #include <QStringList>
+#include <optional>
 
 namespace PlasmaLyrics {
 
@@ -30,6 +31,7 @@ struct ScoreBreakdown {
     double total = 0;
     qint64 durationDifferenceMs = 0;
     bool titleViaAlternate = false;   // true when an alternateTitles entry beat the primary title
+    bool durationComparable = false;  // true when both sides had a known length (query and candidate)
 };
 
 struct RankedCandidate {
@@ -44,6 +46,10 @@ QString searchKeywords(const TrackQuery &query);
 ScoreBreakdown scoreCandidate(const TrackQuery &query, const Candidate &candidate);
 QList<RankedCandidate> rankCandidates(const TrackQuery &query, const QList<Candidate> &candidates);
 bool isAcceptableMatch(const RankedCandidate &candidate);
+// Picks a usable match out of already-ranked candidates. When
+// allowLocalizedFallback is true, a second acceptance path is allowed for
+// "title unreadable but artists and duration both line up" cases.
+std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked, bool allowLocalizedFallback);
 QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates);
 
 } // namespace PlasmaLyrics

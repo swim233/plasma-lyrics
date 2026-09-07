@@ -126,10 +126,11 @@ ResolvedLyric Resolver::resolve(const MprisState &state)
             continue;
         }
         const auto ranked = rankCandidates(query, candidates);
-        if (ranked.isEmpty() || !isAcceptableMatch(ranked.first())) {
+        const auto chosen = chooseMatch(ranked, state.platform == QStringLiteral("apple"));
+        if (!chosen) {
             continue;
         }
-        const TrackRef ref{provider->id(), ranked.first().candidate.trackId, ranked.first().score.total};
+        const TrackRef ref{provider->id(), chosen->candidate.trackId, chosen->score.total};
         const auto document = provider->fetch(ref.trackId);
         if (!document) {
             networkFailed = true;

@@ -1,5 +1,6 @@
 #include "matcher.h"
 
+#include <QHash>
 #include <QRegularExpression>
 #include <QTextStream>
 #include <algorithm>
@@ -33,6 +34,16 @@ double textSimilarity(const QString &left, const QString &right)
         previous.swap(current);
     }
     return 1.0 - static_cast<double>(previous.last()) / static_cast<double>(std::max(left.size(), right.size()));
+}
+
+// D-11: a candidate that only cleared score.title through an alternate title
+// (netease transNames propagate to covers/remixes of the same song) must
+// also clear a much lower artist bar than the D-8 fallback's 0.9 -- the
+// title evidence here is strong, this bar only needs to reject "unrelated
+// person", see DESIGN.md decision 45.
+bool passesAliasArtistGate(const RankedCandidate &candidate)
+{
+    return !candidate.score.titleViaAlternate || candidate.score.artists >= 0.5;
 }
 
 double artistSimilarity(const QStringList &left, const QStringList &right)
@@ -128,9 +139,8 @@ ScoreBreakdown scoreCandidate(const TrackQuery &query, const Candidate &candidat
     }
     score.artists = artistSimilarity(cleanArtists(query.artists), cleanArtists(candidate.artists));
     score.album = textSimilarity(normalizeSearchText(query.album), normalizeSearchText(candidate.album));
-    score.durationDifferenceMs = query.lengthMs > 0 && candidate.lengthMs > 0
-        ? qAbs(query.lengthMs - candidate.lengthMs)
-        : 0;
+    score.durationComparable = query.lengthMs > 0 && candidate.lengthMs > 0;
+    score.durationDifferenceMs = score.durationComparable ? qAbs(query.lengthMs - candidate.lengthMs) : 0;
     if (query.lengthMs <= 0 || candidate.lengthMs <= 0) {
         score.duration = 0.5;
     } else if (score.durationDifferenceMs <= 2000) {
@@ -163,6 +173,60 @@ bool isAcceptableMatch(const RankedCandidate &candidate)
     return candidate.score.title >= 0.55 && candidate.score.total >= 0.58;
 }
 
+std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked, bool allowLocalizedFallback)
+{
+    if (ranked.isEmpty()) {
+        return std::nullopt;
+    }
+    if (isAcceptableMatch(ranked.first()) && passesAliasArtistGate(ranked.first())) {
+        return ranked.first();
+    }
+    if (!allowLocalizedFallback) {
+        return std::nullopt;
+    }
+    // A pool of one or two candidates makes "unique" free -- exactly the case
+    // where the evidence is weakest (D-8).
+    if (ranked.size() < 3) {
+        return std::nullopt;
+    }
+    QList<RankedCandidate> survivors;
+    for (const auto &item : ranked) {
+        // 250ms, not scoreCandidate's 2000ms "best tier" -- this is the
+        // fallback's own uniqueness window, tightened separately (measured
+        // collision rate, DESIGN.md decision 45): known genuine matches sit
+        // at Delta<=1ms (Apple and netease releases agree to the
+        // millisecond), while a same-artist neighbor lands inside a 2000ms
+        // window often enough to get mistaken for the real song once the
+        // real song itself has been filtered out by this same gate.
+        if (item.score.artists >= 0.9 && item.score.durationComparable && item.score.durationDifferenceMs <= 250) {
+            survivors.append(item);
+        }
+    }
+    if (survivors.isEmpty()) {
+        return std::nullopt;
+    }
+    // Netease routinely lists the same song under several track ids; dedupe
+    // by (title, artists) before counting "unique" (D-9), otherwise a
+    // genuine match gets rejected as ambiguous against itself.
+    QHash<QString, QList<RankedCandidate>> groups;
+    for (const auto &item : survivors) {
+        const QString key = normalizeSearchText(cleanTitle(item.candidate.title)) + QLatin1Char('\x1f')
+            + cleanArtists(item.candidate.artists).join(QLatin1Char('/'));
+        groups[key].append(item);
+    }
+    if (groups.size() != 1) {
+        return std::nullopt;
+    }
+    const auto &group = groups.constBegin().value();
+    const auto best = std::min_element(group.begin(), group.end(), [](const auto &left, const auto &right) {
+        return left.score.durationDifferenceMs < right.score.durationDifferenceMs;
+    });
+    // No passesAliasArtistGate call here: every survivor already cleared
+    // artists >= 0.9 above, which is strictly stricter than the alias gate's
+    // 0.5 -- calling it on *best would be dead code (qa-1).
+    return *best;
+}
+
 QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates)
 {
     QString explanation;
@@ -187,9 +251,13 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
                << '\n';
     }
     if (!ranked.isEmpty()) {
-        stream << "selected: " << (isAcceptableMatch(ranked.first()) ? ranked.first().candidate.trackId
-                                                                        : QStringLiteral("none"))
-               << '\n';
+        // explainMatch has no platform to check, so it prints what the
+        // localized-title fallback path would pick (fallback allowed) --
+        // that's the only way this diagnostic stays consistent with what
+        // Resolver::resolve actually does for an apple-platform track.
+        const auto chosen = chooseMatch(ranked, true);
+        stream << "selected: " << (chosen ? chosen->candidate.trackId : QStringLiteral("none"))
+               << " (fallback allowed)" << '\n';
     }
     return explanation;
 }
