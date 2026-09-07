@@ -2,6 +2,9 @@
 
 #include <QObject>
 #include <QQmlEngine>
+#include <QStringList>
+
+class QProcess;
 
 class BackendConfig : public QObject
 {
@@ -19,9 +22,22 @@ class BackendConfig : public QObject
     Q_PROPERTY(bool fileLoggingEnabled READ fileLoggingEnabled WRITE setFileLoggingEnabled NOTIFY changed)
     Q_PROPERTY(QString logFilePath READ logFilePath WRITE setLogFilePath NOTIFY changed)
     Q_PROPERTY(bool dirty READ dirty NOTIFY dirtyChanged)
+    Q_PROPERTY(RestartState restartState READ restartState NOTIFY restartStateChanged)
+    Q_PROPERTY(bool restartInProgress READ restartInProgress NOTIFY restartInProgressChanged)
+    Q_PROPERTY(QString restartError READ restartError NOTIFY restartErrorChanged)
 
 public:
+    enum RestartState {
+        RestartIdle,
+        Restarting,
+        RestartSucceeded,
+        RestartFailed,
+    };
+    Q_ENUM(RestartState)
+
     explicit BackendConfig(QObject *parent = nullptr);
+    BackendConfig(QString restartProgram, QStringList restartArguments, QObject *parent = nullptr);
+    ~BackendConfig() override;
 
     QString serviceBlacklist() const;
     QString musicUrlPrefixes() const;
@@ -34,6 +50,9 @@ public:
     bool fileLoggingEnabled() const;
     QString logFilePath() const;
     bool dirty() const;
+    RestartState restartState() const;
+    bool restartInProgress() const;
+    QString restartError() const;
 
     void setServiceBlacklist(const QString &value);
     void setMusicUrlPrefixes(const QString &value);
@@ -48,15 +67,20 @@ public:
 
     Q_INVOKABLE void load();
     Q_INVOKABLE bool save();
-    Q_INVOKABLE bool restartService() const;
+    Q_INVOKABLE bool restartService();
 
 Q_SIGNALS:
     void changed();
     void dirtyChanged();
     void saved();
+    void restartStateChanged();
+    void restartInProgressChanged();
+    void restartErrorChanged();
+    void restartFinished(bool success, const QString &error);
 
 private:
     void markDirty();
+    void finishRestart(RestartState state, const QString &error = {});
 
     QString m_serviceBlacklist;
     QString m_musicUrlPrefixes;
@@ -69,4 +93,10 @@ private:
     bool m_fileLoggingEnabled = false;
     QString m_logFilePath;
     bool m_dirty = false;
+    QString m_restartProgram;
+    QStringList m_restartArguments;
+    QProcess *m_restartProcess = nullptr;
+    RestartState m_restartState = RestartIdle;
+    bool m_restartInProgress = false;
+    QString m_restartError;
 };

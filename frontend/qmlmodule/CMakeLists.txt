@@ -25,6 +25,14 @@ install(TARGETS plasmalyricssource ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
 
 if(BUILD_TESTING)
     find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
+    add_executable(tst_backendconfig
+        tests/tst_backendconfig.cpp
+        backendconfig.cpp
+    )
+    target_include_directories(tst_backendconfig PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(tst_backendconfig PRIVATE Qt6::Core Qt6::Qml Qt6::Test)
+    add_test(NAME tst_backendconfig COMMAND tst_backendconfig)
+
     add_executable(tst_lyricsource
         tests/tst_lyricsource.cpp
         lyricsource.cpp
@@ -41,4 +49,3 @@ if(BUILD_TESTING)
     target_link_libraries(tst_visibilitypolicy PRIVATE Qt6::Core Qt6::Qml Qt6::Test)
     add_test(NAME tst_visibilitypolicy COMMAND tst_visibilitypolicy)
 endif()
-

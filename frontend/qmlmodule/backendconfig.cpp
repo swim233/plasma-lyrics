@@ -31,9 +31,50 @@ QStringList list(const QString &value)
 } // namespace
 
 BackendConfig::BackendConfig(QObject *parent)
-    : QObject(parent)
+    : BackendConfig(QStringLiteral("systemctl"),
+                    {QStringLiteral("--user"), QStringLiteral("restart"),
+                     QStringLiteral("plasma-lyricsd")}, parent)
 {
+}
+
+BackendConfig::BackendConfig(QString restartProgram, QStringList restartArguments, QObject *parent)
+    : QObject(parent)
+    , m_restartProgram(std::move(restartProgram))
+    , m_restartArguments(std::move(restartArguments))
+    , m_restartProcess(new QProcess(this))
+{
+    connect(m_restartProcess, &QProcess::errorOccurred, this,
+            [this](QProcess::ProcessError error) {
+        if (m_restartInProgress && error == QProcess::FailedToStart) {
+            finishRestart(RestartFailed,
+                          QStringLiteral("could not start restart command: %1")
+                              .arg(m_restartProcess->errorString()));
+        }
+    });
+    connect(m_restartProcess, qOverload<int, QProcess::ExitStatus>(&QProcess::finished), this,
+            [this](int exitCode, QProcess::ExitStatus exitStatus) {
+        if (!m_restartInProgress) {
+            return;
+        }
+        if (exitStatus == QProcess::CrashExit) {
+            finishRestart(RestartFailed, QStringLiteral("restart command crashed"));
+        } else if (exitCode != 0) {
+            finishRestart(RestartFailed,
+                          QStringLiteral("restart command exited with code %1").arg(exitCode));
+        } else {
+            finishRestart(RestartSucceeded);
+        }
+    });
     load();
+}
+
+BackendConfig::~BackendConfig()
+{
+    if (m_restartProcess->state() != QProcess::NotRunning) {
+        disconnect(m_restartProcess, nullptr, this, nullptr);
+        m_restartProcess->kill();
+        m_restartProcess->waitForFinished(1000);
+    }
 }
 
 #define GETTER(type, name, member) type BackendConfig::name() const { return member; }
@@ -48,6 +89,9 @@ GETTER(int, networkTimeoutMs, m_networkTimeoutMs)
 GETTER(bool, fileLoggingEnabled, m_fileLoggingEnabled)
 GETTER(QString, logFilePath, m_logFilePath)
 GETTER(bool, dirty, m_dirty)
+GETTER(BackendConfig::RestartState, restartState, m_restartState)
+GETTER(bool, restartInProgress, m_restartInProgress)
+GETTER(QString, restartError, m_restartError)
 #undef GETTER
 
 void BackendConfig::markDirty()
@@ -141,10 +185,34 @@ bool BackendConfig::save()
     return true;
 }
 
-bool BackendConfig::restartService() const
+bool BackendConfig::restartService()
 {
-    return QProcess::startDetached(QStringLiteral("systemctl"),
-                                   {QStringLiteral("--user"),
-                                    QStringLiteral("restart"),
-                                    QStringLiteral("plasma-lyricsd")});
+    if (m_restartInProgress) {
+        return false;
+    }
+    const bool hadError = !m_restartError.isEmpty();
+    m_restartError.clear();
+    m_restartState = Restarting;
+    m_restartInProgress = true;
+    if (hadError) {
+        Q_EMIT restartErrorChanged();
+    }
+    Q_EMIT restartStateChanged();
+    Q_EMIT restartInProgressChanged();
+    m_restartProcess->start(m_restartProgram, m_restartArguments);
+    return true;
+}
+
+void BackendConfig::finishRestart(RestartState state, const QString &error)
+{
+    const bool errorChanged = m_restartError != error;
+    m_restartError = error;
+    m_restartState = state;
+    m_restartInProgress = false;
+    if (errorChanged) {
+        Q_EMIT restartErrorChanged();
+    }
+    Q_EMIT restartStateChanged();
+    Q_EMIT restartInProgressChanged();
+    Q_EMIT restartFinished(state == RestartSucceeded, error);
 }

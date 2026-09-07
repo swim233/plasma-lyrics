@@ -12,6 +12,7 @@
     <entry name="noLyricTextUseDefault" type="Bool"><default>true</default></entry>
     <entry name="networkErrorText" type="String"><default></default></entry>
     <entry name="networkErrorTextUseDefault" type="Bool"><default>true</default></entry>
+    <entry name="textConfigVersion" type="Int"><default>0</default></entry>
 
     <entry name="desktopPlateMode" type="String"><default>ksvg</default></entry>
     <entry name="desktopSolidColor" type="String"><default>#99000000</default></entry>

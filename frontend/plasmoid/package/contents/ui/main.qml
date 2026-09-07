@@ -184,6 +184,7 @@ PlasmoidItem {
     }
 
     Component.onCompleted: {
+        TextPolicy.migrateConfiguration(Plasmoid.configuration);
         root.updatePlateOwner();
         if (!root.onDesktop) {
             root.updateStatus();

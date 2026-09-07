@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-08 00:02+0800\n"
+"POT-Creation-Date: 2026-09-08 01:04+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -33,8 +33,8 @@ msgid "Lyrics Service"
 msgstr "歌词服务"
 
 #: frontend/plasmoid/package/contents/ui/LyricsView.qml:22
-#: frontend/plasmoid/package/contents/ui/main.qml:243
-#: frontend/plasmoid/package/contents/ui/main.qml:275
+#: frontend/plasmoid/package/contents/ui/main.qml:247
+#: frontend/plasmoid/package/contents/ui/main.qml:283
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:47
 msgid "No media is playing"
 msgstr "当前未在播放"
@@ -64,50 +64,50 @@ msgctxt "@info track info: %1 is the song title, %2 is the artist name(s)"
 msgid "%1 — %2"
 msgstr "%1 — %2"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:110
-#: frontend/plasmoid/package/contents/ui/main.qml:296
+#: frontend/plasmoid/package/contents/ui/main.qml:112
+#: frontend/plasmoid/package/contents/ui/main.qml:307
 msgid "Desktop Lyrics"
 msgstr "桌面歌词"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:245
-#: frontend/plasmoid/package/contents/ui/main.qml:277
+#: frontend/plasmoid/package/contents/ui/main.qml:250
+#: frontend/plasmoid/package/contents/ui/main.qml:286
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:62
 msgid "Lyrics not found"
 msgstr "暂无歌词"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:247
-#: frontend/plasmoid/package/contents/ui/main.qml:279
+#: frontend/plasmoid/package/contents/ui/main.qml:253
+#: frontend/plasmoid/package/contents/ui/main.qml:289
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:77
 msgid "This track has no lyrics"
 msgstr "此曲无歌词"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:249
-#: frontend/plasmoid/package/contents/ui/main.qml:281
+#: frontend/plasmoid/package/contents/ui/main.qml:256
+#: frontend/plasmoid/package/contents/ui/main.qml:292
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:92
 msgid "Network error, cannot fetch lyrics"
 msgstr "网络错误，暂时无法获取"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:302
+#: frontend/plasmoid/package/contents/ui/main.qml:313
 msgid "Lyrics 0.5 s earlier (all songs)"
 msgstr "歌词提前 0.5 秒（所有歌曲）"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:303
+#: frontend/plasmoid/package/contents/ui/main.qml:314
 msgid "Lyrics 0.5 s earlier"
 msgstr "歌词提前 0.5 秒"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:310
+#: frontend/plasmoid/package/contents/ui/main.qml:321
 msgid "Lyrics 0.5 s later (all songs)"
 msgstr "歌词延后 0.5 秒（所有歌曲）"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:311
+#: frontend/plasmoid/package/contents/ui/main.qml:322
 msgid "Lyrics 0.5 s later"
 msgstr "歌词延后 0.5 秒"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:318
+#: frontend/plasmoid/package/contents/ui/main.qml:329
 msgid "Reset global lyric offset (%1 ms)"
 msgstr "重置全局歌词偏移（%1 毫秒）"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:319
+#: frontend/plasmoid/package/contents/ui/main.qml:330
 msgid "Reset lyric offset (%1 ms)"
 msgstr "重置歌词偏移（%1 毫秒）"
 
@@ -263,85 +263,85 @@ msgid ""
 "lyricsd after saving."
 msgstr "这些服务设置会影响所有桌面歌词部件。保存后请重启 plasma-lyricsd。"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:26
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:34
 msgid "NetEase API URL:"
 msgstr "网易云 API 地址："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:31
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:39
 msgid "Initial network timeout:"
 msgstr "首次网络超时："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:36
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:44
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:138
 #: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:76
 msgid "%1 ms"
 msgstr "%1 毫秒"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:40
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:48
 msgid "Music detection:"
 msgstr "音乐检测："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:41
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:49
 msgid "Use metadata heuristic"
 msgstr "使用元数据启发式规则"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:46
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:54
 msgid "Lyrics cleanup:"
 msgstr "歌词清理："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:47
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:55
 msgid "Hide leading production credits"
 msgstr "隐藏开头的制作人员信息"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:52
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:60
 msgid "Enable lyrics for these platforms:"
 msgstr "启用以下平台的歌词服务："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:53
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:61
 msgid "NetEase Cloud Music (music.163.com)"
 msgstr "网易云音乐（music.163.com）"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:58
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:66
 msgid "Apple Music (music.apple.com, Cider, Sidra)"
 msgstr "Apple Music（music.apple.com、Cider、Sidra）"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:63
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:71
 msgid "Custom URL prefixes:"
 msgstr "自定义 URL 前缀："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:65
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:73
 msgid "One prefix per line"
 msgstr "每行一个前缀"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:69
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:77
 msgid "Player blacklist:"
 msgstr "播放器黑名单："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:71
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:79
 msgid "One D-Bus service wildcard per line"
 msgstr "每行一个 D-Bus 服务通配符"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:75
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:83
 msgid "Diagnostics:"
 msgstr "诊断："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:76
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:84
 msgid "Also write a log file"
 msgstr "同时写入日志文件"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:81
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:89
 msgid "Log file:"
 msgstr "日志文件："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:91
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:99
 msgid "Reload"
 msgstr "重新加载"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:96
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:104
 msgid "Save service settings"
 msgstr "保存服务设置"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:102
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:111
 msgid "Save and restart service"
 msgstr "保存并重启服务"
 
@@ -449,6 +449,14 @@ msgstr "无歌词时文案："
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:90
 msgid "Network error text:"
 msgstr "网络错误时文案："
+
+#: frontend/plasmoid/package/contents/ui/config/RestartFeedback.qml:14
+msgid "Lyrics service restarted."
+msgstr "歌词服务已重启。"
+
+#: frontend/plasmoid/package/contents/ui/config/RestartFeedback.qml:15
+msgid "Could not restart lyrics service: %1"
+msgstr "无法重启歌词服务：%1"
 
 #~ msgid "Leave empty to hide"
 #~ msgstr "留空则隐藏"

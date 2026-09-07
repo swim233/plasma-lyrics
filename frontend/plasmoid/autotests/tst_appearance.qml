@@ -62,6 +62,31 @@ TestCase {
     }
 
     Component {
+        id: configBackendComponent
+        LyricsConfig.ConfigBackend {}
+    }
+
+    Component {
+        id: restartFeedbackComponent
+        LyricsConfig.RestartFeedback {
+            succeeded: false
+            failed: false
+            errorText: ""
+        }
+    }
+
+    Component {
+        id: textConfigurationComponent
+        QtObject {
+            property string notFoundText: ""
+            property bool notFoundTextUseDefault: true
+            property bool noLyricTextUseDefault: true
+            property bool networkErrorTextUseDefault: true
+            property int textConfigVersion: 0
+        }
+    }
+
+    Component {
         id: colorFieldComponent
         LyricsConfig.ColorField {
             value: "#99000000"
@@ -482,6 +507,55 @@ TestCase {
             verify(view !== null);
             compare(view.effectiveText, "");
         }
+    }
+
+    function test_nonLyricTextConfigurationMigration() {
+        const upgraded = createTemporaryObject(textConfigurationComponent, this,
+            { notFoundText: "legacy custom text" });
+        verify(upgraded !== null);
+        compare(TextPolicy.migrateConfiguration(upgraded), true);
+        compare(upgraded.notFoundTextUseDefault, false);
+        compare(upgraded.noLyricTextUseDefault, true);
+        compare(upgraded.networkErrorTextUseDefault, true);
+        compare(upgraded.textConfigVersion, 1);
+
+        // Once migrated, a later user choice must not be overwritten.
+        upgraded.notFoundTextUseDefault = true;
+        compare(TextPolicy.migrateConfiguration(upgraded), false);
+        compare(upgraded.notFoundTextUseDefault, true);
+
+        const fresh = createTemporaryObject(textConfigurationComponent, this);
+        verify(fresh !== null);
+        compare(TextPolicy.migrateConfiguration(fresh), true);
+        compare(fresh.notFoundTextUseDefault, true);
+        compare(fresh.noLyricTextUseDefault, true);
+        compare(fresh.networkErrorTextUseDefault, true);
+        compare(fresh.textConfigVersion, 1);
+    }
+
+    function test_restartFeedbackAndCleanRetryButton() {
+        const feedback = createTemporaryObject(restartFeedbackComponent, this);
+        verify(feedback !== null);
+        compare(feedback.shouldShow, false);
+        feedback.succeeded = true;
+        compare(feedback.shouldShow, true);
+        compare(feedback.type, Kirigami.MessageType.Positive);
+        verify(feedback.text.length > 0);
+        feedback.succeeded = false;
+        feedback.failed = true;
+        feedback.errorText = "exit 23";
+        compare(feedback.shouldShow, true);
+        compare(feedback.type, Kirigami.MessageType.Error);
+        verify(feedback.text.indexOf("exit 23") >= 0);
+
+        const page = createTemporaryObject(configBackendComponent, this);
+        verify(page !== null);
+        const restartButtons = findAll(page,
+            o => o.objectName === "restartServiceButton");
+        compare(restartButtons.length, 1);
+        // BackendConfig starts clean after load.  A failed restart must still
+        // leave this action available without manufacturing another edit.
+        compare(restartButtons[0].enabled, true);
     }
 
     function test_trackInfoOutlineReachesEveryCopy() {

@@ -20,6 +20,14 @@ Kirigami.ScrollablePage {
             text: i18n("These service settings affect every Desktop Lyrics widget. Restart plasma-lyricsd after saving.")
         }
 
+        RestartFeedback {
+            objectName: "restartFeedback"
+            Layout.fillWidth: true
+            succeeded: backend.restartState === BackendConfig.RestartSucceeded
+            failed: backend.restartState === BackendConfig.RestartFailed
+            errorText: backend.restartError
+        }
+
         Kirigami.FormLayout {
             Layout.fillWidth: true
             QQC2.TextField {
@@ -99,11 +107,12 @@ Kirigami.ScrollablePage {
                 onClicked: backend.save()
             }
             QQC2.Button {
+                objectName: "restartServiceButton"
                 text: i18n("Save and restart service")
                 icon.name: "system-reboot"
-                enabled: backend.dirty
+                enabled: !backend.restartInProgress
                 onClicked: {
-                    if (backend.save()) backend.restartService();
+                    if (!backend.dirty || backend.save()) backend.restartService();
                 }
             }
         }
