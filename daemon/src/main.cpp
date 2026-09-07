@@ -52,7 +52,7 @@ int main(int argc, char **argv)
     parser.process(application);
 
     Config config;
-    QFile configuredLog;
+    static QFile configuredLog;
     if (config.fileLoggingEnabled()) {
         configuredLog.setFileName(config.logFilePath());
         QDir().mkpath(QFileInfo(configuredLog.fileName()).absolutePath());
@@ -60,6 +60,10 @@ int main(int argc, char **argv)
             logFile = &configuredLog;
             qSetMessagePattern(QStringLiteral("[%{time yyyy-MM-dd hh:mm:ss.zzz}] %{type} %{message}"));
             qInstallMessageHandler(mirrorMessage);
+        } else {
+            qWarning().noquote() << "cannot open log file:"
+                                 << configuredLog.fileName() + QLatin1Char(':')
+                                 << configuredLog.errorString();
         }
     }
 #ifdef PLASMA_LYRICS_HAVE_NETEASE
