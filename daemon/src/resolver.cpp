@@ -144,12 +144,19 @@ void Resolver::resolve(const MprisState &state)
             finish(request, {resultState, *mapped, display});
             return;
         }
+        qInfo().noquote() << QStringLiteral("cache lyric missing: %1/%2")
+                                 .arg(mapped->provider, mapped->trackId);
+    } else {
+        qInfo().noquote() << QStringLiteral("cache mapping missing: ") + state.fingerprint;
     }
 
     for (const auto &legacyId : legacyWaylyricsIds(state)) {
         const TrackRef legacy{QStringLiteral("waylyrics"), legacyId, 1.0};
         if (const auto imported = m_store.lyric(legacy)) {
-            m_store.mapFingerprint(state.fingerprint, legacy);
+            if (!m_store.mapFingerprint(state.fingerprint, legacy)) {
+                qWarning().noquote() << QStringLiteral("cache map failed: fingerprint=%1 ref=%2/%3")
+                                            .arg(state.fingerprint, legacy.provider, legacy.trackId);
+            }
             auto display = forDisplay(*imported, legacy);
             const QString resultState = display.lines.isEmpty()
                 ? QStringLiteral("no-lyric") : QStringLiteral("ok");
@@ -216,6 +223,10 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
         }
         qInfo().noquote() << explainMatch(request->query, result.candidates,
                                            request->state.platform == QStringLiteral("apple"));
+        if (!result.error.isEmpty()) {
+            qInfo().noquote() << QStringLiteral("search failed: %1: %2")
+                                     .arg(provider->id(), result.error);
+        }
         if (result.candidates.isEmpty() && !result.error.isEmpty()) {
             request->networkFailed = true;
             self->continueWithProvider(request);
@@ -247,8 +258,14 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
                                      .arg(result.document->lines.size())
                                      .arg(result.document->hasWords
                                               ? QStringLiteral("true") : QStringLiteral("false"));
-            self->m_store.putLyric(ref, *result.document);
-            self->m_store.mapFingerprint(request->state.fingerprint, ref);
+            if (!self->m_store.putLyric(ref, *result.document)) {
+                qWarning().noquote() << QStringLiteral("cache put failed: %1/%2")
+                                            .arg(ref.provider, ref.trackId);
+            }
+            if (!self->m_store.mapFingerprint(request->state.fingerprint, ref)) {
+                qWarning().noquote() << QStringLiteral("cache map failed: fingerprint=%1 ref=%2/%3")
+                                            .arg(request->state.fingerprint, ref.provider, ref.trackId);
+            }
             auto finalDocument = self->forDisplay(*result.document, ref);
             qInfo().noquote() << QStringLiteral("after filterLeadingCredits: lines=%1")
                                      .arg(finalDocument.lines.size());
