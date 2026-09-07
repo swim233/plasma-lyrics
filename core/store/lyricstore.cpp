@@ -161,15 +161,24 @@ bool LyricStore::recordMiss(const QString &fingerprint, const QString &reason, q
     return query.exec();
 }
 
-bool LyricStore::hasFreshMiss(const QString &fingerprint, qint64 now, qint64 ttlSeconds) const
+std::optional<MissRecord> LyricStore::freshMiss(const QString &fingerprint, qint64 now,
+                                                qint64 ttlSeconds) const
 {
     QSqlQuery query(m_database);
-    query.prepare(QStringLiteral("SELECT tried_at FROM miss WHERE fingerprint=?"));
+    query.prepare(QStringLiteral("SELECT reason, tried_at FROM miss WHERE fingerprint=?"));
     query.addBindValue(fingerprint);
     if (!query.exec() || !query.next()) {
-        return false;
+        return std::nullopt;
     }
-    return epochSeconds(now) - query.value(0).toLongLong() < ttlSeconds;
+    const MissRecord miss{query.value(0).toString(), query.value(1).toLongLong()};
+    return epochSeconds(now) - miss.triedAt < ttlSeconds
+        ? std::optional<MissRecord>(miss)
+        : std::nullopt;
+}
+
+bool LyricStore::hasFreshMiss(const QString &fingerprint, qint64 now, qint64 ttlSeconds) const
+{
+    return freshMiss(fingerprint, now, ttlSeconds).has_value();
 }
 
 bool LyricStore::setOffset(const TrackRef &ref, int offsetMs)

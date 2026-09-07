@@ -27,6 +27,10 @@ private Q_SLOTS:
         QVERIFY(restored.has_value());
         QCOMPARE(restored->trackId, ref.trackId);
         QVERIFY(store.recordMiss(QStringLiteral("meta:video"), QStringLiteral("not-music"), 100));
+        const auto miss = store.freshMiss(QStringLiteral("meta:video"), 100 + 60);
+        QVERIFY(miss.has_value());
+        QCOMPARE(miss->reason, QStringLiteral("not-music"));
+        QCOMPARE(miss->triedAt, 100);
         QVERIFY(store.hasFreshMiss(QStringLiteral("meta:video"), 100 + 60));
         QVERIFY(!store.hasFreshMiss(QStringLiteral("meta:video"), 100 + 8 * 24 * 60 * 60));
     }

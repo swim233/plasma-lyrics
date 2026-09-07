@@ -6,6 +6,8 @@
 #include "core/store/lyricstore.h"
 
 #include <QCryptographicHash>
+#include <QDateTime>
+#include <QDebug>
 
 namespace PlasmaLyrics {
 
@@ -85,16 +87,33 @@ QStringList Resolver::legacyWaylyricsIds(const MprisState &state)
 
 ResolvedLyric Resolver::resolve(const MprisState &state)
 {
+    qInfo().noquote() << QStringLiteral("resolve: fingerprint=%1 platform=%2 music=%3")
+                             .arg(state.fingerprint,
+                                  state.platform.isEmpty() ? QStringLiteral("unknown") : state.platform,
+                                  state.music ? QStringLiteral("true") : QStringLiteral("false"));
     if (!state.music) {
+        qInfo() << "state=filtered";
         return {QStringLiteral("filtered"), std::nullopt, {}};
     }
     if (const auto mapped = m_store.refForFingerprint(state.fingerprint)) {
         if (const auto override = overridden(*mapped)) {
-            return {override->lines.isEmpty() ? QStringLiteral("no-lyric") : QStringLiteral("ok"), *mapped, *override};
+            const QString resultState = override->lines.isEmpty()
+                ? QStringLiteral("no-lyric") : QStringLiteral("ok");
+            qInfo().noquote() << QStringLiteral("override hit: %1/%2 lines=%3")
+                                     .arg(mapped->provider, mapped->trackId)
+                                     .arg(override->lines.size());
+            qInfo().noquote() << QStringLiteral("state=") + resultState;
+            return {resultState, *mapped, *override};
         }
         if (const auto cached = m_store.lyric(*mapped)) {
             auto display = forDisplay(*cached, *mapped);
-            return {display.lines.isEmpty() ? QStringLiteral("no-lyric") : QStringLiteral("ok"), *mapped, display};
+            const QString resultState = display.lines.isEmpty()
+                ? QStringLiteral("no-lyric") : QStringLiteral("ok");
+            qInfo().noquote() << QStringLiteral("cache hit: %1/%2 lines=%3")
+                                     .arg(mapped->provider, mapped->trackId)
+                                     .arg(display.lines.size());
+            qInfo().noquote() << QStringLiteral("state=") + resultState;
+            return {resultState, *mapped, display};
         }
     }
 
@@ -103,13 +122,26 @@ ResolvedLyric Resolver::resolve(const MprisState &state)
         if (const auto imported = m_store.lyric(legacy)) {
             m_store.mapFingerprint(state.fingerprint, legacy);
             auto display = forDisplay(*imported, legacy);
-            return {display.lines.isEmpty() ? QStringLiteral("no-lyric") : QStringLiteral("ok"), legacy, display};
+            const QString resultState = display.lines.isEmpty()
+                ? QStringLiteral("no-lyric") : QStringLiteral("ok");
+            qInfo().noquote() << QStringLiteral("cache hit: %1/%2 lines=%3")
+                                     .arg(legacy.provider, legacy.trackId)
+                                     .arg(display.lines.size());
+            qInfo().noquote() << QStringLiteral("state=") + resultState;
+            return {resultState, legacy, display};
         }
     }
+    qInfo() << "cache miss";
 
     // A miss only suppresses another network lookup. Local overrides, normal
     // cache entries, and a cache imported after the miss must remain usable.
-    if (m_store.hasFreshMiss(state.fingerprint)) {
+    constexpr qint64 missTtlSeconds = 7 * 24 * 60 * 60;
+    const qint64 now = QDateTime::currentSecsSinceEpoch();
+    if (const auto miss = m_store.freshMiss(state.fingerprint, now, missTtlSeconds)) {
+        qInfo().noquote() << QStringLiteral("fresh miss: reason=%1 age=%2s ttl=7d")
+                                 .arg(miss->reason)
+                                 .arg(now - miss->triedAt);
+        qInfo() << "state=not-found";
         return {QStringLiteral("not-found"), std::nullopt, {}};
     }
 
@@ -133,17 +165,29 @@ ResolvedLyric Resolver::resolve(const MprisState &state)
         const TrackRef ref{provider->id(), chosen->candidate.trackId, chosen->score.total};
         const auto document = provider->fetch(ref.trackId);
         if (!document) {
+            qInfo().noquote() << QStringLiteral("fetch failed: %1/%2: %3")
+                                     .arg(ref.provider, ref.trackId, provider->lastError());
             networkFailed = true;
             continue;
         }
+        qInfo().noquote() << QStringLiteral("fetched: lines=%1 hasWords=%2")
+                                 .arg(document->lines.size())
+                                 .arg(document->hasWords ? QStringLiteral("true") : QStringLiteral("false"));
         m_store.putLyric(ref, *document);
         m_store.mapFingerprint(state.fingerprint, ref);
         auto finalDocument = forDisplay(*document, ref);
-        return {finalDocument.lines.isEmpty() ? QStringLiteral("no-lyric") : QStringLiteral("ok"), ref, finalDocument};
+        qInfo().noquote() << QStringLiteral("after filterLeadingCredits: lines=%1")
+                                 .arg(finalDocument.lines.size());
+        const QString resultState = finalDocument.lines.isEmpty()
+            ? QStringLiteral("no-lyric") : QStringLiteral("ok");
+        qInfo().noquote() << QStringLiteral("state=") + resultState;
+        return {resultState, ref, finalDocument};
     }
-    m_store.recordMiss(state.fingerprint, networkFailed
-                           ? QStringLiteral("network")
-                           : QStringLiteral("no-candidate"));
+    const QString missReason = networkFailed
+        ? QStringLiteral("network") : QStringLiteral("no-candidate");
+    qInfo().noquote() << QStringLiteral("record miss: reason=") + missReason;
+    m_store.recordMiss(state.fingerprint, missReason);
+    qInfo() << "state=not-found";
     return {QStringLiteral("not-found"), std::nullopt, {}};
 }
 

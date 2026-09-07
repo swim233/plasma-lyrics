@@ -15,6 +15,11 @@ struct TrackRef {
     double score = 0;
 };
 
+struct MissRecord {
+    QString reason;
+    qint64 triedAt = 0;
+};
+
 class LyricStore
 {
 public:
@@ -29,6 +34,8 @@ public:
     bool mapFingerprint(const QString &fingerprint, const TrackRef &ref, qint64 matchedAt = 0);
     std::optional<TrackRef> refForFingerprint(const QString &fingerprint) const;
     bool recordMiss(const QString &fingerprint, const QString &reason, qint64 triedAt = 0);
+    std::optional<MissRecord> freshMiss(const QString &fingerprint, qint64 now = 0,
+                                        qint64 ttlSeconds = 7 * 24 * 60 * 60) const;
     bool hasFreshMiss(const QString &fingerprint, qint64 now = 0, qint64 ttlSeconds = 7 * 24 * 60 * 60) const;
     bool setOffset(const TrackRef &ref, int offsetMs);
     std::optional<int> adjustOffset(const TrackRef &ref, int deltaMs);
