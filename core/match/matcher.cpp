@@ -227,7 +227,8 @@ std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked,
     return *best;
 }
 
-QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates)
+QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates,
+                     bool allowLocalizedFallback, bool platformKnown)
 {
     QString explanation;
     QTextStream stream(&explanation);
@@ -250,17 +251,21 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
                << " titleVia=" << (item.score.titleViaAlternate ? QStringLiteral("alias") : QStringLiteral("title"))
                << '\n';
     }
-    if (!ranked.isEmpty()) {
-        // explainMatch has no platform to check, so it prints what the
-        // localized-title fallback path would pick (fallback allowed) --
-        // that's the only way this diagnostic stays consistent with what
-        // Resolver::resolve actually does for an apple-platform track.
-        const auto chosen = chooseMatch(ranked, true);
-        stream << "selected: " << (chosen ? chosen->candidate.trackId : QStringLiteral("none"))
-               << " (fallback allowed)" << '\n';
+    const auto fallbackChoice = chooseMatch(ranked, true);
+    if (platformKnown) {
+        const auto chosen = chooseMatch(ranked, allowLocalizedFallback);
+        stream << "selected: " << (chosen ? chosen->candidate.trackId : QStringLiteral("none")) << '\n';
+        const QString chosenId = chosen ? chosen->candidate.trackId : QString();
+        const QString fallbackId = fallbackChoice ? fallbackChoice->candidate.trackId : QString();
+        if (chosenId != fallbackId) {
+            stream << "would-select-with-fallback: "
+                   << (fallbackChoice ? fallbackChoice->candidate.trackId : QStringLiteral("none")) << '\n';
+        }
+    } else {
+        stream << "would-select-with-fallback: "
+               << (fallbackChoice ? fallbackChoice->candidate.trackId : QStringLiteral("none")) << '\n';
     }
     return explanation;
 }
 
 } // namespace PlasmaLyrics
-

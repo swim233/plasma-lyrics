@@ -78,7 +78,7 @@ int main(int argc, char **argv)
                                {arguments.value(1)}, QString(), 0};
 #ifdef PLASMA_LYRICS_HAVE_NETEASE
         const auto candidates = netease.search(query);
-        QTextStream(stdout) << explainMatch(query, candidates);
+        QTextStream(stdout) << explainMatch(query, candidates, true, false);
         if (candidates.isEmpty() && !netease.lastError().isEmpty()) {
             QTextStream(stderr) << netease.lastError() << Qt::endl;
         }

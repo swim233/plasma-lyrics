@@ -298,6 +298,23 @@ private Q_SLOTS:
         QVERIFY(!chooseMatch(ranked, false).has_value());
     }
 
+    void diagnosticReflectsActualNonAppleDecision()
+    {
+        const TrackQuery query{QStringLiteral("Gunjou"), {QStringLiteral("YOASOBI")}, QString(), 248444};
+        const QList<Candidate> candidates{
+            {QStringLiteral("1875383422"), QStringLiteral("Gunjou (Yoasobi)"), {QStringLiteral("Vangakuz")}, QString(), 243941},
+            {QStringLiteral("1472480890"), QStringLiteral("群青"), {QStringLiteral("YOASOBI")}, QString(), 248444},
+            {QStringLiteral("3323596738"), QStringLiteral("GUNJOU (Cover)"), {QStringLiteral("Omnixor")}, QString(), 262153}};
+
+        const QString actual = explainMatch(query, candidates, false, true);
+        QVERIFY(actual.contains(QStringLiteral("selected: none\n")));
+        QVERIFY(actual.contains(QStringLiteral("would-select-with-fallback: 1472480890\n")));
+
+        const QString platformUnknown = explainMatch(query, candidates, true, false);
+        QVERIFY(!platformUnknown.contains(QStringLiteral("\nselected:")));
+        QVERIFY(platformUnknown.contains(QStringLiteral("would-select-with-fallback: 1472480890\n")));
+    }
+
     void poolGateRejectsTooFewCandidates()
     {
         // Only two candidates in the pool -- "unique" would be free even
@@ -367,4 +384,3 @@ private Q_SLOTS:
 
 QTEST_GUILESS_MAIN(MatcherTest)
 #include "tst_matcher.moc"
-

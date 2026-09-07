@@ -50,7 +50,7 @@ bool isAcceptableMatch(const RankedCandidate &candidate);
 // allowLocalizedFallback is true, a second acceptance path is allowed for
 // "title unreadable but artists and duration both line up" cases.
 std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked, bool allowLocalizedFallback);
-QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates);
+QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates,
+                     bool allowLocalizedFallback, bool platformKnown = true);
 
 } // namespace PlasmaLyrics
-

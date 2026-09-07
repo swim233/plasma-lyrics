@@ -152,7 +152,8 @@ ResolvedLyric Resolver::resolve(const MprisState &state)
             continue;
         }
         const auto candidates = provider->search(query);
-        qInfo().noquote() << explainMatch(query, candidates);
+        qInfo().noquote() << explainMatch(query, candidates,
+                                           state.platform == QStringLiteral("apple"));
         if (candidates.isEmpty() && !provider->lastError().isEmpty()) {
             networkFailed = true;
             continue;
