@@ -13,11 +13,17 @@ namespace PlasmaLyrics {
 struct ProviderSearchResult {
     QList<Candidate> candidates;
     QString error;
+    // True only when the request failed in transport. HTTP and payload
+    // parsing errors can carry error text without becoming network-error.
+    bool transportFailed = false;
 };
 
 struct ProviderFetchResult {
     std::optional<LyricDocument> document;
     QString error;
+    // Kept separate from error so Resolver can choose the state and miss TTL
+    // without interpreting provider-specific error strings.
+    bool transportFailed = false;
 };
 
 class Provider

@@ -2,6 +2,7 @@
 
 #include "core/store/lyricstore.h"
 
+#include <QDateTime>
 #include <QEventLoop>
 #include <QHash>
 #include <QSqlDatabase>
@@ -11,6 +12,8 @@
 #include <QTimer>
 #include <QUuid>
 
+#include <algorithm>
+
 using namespace PlasmaLyrics;
 
 namespace {
@@ -18,27 +21,45 @@ namespace {
 class TestProvider final : public Provider
 {
 public:
-    TestProvider(QString providerId, QString searchError = {})
-        : m_id(std::move(providerId)), m_searchError(std::move(searchError)) {}
+    TestProvider(QString providerId, QString searchError = {},
+                 bool searchTransportFailed = false, QString fetchError = {},
+                 bool fetchTransportFailed = false)
+        : m_id(std::move(providerId))
+        , m_searchError(std::move(searchError))
+        , m_searchTransportFailed(searchTransportFailed)
+        , m_fetchError(std::move(fetchError))
+        , m_fetchTransportFailed(fetchTransportFailed)
+    {
+    }
 
     QString id() const override { return m_id; }
     bool isConfigured() const override { return true; }
     void search(const TrackQuery &query, SearchCallback callback) override
     {
+        ++m_searchCount;
         if (!m_searchError.isEmpty()) {
-            callback({{}, m_searchError});
+            callback({{}, m_searchError, m_searchTransportFailed});
             return;
         }
         callback({{{QStringLiteral("track"), query.title, query.artists, query.album, query.lengthMs}}, {}});
     }
     void fetch(const QString &, FetchCallback callback) override
     {
+        if (!m_fetchError.isEmpty()) {
+            callback({std::nullopt, m_fetchError, m_fetchTransportFailed});
+            return;
+        }
         callback({LyricDocument{{{1000, 2000, QStringLiteral("line"), std::nullopt, std::nullopt}}, 0, false}, {}});
     }
+    int searchCount() const { return m_searchCount; }
 
 private:
     QString m_id;
     QString m_searchError;
+    bool m_searchTransportFailed = false;
+    QString m_fetchError;
+    bool m_fetchTransportFailed = false;
+    int m_searchCount = 0;
 };
 
 QStringList *capturedMessages = nullptr;
@@ -211,7 +232,7 @@ private Q_SLOTS:
         QTemporaryDir directory;
         LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
         QVERIFY(store.open());
-        TestProvider failed(QStringLiteral("failed"), QStringLiteral("simulated network failure"));
+        TestProvider failed(QStringLiteral("failed"), QStringLiteral("simulated network failure"), true);
         TestProvider working(QStringLiteral("working"));
         Resolver resolver(store, {&failed, &working});
         MprisState state;
@@ -227,12 +248,12 @@ private Q_SLOTS:
         QCOMPARE(result.ref->provider, QStringLiteral("working"));
     }
 
-    void networkFailureHasItsOwnStateAndSurvivesNegativeCache()
+    void networkFailureHasItsOwnStateAndShortNegativeCache()
     {
         QTemporaryDir directory;
         LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
         QVERIFY(store.open());
-        TestProvider failed(QStringLiteral("failed"), QStringLiteral("simulated network failure"));
+        TestProvider failed(QStringLiteral("failed"), QStringLiteral("simulated network failure"), true);
         Resolver resolver(store, {&failed});
         MprisState state;
         state.music = true;
@@ -245,7 +266,32 @@ private Q_SLOTS:
         const auto miss = store.freshMiss(state.fingerprint);
         QVERIFY(miss.has_value());
         QCOMPARE(miss->reason, QStringLiteral("network"));
+        QCOMPARE(failed.searchCount(), 1);
         QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("network-error"));
+        QCOMPARE(failed.searchCount(), 1);
+
+        QVERIFY(store.recordMiss(state.fingerprint, QStringLiteral("network"),
+                                 QDateTime::currentSecsSinceEpoch() - 301));
+        QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("network-error"));
+        QCOMPARE(failed.searchCount(), 2);
+    }
+
+    void noCandidateMissKeepsSevenDayTtl()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider provider(QStringLiteral("unused"));
+        Resolver resolver(store, {&provider});
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:no-candidate-cache");
+        state.title = QStringLiteral("song");
+
+        QVERIFY(store.recordMiss(state.fingerprint, QStringLiteral("no-candidate"),
+                                 QDateTime::currentSecsSinceEpoch() - 301));
+        QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("not-found"));
+        QCOMPARE(provider.searchCount(), 0);
     }
 
     void localizedFallbackOnlyAppliesWhenPlatformIsApple()
@@ -294,26 +340,33 @@ private Q_SLOTS:
     {
         QTest::addColumn<QString>("providerId");
         QTest::addColumn<QString>("error");
+        QTest::addColumn<bool>("transportFailed");
+        QTest::addColumn<QString>("expectedState");
         QTest::newRow("final transport failure")
             << QStringLiteral("transport")
-            << QStringLiteral("The remote host closed the connection");
+            << QStringLiteral("The remote host closed the connection")
+            << true << QStringLiteral("network-error");
         QTest::newRow("HTTP error")
             << QStringLiteral("http")
-            << QStringLiteral("server replied: Service Unavailable");
+            << QStringLiteral("server replied: Service Unavailable")
+            << false << QStringLiteral("not-found");
         QTest::newRow("JSON error")
             << QStringLiteral("json")
-            << QStringLiteral("illegal value");
+            << QStringLiteral("illegal value")
+            << false << QStringLiteral("not-found");
     }
 
     void searchErrorsAreLogged()
     {
         QFETCH(QString, providerId);
         QFETCH(QString, error);
+        QFETCH(bool, transportFailed);
+        QFETCH(QString, expectedState);
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
         LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
         QVERIFY(store.open());
-        TestProvider provider(providerId, error);
+        TestProvider provider(providerId, error, transportFailed);
         Resolver resolver(store, {&provider});
         MprisState state;
         state.music = true;
@@ -321,9 +374,45 @@ private Q_SLOTS:
         state.title = QStringLiteral("song");
 
         MessageCapture capture;
-        QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("network-error"));
+        QCOMPARE(resolveSynchronously(resolver, state).state, expectedState);
         QVERIFY(capture.messages().contains(
             QStringLiteral("search failed: %1: %2").arg(providerId, error)));
+        QVERIFY(std::none_of(capture.messages().cbegin(), capture.messages().cend(),
+                             [](const QString &message) {
+            return message.contains(QStringLiteral("selected:"));
+        }));
+    }
+
+    void fetchErrorsUseTransportClassification_data()
+    {
+        QTest::addColumn<QString>("error");
+        QTest::addColumn<bool>("transportFailed");
+        QTest::addColumn<QString>("expectedState");
+        QTest::newRow("transport") << QStringLiteral("connection reset")
+                                    << true << QStringLiteral("network-error");
+        QTest::newRow("HTTP") << QStringLiteral("server replied: Not Found")
+                               << false << QStringLiteral("not-found");
+        QTest::newRow("lyric response") << QStringLiteral("response has no lrc field")
+                                         << false << QStringLiteral("not-found");
+    }
+
+    void fetchErrorsUseTransportClassification()
+    {
+        QFETCH(QString, error);
+        QFETCH(bool, transportFailed);
+        QFETCH(QString, expectedState);
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider provider(QStringLiteral("fetch-error"), {}, false, error,
+                              transportFailed);
+        Resolver resolver(store, {&provider});
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:fetch-") + expectedState;
+        state.title = QStringLiteral("song");
+
+        QCOMPARE(resolveSynchronously(resolver, state).state, expectedState);
     }
 
     void cacheMissKindsAreLoggedSeparately()

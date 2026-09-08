@@ -27,7 +27,7 @@ public:
     static int timeoutForAttempt(int baseTimeoutMs, int attempt);
 
 private:
-    using GetCallback = std::function<void(std::optional<QByteArray>, QString)>;
+    using GetCallback = std::function<void(std::optional<QByteArray>, QString, bool)>;
     void get(const QUrl &url, GetCallback callback);
     void getAttempt(const QUrl &url, int attempt, GetCallback callback);
 

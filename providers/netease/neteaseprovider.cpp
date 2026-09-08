@@ -75,28 +75,29 @@ void NeteaseProvider::getAttempt(const QUrl &url, int attempt, GetCallback callb
         const auto payload = reply->readAll();
         const auto httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
         const int httpStatusCode = httpStatus.toInt();
-        const bool isHttpError = httpStatus.isValid()
-            && httpStatusCode >= 400 && httpStatusCode < 600;
+        const bool transportFailed = !httpStatus.isValid()
+            || (httpStatusCode >= 200 && httpStatusCode < 300);
         const QString errorText = *timedOut
             ? QStringLiteral("request timed out after %1 ms").arg(timeoutForAttempt(m_timeoutMs, attempt))
             : reply->errorString();
         m_replies.remove(reply);
         reply->deleteLater();
         if (error == QNetworkReply::NoError) {
-            callback(payload, {});
+            callback(payload, {}, false);
             return;
         }
         // A response can have received its 2xx headers and still fail at the
         // transport layer (for example, a truncated body reports
         // RemoteHostClosedError).  That remains retryable.  Conversely,
-        // QNetworkReply also represents HTTP 4xx/5xx as NetworkError values;
-        // those are server answers, not transient transport failures.
-        if (!isHttpError && attempt < 3) {
+        // QNetworkReply also represents non-success HTTP responses as
+        // NetworkError values; those are server answers, not transient
+        // transport failures.
+        if (transportFailed && attempt < 3) {
             qInfo().noquote() << QStringLiteral("retry %1/3 after %2").arg(attempt + 1).arg(errorText);
             getAttempt(url, attempt + 1, std::move(callback));
             return;
         }
-        callback(std::nullopt, errorText);
+        callback(std::nullopt, errorText, transportFailed);
     });
     timeout->start(timeoutForAttempt(m_timeoutMs, attempt));
 }
@@ -109,14 +110,15 @@ void NeteaseProvider::search(const TrackQuery &query, SearchCallback callback)
     urlQuery.addQueryItem(QStringLiteral("type"), QStringLiteral("1"));
     urlQuery.addQueryItem(QStringLiteral("limit"), QStringLiteral("10"));
     url.setQuery(urlQuery);
-    get(url, [callback = std::move(callback)](std::optional<QByteArray> payload, QString error) mutable {
+    get(url, [callback = std::move(callback)](std::optional<QByteArray> payload, QString error,
+                                               bool transportFailed) mutable {
         if (!payload) {
-            callback({{}, std::move(error)});
+            callback({{}, std::move(error), transportFailed});
             return;
         }
         QString parseError;
         auto candidates = parseSearchResponse(*payload, &parseError);
-        callback({std::move(candidates), std::move(parseError)});
+        callback({std::move(candidates), std::move(parseError), false});
     });
 }
 
@@ -137,14 +139,15 @@ void NeteaseProvider::fetch(const QString &trackId, FetchCallback callback)
     query.addQueryItem(QStringLiteral("rv"), QStringLiteral("0"));
     query.addQueryItem(QStringLiteral("kv"), QStringLiteral("0"));
     url.setQuery(query);
-    get(url, [callback = std::move(callback)](std::optional<QByteArray> payload, QString error) mutable {
+    get(url, [callback = std::move(callback)](std::optional<QByteArray> payload, QString error,
+                                               bool transportFailed) mutable {
         if (!payload) {
-            callback({std::nullopt, std::move(error)});
+            callback({std::nullopt, std::move(error), transportFailed});
             return;
         }
         QString parseError;
         auto document = parseLyricResponse(*payload, &parseError);
-        callback({std::move(document), std::move(parseError)});
+        callback({std::move(document), std::move(parseError), false});
     });
 }
 

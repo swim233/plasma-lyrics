@@ -20,6 +20,13 @@ struct Resolver::Request {
     bool networkFailed = false;
 };
 
+namespace {
+
+constexpr qint64 networkMissTtlSeconds = 5 * 60;
+constexpr qint64 noCandidateMissTtlSeconds = 7 * 24 * 60 * 60;
+
+} // namespace
+
 Resolver::Resolver(LyricStore &store, QList<Provider *> providers, bool filterCredits,
                    QObject *parent)
     : QObject(parent)
@@ -172,17 +179,25 @@ void Resolver::resolve(const MprisState &state)
 
     // A miss only suppresses another network lookup. Local overrides, normal
     // cache entries, and a cache imported after the miss must remain usable.
-    constexpr qint64 missTtlSeconds = 7 * 24 * 60 * 60;
     const qint64 now = QDateTime::currentSecsSinceEpoch();
-    if (const auto miss = m_store.freshMiss(state.fingerprint, now, missTtlSeconds)) {
-        qInfo().noquote() << QStringLiteral("fresh miss: reason=%1 age=%2s ttl=7d")
-                                 .arg(miss->reason)
-                                 .arg(now - miss->triedAt);
-        const QString resultState = miss->reason == QStringLiteral("network")
-            ? QStringLiteral("network-error") : QStringLiteral("not-found");
-        qInfo().noquote() << QStringLiteral("state=") + resultState;
-        finish(request, {resultState, std::nullopt, {}});
-        return;
+    if (const auto miss = m_store.freshMiss(state.fingerprint, now,
+                                            noCandidateMissTtlSeconds)) {
+        const bool networkMiss = miss->reason == QStringLiteral("network");
+        const qint64 ttlSeconds = networkMiss
+            ? networkMissTtlSeconds : noCandidateMissTtlSeconds;
+        const qint64 ageSeconds = now - miss->triedAt;
+        if (ageSeconds < ttlSeconds) {
+            qInfo().noquote() << QStringLiteral("fresh miss: reason=%1 age=%2s ttl=%3")
+                                     .arg(miss->reason)
+                                     .arg(ageSeconds)
+                                     .arg(networkMiss ? QStringLiteral("300s")
+                                                      : QStringLiteral("7d"));
+            const QString resultState = networkMiss
+                ? QStringLiteral("network-error") : QStringLiteral("not-found");
+            qInfo().noquote() << QStringLiteral("state=") + resultState;
+            finish(request, {resultState, std::nullopt, {}});
+            return;
+        }
     }
 
     request->query = {state.title, state.artists, state.album, state.lengthUs / 1000};
@@ -225,17 +240,15 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
         if (!self || request->generation != self->m_generation) {
             return;
         }
-        qInfo().noquote() << explainMatch(request->query, result.candidates,
-                                           request->state.platform == QStringLiteral("apple"));
         if (!result.error.isEmpty()) {
             qInfo().noquote() << QStringLiteral("search failed: %1: %2")
                                      .arg(provider->id(), result.error);
-        }
-        if (result.candidates.isEmpty() && !result.error.isEmpty()) {
-            request->networkFailed = true;
+            request->networkFailed |= result.transportFailed;
             self->continueWithProvider(request);
             return;
         }
+        qInfo().noquote() << explainMatch(request->query, result.candidates,
+                                           request->state.platform == QStringLiteral("apple"));
         const auto ranked = rankCandidates(request->query, result.candidates);
         const auto chosen = chooseMatch(ranked,
                                         request->state.platform == QStringLiteral("apple"));
@@ -254,7 +267,7 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
                                          .arg(ref.provider, ref.trackId,
                                               result.error.isEmpty()
                                                   ? QStringLiteral("unknown error") : result.error);
-                request->networkFailed = true;
+                request->networkFailed |= result.transportFailed;
                 self->continueWithProvider(request);
                 return;
             }

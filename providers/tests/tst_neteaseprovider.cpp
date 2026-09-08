@@ -21,7 +21,16 @@ namespace {
 class ScriptedHttpServer : public QTcpServer
 {
 public:
-    enum class Reply { Disconnect, TruncatedSuccess, NotFound, ServerError, InvalidJson, SearchSuccess, Hang };
+    enum class Reply {
+        Disconnect,
+        TruncatedSuccess,
+        NotFound,
+        ServerError,
+        InvalidJson,
+        LyricWithoutLrc,
+        SearchSuccess,
+        Hang,
+    };
 
     explicit ScriptedHttpServer(QList<Reply> replies)
         : m_replies(std::move(replies))
@@ -60,6 +69,8 @@ public:
                         status = "503 Service Unavailable";
                     } else if (reply == Reply::InvalidJson) {
                         body = "not json";
+                    } else if (reply == Reply::LyricWithoutLrc) {
+                        body = "{}";
                     } else {
                         body = R"({"result":{"songs":[{"id":1,"name":"song","artists":[{"name":"artist"}],"album":{"name":"album"},"duration":1000}]}})";
                     }
@@ -97,7 +108,23 @@ ProviderSearchResult searchAndWait(NeteaseProvider &provider)
         QTimer::singleShot(2000, &loop, &QEventLoop::quit);
         loop.exec();
     }
-    return result.value_or(ProviderSearchResult{{}, QStringLiteral("test timed out")});
+    return result.value_or(ProviderSearchResult{{}, QStringLiteral("test timed out"), true});
+}
+
+ProviderFetchResult fetchAndWait(NeteaseProvider &provider)
+{
+    std::optional<ProviderFetchResult> result;
+    QEventLoop loop;
+    provider.fetch(QStringLiteral("1"), [&](ProviderFetchResult value) {
+        result = std::move(value);
+        loop.quit();
+    });
+    if (!result) {
+        QTimer::singleShot(2000, &loop, &QEventLoop::quit);
+        loop.exec();
+    }
+    return result.value_or(ProviderFetchResult{std::nullopt,
+                                               QStringLiteral("test timed out"), true});
 }
 
 } // namespace
@@ -117,6 +144,7 @@ private Q_SLOTS:
     void givesUpAfterThreeNetworkTimeouts();
     void doesNotRetryHttpErrors();
     void doesNotRetryJsonErrors();
+    void lyricParseErrorsAreNotTransportFailures();
     void destroyingProviderCancelsPendingRequest();
 };
 
@@ -210,6 +238,7 @@ void NeteaseProviderTest::retriesNetworkErrorsAndCanRecover()
     const auto result = searchAndWait(provider);
     QCOMPARE(server.requestCount(), 3);
     QCOMPARE(result.error, QString());
+    QVERIFY(!result.transportFailed);
     QCOMPARE(result.candidates.size(), 1);
     QCOMPARE(result.candidates.first().trackId, QStringLiteral("1"));
 }
@@ -226,6 +255,7 @@ void NeteaseProviderTest::retriesTruncated2xxResponsesAndCanRecover()
     const auto result = searchAndWait(provider);
     QCOMPARE(server.requestCount(), 2);
     QCOMPARE(result.error, QString());
+    QVERIFY(!result.transportFailed);
     QCOMPARE(result.candidates.size(), 1);
     QCOMPARE(result.candidates.first().trackId, QStringLiteral("1"));
 }
@@ -241,6 +271,7 @@ void NeteaseProviderTest::givesUpAfterThreeNetworkTimeouts()
     QCOMPARE(server.requestCount(), 3);
     QVERIFY(!result.error.isEmpty());
     QVERIFY(result.candidates.isEmpty());
+    QVERIFY(result.transportFailed);
     QVERIFY(elapsed.elapsed() >= 60);
     QVERIFY(elapsed.elapsed() < 1000);
 }
@@ -255,6 +286,7 @@ void NeteaseProviderTest::doesNotRetryHttpErrors()
         const auto result = searchAndWait(provider);
         QCOMPARE(server.requestCount(), 1);
         QVERIFY(!result.error.isEmpty());
+        QVERIFY(!result.transportFailed);
     }
 }
 
@@ -266,6 +298,19 @@ void NeteaseProviderTest::doesNotRetryJsonErrors()
     const auto result = searchAndWait(provider);
     QCOMPARE(server.requestCount(), 1);
     QVERIFY(!result.error.isEmpty());
+    QVERIFY(!result.transportFailed);
+}
+
+void NeteaseProviderTest::lyricParseErrorsAreNotTransportFailures()
+{
+    ScriptedHttpServer server({ScriptedHttpServer::Reply::LyricWithoutLrc});
+    QVERIFY(server.start());
+    NeteaseProvider provider(server.baseUrl(), 100);
+    const auto result = fetchAndWait(provider);
+    QCOMPARE(server.requestCount(), 1);
+    QVERIFY(!result.document.has_value());
+    QCOMPARE(result.error, QStringLiteral("response has no lrc field"));
+    QVERIFY(!result.transportFailed);
 }
 
 void NeteaseProviderTest::destroyingProviderCancelsPendingRequest()

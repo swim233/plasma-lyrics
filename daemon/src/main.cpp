@@ -13,6 +13,7 @@
 #include <QFile>
 #include <QLockFile>
 #include <QMutex>
+#include <QScopeGuard>
 #include <QTextStream>
 #include <cstdio>
 
@@ -35,6 +36,13 @@ void mirrorMessage(QtMsgType type, const QMessageLogContext &context, const QStr
     }
 }
 
+void stopMirroredLogging()
+{
+    qInstallMessageHandler(nullptr);
+    QMutexLocker locker(&logMutex);
+    logFile = nullptr;
+}
+
 } // namespace
 
 int main(int argc, char **argv)
@@ -53,6 +61,7 @@ int main(int argc, char **argv)
 
     Config config;
     static QFile configuredLog;
+    bool mirroredLoggingInstalled = false;
     if (config.fileLoggingEnabled()) {
         configuredLog.setFileName(config.logFilePath());
         QDir().mkpath(QFileInfo(configuredLog.fileName()).absolutePath());
@@ -60,27 +69,35 @@ int main(int argc, char **argv)
             logFile = &configuredLog;
             qSetMessagePattern(QStringLiteral("[%{time yyyy-MM-dd hh:mm:ss.zzz}] %{type} %{message}"));
             qInstallMessageHandler(mirrorMessage);
+            mirroredLoggingInstalled = true;
         } else {
             qWarning().noquote() << "cannot open log file:"
                                  << configuredLog.fileName() + QLatin1Char(':')
                                  << configuredLog.errorString();
         }
     }
+    const auto loggingGuard = qScopeGuard([mirroredLoggingInstalled] {
+        if (mirroredLoggingInstalled) {
+            stopMirroredLogging();
+        }
+    });
 #ifdef PLASMA_LYRICS_HAVE_NETEASE
     NeteaseProvider netease(config.neteaseBaseUrl(), config.networkTimeoutMs());
 #endif
     if (parser.isSet(QStringLiteral("explain"))) {
         const auto arguments = parser.positionalArguments();
         if (arguments.isEmpty()) {
-            parser.showHelp(1);
+            QTextStream(stderr) << parser.helpText();
+            return 1;
         }
         const TrackQuery query{arguments.first(),
                                {arguments.value(1)}, QString(), 0};
 #ifdef PLASMA_LYRICS_HAVE_NETEASE
         netease.search(query, [&application, query](ProviderSearchResult result) {
-            QTextStream(stdout) << explainMatch(query, result.candidates, true, false);
             if (!result.error.isEmpty()) {
                 QTextStream(stderr) << result.error << Qt::endl;
+            } else {
+                QTextStream(stdout) << explainMatch(query, result.candidates, true, false);
             }
             application.exit(result.candidates.isEmpty() ? 1 : 0);
         });
