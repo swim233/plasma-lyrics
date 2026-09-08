@@ -101,6 +101,17 @@
   `systemctl --user restart plasma-plasmashell`；`~/.local` 副本会遮蔽 `/usr` 副本，排查前先确认
   是否装了两份；`plasmoidviewer -a <id> -f planar|horizontal` 可免注销预览指定形态。
 
+### 1.4 QtDBus 的阻塞调用（本机实测，Qt 6.11.2）
+
+- **阻塞的 `QDBusInterface::call()` 不会旋转 Qt 事件循环**，`QDBus::AutoDetect`（默认）与显式
+  `QDBus::Block` 行为一致，从 `QCoreApplication::exec()` 内部发起也一样。实测：让服务端在方法里
+  睡 600ms，调用方耗时 601ms/600ms，期间 0ms 与 200ms 的 `QTimer` 都没触发，先前 pending 的
+  `deleteLater()` 也没有执行。
+- **因此阻塞期间不会有槽被重入，`this` 也不会在调用中途被销毁。** `MprisPlayer::pollPosition()`
+  和 `getAll()` 里的阻塞调用不构成 use-after-free 窗口，不需要改成 `QDBusPendingCall`；
+  同理，构造函数阻塞期间 `NameOwnerChanged` 也不会插进来，不会留下僵尸 `m_players` 条目。
+- 会重入的是 `QDBus::BlockWithGui`（Qt 文档明写），本项目不使用。
+
 ---
 
 ## 2. 架构
@@ -420,6 +431,12 @@ public:
 9. **播放器发现**（`tst_mprisdiscovery`）— 在 `dbus-run-session` 起的私有总线上，先建 `MprisManager`、
    **后**注册假播放器，断言它被发现；再断言它离开总线后不会把最后一句歌词留在屏幕上。
    必须是真总线上的集成测试：决策 37 那个洞就长在 D-Bus 接线里，纯函数测试看不见它
+10. **播放器生命周期**（`tst_mprisplayer_lifecycle`）— 同样在私有总线上：让 `changed` 的处理链
+    在嵌套事件循环里销毁 MprisPlayer，断言 `apply()` 与 `pollPosition()` 发出信号之后不再解引用
+    `this`。`apply()` 那条必须用**只改 `PlaybackStatus`** 的 `PropertiesChanged`、且经真总线投递：
+    换成 `Metadata` 变更会让 `metadataChanged || oldStatus != m_state.playbackStatus` 短路掉
+    那次成员读，剩下的野指针解引用落在 libQt6Core 里，而 ASan 只插桩本项目自己的编译单元，
+    测试会在坏代码上照样全绿
 
 **其他：** 第 6 项"时间锚点推进（含休眠唤醒后 monotonic 的行为）"通过**可注入时钟**的接口来测
 （否则要真的休眠一次）；第 8 项构建期检查沿用 nethogs 的四道命令。

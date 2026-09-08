@@ -7,6 +7,7 @@
 #include <QDBusInterface>
 #include <QDBusReply>
 #include <QDBusVariant>
+#include <QPointer>
 #include <QTimer>
 #include <QUrl>
 #include <time.h>
@@ -115,16 +116,25 @@ void MprisPlayer::apply(const QVariantMap &properties, bool initial)
         m_lastSampleMonotonicNs = now;
     }
     if (!initial) {
-        Q_EMIT changed(metadataChanged,
-                       properties.contains(QStringLiteral("Position")) || oldStatus != m_state.playbackStatus,
-                       oldStatus != QStringLiteral("Playing") && m_state.playbackStatus == QStringLiteral("Playing"));
+        const bool hasPosition = properties.contains(QStringLiteral("Position"));
+        const bool statusChanged = oldStatus != m_state.playbackStatus;
+        const bool anchorChanged = hasPosition || statusChanged;
+        const bool becamePlaying = oldStatus != QStringLiteral("Playing")
+            && m_state.playbackStatus == QStringLiteral("Playing");
         // A resume re-anchors against the last known position, which is stale if
         // the user seeked while paused. Neither browser integration nor several
         // native players emit Seeked, so read Position back explicitly whenever
         // the track or the transport state moved without one.
-        if ((metadataChanged || oldStatus != m_state.playbackStatus)
-            && !properties.contains(QStringLiteral("Position"))) {
-            QTimer::singleShot(0, this, &MprisPlayer::pollPosition);
+        const bool needsPositionPoll = (metadataChanged || statusChanged) && !hasPosition;
+        const QPointer<MprisPlayer> self(this);
+
+        Q_EMIT changed(metadataChanged, anchorChanged, becamePlaying);
+
+        if (!self) {
+            return;
+        }
+        if (needsPositionPoll) {
+            QTimer::singleShot(0, self.data(), &MprisPlayer::pollPosition);
         }
     }
 }
@@ -146,10 +156,12 @@ void MprisPlayer::pollPosition()
     m_state.positionUs = position;
     if (jump) {
         m_state.anchorMonotonicNs = now;
-        Q_EMIT changed(false, true, false);
     }
     m_lastSamplePositionUs = position;
     m_lastSampleMonotonicNs = now;
+    if (jump) {
+        Q_EMIT changed(false, true, false);
+    }
 }
 
 void MprisPlayer::onPropertiesChanged(const QString &interface,

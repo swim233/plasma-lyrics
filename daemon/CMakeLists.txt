@@ -63,8 +63,18 @@ if(BUILD_TESTING)
         target_link_libraries(tst_mprisdiscovery PRIVATE plasma_lyrics_core Qt6::DBus Qt6::Test)
         add_test(NAME tst_mprisdiscovery
                  COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_mprisdiscovery>)
+
+        add_executable(tst_mprisplayer_lifecycle
+            tests/tst_mprisplayer_lifecycle.cpp
+            src/mpris/mprisplayer.cpp
+            src/mpris/mprispolicy.cpp
+        )
+        target_include_directories(tst_mprisplayer_lifecycle PRIVATE ${CMAKE_SOURCE_DIR})
+        target_link_libraries(tst_mprisplayer_lifecycle PRIVATE plasma_lyrics_core Qt6::DBus Qt6::Test)
+        add_test(NAME tst_mprisplayer_lifecycle
+                 COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_mprisplayer_lifecycle>)
     else()
-        message(STATUS "dbus-run-session not found -- skipping tst_mprisdiscovery")
+        message(STATUS "dbus-run-session not found -- skipping MPRIS D-Bus tests")
     endif()
 
     add_executable(tst_snapshot
