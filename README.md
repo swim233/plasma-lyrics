@@ -42,6 +42,11 @@
 
 ### Arch Linux（AUR，推荐）
 
+预编译版本
+```sh
+yay -S plasma-lyrics      # 或 paru -S plasma-lyrics
+```
+也可选择自行编译
 ```sh
 yay -S plasma-lyrics-git      # 或 paru -S plasma-lyrics-git
 ```
