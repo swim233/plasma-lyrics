@@ -95,6 +95,21 @@ private:
     QList<QByteArray> m_receivedRequests;
 };
 
+QByteArray requestHeader(const QByteArray &request, const QByteArray &name)
+{
+    const auto lines = request.split('\n');
+    for (QByteArray line : lines) {
+        if (line.endsWith('\r')) line.chop(1);
+        const qsizetype separator = line.indexOf(':');
+        if (separator < 0
+            || line.left(separator).trimmed().compare(name, Qt::CaseInsensitive) != 0) {
+            continue;
+        }
+        return line.mid(separator + 1).trimmed();
+    }
+    return {};
+}
+
 ProviderSearchResult searchAndWait(AmllProvider &provider, const TrackQuery &query)
 {
     std::optional<ProviderSearchResult> result;
@@ -346,7 +361,9 @@ private Q_SLOTS:
         QCOMPARE(result.candidates.size(), 1);
         QVERIFY(result.error.isEmpty());
         QTRY_COMPARE(server.requestCount(), 1);
-        QVERIFY(server.receivedRequests().first().contains("If-None-Match: old-etag"));
+        QCOMPARE(requestHeader(server.receivedRequests().first(),
+                               QByteArrayLiteral("If-None-Match")),
+                 QByteArrayLiteral("old-etag"));
         const auto stillUsable = searchAndWait(provider, query);
         QCOMPARE(stillUsable.candidates.size(), 1);
     }
@@ -511,8 +528,10 @@ private Q_SLOTS:
 
         QCOMPARE(result.candidates.size(), 1);
         QTRY_COMPARE(server.requestCount(), 1);
-        QVERIFY(!server.receivedRequests().first().contains("If-None-Match"));
-        QVERIFY(!server.receivedRequests().first().contains("If-Modified-Since"));
+        QVERIFY(requestHeader(server.receivedRequests().first(),
+                              QByteArrayLiteral("If-None-Match")).isNull());
+        QVERIFY(requestHeader(server.receivedRequests().first(),
+                              QByteArrayLiteral("If-Modified-Since")).isNull());
         QFile metadata(cachePath + QStringLiteral(".meta"));
         QVERIFY(metadata.open(QIODevice::ReadOnly));
         const auto object = QJsonDocument::fromJson(metadata.readAll()).object();
