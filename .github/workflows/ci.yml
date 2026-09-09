@@ -55,6 +55,15 @@ jobs:
           cmake --build build-no-net
           ctest --test-dir build-no-net --output-on-failure
 
+      - name: Build without the AMLL provider
+        run: |
+          cmake -S . -B build-no-amll -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_PROVIDER_AMLL=OFF \
+            -DBUILD_TESTING=ON
+          cmake --build build-no-amll
+          ctest --test-dir build-no-amll --output-on-failure
+
       # main.qml is a PlasmoidItem and the config pages talk to real
       # QSettings/SQLite paths (DESIGN.md decisions 18/41), so neither can be
       # safely instantiated by the QML test suite -- this is the only check
