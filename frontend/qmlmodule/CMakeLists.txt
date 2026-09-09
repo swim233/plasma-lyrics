@@ -18,7 +18,7 @@ target_sources(plasmalyricssource PRIVATE
     visibilitypolicy.h
 )
 target_include_directories(plasmalyricssource PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(plasmalyricssource PRIVATE plasma_lyrics_core Qt6::Core Qt6::Qml Qt6::Sql)
+target_link_libraries(plasmalyricssource PRIVATE plasma_lyrics_core Qt6::Core Qt6::DBus Qt6::Qml Qt6::Sql KF6::I18n)
 
 ecm_finalize_qml_module(plasmalyricssource DESTINATION ${KDE_INSTALL_QMLDIR})
 install(TARGETS plasmalyricssource ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
@@ -38,8 +38,14 @@ if(BUILD_TESTING)
         lyricsource.cpp
     )
     target_include_directories(tst_lyricsource PRIVATE ${CMAKE_SOURCE_DIR})
-    target_link_libraries(tst_lyricsource PRIVATE plasma_lyrics_core Qt6::Core Qt6::Qml Qt6::Sql Qt6::Test)
-    add_test(NAME tst_lyricsource COMMAND tst_lyricsource)
+    target_link_libraries(tst_lyricsource PRIVATE plasma_lyrics_core Qt6::Core Qt6::DBus Qt6::Qml Qt6::Sql Qt6::Test KF6::I18n)
+    find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session)
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(NAME tst_lyricsource
+                 COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_lyricsource>)
+    else()
+        add_test(NAME tst_lyricsource COMMAND tst_lyricsource)
+    endif()
 
     add_executable(tst_visibilitypolicy
         tests/tst_visibilitypolicy.cpp

@@ -86,6 +86,11 @@ GETTER(bool, metadataHeuristic, m_metadataHeuristic)
 GETTER(bool, filterCredits, m_filterCredits)
 GETTER(QString, neteaseBaseUrl, m_neteaseBaseUrl)
 GETTER(int, networkTimeoutMs, m_networkTimeoutMs)
+GETTER(QString, providerOrder, m_providerOrder)
+GETTER(QString, amllIndexUrl, m_amllIndexUrl)
+GETTER(QString, amllContentBaseUrl, m_amllContentBaseUrl)
+GETTER(int, amllTimeoutMs, m_amllTimeoutMs)
+GETTER(int, amllIndexRefreshHours, m_amllIndexRefreshHours)
 GETTER(bool, fileLoggingEnabled, m_fileLoggingEnabled)
 GETTER(QString, logFilePath, m_logFilePath)
 GETTER(bool, dirty, m_dirty)
@@ -118,6 +123,11 @@ SETTER(bool, setMetadataHeuristic, m_metadataHeuristic)
 SETTER(bool, setFilterCredits, m_filterCredits)
 SETTER(const QString &, setNeteaseBaseUrl, m_neteaseBaseUrl)
 SETTER(int, setNetworkTimeoutMs, m_networkTimeoutMs)
+SETTER(const QString &, setProviderOrder, m_providerOrder)
+SETTER(const QString &, setAmllIndexUrl, m_amllIndexUrl)
+SETTER(const QString &, setAmllContentBaseUrl, m_amllContentBaseUrl)
+SETTER(int, setAmllTimeoutMs, m_amllTimeoutMs)
+SETTER(int, setAmllIndexRefreshHours, m_amllIndexRefreshHours)
 SETTER(bool, setFileLoggingEnabled, m_fileLoggingEnabled)
 SETTER(const QString &, setLogFilePath, m_logFilePath)
 #undef SETTER
@@ -141,6 +151,17 @@ void BackendConfig::load()
     m_neteaseBaseUrl = config.value(QStringLiteral("providers/netease/baseUrl"),
                                     QStringLiteral("https://music.163.com")).toString();
     m_networkTimeoutMs = config.value(QStringLiteral("providers/netease/timeoutMs"), 4000).toInt();
+    m_providerOrder = lines(config.value(
+        QStringLiteral("providers/order"),
+        QStringList{QStringLiteral("netease"), QStringLiteral("amll")}).toStringList());
+    m_amllIndexUrl = config.value(
+        QStringLiteral("providers/amll/indexUrl"),
+        QStringLiteral("https://raw.githubusercontent.com/amll-dev/amll-ttml-db/main/metadata/raw-lyrics-index.jsonl")).toString();
+    m_amllContentBaseUrl = config.value(
+        QStringLiteral("providers/amll/contentBaseUrl"),
+        QStringLiteral("https://raw.githubusercontent.com/amll-dev/amll-ttml-db/main/")).toString();
+    m_amllTimeoutMs = config.value(QStringLiteral("providers/amll/timeoutMs"), 8000).toInt();
+    m_amllIndexRefreshHours = config.value(QStringLiteral("providers/amll/indexRefreshHours"), 24).toInt();
     m_fileLoggingEnabled = config.value(QStringLiteral("logging/fileEnabled"), false).toBool();
     m_logFilePath = config.value(
         QStringLiteral("logging/filePath"),
@@ -171,6 +192,19 @@ bool BackendConfig::save()
     config.setValue(QStringLiteral("lyrics/filterLeadingCredits"), m_filterCredits);
     config.setValue(QStringLiteral("providers/netease/baseUrl"), m_neteaseBaseUrl);
     config.setValue(QStringLiteral("providers/netease/timeoutMs"), m_networkTimeoutMs);
+    QStringList order;
+    for (const auto &value : list(m_providerOrder)) {
+        const QString id = value.toCaseFolded();
+        if ((id == QStringLiteral("netease") || id == QStringLiteral("amll"))
+            && !order.contains(id)) {
+            order.append(id);
+        }
+    }
+    config.setValue(QStringLiteral("providers/order"), order);
+    config.setValue(QStringLiteral("providers/amll/indexUrl"), m_amllIndexUrl);
+    config.setValue(QStringLiteral("providers/amll/contentBaseUrl"), m_amllContentBaseUrl);
+    config.setValue(QStringLiteral("providers/amll/timeoutMs"), m_amllTimeoutMs);
+    config.setValue(QStringLiteral("providers/amll/indexRefreshHours"), m_amllIndexRefreshHours);
     config.setValue(QStringLiteral("logging/fileEnabled"), m_fileLoggingEnabled);
     config.setValue(QStringLiteral("logging/filePath"), m_logFilePath);
     config.sync();

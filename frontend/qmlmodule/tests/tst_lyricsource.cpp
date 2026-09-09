@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QSaveFile>
+#include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -28,14 +29,21 @@ private:
     static void writeSnapshot(const QString &path, int seq, qint64 anchor, const QString &text,
                               qint64 pid = QCoreApplication::applicationPid(), qint64 endMs = 2000,
                               int offsetMs = 0, const QString &provider = QStringLiteral("netease"),
-                              const QString &trackId = QStringLiteral("1"))
+                              const QString &trackId = QStringLiteral("1"),
+                              const QString &preferredProvider = {},
+                              const QString &effectivePreferredProvider = QStringLiteral("netease"),
+                              const QString &actualProvider = QStringLiteral("netease"),
+                              bool temporaryFallback = false,
+                              const QStringList &availableProviders = {
+                                  QStringLiteral("netease"), QStringLiteral("amll")})
     {
         QDir().mkpath(QFileInfo(path).absolutePath());
         const QJsonObject root{
             {QStringLiteral("schema"), 1},
             {QStringLiteral("seq"), seq},
             {QStringLiteral("daemon"), QJsonObject{{QStringLiteral("pid"), pid}}},
-            {QStringLiteral("track"), QJsonObject{{QStringLiteral("title"), QStringLiteral("song")},
+            {QStringLiteral("track"), QJsonObject{{QStringLiteral("fingerprint"), QStringLiteral("mediaSrc:test")},
+                                                   {QStringLiteral("title"), QStringLiteral("song")},
                                                    {QStringLiteral("artists"), QJsonArray{QStringLiteral("artist")}},
                                                    {QStringLiteral("ref"), QJsonObject{{QStringLiteral("provider"), provider},
                                                                                      {QStringLiteral("trackId"), trackId}}}}},
@@ -45,6 +53,12 @@ private:
                                                       {QStringLiteral("rate"), 1.0}}},
             {QStringLiteral("lyric"), QJsonObject{{QStringLiteral("state"), QStringLiteral("ok")},
                                                    {QStringLiteral("offsetMs"), offsetMs},
+                                                   {QStringLiteral("preferredProvider"), preferredProvider},
+                                                   {QStringLiteral("effectivePreferredProvider"), effectivePreferredProvider},
+                                                   {QStringLiteral("actualProvider"), actualProvider},
+                                                   {QStringLiteral("temporaryFallback"), temporaryFallback},
+                                                   {QStringLiteral("availableProviders"),
+                                                    QJsonArray::fromStringList(availableProviders)},
                                                    {QStringLiteral("lines"), QJsonArray{lineToJson({1000, endMs, text, std::nullopt, std::nullopt})}}}}};
         QSaveFile file(path);
         QVERIFY(file.open(QIODevice::WriteOnly));
@@ -103,6 +117,65 @@ private Q_SLOTS:
         source.setSnapshotPath(path);
         QVERIFY(!source.serviceAvailable());
         QVERIFY(source.stale());
+    }
+
+    void exposesPreferredActualAndFallbackProviderState()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        writeSnapshot(path, 1, 1000000000, QStringLiteral("fallback line"),
+                      QCoreApplication::applicationPid(), 2000, 0,
+                      QStringLiteral("netease"), QStringLiteral("1"),
+                      QStringLiteral("amll"), QStringLiteral("amll"),
+                      QStringLiteral("netease"), true,
+                      {QStringLiteral("netease"), QStringLiteral("amll")});
+        LyricSource source([] { return 1000000000LL; },
+                           directory.filePath(QStringLiteral("lyrics.db")));
+
+        source.setSnapshotPath(path);
+
+        QCOMPARE(source.fingerprint(), QStringLiteral("mediaSrc:test"));
+        QCOMPARE(source.preferredProvider(), QStringLiteral("amll"));
+        QCOMPARE(source.effectivePreferredProvider(), QStringLiteral("amll"));
+        QCOMPARE(source.actualProvider(), QStringLiteral("netease"));
+        QVERIFY(source.temporaryFallback());
+        QCOMPARE(source.availableProviders(),
+                 QStringList({QStringLiteral("netease"), QStringLiteral("amll")}));
+        QVERIFY(source.canControlProvider());
+        QVERIFY(!source.setPreferredProvider(QStringLiteral("missing")));
+    }
+
+    void providerDisplayNamesCoverImportedAndUnknownSources()
+    {
+        QTemporaryDir directory;
+        LyricSource source([] { return 1000000000LL; },
+                           directory.filePath(QStringLiteral("lyrics.db")));
+
+        QCOMPARE(source.providerDisplayName(QStringLiteral("waylyrics")),
+                 QStringLiteral("Waylyrics import"));
+        QCOMPARE(source.providerDisplayName(QStringLiteral("amll")),
+                 QStringLiteral("AMLL"));
+        const QString unknown = source.providerDisplayName(QStringLiteral("future-provider"));
+        QVERIFY(unknown.contains(QStringLiteral("future-provider")));
+        QVERIFY(unknown != source.providerDisplayName(QString()));
+    }
+
+    void unavailableControlServiceReportsAnAsynchronousFailure()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        writeSnapshot(path, 1, 1000000000, QStringLiteral("line"));
+        LyricSource source([] { return 1000000000LL; },
+                           directory.filePath(QStringLiteral("lyrics.db")));
+        source.setSnapshotPath(path);
+        QSignalSpy failed(&source, &LyricSource::controlFailed);
+
+        QVERIFY(source.research());
+        QVERIFY(source.controlInProgress());
+        QTRY_COMPARE(failed.size(), 1);
+        QVERIFY(!source.controlInProgress());
+        QVERIFY(!source.controlError().isEmpty());
+        QVERIFY(source.canControlProvider());
     }
 
     // The tests below exercise DESIGN.md decision 41 (the global offset)

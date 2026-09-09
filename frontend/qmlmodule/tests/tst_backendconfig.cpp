@@ -2,6 +2,7 @@
 
 #include <QElapsedTimer>
 #include <QSignalSpy>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QTest>
 
@@ -23,6 +24,37 @@ private Q_SLOTS:
     void initTestCase()
     {
         QStandardPaths::setTestModeEnabled(true);
+    }
+
+    void persistsProviderOrderAndAmllSettings()
+    {
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                           QStringLiteral("plasma-lyrics"),
+                           QStringLiteral("plasma-lyricsd"));
+        settings.clear();
+        settings.sync();
+        {
+            auto config = shellConfig(QStringLiteral("exit 0"));
+            QCOMPARE(config.providerOrder(), QStringLiteral("netease\namll"));
+            config.setProviderOrder(QStringLiteral(" AMLL \nnetease\namll\nunknown"));
+            config.setAmllIndexUrl(QStringLiteral("https://example.invalid/index.jsonl"));
+            config.setAmllContentBaseUrl(QStringLiteral("https://example.invalid/content/"));
+            config.setAmllTimeoutMs(12345);
+            config.setAmllIndexRefreshHours(36);
+            QVERIFY(config.dirty());
+            QVERIFY(config.save());
+            QVERIFY(!config.dirty());
+        }
+        {
+            auto restored = shellConfig(QStringLiteral("exit 0"));
+            QCOMPARE(restored.providerOrder(), QStringLiteral("amll\nnetease"));
+            QCOMPARE(restored.amllIndexUrl(),
+                     QStringLiteral("https://example.invalid/index.jsonl"));
+            QCOMPARE(restored.amllContentBaseUrl(),
+                     QStringLiteral("https://example.invalid/content/"));
+            QCOMPARE(restored.amllTimeoutMs(), 12345);
+            QCOMPARE(restored.amllIndexRefreshHours(), 36);
+        }
     }
 
     void reportsSuccessfulRestart()

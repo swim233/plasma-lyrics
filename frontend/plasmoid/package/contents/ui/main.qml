@@ -309,6 +309,49 @@ PlasmoidItem {
 
     Plasmoid.contextualActions: [
         PlasmaCore.Action {
+            text: lyricSource.actualProvider.length > 0
+                ? (lyricSource.temporaryFallback
+                    ? i18n("Current lyrics: %1 (temporary fallback)",
+                           lyricSource.providerDisplayName(lyricSource.actualProvider))
+                    : i18n("Current lyrics: %1",
+                           lyricSource.providerDisplayName(lyricSource.actualProvider)))
+                : i18n("Current lyrics source: none")
+            icon.name: "view-media-lyrics"
+            enabled: false
+        },
+        PlasmaCore.Action {
+            text: i18n("Lyrics source: Automatic")
+            icon.name: "system-run"
+            checkable: true
+            checked: lyricSource.preferredProvider.length === 0
+            enabled: lyricSource.canControlProvider
+            onTriggered: lyricSource.clearPreferredProvider()
+        },
+        PlasmaCore.Action {
+            text: i18n("Prefer NetEase for this song")
+            icon.name: "cloud"
+            checkable: true
+            checked: lyricSource.preferredProvider === "netease"
+            enabled: lyricSource.canControlProvider
+                && lyricSource.availableProviders.indexOf("netease") >= 0
+            onTriggered: lyricSource.setPreferredProvider("netease")
+        },
+        PlasmaCore.Action {
+            text: i18n("Prefer AMLL for this song")
+            icon.name: "cloud"
+            checkable: true
+            checked: lyricSource.preferredProvider === "amll"
+            enabled: lyricSource.canControlProvider
+                && lyricSource.availableProviders.indexOf("amll") >= 0
+            onTriggered: lyricSource.setPreferredProvider("amll")
+        },
+        PlasmaCore.Action {
+            text: i18n("Search for lyrics again")
+            icon.name: "view-refresh"
+            enabled: lyricSource.canControlProvider
+            onTriggered: lyricSource.research()
+        },
+        PlasmaCore.Action {
             text: lyricSource.globalOffsetEnabled
                 ? i18n("Lyrics 0.5 s earlier (all songs)")
                 : i18n("Lyrics 0.5 s earlier")

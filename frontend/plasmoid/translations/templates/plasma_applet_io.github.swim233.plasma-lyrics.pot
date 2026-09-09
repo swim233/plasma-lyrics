@@ -3,12 +3,11 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-09 12:49+0800\n"
+"POT-Creation-Date: 2026-09-09 22:57+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -16,7 +15,6 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\n"
 
 #: frontend/plasmoid/package/contents/config/config.qml:6
 msgid "Desktop appearance"
@@ -68,6 +66,7 @@ msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/main.qml:112
 #: frontend/plasmoid/package/contents/ui/main.qml:307
+#: frontend/qmlmodule/lyricsource.cpp:551
 msgid "Desktop Lyrics"
 msgstr ""
 
@@ -89,27 +88,55 @@ msgstr ""
 msgid "Network error, cannot fetch lyrics"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:313
+#: frontend/plasmoid/package/contents/ui/main.qml:314
+msgid "Current lyrics: %1 (temporary fallback)"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/main.qml:316
+msgid "Current lyrics: %1"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/main.qml:318
+msgid "Current lyrics source: none"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/main.qml:323
+msgid "Lyrics source: Automatic"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/main.qml:331
+msgid "Prefer NetEase for this song"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/main.qml:340
+msgid "Prefer AMLL for this song"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/main.qml:349
+msgid "Search for lyrics again"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/main.qml:356
 msgid "Lyrics 0.5 s earlier (all songs)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:314
+#: frontend/plasmoid/package/contents/ui/main.qml:357
 msgid "Lyrics 0.5 s earlier"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:321
+#: frontend/plasmoid/package/contents/ui/main.qml:364
 msgid "Lyrics 0.5 s later (all songs)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:322
+#: frontend/plasmoid/package/contents/ui/main.qml:365
 msgid "Lyrics 0.5 s later"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:329
+#: frontend/plasmoid/package/contents/ui/main.qml:372
 msgid "Reset global lyric offset (%1 ms)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:330
+#: frontend/plasmoid/package/contents/ui/main.qml:373
 msgid "Reset lyric offset (%1 ms)"
 msgstr ""
 
@@ -266,84 +293,115 @@ msgid ""
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:34
+msgid "Lyrics source priority:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:36
+msgid "One source per line: netease or amll"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:40
 msgid "NetEase API URL:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:39
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:45
 msgid "Initial network timeout:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:44
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:50
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:69
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:138
 #: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:76
 msgid "%1 ms"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:48
-msgid "Music detection:"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:49
-msgid "Use metadata heuristic"
-msgstr ""
-
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:54
-msgid "Lyrics cleanup:"
+msgid "AMLL index URL:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:55
-msgid "Hide leading production credits"
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:59
+msgid "AMLL content base URL:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:60
-msgid "Enable lyrics for these platforms:"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:61
-msgid "NetEase Cloud Music (music.163.com)"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:66
-msgid "Apple Music (music.apple.com, Cider, Sidra)"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:71
-msgid "Custom URL prefixes:"
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:64
+msgid "AMLL network timeout:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:73
-msgid "One prefix per line"
+msgid "AMLL index refresh interval:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:77
-msgid "Player blacklist:"
+msgid "%1 hour"
+msgid_plural "%1 hours"
+msgstr[0] ""
+msgstr[1] ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:81
+msgid "Music detection:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:79
-msgid "One D-Bus service wildcard per line"
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:82
+msgid "Use metadata heuristic"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:83
-msgid "Diagnostics:"
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:87
+msgid "Lyrics cleanup:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:84
-msgid "Also write a log file"
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:88
+msgid "Hide leading production credits"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:89
-msgid "Log file:"
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:93
+msgid "Enable lyrics for these platforms:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:94
+msgid "NetEase Cloud Music (music.163.com)"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:99
-msgid "Reload"
+msgid "Apple Music (music.apple.com, Cider, Sidra)"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:104
+msgid "Custom URL prefixes:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:106
+msgid "One prefix per line"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:110
+msgid "Player blacklist:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:112
+msgid "One D-Bus service wildcard per line"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:116
+msgid "Diagnostics:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:117
+msgid "Also write a log file"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:122
+msgid "Log file:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:132
+msgid "Reload"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:137
 msgid "Save service settings"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:111
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:144
 msgid "Save and restart service"
 msgstr ""
 
@@ -453,4 +511,48 @@ msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/RestartFeedback.qml:15
 msgid "Could not restart lyrics service: %1"
+msgstr ""
+
+#: frontend/qmlmodule/lyricsource.cpp:51
+msgid "No current song is available."
+msgstr ""
+
+#: frontend/qmlmodule/lyricsource.cpp:54
+msgid "The current song changed before the command was applied."
+msgstr ""
+
+#: frontend/qmlmodule/lyricsource.cpp:57
+msgid "The requested lyrics source is unavailable."
+msgstr ""
+
+#: frontend/qmlmodule/lyricsource.cpp:60
+msgid "Could not save the song's preferred lyrics source."
+msgstr ""
+
+#: frontend/qmlmodule/lyricsource.cpp:63
+msgid "Could not clear the song's preferred lyrics source."
+msgstr ""
+
+#: frontend/qmlmodule/lyricsource.cpp:67
+msgid "Lyrics source command failed: %1"
+msgstr ""
+
+#: frontend/qmlmodule/lyricsource.cpp:136
+msgid "AMLL"
+msgstr ""
+
+#: frontend/qmlmodule/lyricsource.cpp:137
+msgid "NetEase"
+msgstr ""
+
+#: frontend/qmlmodule/lyricsource.cpp:138
+msgid "Waylyrics import"
+msgstr ""
+
+#: frontend/qmlmodule/lyricsource.cpp:139
+msgid "No lyrics source"
+msgstr ""
+
+#: frontend/qmlmodule/lyricsource.cpp:140
+msgid "Other lyrics source (%1)"
 msgstr ""

@@ -14,4 +14,14 @@ xgettext --from-code=UTF-8 --language=JavaScript --keyword=i18n --keyword=i18nc:
     frontend/plasmoid/package/contents/config/config.qml \
     frontend/plasmoid/package/contents/ui/*.qml \
     frontend/plasmoid/package/contents/ui/config/*.qml
+xgettext --join-existing --from-code=UTF-8 --language=C++ --keyword=i18nd:2 \
+    --output="$podir/$catalog.pot" \
+    frontend/qmlmodule/lyricsource.cpp
 
+# xgettext writes a deliberately invalid Plural-Forms placeholder into POT
+# headers.  It is useful to translators but makes strict msgfmt validation
+# fail, while PO catalogs already provide their locale-specific rule.
+sed -i \
+    -e '/^#, fuzzy$/d' \
+    -e '/^"Plural-Forms: nplurals=INTEGER; plural=EXPRESSION;\\n"$/d' \
+    "$podir/$catalog.pot"

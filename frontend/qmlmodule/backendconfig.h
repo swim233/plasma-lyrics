@@ -19,6 +19,11 @@ class BackendConfig : public QObject
     Q_PROPERTY(bool filterCredits READ filterCredits WRITE setFilterCredits NOTIFY changed)
     Q_PROPERTY(QString neteaseBaseUrl READ neteaseBaseUrl WRITE setNeteaseBaseUrl NOTIFY changed)
     Q_PROPERTY(int networkTimeoutMs READ networkTimeoutMs WRITE setNetworkTimeoutMs NOTIFY changed)
+    Q_PROPERTY(QString providerOrder READ providerOrder WRITE setProviderOrder NOTIFY changed)
+    Q_PROPERTY(QString amllIndexUrl READ amllIndexUrl WRITE setAmllIndexUrl NOTIFY changed)
+    Q_PROPERTY(QString amllContentBaseUrl READ amllContentBaseUrl WRITE setAmllContentBaseUrl NOTIFY changed)
+    Q_PROPERTY(int amllTimeoutMs READ amllTimeoutMs WRITE setAmllTimeoutMs NOTIFY changed)
+    Q_PROPERTY(int amllIndexRefreshHours READ amllIndexRefreshHours WRITE setAmllIndexRefreshHours NOTIFY changed)
     Q_PROPERTY(bool fileLoggingEnabled READ fileLoggingEnabled WRITE setFileLoggingEnabled NOTIFY changed)
     Q_PROPERTY(QString logFilePath READ logFilePath WRITE setLogFilePath NOTIFY changed)
     Q_PROPERTY(bool dirty READ dirty NOTIFY dirtyChanged)
@@ -47,6 +52,11 @@ public:
     bool filterCredits() const;
     QString neteaseBaseUrl() const;
     int networkTimeoutMs() const;
+    QString providerOrder() const;
+    QString amllIndexUrl() const;
+    QString amllContentBaseUrl() const;
+    int amllTimeoutMs() const;
+    int amllIndexRefreshHours() const;
     bool fileLoggingEnabled() const;
     QString logFilePath() const;
     bool dirty() const;
@@ -62,6 +72,11 @@ public:
     void setFilterCredits(bool value);
     void setNeteaseBaseUrl(const QString &value);
     void setNetworkTimeoutMs(int value);
+    void setProviderOrder(const QString &value);
+    void setAmllIndexUrl(const QString &value);
+    void setAmllContentBaseUrl(const QString &value);
+    void setAmllTimeoutMs(int value);
+    void setAmllIndexRefreshHours(int value);
     void setFileLoggingEnabled(bool value);
     void setLogFilePath(const QString &value);
 
@@ -90,6 +105,11 @@ private:
     bool m_filterCredits = true;
     QString m_neteaseBaseUrl;
     int m_networkTimeoutMs = 4000;
+    QString m_providerOrder;
+    QString m_amllIndexUrl;
+    QString m_amllContentBaseUrl;
+    int m_amllTimeoutMs = 8000;
+    int m_amllIndexRefreshHours = 24;
     bool m_fileLoggingEnabled = false;
     QString m_logFilePath;
     bool m_dirty = false;

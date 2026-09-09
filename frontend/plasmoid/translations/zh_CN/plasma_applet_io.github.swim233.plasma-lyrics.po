@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-09 12:49+0800\n"
+"POT-Creation-Date: 2026-09-09 22:35+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -66,6 +66,7 @@ msgstr "%1 — %2"
 
 #: frontend/plasmoid/package/contents/ui/main.qml:112
 #: frontend/plasmoid/package/contents/ui/main.qml:307
+#: frontend/qmlmodule/lyricsource.cpp:551
 msgid "Desktop Lyrics"
 msgstr "桌面歌词"
 
@@ -87,27 +88,55 @@ msgstr "此曲无歌词"
 msgid "Network error, cannot fetch lyrics"
 msgstr "网络错误，暂时无法获取"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:313
+#: frontend/plasmoid/package/contents/ui/main.qml:314
+msgid "Current lyrics: %1 (temporary fallback)"
+msgstr "当前歌词：%1（临时回退）"
+
+#: frontend/plasmoid/package/contents/ui/main.qml:316
+msgid "Current lyrics: %1"
+msgstr "当前歌词：%1"
+
+#: frontend/plasmoid/package/contents/ui/main.qml:318
+msgid "Current lyrics source: none"
+msgstr "当前歌词源：无"
+
+#: frontend/plasmoid/package/contents/ui/main.qml:323
+msgid "Lyrics source: Automatic"
+msgstr "歌词源：自动"
+
+#: frontend/plasmoid/package/contents/ui/main.qml:331
+msgid "Prefer NetEase for this song"
+msgstr "此歌曲首选网易云"
+
+#: frontend/plasmoid/package/contents/ui/main.qml:340
+msgid "Prefer AMLL for this song"
+msgstr "此歌曲首选 AMLL"
+
+#: frontend/plasmoid/package/contents/ui/main.qml:349
+msgid "Search for lyrics again"
+msgstr "重新搜索歌词"
+
+#: frontend/plasmoid/package/contents/ui/main.qml:356
 msgid "Lyrics 0.5 s earlier (all songs)"
 msgstr "歌词提前 0.5 秒（所有歌曲）"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:314
+#: frontend/plasmoid/package/contents/ui/main.qml:357
 msgid "Lyrics 0.5 s earlier"
 msgstr "歌词提前 0.5 秒"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:321
+#: frontend/plasmoid/package/contents/ui/main.qml:364
 msgid "Lyrics 0.5 s later (all songs)"
 msgstr "歌词延后 0.5 秒（所有歌曲）"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:322
+#: frontend/plasmoid/package/contents/ui/main.qml:365
 msgid "Lyrics 0.5 s later"
 msgstr "歌词延后 0.5 秒"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:329
+#: frontend/plasmoid/package/contents/ui/main.qml:372
 msgid "Reset global lyric offset (%1 ms)"
 msgstr "重置全局歌词偏移（%1 毫秒）"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:330
+#: frontend/plasmoid/package/contents/ui/main.qml:373
 msgid "Reset lyric offset (%1 ms)"
 msgstr "重置歌词偏移（%1 毫秒）"
 
@@ -264,84 +293,114 @@ msgid ""
 msgstr "这些服务设置会影响所有桌面歌词部件。保存后请重启 plasma-lyricsd。"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:34
+msgid "Lyrics source priority:"
+msgstr "歌词源优先级："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:36
+msgid "One source per line: netease or amll"
+msgstr "每行一个歌词源：netease 或 amll"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:40
 msgid "NetEase API URL:"
 msgstr "网易云 API 地址："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:39
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:45
 msgid "Initial network timeout:"
 msgstr "首次网络超时："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:44
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:50
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:69
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:138
 #: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:76
 msgid "%1 ms"
 msgstr "%1 毫秒"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:48
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:54
+msgid "AMLL index URL:"
+msgstr "AMLL 索引地址："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:59
+msgid "AMLL content base URL:"
+msgstr "AMLL 内容根地址："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:64
+msgid "AMLL network timeout:"
+msgstr "AMLL 网络超时："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:73
+msgid "AMLL index refresh interval:"
+msgstr "AMLL 索引刷新间隔："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:77
+msgid "%1 hour"
+msgid_plural "%1 hours"
+msgstr[0] "%1 小时"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:81
 msgid "Music detection:"
 msgstr "音乐检测："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:49
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:82
 msgid "Use metadata heuristic"
 msgstr "使用元数据启发式规则"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:54
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:87
 msgid "Lyrics cleanup:"
 msgstr "歌词清理："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:55
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:88
 msgid "Hide leading production credits"
 msgstr "隐藏开头的制作人员信息"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:60
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:93
 msgid "Enable lyrics for these platforms:"
 msgstr "启用以下平台的歌词服务："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:61
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:94
 msgid "NetEase Cloud Music (music.163.com)"
 msgstr "网易云音乐（music.163.com）"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:66
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:99
 msgid "Apple Music (music.apple.com, Cider, Sidra)"
 msgstr "Apple Music（music.apple.com、Cider、Sidra）"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:71
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:104
 msgid "Custom URL prefixes:"
 msgstr "自定义 URL 前缀："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:73
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:106
 msgid "One prefix per line"
 msgstr "每行一个前缀"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:77
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:110
 msgid "Player blacklist:"
 msgstr "播放器黑名单："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:79
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:112
 msgid "One D-Bus service wildcard per line"
 msgstr "每行一个 D-Bus 服务通配符"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:83
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:116
 msgid "Diagnostics:"
 msgstr "诊断："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:84
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:117
 msgid "Also write a log file"
 msgstr "同时写入日志文件"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:89
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:122
 msgid "Log file:"
 msgstr "日志文件："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:99
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:132
 msgid "Reload"
 msgstr "重新加载"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:104
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:137
 msgid "Save service settings"
 msgstr "保存服务设置"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:111
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:144
 msgid "Save and restart service"
 msgstr "保存并重启服务"
 
@@ -451,6 +510,56 @@ msgstr "歌词服务已重启。"
 #: frontend/plasmoid/package/contents/ui/config/RestartFeedback.qml:15
 msgid "Could not restart lyrics service: %1"
 msgstr "无法重启歌词服务：%1"
+
+#: frontend/qmlmodule/lyricsource.cpp:51
+msgid "No current song is available."
+msgstr "当前没有可操作的歌曲。"
+
+#: frontend/qmlmodule/lyricsource.cpp:54
+msgid "The current song changed before the command was applied."
+msgstr "执行操作前当前歌曲已发生变化。"
+
+#: frontend/qmlmodule/lyricsource.cpp:57
+msgid "The requested lyrics source is unavailable."
+msgstr "请求的歌词源不可用。"
+
+#: frontend/qmlmodule/lyricsource.cpp:60
+msgid "Could not save the song's preferred lyrics source."
+msgstr "无法保存此歌曲的首选歌词源。"
+
+#: frontend/qmlmodule/lyricsource.cpp:63
+msgid "Could not clear the song's preferred lyrics source."
+msgstr "无法清除此歌曲的首选歌词源。"
+
+#: frontend/qmlmodule/lyricsource.cpp:67
+msgid "Lyrics source command failed: %1"
+msgstr "歌词源操作失败：%1"
+
+#: frontend/qmlmodule/lyricsource.cpp:136
+msgid "AMLL"
+msgstr "AMLL"
+
+#: frontend/qmlmodule/lyricsource.cpp:137
+msgid "NetEase"
+msgstr "网易云"
+
+#: frontend/qmlmodule/lyricsource.cpp:138
+msgid "Waylyrics import"
+msgstr "Waylyrics 导入"
+
+#: frontend/qmlmodule/lyricsource.cpp:139
+msgid "No lyrics source"
+msgstr "无歌词源"
+
+#: frontend/qmlmodule/lyricsource.cpp:140
+msgid "Other lyrics source (%1)"
+msgstr "其他歌词源（%1）"
+
+#~ msgid "Current lyrics: NetEase (temporary fallback)"
+#~ msgstr "当前歌词：网易云（临时回退）"
+
+#~ msgid "Current lyrics: NetEase"
+#~ msgstr "当前歌词：网易云"
 
 #~ msgid "Leave empty to hide"
 #~ msgstr "留空则隐藏"

@@ -30,6 +30,12 @@ Kirigami.ScrollablePage {
 
         Kirigami.FormLayout {
             Layout.fillWidth: true
+            QQC2.TextArea {
+                Kirigami.FormData.label: i18n("Lyrics source priority:")
+                text: backend.providerOrder
+                placeholderText: i18n("One source per line: netease or amll")
+                onTextChanged: backend.providerOrder = text
+            }
             QQC2.TextField {
                 Kirigami.FormData.label: i18n("NetEase API URL:")
                 text: backend.neteaseBaseUrl
@@ -43,6 +49,33 @@ Kirigami.ScrollablePage {
                 value: backend.networkTimeoutMs
                 textFromValue: (value, locale) => i18n("%1 ms", value)
                 onValueModified: backend.networkTimeoutMs = value
+            }
+            QQC2.TextField {
+                Kirigami.FormData.label: i18n("AMLL index URL:")
+                text: backend.amllIndexUrl
+                onTextEdited: backend.amllIndexUrl = text
+            }
+            QQC2.TextField {
+                Kirigami.FormData.label: i18n("AMLL content base URL:")
+                text: backend.amllContentBaseUrl
+                onTextEdited: backend.amllContentBaseUrl = text
+            }
+            QQC2.SpinBox {
+                Kirigami.FormData.label: i18n("AMLL network timeout:")
+                from: 1000
+                to: 60000
+                stepSize: 500
+                value: backend.amllTimeoutMs
+                textFromValue: (value, locale) => i18n("%1 ms", value)
+                onValueModified: backend.amllTimeoutMs = value
+            }
+            QQC2.SpinBox {
+                Kirigami.FormData.label: i18n("AMLL index refresh interval:")
+                from: 1
+                to: 168
+                value: backend.amllIndexRefreshHours
+                textFromValue: (value, locale) => i18np("%1 hour", "%1 hours", value)
+                onValueModified: backend.amllIndexRefreshHours = value
             }
             QQC2.CheckBox {
                 Kirigami.FormData.label: i18n("Music detection:")

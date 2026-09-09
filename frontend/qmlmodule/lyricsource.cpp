@@ -5,11 +5,16 @@
 #include "core/store/lyricstore.h"
 
 #include <QDir>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <KLocalizedString>
 #include <algorithm>
 #include <cerrno>
 #include <cmath>
@@ -37,6 +42,29 @@ bool processExists(qint64 pid)
     }
     errno = 0;
     return ::kill(static_cast<pid_t>(pid), 0) == 0 || errno == EPERM;
+}
+
+QString localizedControlError(const QString &error)
+{
+    const char *domain = "plasma_applet_io.github.swim233.plasma-lyrics";
+    if (error == QStringLiteral("no-current-song")) {
+        return i18nd(domain, "No current song is available.");
+    }
+    if (error == QStringLiteral("song-changed")) {
+        return i18nd(domain, "The current song changed before the command was applied.");
+    }
+    if (error == QStringLiteral("provider-unavailable")) {
+        return i18nd(domain, "The requested lyrics source is unavailable.");
+    }
+    if (error == QStringLiteral("preference-save-failed")) {
+        return i18nd(domain, "Could not save the song's preferred lyrics source.");
+    }
+    if (error == QStringLiteral("preference-clear-failed")) {
+        return i18nd(domain, "Could not clear the song's preferred lyrics source.");
+    }
+    return error.isEmpty()
+        ? QString()
+        : i18nd(domain, "Lyrics source command failed: %1", error);
 }
 
 } // namespace
@@ -92,7 +120,30 @@ QString LyricSource::trackArtists() const { return m_trackArtists; }
 qint64 LyricSource::currentPositionMs() const { return m_currentPositionMs; }
 int LyricSource::offsetMs() const { return m_offsetMs; }
 bool LyricSource::globalOffsetEnabled() const { return m_globalOffsetEnabled; }
+QString LyricSource::fingerprint() const { return m_fingerprint; }
+QString LyricSource::preferredProvider() const { return m_preferredProvider; }
+QString LyricSource::effectivePreferredProvider() const { return m_effectivePreferredProvider; }
+QString LyricSource::actualProvider() const { return m_actualProvider; }
+bool LyricSource::temporaryFallback() const { return m_temporaryFallback; }
+QStringList LyricSource::availableProviders() const { return m_availableProviders; }
+bool LyricSource::controlInProgress() const { return m_controlInProgress; }
+QString LyricSource::controlError() const { return m_controlError; }
 bool LyricSource::hasTrackRef() const { return !m_provider.isEmpty() && !m_trackId.isEmpty(); }
+
+QString LyricSource::providerDisplayName(const QString &provider) const
+{
+    constexpr auto domain = "plasma_applet_io.github.swim233.plasma-lyrics";
+    if (provider == QStringLiteral("amll")) return i18nd(domain, "AMLL");
+    if (provider == QStringLiteral("netease")) return i18nd(domain, "NetEase");
+    if (provider == QStringLiteral("waylyrics")) return i18nd(domain, "Waylyrics import");
+    if (provider.isEmpty()) return i18nd(domain, "No lyrics source");
+    return i18nd(domain, "Other lyrics source (%1)", provider);
+}
+
+bool LyricSource::canControlProvider() const
+{
+    return m_serviceAvailable && !m_stale && !m_fingerprint.isEmpty() && !m_controlInProgress;
+}
 
 bool LyricSource::canAdjustOffset() const
 {
@@ -159,6 +210,7 @@ void LyricSource::setUnavailable(bool staleValue)
         // mode, so anything that can flip serviceAvailable/stale has to
         // re-notify it too.
         Q_EMIT canAdjustOffsetChanged();
+        Q_EMIT canControlProviderChanged();
     }
 }
 
@@ -283,6 +335,7 @@ void LyricSource::reloadImpl()
     if (statusWasChanged) {
         Q_EMIT statusChanged();
         Q_EMIT canAdjustOffsetChanged();
+        Q_EMIT canControlProviderChanged();
     }
     if (sequence == m_sequence) {
         if (statusWasChanged) {
@@ -300,8 +353,15 @@ void LyricSource::reloadImpl()
     const auto oldArtists = m_trackArtists;
     const auto oldProvider = m_provider;
     const auto oldTrackId = m_trackId;
+    const auto oldFingerprint = m_fingerprint;
+    const auto oldPreferredProvider = m_preferredProvider;
+    const auto oldEffectivePreferredProvider = m_effectivePreferredProvider;
+    const auto oldActualProvider = m_actualProvider;
+    const auto oldAvailableProviders = m_availableProviders;
+    const bool oldTemporaryFallback = m_temporaryFallback;
 
     const auto track = root.value(QStringLiteral("track")).toObject();
+    m_fingerprint = track.value(QStringLiteral("fingerprint")).toString();
     m_trackTitle = track.value(QStringLiteral("title")).toString();
     m_trackArtists = track.value(QStringLiteral("artists")).toVariant().toStringList().join(QStringLiteral(" / "));
     const auto ref = track.value(QStringLiteral("ref")).toObject();
@@ -314,6 +374,11 @@ void LyricSource::reloadImpl()
     m_rate = playback.value(QStringLiteral("rate")).toDouble(1.0);
     const auto lyric = root.value(QStringLiteral("lyric")).toObject();
     m_lyricState = lyric.value(QStringLiteral("state")).toString(QStringLiteral("filtered"));
+    m_preferredProvider = lyric.value(QStringLiteral("preferredProvider")).toString();
+    m_effectivePreferredProvider = lyric.value(QStringLiteral("effectivePreferredProvider")).toString();
+    m_actualProvider = lyric.value(QStringLiteral("actualProvider")).toString(m_provider);
+    m_temporaryFallback = lyric.value(QStringLiteral("temporaryFallback")).toBool();
+    m_availableProviders = lyric.value(QStringLiteral("availableProviders")).toVariant().toStringList();
     // Per-track raw value only -- see DESIGN.md decision 41 and the
     // m_trackOffsetMs/m_offsetMs comment in the header. This never opens
     // SQLite: the global cache is refreshed solely by the 2 s health poll
@@ -330,11 +395,20 @@ void LyricSource::reloadImpl()
     if (oldState != m_lyricState) Q_EMIT lyricStateChanged();
     if (oldPlayback != m_playbackStatus) Q_EMIT playbackChanged();
     if (oldTitle != m_trackTitle || oldArtists != m_trackArtists
+        || oldFingerprint != m_fingerprint
         || oldProvider != m_provider || oldTrackId != m_trackId) {
         Q_EMIT trackChanged();
         // Per-track mode's canAdjustOffset() depends on hasTrackRef().
         Q_EMIT canAdjustOffsetChanged();
     }
+    if (oldPreferredProvider != m_preferredProvider
+        || oldEffectivePreferredProvider != m_effectivePreferredProvider
+        || oldActualProvider != m_actualProvider
+        || oldTemporaryFallback != m_temporaryFallback
+        || oldAvailableProviders != m_availableProviders) {
+        Q_EMIT providerStateChanged();
+    }
+    if (oldFingerprint != m_fingerprint) Q_EMIT canControlProviderChanged();
     applyEffectiveOffset();
     advance();
 }
@@ -429,4 +503,77 @@ bool LyricSource::resetOffset()
         advance();
     }
     return true;
+}
+
+bool LyricSource::sendControlCommand(const QString &method, const QVariantList &arguments)
+{
+    if (!canControlProvider()) return false;
+    m_controlInProgress = true;
+    if (!m_controlError.isEmpty()) {
+        m_controlError.clear();
+        Q_EMIT controlErrorChanged();
+    }
+    Q_EMIT controlInProgressChanged();
+    Q_EMIT canControlProviderChanged();
+
+    QDBusMessage message = QDBusMessage::createMethodCall(
+        QStringLiteral("io.github.swim233.PlasmaLyrics"),
+        QStringLiteral("/io/github/swim233/PlasmaLyrics"),
+        QStringLiteral("io.github.swim233.PlasmaLyrics.Control"), method);
+    message.setArguments(arguments);
+    auto *watcher = new QDBusPendingCallWatcher(
+        QDBusConnection::sessionBus().asyncCall(message, 3000), this);
+    connect(watcher, &QDBusPendingCallWatcher::finished, this,
+            [this, watcher](QDBusPendingCallWatcher *) {
+        const QDBusPendingReply<QString> reply = *watcher;
+        QString error;
+        if (reply.isError()) {
+            error = localizedControlError(reply.error().message());
+        } else {
+            error = localizedControlError(reply.value());
+        }
+        watcher->deleteLater();
+        m_controlInProgress = false;
+        Q_EMIT controlInProgressChanged();
+        Q_EMIT canControlProviderChanged();
+        if (!error.isEmpty()) {
+            m_controlError = error;
+            Q_EMIT controlErrorChanged();
+            Q_EMIT controlFailed(error);
+            QDBusMessage notification = QDBusMessage::createMethodCall(
+                QStringLiteral("org.freedesktop.Notifications"),
+                QStringLiteral("/org/freedesktop/Notifications"),
+                QStringLiteral("org.freedesktop.Notifications"),
+                QStringLiteral("Notify"));
+            notification.setArguments({QStringLiteral("Desktop Lyrics"), 0u,
+                                       QStringLiteral("dialog-error"),
+                                       i18nd("plasma_applet_io.github.swim233.plasma-lyrics",
+                                             "Desktop Lyrics"), error,
+                                       QStringList{}, QVariantMap{}, 5000});
+            // A missing notification daemon must not start (or hold open) a
+            // helper process just because a control command failed. On a
+            // normal Plasma session the service is already registered; in a
+            // minimal session this simply becomes a best-effort no-op.
+            notification.setAutoStartService(false);
+            QDBusConnection::sessionBus().call(notification, QDBus::NoBlock);
+        }
+    });
+    return true;
+}
+
+bool LyricSource::setPreferredProvider(const QString &provider)
+{
+    if (!m_availableProviders.contains(provider)) return false;
+    return sendControlCommand(QStringLiteral("SetPreferredProvider"),
+                              {m_fingerprint, provider});
+}
+
+bool LyricSource::clearPreferredProvider()
+{
+    return sendControlCommand(QStringLiteral("ClearPreferredProvider"), {m_fingerprint});
+}
+
+bool LyricSource::research()
+{
+    return sendControlCommand(QStringLiteral("Research"), {m_fingerprint});
 }

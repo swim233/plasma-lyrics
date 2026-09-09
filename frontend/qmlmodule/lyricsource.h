@@ -27,6 +27,15 @@ class LyricSource : public QObject
     Q_PROPERTY(int offsetMs READ offsetMs NOTIFY offsetChanged)
     Q_PROPERTY(bool canAdjustOffset READ canAdjustOffset NOTIFY canAdjustOffsetChanged)
     Q_PROPERTY(bool globalOffsetEnabled READ globalOffsetEnabled NOTIFY globalOffsetEnabledChanged)
+    Q_PROPERTY(QString fingerprint READ fingerprint NOTIFY trackChanged)
+    Q_PROPERTY(QString preferredProvider READ preferredProvider NOTIFY providerStateChanged)
+    Q_PROPERTY(QString effectivePreferredProvider READ effectivePreferredProvider NOTIFY providerStateChanged)
+    Q_PROPERTY(QString actualProvider READ actualProvider NOTIFY providerStateChanged)
+    Q_PROPERTY(bool temporaryFallback READ temporaryFallback NOTIFY providerStateChanged)
+    Q_PROPERTY(QStringList availableProviders READ availableProviders NOTIFY providerStateChanged)
+    Q_PROPERTY(bool canControlProvider READ canControlProvider NOTIFY canControlProviderChanged)
+    Q_PROPERTY(bool controlInProgress READ controlInProgress NOTIFY controlInProgressChanged)
+    Q_PROPERTY(QString controlError READ controlError NOTIFY controlErrorChanged)
 
 public:
     explicit LyricSource(QObject *parent = nullptr);
@@ -54,10 +63,23 @@ public:
     int offsetMs() const;
     bool canAdjustOffset() const;
     bool globalOffsetEnabled() const;
+    QString fingerprint() const;
+    QString preferredProvider() const;
+    QString effectivePreferredProvider() const;
+    QString actualProvider() const;
+    bool temporaryFallback() const;
+    QStringList availableProviders() const;
+    bool canControlProvider() const;
+    bool controlInProgress() const;
+    QString controlError() const;
 
     Q_INVOKABLE void reload();
     Q_INVOKABLE bool adjustOffset(int deltaMs);
     Q_INVOKABLE bool resetOffset();
+    Q_INVOKABLE bool setPreferredProvider(const QString &provider);
+    Q_INVOKABLE bool clearPreferredProvider();
+    Q_INVOKABLE bool research();
+    Q_INVOKABLE QString providerDisplayName(const QString &provider) const;
 
 Q_SIGNALS:
     void snapshotPathChanged();
@@ -71,6 +93,11 @@ Q_SIGNALS:
     void offsetChanged();
     void canAdjustOffsetChanged();
     void globalOffsetEnabledChanged();
+    void providerStateChanged();
+    void canControlProviderChanged();
+    void controlInProgressChanged();
+    void controlErrorChanged();
+    void controlFailed(const QString &error);
 
 private:
     static qint64 monotonicNowNs();
@@ -84,6 +111,7 @@ private:
     bool hasTrackRef() const;
     void refreshGlobalOffsetCache();
     bool applyEffectiveOffset();
+    bool sendControlCommand(const QString &method, const QVariantList &arguments);
 
     QFileSystemWatcher m_watcher;
     QTimer m_retryTimer;
@@ -101,8 +129,16 @@ private:
     QString m_playbackStatus = QStringLiteral("Stopped");
     QString m_trackTitle;
     QString m_trackArtists;
+    QString m_fingerprint;
     QString m_provider;
     QString m_trackId;
+    QString m_preferredProvider;
+    QString m_effectivePreferredProvider;
+    QString m_actualProvider;
+    QStringList m_availableProviders;
+    bool m_temporaryFallback = false;
+    bool m_controlInProgress = false;
+    QString m_controlError;
     PlasmaLyrics::LyricLines m_lines;
     qint64 m_positionUs = 0;
     qint64 m_anchorMonotonicNs = 0;
