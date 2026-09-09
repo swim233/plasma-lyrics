@@ -157,6 +157,30 @@ private Q_SLOTS:
                                              QStringLiteral("Playing")));
     }
 
+    void distinguishesPlaybackRoundFromOrdinarySeek()
+    {
+        // One second of monotonic playback at 1x consumes the final 500 ms
+        // and predicts the observed 500 ms wrapped position.
+        QCOMPARE(MprisPolicy::isPlaybackRound(
+                     239500000, 1000000000, 500000, 2000000000,
+                     240000000, 1.0, QStringLiteral("Playing")), true);
+        // The same end-to-start positions reached too early are a seek, not a
+        // natural round.
+        QCOMPARE(MprisPolicy::isPlaybackRound(
+                     235000000, 1000000000, 1000000, 1100000000,
+                     240000000, 1.0, QStringLiteral("Playing")), false);
+        QCOMPARE(MprisPolicy::isPlaybackRound(
+                     120000000, 1000000000, 1000000, 121000000000,
+                     240000000, 1.0, QStringLiteral("Playing")), false);
+        QCOMPARE(MprisPolicy::isPlaybackRound(
+                     239500000, 1000000000, 500000, 2000000000,
+                     240000000, 1.0, QStringLiteral("Paused")), false);
+        // Rate participates in the remaining-time calculation.
+        QCOMPARE(MprisPolicy::isPlaybackRound(
+                     239000000, 1000000000, 0, 1500000000,
+                     240000000, 2.0, QStringLiteral("Playing")), true);
+    }
+
     void sidraServiceIsRecognizedAsApplePlatform()
     {
         MprisState state;

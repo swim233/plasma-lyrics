@@ -34,6 +34,10 @@ struct LyricDocument {
     LyricLines lines;
     int offsetMs = 0;
     bool hasWords = false;
+    // Provider provenance that must survive the SQLite and snapshot round
+    // trips.  Values are deliberately JSON rather than provider-specific
+    // members so core stays independent of every integration.
+    QJsonObject metadata;
 };
 
 QJsonObject wordToJson(const LyricWord &word);
@@ -45,4 +49,3 @@ std::optional<LyricLine> lineFromJson(const QJsonObject &object);
 
 Q_DECLARE_METATYPE(PlasmaLyrics::LyricLine)
 Q_DECLARE_METATYPE(PlasmaLyrics::LyricLines)
-

@@ -1,6 +1,7 @@
 #include "core/match/matcher.h"
 
 #include <QTest>
+#include <algorithm>
 
 using namespace PlasmaLyrics;
 
@@ -379,6 +380,214 @@ private Q_SLOTS:
         const auto chosen = chooseMatch(ranked, false);
         QVERIFY(chosen.has_value());
         QCOMPARE(chosen->candidate.trackId, QStringLiteral("2034742057"));
+    }
+
+    void preserveVersionsRanksEveryNormalCandidateBeforeOneSidedCandidates()
+    {
+        const TrackQuery query{QStringLiteral("Example Song (Live)"),
+                               {QStringLiteral("Singer")}, QStringLiteral("Album"), 0};
+        const QList<Candidate> candidates{
+            {QStringLiteral("studio"), QStringLiteral("Example Song"),
+             {QStringLiteral("Singer")}, QStringLiteral("Album"), 0},
+            {QStringLiteral("live"), QStringLiteral("Example Song - Live"),
+             {QStringLiteral("Singer")}, QStringLiteral("Other Album"), 0}};
+
+        const auto ranked = rankCandidates(query, candidates,
+                                           MatchPolicy::PreserveVersions);
+
+        QCOMPARE(ranked.first().candidate.trackId, QStringLiteral("live"));
+        QCOMPARE(ranked.first().score.versionTier, VersionTier::Normal);
+        QCOMPARE(ranked.last().score.versionTier, VersionTier::OneSided);
+        const auto chosen = chooseMatch(ranked, false);
+        QVERIFY(chosen.has_value());
+        QCOMPARE(chosen->candidate.trackId, QStringLiteral("live"));
+    }
+
+    void preserveVersionsAllowsOneSidedOnlyWhenNoNormalMatchExists()
+    {
+        const TrackQuery query{QStringLiteral("Example Song"),
+                               {QStringLiteral("Singer")}, QString(), 0};
+        const QList<Candidate> candidates{
+            {QStringLiteral("live"), QStringLiteral("Example Song (Live)"),
+             {QStringLiteral("Singer")}, QString(), 0}};
+
+        const auto ranked = rankCandidates(query, candidates,
+                                           MatchPolicy::PreserveVersions);
+
+        QCOMPARE(ranked.first().score.versionTier, VersionTier::OneSided);
+        QVERIFY(isAcceptableMatch(ranked.first()));
+        const auto chosen = chooseMatch(ranked, false);
+        QVERIFY(chosen.has_value());
+        QCOMPARE(chosen->candidate.trackId, QStringLiteral("live"));
+    }
+
+    void preserveVersionsRejectsConflictingVersionMarkers()
+    {
+        const TrackQuery query{QStringLiteral("Example Song (Live)"),
+                               {QStringLiteral("Singer")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("remix"),
+                                  QStringLiteral("Example Song (Remix)"),
+                                  {QStringLiteral("Singer")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate,
+                                          MatchPolicy::PreserveVersions);
+
+        QCOMPARE(score.versionTier, VersionTier::Conflict);
+        QCOMPARE(score.rejectionReason, QStringLiteral("version-conflict"));
+        QVERIFY(!isAcceptableMatch({candidate, score}));
+        QVERIFY(!chooseMatch({{candidate, score}}, false).has_value());
+        const auto explanation = explainMatch(query, {candidate}, false, true,
+                                              MatchPolicy::PreserveVersions);
+        QVERIFY(explanation.contains(QStringLiteral("versionTier=conflict")));
+        QVERIFY(explanation.contains(QStringLiteral("rejected=version-conflict")));
+        QVERIFY(explanation.contains(QStringLiteral("selected: none")));
+    }
+
+    void localizedFallbackCannotSelectAConflictingVersion()
+    {
+        const TrackQuery query{QStringLiteral("Gunjou (Live)"),
+                               {QStringLiteral("YOASOBI")}, QString(), 248444};
+        const QList<Candidate> candidates{
+            {QStringLiteral("conflict"), QStringLiteral("群青 (Remix)"),
+             {QStringLiteral("YOASOBI")}, QString(), 248444},
+            {QStringLiteral("filler-1"), QStringLiteral("Unrelated One"),
+             {QStringLiteral("Nobody")}, QString(), 100000},
+            {QStringLiteral("filler-2"), QStringLiteral("Unrelated Two"),
+             {QStringLiteral("Somebody")}, QString(), 300000}};
+
+        const auto ranked = rankCandidates(query, candidates,
+                                           MatchPolicy::PreserveVersions);
+        const auto conflict = std::find_if(ranked.cbegin(), ranked.cend(), [](const auto &item) {
+            return item.candidate.trackId == QStringLiteral("conflict");
+        });
+        QVERIFY(conflict != ranked.cend());
+        QCOMPARE(conflict->score.versionTier, VersionTier::Conflict);
+        QVERIFY(!chooseMatch(ranked, true).has_value());
+    }
+
+    void unversionedAliasCannotWashOutExplicitVersionConflict()
+    {
+        const TrackQuery query{QStringLiteral("Example Song (Remix)"),
+                               {QStringLiteral("Singer")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("live"),
+                                  QStringLiteral("Example Song (Live)"),
+                                  {QStringLiteral("Singer")}, QString(), 0,
+                                  {QStringLiteral("Example Song")}};
+
+        const auto score = scoreCandidate(query, candidate,
+                                          MatchPolicy::PreserveVersions);
+
+        QCOMPARE(score.versionTier, VersionTier::Conflict);
+        QCOMPARE(score.rejectionReason, QStringLiteral("version-conflict"));
+        QVERIFY(!chooseMatch({{candidate, score}}, false).has_value());
+    }
+
+    void differentRemasterYearsAreConflictingVersions()
+    {
+        const TrackQuery query{QStringLiteral("Example Song (2020 Remaster)"),
+                               {QStringLiteral("Singer")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("2021"),
+                                  QStringLiteral("Example Song (2021 Remastered)"),
+                                  {QStringLiteral("Singer")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate,
+                                          MatchPolicy::PreserveVersions);
+
+        QCOMPARE(score.versionTier, VersionTier::Conflict);
+        QVERIFY(!isAcceptableMatch({candidate, score}));
+    }
+
+    void differentNamedEditionsAreConflictingVersions()
+    {
+        const TrackQuery query{QStringLiteral("Example Song (Deluxe Edition)"),
+                               {QStringLiteral("Singer")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("special"),
+                                  QStringLiteral("Example Song (Special Edition)"),
+                                  {QStringLiteral("Singer")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate,
+                                          MatchPolicy::PreserveVersions);
+
+        QCOMPARE(score.versionTier, VersionTier::Conflict);
+        QVERIFY(!chooseMatch({{candidate, score}}, false).has_value());
+    }
+
+    void differentAnniversaryOrdinalsAreConflictingVersions()
+    {
+        const TrackQuery query{QStringLiteral("Example Song (20th Anniversary Edition)"),
+                               {QStringLiteral("Singer")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("25th"),
+                                  QStringLiteral("Example Song (25th Anniversary Edition)"),
+                                  {QStringLiteral("Singer")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate,
+                                          MatchPolicy::PreserveVersions);
+
+        QCOMPARE(score.versionTier, VersionTier::Conflict);
+        QVERIFY(!chooseMatch({{candidate, score}}, true).has_value());
+    }
+
+    void multilingualTitlesForTheSameAnniversaryOrdinalRemainCompatible()
+    {
+        const TrackQuery query{QStringLiteral("Example Song (20th Anniversary Edition)"),
+                               {QStringLiteral("Singer")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("20th-localized"),
+                                  QStringLiteral("Example Song (20周年記念版)"),
+                                  {QStringLiteral("Singer")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate,
+                                          MatchPolicy::PreserveVersions);
+
+        QCOMPARE(score.versionTier, VersionTier::Normal);
+    }
+
+    void multilingualTitlesForTheSameVersionRemainCompatible()
+    {
+        const TrackQuery query{QStringLiteral("Example Song (2020 Remaster)"),
+                               {QStringLiteral("Singer")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("localized"),
+                                  QStringLiteral("別名 (2020年重制)"),
+                                  {QStringLiteral("Singer")}, QString(), 0,
+                                  {QStringLiteral("Example Song (2020年リマスター)")}};
+
+        const auto score = scoreCandidate(query, candidate,
+                                          MatchPolicy::PreserveVersions);
+
+        QCOMPARE(score.versionTier, VersionTier::Normal);
+        QVERIFY(score.titleViaAlternate);
+        QVERIFY(isAcceptableMatch({candidate, score}));
+    }
+
+    void explainIncludesThresholdRejectionReason()
+    {
+        const TrackQuery query{QStringLiteral("Expected Song"),
+                               {QStringLiteral("Expected Artist")}, {}, 0};
+        const Candidate candidate{QStringLiteral("other"),
+                                  QStringLiteral("Unrelated"),
+                                  {QStringLiteral("Someone Else")}, {}, 0};
+
+        const QString explanation = explainMatch(query, {candidate}, false, true);
+
+        QVERIFY(explanation.contains(QStringLiteral("versionTier=normal")));
+        QVERIFY(explanation.contains(QStringLiteral("rejected=title-threshold")));
+        QVERIFY(explanation.contains(QStringLiteral("selected: none")));
+    }
+
+    void preserveVersionsUsesAliasesWithoutStrippingTheirSuffixes()
+    {
+        const TrackQuery query{QStringLiteral("Example Song (Acoustic)"),
+                               {QStringLiteral("Singer")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("alias"),
+                                  QStringLiteral("别名"),
+                                  {QStringLiteral("Singer")}, QString(), 0,
+                                  {QStringLiteral("Example Song (Acoustic)")}};
+
+        const auto score = scoreCandidate(query, candidate,
+                                          MatchPolicy::PreserveVersions);
+
+        QCOMPARE(score.versionTier, VersionTier::Normal);
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(score.titleViaAlternate);
     }
 };
 

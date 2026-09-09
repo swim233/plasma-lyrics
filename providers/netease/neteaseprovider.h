@@ -19,6 +19,7 @@ public:
 
     QString id() const override;
     bool isConfigured() const override;
+    QString cacheVersion() const override;
     void search(const TrackQuery &query, SearchCallback callback) override;
     void fetch(const QString &trackId, FetchCallback callback) override;
 

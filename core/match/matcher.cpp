@@ -2,11 +2,162 @@
 
 #include <QHash>
 #include <QRegularExpression>
+#include <QSet>
 #include <QTextStream>
 #include <algorithm>
 
 namespace PlasmaLyrics {
 namespace {
+
+struct VersionEvidence {
+    QSet<QString> markers;
+    QSet<QString> years;
+    QSet<QString> editions;
+
+    bool isExplicit() const { return !markers.isEmpty(); }
+};
+
+VersionEvidence versionEvidence(const QString &title)
+{
+    const QString normalized = title.normalized(QString::NormalizationForm_KC).toCaseFolded();
+    struct MarkerPattern {
+        const char *marker;
+        const char *pattern;
+    };
+    static const MarkerPattern patterns[]{
+        {"live", R"(\blive\b|现场|演唱会|ライブ)"},
+        {"remix", R"(\bremix(?:ed)?\b|混音|リミックス)"},
+        {"cover", R"(\bcover\b|翻唱|カバー)"},
+        {"remaster", R"(\bremaster(?:ed)?\b|重制|リマスター)"},
+        {"instrumental", R"(\binstrumental\b|\boff[ -]?vocal\b|伴奏|纯音乐|純音樂|インスト)"},
+        {"acoustic", R"(\bacoustic\b|不插电|不插電|アコースティック)"},
+        {"edit", R"(\bradio edit\b|\bsingle edit\b|\bedit\b)"},
+        {"edition", R"(\bedition\b|\bdeluxe\b|\bexpanded\b|\blimited\b|\bcollector'?s?\b|\banniversary\b|特别版|特別版|豪华版|豪華版|扩展版|擴展版|限定版|珍藏版|周年(?:纪念|紀念|記念)?版|エディション)"},
+    };
+    VersionEvidence result;
+    for (const auto &item : patterns) {
+        if (normalized.contains(QRegularExpression(QString::fromUtf8(item.pattern),
+                                                   QRegularExpression::CaseInsensitiveOption))) {
+            result.markers.insert(QString::fromLatin1(item.marker));
+        }
+    }
+    if (!result.isExplicit()) {
+        return result;
+    }
+
+    // Years and edition names qualify an explicit version marker. They are
+    // deliberately not treated as versions on their own: a year in an
+    // otherwise plain song title is commonly part of the title itself.
+    static const QRegularExpression yearPattern(
+        QStringLiteral(R"((?<!\d)((?:19|20)\d{2})(?!\d))"));
+    auto years = yearPattern.globalMatch(normalized);
+    while (years.hasNext()) {
+        result.years.insert(years.next().captured(1));
+    }
+    struct EditionPattern {
+        const char *edition;
+        const char *pattern;
+    };
+    static const EditionPattern editionPatterns[]{
+        {"deluxe", R"(\bdeluxe(?: edition)?\b|豪华版|豪華版|デラックス(?:・)?エディション)"},
+        {"special", R"(\bspecial(?: edition)?\b|特别版|特別版|スペシャル(?:・)?エディション)"},
+        {"expanded", R"(\bexpanded(?: edition)?\b|扩展版|擴展版)"},
+        {"limited", R"(\blimited(?: edition)?\b|限定版|リミテッド(?:・)?エディション)"},
+        {"collector", R"(\bcollector'?s?(?: edition)?\b|珍藏版|コレクターズ(?:・)?エディション)"},
+        {"anniversary", R"(\b(?:\d+(?:st|nd|rd|th)\s+)?anniversary(?: edition)?\b|周年(?:纪念|紀念|記念)?版)"},
+    };
+    for (const auto &item : editionPatterns) {
+        if (normalized.contains(QRegularExpression(QString::fromUtf8(item.pattern),
+                                                   QRegularExpression::CaseInsensitiveOption))) {
+            result.editions.insert(QString::fromLatin1(item.edition));
+        }
+    }
+    static const QRegularExpression anniversaryOrdinalPattern(
+        QString::fromUtf8(
+            R"((?<!\d)(\d{1,3})(?:(?:st|nd|rd|th)\s+anniversary\b|\s*周年(?:纪念|紀念|記念)?(?:版|エディション)?))"),
+        QRegularExpression::CaseInsensitiveOption);
+    auto anniversaryOrdinals = anniversaryOrdinalPattern.globalMatch(normalized);
+    while (anniversaryOrdinals.hasNext()) {
+        const auto match = anniversaryOrdinals.next();
+        result.editions.insert(QStringLiteral("anniversary:")
+                               + QString::number(match.captured(1).toUInt()));
+    }
+    return result;
+}
+
+bool hasIntersection(const QSet<QString> &left, const QSet<QString> &right)
+{
+    for (const auto &value : left) {
+        if (right.contains(value)) return true;
+    }
+    return false;
+}
+
+bool conflictingEvidence(const VersionEvidence &query, const VersionEvidence &candidate)
+{
+    if (query.markers != candidate.markers) return true;
+    if (!query.years.isEmpty() && !candidate.years.isEmpty()
+        && !hasIntersection(query.years, candidate.years)) {
+        return true;
+    }
+    const auto anniversaryOrdinals = [](const QSet<QString> &editions) {
+        QSet<QString> result;
+        for (const auto &edition : editions) {
+            if (edition.startsWith(QStringLiteral("anniversary:"))) {
+                result.insert(edition);
+            }
+        }
+        return result;
+    };
+    const auto queryAnniversaryOrdinals = anniversaryOrdinals(query.editions);
+    const auto candidateAnniversaryOrdinals = anniversaryOrdinals(candidate.editions);
+    if (!queryAnniversaryOrdinals.isEmpty() && !candidateAnniversaryOrdinals.isEmpty()
+        && !hasIntersection(queryAnniversaryOrdinals, candidateAnniversaryOrdinals)) {
+        return true;
+    }
+    return !query.editions.isEmpty() && !candidate.editions.isEmpty()
+        && !hasIntersection(query.editions, candidate.editions);
+}
+
+VersionTier classifyCandidateVersions(const QString &queryTitle,
+                                      const QStringList &candidateTitles)
+{
+    const auto query = versionEvidence(queryTitle);
+    QList<VersionEvidence> explicitCandidates;
+    for (const auto &title : candidateTitles) {
+        auto evidence = versionEvidence(title);
+        if (evidence.isExplicit()) explicitCandidates.append(std::move(evidence));
+    }
+    if (!query.isExplicit() && explicitCandidates.isEmpty()) {
+        return VersionTier::Normal;
+    }
+    if (!query.isExplicit() || explicitCandidates.isEmpty()) {
+        return VersionTier::OneSided;
+    }
+    // Every explicit title is evidence about the recording. An unversioned
+    // localized alias may improve title similarity, but it cannot erase a
+    // Live/Remix or 2020/2021 conflict present in another title.
+    return std::any_of(explicitCandidates.cbegin(), explicitCandidates.cend(),
+                       [&query](const auto &candidate) {
+                           return conflictingEvidence(query, candidate);
+                       })
+        ? VersionTier::Conflict : VersionTier::Normal;
+}
+
+int tierOrder(VersionTier tier)
+{
+    switch (tier) {
+    case VersionTier::Normal: return 0;
+    case VersionTier::OneSided: return 1;
+    case VersionTier::Conflict: return 2;
+    }
+    return 2;
+}
+
+QString titleForPolicy(const QString &title, MatchPolicy policy)
+{
+    return policy == MatchPolicy::PreserveVersions ? title.simplified() : cleanTitle(title);
+}
 
 double textSimilarity(const QString &left, const QString &right)
 {
@@ -122,20 +273,31 @@ QString searchKeywords(const TrackQuery &query)
     return parts.join(QLatin1Char(' ')).simplified();
 }
 
-ScoreBreakdown scoreCandidate(const TrackQuery &query, const Candidate &candidate)
+ScoreBreakdown scoreCandidate(const TrackQuery &query, const Candidate &candidate,
+                              MatchPolicy policy)
 {
     ScoreBreakdown score;
-    const QString normalizedQuery = normalizeSearchText(cleanTitle(query.title));
-    score.title = textSimilarity(normalizedQuery, normalizeSearchText(cleanTitle(candidate.title)));
+    score.versionPolicyApplied = policy == MatchPolicy::PreserveVersions;
+    const QString normalizedQuery = normalizeSearchText(titleForPolicy(query.title, policy));
+    QStringList candidateTitles{candidate.title};
+    candidateTitles.append(candidate.alternateTitles);
+    score.versionTier = policy == MatchPolicy::PreserveVersions
+        ? classifyCandidateVersions(query.title, candidateTitles)
+        : VersionTier::Normal;
+    auto considerTitle = [&](const QString &title, bool alternate) {
+        const double titleScore = textSimilarity(normalizedQuery,
+                                                 normalizeSearchText(titleForPolicy(title, policy)));
+        if (titleScore > score.title) {
+            score.title = titleScore;
+            score.titleViaAlternate = alternate;
+        }
+    };
+    considerTitle(candidate.title, false);
     // Alternate titles (e.g. netease transNames) are extra evidence, not a
     // lowered bar: they can only raise score.title, by the same textSimilarity
     // used for the primary title, and only the best of all of them counts.
     for (const auto &alternate : candidate.alternateTitles) {
-        const double alternateScore = textSimilarity(normalizedQuery, normalizeSearchText(cleanTitle(alternate)));
-        if (alternateScore > score.title) {
-            score.title = alternateScore;
-            score.titleViaAlternate = true;
-        }
+        considerTitle(alternate, true);
     }
     score.artists = artistSimilarity(cleanArtists(query.artists), cleanArtists(candidate.artists));
     score.album = textSimilarity(normalizeSearchText(query.album), normalizeSearchText(candidate.album));
@@ -149,17 +311,24 @@ ScoreBreakdown scoreCandidate(const TrackQuery &query, const Candidate &candidat
         score.duration = std::max(0.0, 0.9 - static_cast<double>(score.durationDifferenceMs - 2000) / 15000.0);
     }
     score.total = score.title * 0.5 + score.artists * 0.2 + score.album * 0.1 + score.duration * 0.2;
+    if (score.versionTier == VersionTier::Conflict) {
+        score.rejectionReason = QStringLiteral("version-conflict");
+    }
     return score;
 }
 
-QList<RankedCandidate> rankCandidates(const TrackQuery &query, const QList<Candidate> &candidates)
+QList<RankedCandidate> rankCandidates(const TrackQuery &query, const QList<Candidate> &candidates,
+                                      MatchPolicy policy)
 {
     QList<RankedCandidate> ranked;
     ranked.reserve(candidates.size());
     for (const auto &candidate : candidates) {
-        ranked.append({candidate, scoreCandidate(query, candidate)});
+        ranked.append({candidate, scoreCandidate(query, candidate, policy)});
     }
     std::stable_sort(ranked.begin(), ranked.end(), [](const auto &left, const auto &right) {
+        if (left.score.versionTier != right.score.versionTier) {
+            return tierOrder(left.score.versionTier) < tierOrder(right.score.versionTier);
+        }
         if (left.score.total != right.score.total) {
             return left.score.total > right.score.total;
         }
@@ -170,7 +339,8 @@ QList<RankedCandidate> rankCandidates(const TrackQuery &query, const QList<Candi
 
 bool isAcceptableMatch(const RankedCandidate &candidate)
 {
-    return candidate.score.title >= 0.55 && candidate.score.total >= 0.58;
+    return candidate.score.versionTier != VersionTier::Conflict
+        && candidate.score.title >= 0.55 && candidate.score.total >= 0.58;
 }
 
 std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked, bool allowLocalizedFallback)
@@ -178,7 +348,16 @@ std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked,
     if (ranked.isEmpty()) {
         return std::nullopt;
     }
-    if (isAcceptableMatch(ranked.first()) && passesAliasArtistGate(ranked.first())) {
+    if (ranked.first().score.versionPolicyApplied) {
+        for (const auto tier : {VersionTier::Normal, VersionTier::OneSided}) {
+            for (const auto &candidate : ranked) {
+                if (candidate.score.versionTier == tier
+                    && isAcceptableMatch(candidate) && passesAliasArtistGate(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+    } else if (isAcceptableMatch(ranked.first()) && passesAliasArtistGate(ranked.first())) {
         return ranked.first();
     }
     if (!allowLocalizedFallback) {
@@ -191,6 +370,10 @@ std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked,
     }
     QList<RankedCandidate> survivors;
     for (const auto &item : ranked) {
+        if (item.score.versionPolicyApplied
+            && item.score.versionTier == VersionTier::Conflict) {
+            continue;
+        }
         // 250ms, not scoreCandidate's 2000ms "best tier" -- this is the
         // fallback's own uniqueness window, tightened separately (measured
         // collision rate, DESIGN.md decision 45): known genuine matches sit
@@ -217,7 +400,8 @@ std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked,
     if (groups.size() != 1) {
         return std::nullopt;
     }
-    const auto &group = groups.constBegin().value();
+    const auto groupIt = groups.constBegin();
+    const auto &group = groupIt.value();
     const auto best = std::min_element(group.begin(), group.end(), [](const auto &left, const auto &right) {
         return left.score.durationDifferenceMs < right.score.durationDifferenceMs;
     });
@@ -228,7 +412,7 @@ std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked,
 }
 
 QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates,
-                     bool allowLocalizedFallback, bool platformKnown)
+                     bool allowLocalizedFallback, bool platformKnown, MatchPolicy policy)
 {
     QString explanation;
     QTextStream stream(&explanation);
@@ -237,7 +421,7 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
            << "clean title: " << cleanTitle(query.title) << '\n'
            << "clean artists: " << cleanArtists(query.artists).join(QStringLiteral(" / ")) << '\n'
            << "keywords: " << searchKeywords(query) << '\n';
-    const auto ranked = rankCandidates(query, candidates);
+    const auto ranked = rankCandidates(query, candidates, policy);
     for (qsizetype index = 0; index < ranked.size(); ++index) {
         const auto &item = ranked[index];
         stream << index + 1 << ". [" << item.candidate.trackId << "] " << item.candidate.title
@@ -249,7 +433,21 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
                << " duration=" << QString::number(item.score.duration, 'f', 3)
                << " deltaMs=" << item.score.durationDifferenceMs
                << " titleVia=" << (item.score.titleViaAlternate ? QStringLiteral("alias") : QStringLiteral("title"))
-               << '\n';
+               << " versionTier="
+               << (item.score.versionTier == VersionTier::Normal
+                       ? QStringLiteral("normal")
+                       : item.score.versionTier == VersionTier::OneSided
+                           ? QStringLiteral("one-sided") : QStringLiteral("conflict"));
+        if (!item.score.rejectionReason.isEmpty()) {
+            stream << " rejected=" << item.score.rejectionReason;
+        } else if (item.score.title < 0.55) {
+            stream << " rejected=title-threshold";
+        } else if (item.score.total < 0.58) {
+            stream << " rejected=total-threshold";
+        } else if (!passesAliasArtistGate(item)) {
+            stream << " rejected=alias-artist-threshold";
+        }
+        stream << '\n';
     }
     const auto fallbackChoice = chooseMatch(ranked, true);
     if (platformKnown) {

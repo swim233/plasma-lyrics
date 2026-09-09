@@ -4,6 +4,7 @@
 
 #include <QSettings>
 #include <QString>
+#include <QStringList>
 
 namespace PlasmaLyrics {
 
@@ -15,6 +16,11 @@ public:
     PolicyConfig policy() const;
     QUrl neteaseBaseUrl() const;
     int networkTimeoutMs() const;
+    QStringList providerOrder() const;
+    QUrl amllIndexUrl() const;
+    QUrl amllContentBaseUrl() const;
+    int amllTimeoutMs() const;
+    qint64 amllIndexMaxAgeSeconds() const;
     bool fileLoggingEnabled() const;
     QString logFilePath() const;
     bool filterCredits() const;
@@ -24,4 +30,3 @@ private:
 };
 
 } // namespace PlasmaLyrics
-

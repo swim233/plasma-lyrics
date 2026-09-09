@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tt xmlns="http://www.w3.org/ns/ttml"
+    xmlns:ttm="http://www.w3.org/ns/ttml#metadata"
+    xmlns:itunes="http://music.apple.com/lyric-ttml-internal">
+  <head>
+    <metadata xmlns="">
+      <translations>
+        <translation type="subtitle" xml:lang="en-US">
+          <text for="L1"><span>Main translation</span><span ttm:role="x-bg">Background translation</span><span ttm:role="x-romanization">romanized translation</span><span ttm:role="x-pronunciation">pronounced translation</span></text>
+        </translation>
+      </translations>
+    </metadata>
+  </head>
+  <body>
+    <div>
+      <p xml:id="L1" begin="1.0" end="3.0"><span begin="1.0" end="2.0">主旋律</span><span ttm:role="x-bg"><span begin="1.5" end="2.5">背景人声</span></span></p>
+    </div>
+  </body>
+</tt>

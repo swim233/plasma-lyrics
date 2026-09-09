@@ -38,6 +38,11 @@ bool NeteaseProvider::isConfigured() const
     return m_baseUrl.isValid() && !m_baseUrl.isEmpty();
 }
 
+QString NeteaseProvider::cacheVersion() const
+{
+    return id() + QLatin1Char(':') + m_baseUrl.toString(QUrl::FullyEncoded);
+}
+
 int NeteaseProvider::timeoutForAttempt(int baseTimeoutMs, int attempt)
 {
     if (attempt <= 1) {

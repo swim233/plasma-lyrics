@@ -2,6 +2,7 @@
 
 #include <QSqlDatabase>
 #include <QSqlQuery>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUuid>
@@ -41,7 +42,13 @@ private Q_SLOTS:
         LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
         QVERIFY(store.open());
         const TrackRef ref{QStringLiteral("netease"), QStringLiteral("1"), 1};
-        LyricDocument input{{{1000, 2000, QStringLiteral("line"), QStringLiteral("translation"), std::nullopt}}, 0, false};
+        LyricDocument input{{{1000, 2000, QStringLiteral("line"),
+                              QStringLiteral("translation"),
+                              QList<LyricWord>{{1000, 1400, QStringLiteral("li")},
+                                               {1400, 2000, QStringLiteral("ne")}}}},
+                             0, true,
+                             {{QStringLiteral("source"), QStringLiteral("amll")},
+                              {QStringLiteral("contentId"), QStringLiteral("song.ttml")}}};
         QVERIFY(store.putLyric(ref, input, 100));
         QVERIFY(store.setOffset(ref, 250));
         QCOMPARE(store.adjustOffset(ref, -50), std::optional<int>(200));
@@ -49,6 +56,140 @@ private Q_SLOTS:
         QVERIFY(restored.has_value());
         QCOMPARE(restored->lines, input.lines);
         QCOMPARE(restored->offsetMs, 200);
+        QCOMPARE(restored->hasWords, true);
+        QCOMPARE(restored->metadata, input.metadata);
+    }
+
+    void providerMappingsPreferencesMissesAndOffsetsAreIndependent()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        const QString fingerprint = QStringLiteral("mediaSrc:multi-provider");
+        const TrackRef netease{QStringLiteral("netease"), QStringLiteral("1"), 0.91};
+        const TrackRef amll{QStringLiteral("amll"), QStringLiteral("ncm:1"), 0.95};
+
+        QVERIFY(store.mapFingerprint(fingerprint, netease, 100));
+        QVERIFY(store.mapFingerprint(fingerprint, amll, 101));
+        QCOMPARE(store.refForProvider(fingerprint, QStringLiteral("netease"))->trackId,
+                 QStringLiteral("1"));
+        QCOMPARE(store.refForProvider(fingerprint, QStringLiteral("amll"))->trackId,
+                 QStringLiteral("ncm:1"));
+        QCOMPARE(store.refForFingerprint(fingerprint)->provider, QStringLiteral("amll"));
+
+        QVERIFY(store.setPreferredProvider(fingerprint, QStringLiteral("netease"), 102));
+        QCOMPARE(store.preferredProvider(fingerprint).value_or(QString()),
+                 QStringLiteral("netease"));
+        QVERIFY(store.clearPreferredProvider(fingerprint));
+        QVERIFY(!store.preferredProvider(fingerprint).has_value());
+
+        QVERIFY(store.recordProviderMiss(fingerprint, QStringLiteral("netease"),
+                                         QStringLiteral("network"), QStringLiteral("v1"), 200));
+        QVERIFY(store.recordProviderMiss(fingerprint, QStringLiteral("amll"),
+                                         QStringLiteral("no-candidate"), QStringLiteral("index-a"), 200));
+        QVERIFY(store.freshProviderMiss(fingerprint, QStringLiteral("netease"),
+                                        QStringLiteral("v1"), 250).has_value());
+        QVERIFY(!store.freshProviderMiss(fingerprint, QStringLiteral("netease"),
+                                         QStringLiteral("v2"), 250).has_value());
+        QVERIFY(store.freshProviderMiss(fingerprint, QStringLiteral("amll"),
+                                        QStringLiteral("index-a"), 250).has_value());
+        QVERIFY(store.clearProviderMiss(fingerprint, QStringLiteral("netease")));
+        QVERIFY(!store.freshProviderMiss(fingerprint, QStringLiteral("netease"),
+                                         QStringLiteral("v1"), 250).has_value());
+        QVERIFY(store.freshProviderMiss(fingerprint, QStringLiteral("amll"),
+                                        QStringLiteral("index-a"), 250).has_value());
+
+        QVERIFY(store.setOffset(netease, 125));
+        QVERIFY(store.setOffset(amll, -250));
+        QCOMPARE(store.offset(netease), 125);
+        QCOMPARE(store.offset(amll), -250);
+    }
+
+    void preferredProviderPersistsAcrossStoreInstances()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("lyrics.db"));
+        {
+            LyricStore store(path);
+            QVERIFY(store.open());
+            QVERIFY(store.setPreferredProvider(QStringLiteral("mediaSrc:persist"),
+                                               QStringLiteral("amll")));
+        }
+        {
+            LyricStore store(path);
+            QVERIFY(store.open());
+            QCOMPARE(store.preferredProvider(QStringLiteral("mediaSrc:persist")),
+                     std::optional<QString>(QStringLiteral("amll")));
+        }
+    }
+
+    void migratesLegacySchemaWithoutTurningActualResultsIntoPreferences()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("lyrics.db"));
+        const QString connectionName = QStringLiteral("tst-lyricstore-legacy-%1")
+            .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
+        {
+            auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
+            database.setDatabaseName(path);
+            QVERIFY(database.open());
+            QSqlQuery query(database);
+            QVERIFY(query.exec(QStringLiteral(
+                "CREATE TABLE lyric (provider TEXT NOT NULL, track_id TEXT NOT NULL, "
+                "fetched_at INTEGER NOT NULL, origin TEXT, translation TEXT, "
+                "has_words INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(provider, track_id))")));
+            QVERIFY(query.exec(QStringLiteral(
+                "CREATE TABLE fingerprint (fingerprint TEXT PRIMARY KEY, provider TEXT NOT NULL, "
+                "track_id TEXT NOT NULL, matched_at INTEGER NOT NULL, score REAL)")));
+            QVERIFY(query.exec(QStringLiteral(
+                "CREATE TABLE miss (fingerprint TEXT PRIMARY KEY, tried_at INTEGER NOT NULL, reason TEXT)")));
+            QVERIFY(query.exec(QStringLiteral(
+                "CREATE TABLE offset (provider TEXT NOT NULL, track_id TEXT NOT NULL, "
+                "offset_ms INTEGER NOT NULL, PRIMARY KEY(provider, track_id))")));
+            QVERIFY(query.exec(QStringLiteral(
+                "INSERT INTO lyric VALUES('netease', 'legacy-track', 10, "
+                "'[{\"startMs\":0,\"endMs\":1000,\"text\":\"legacy line\",\"translation\":null,\"words\":null}]', "
+                "'[]', 0)")));
+            QVERIFY(query.exec(QStringLiteral(
+                "INSERT INTO fingerprint VALUES('mediaSrc:legacy', 'netease', "
+                "'legacy-track', 11, 0.9)")));
+            QVERIFY(query.exec(QStringLiteral(
+                "INSERT INTO miss VALUES('mediaSrc:old-miss', 12, 'no-candidate')")));
+            QVERIFY(query.exec(QStringLiteral(
+                "INSERT INTO offset VALUES('netease', 'legacy-track', 333)")));
+            database.close();
+        }
+        QSqlDatabase::removeDatabase(connectionName);
+
+        {
+            LyricStore store(path);
+            QString error;
+            QVERIFY2(store.open(&error), qPrintable(error));
+            const auto actual = store.refForFingerprint(QStringLiteral("mediaSrc:legacy"));
+            QVERIFY(actual.has_value());
+            QCOMPARE(store.refForProvider(QStringLiteral("mediaSrc:legacy"),
+                                          QStringLiteral("netease"))->trackId,
+                     QStringLiteral("legacy-track"));
+            QVERIFY(!store.preferredProvider(QStringLiteral("mediaSrc:legacy")).has_value());
+            QVERIFY(store.freshMiss(QStringLiteral("mediaSrc:old-miss"), 13).has_value());
+            QVERIFY(!store.freshProviderMiss(QStringLiteral("mediaSrc:old-miss"),
+                                             QStringLiteral("netease"),
+                                             QStringLiteral("netease"), 13).has_value());
+            const auto document = store.lyric(*actual);
+            QVERIFY(document.has_value());
+            QCOMPARE(document->lines.first().text, QStringLiteral("legacy line"));
+            QVERIFY(document->metadata.isEmpty());
+            QCOMPARE(document->offsetMs, 333);
+        }
+
+        // Schema migration is deliberately repeatable.
+        LyricStore reopened(path);
+        QString error;
+        QVERIFY2(reopened.open(&error), qPrintable(error));
+        QCOMPARE(reopened.refForProvider(QStringLiteral("mediaSrc:legacy"),
+                                         QStringLiteral("netease"))->trackId,
+                 QStringLiteral("legacy-track"));
     }
 
     void globalOffsetDefaults()

@@ -20,6 +20,7 @@ public:
 
 Q_SIGNALS:
     void activeStateChanged(bool trackChanged);
+    void playbackRoundStarted();
 
 private Q_SLOTS:
     void onNameOwnerChanged(const QString &service, const QString &oldOwner, const QString &newOwner);

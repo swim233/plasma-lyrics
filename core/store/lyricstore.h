@@ -18,6 +18,7 @@ struct TrackRef {
 struct MissRecord {
     QString reason;
     qint64 triedAt = 0;
+    QString cacheVersion;
 };
 
 class LyricStore
@@ -33,6 +34,23 @@ public:
     std::optional<LyricDocument> lyric(const TrackRef &ref) const;
     bool mapFingerprint(const QString &fingerprint, const TrackRef &ref, qint64 matchedAt = 0);
     std::optional<TrackRef> refForFingerprint(const QString &fingerprint) const;
+    bool mapProviderFingerprint(const QString &fingerprint, const TrackRef &ref,
+                                qint64 matchedAt = 0);
+    std::optional<TrackRef> refForProvider(const QString &fingerprint,
+                                           const QString &provider) const;
+    bool setPreferredProvider(const QString &fingerprint, const QString &provider,
+                              qint64 updatedAt = 0);
+    bool clearPreferredProvider(const QString &fingerprint);
+    std::optional<QString> preferredProvider(const QString &fingerprint) const;
+    bool recordProviderMiss(const QString &fingerprint, const QString &provider,
+                            const QString &reason, const QString &cacheVersion = {},
+                            qint64 triedAt = 0);
+    std::optional<MissRecord> freshProviderMiss(const QString &fingerprint,
+                                                const QString &provider,
+                                                const QString &cacheVersion,
+                                                qint64 now = 0,
+                                                qint64 ttlSeconds = 7 * 24 * 60 * 60) const;
+    bool clearProviderMiss(const QString &fingerprint, const QString &provider);
     bool recordMiss(const QString &fingerprint, const QString &reason, qint64 triedAt = 0);
     std::optional<MissRecord> freshMiss(const QString &fingerprint, qint64 now = 0,
                                         qint64 ttlSeconds = 7 * 24 * 60 * 60) const;
@@ -52,6 +70,7 @@ public:
 
 private:
     bool executeSchema(QString *error);
+    bool hasColumn(const QString &table, const QString &column) const;
     static qint64 epochSeconds(qint64 supplied);
     std::optional<QString> setting(const QString &key) const;
     bool setSetting(const QString &key, const QString &value);

@@ -7,6 +7,7 @@
 #include <QRegularExpression>
 #include <QUrl>
 #include <algorithm>
+#include <cmath>
 
 namespace PlasmaLyrics {
 namespace {
@@ -209,6 +210,56 @@ bool MprisPolicy::isPositionJump(qint64 previousPositionUs,
         + static_cast<qint64>((monotonicNs - previousMonotonicNs) / 1000.0 * rate);
     const qint64 deviation = positionUs - expected;
     return positionUs < previousPositionUs - 3000000 || qAbs(deviation) > 2000000;
+}
+
+bool MprisPolicy::isPlaybackRound(qint64 previousPositionUs,
+                                  qint64 previousMonotonicNs,
+                                  qint64 positionUs,
+                                  qint64 monotonicNs,
+                                  qint64 lengthUs,
+                                  double rate,
+                                  const QString &status)
+{
+    if (lengthUs <= 0 || previousPositionUs < 0 || positionUs < 0
+        || previousPositionUs > lengthUs || positionUs > lengthUs
+        || previousMonotonicNs <= 0 || monotonicNs <= previousMonotonicNs
+        || !std::isfinite(rate) || rate <= 0.0
+        || status != QStringLiteral("Playing")) {
+        return false;
+    }
+    const qint64 nearEndWindow = std::min<qint64>(15000000, lengthUs / 5);
+    const qint64 nearStartWindow = std::min<qint64>(10000000, lengthUs / 10);
+    if (previousPositionUs < lengthUs - nearEndWindow
+        || positionUs > nearStartWindow
+        || previousPositionUs - positionUs <= 3000000) {
+        return false;
+    }
+
+    // A real loop can only happen after monotonic playback at the current Rate
+    // has consumed the previous sample's remaining duration. This is the
+    // evidence that a simple "near end -> near start" test lacks. Keep a small
+    // crossing allowance for timestamp/reporting granularity, then require the
+    // observed opening position to agree with the expected wrapped phase.
+    const long double playedUs = static_cast<long double>(monotonicNs - previousMonotonicNs)
+        / 1000.0L * static_cast<long double>(rate);
+    if (!std::isfinite(playedUs)) {
+        return false;
+    }
+    const qint64 crossingAllowanceUs = std::min<qint64>(250000, lengthUs / 100);
+    const long double remainingUs = static_cast<long double>(lengthUs - previousPositionUs);
+    if (playedUs + crossingAllowanceUs < remainingUs) {
+        return false;
+    }
+
+    const long double expectedPhase = std::fmod(
+        static_cast<long double>(previousPositionUs) + playedUs,
+        static_cast<long double>(lengthUs));
+    const long double directDistance = std::fabs(
+        static_cast<long double>(positionUs) - expectedPhase);
+    const long double circularDistance = std::min(
+        directDistance, static_cast<long double>(lengthUs) - directDistance);
+    const qint64 phaseToleranceUs = std::clamp<qint64>(lengthUs / 20, 250000, 2000000);
+    return circularDistance <= static_cast<long double>(phaseToleranceUs);
 }
 
 } // namespace PlasmaLyrics

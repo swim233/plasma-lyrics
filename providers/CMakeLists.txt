@@ -7,14 +7,25 @@ target_sources(plasma_lyrics_providers PRIVATE
     local/localprovider.h
 )
 
-if(ENABLE_PROVIDER_NETEASE)
+if(ENABLE_PROVIDER_NETEASE OR ENABLE_PROVIDER_AMLL)
     find_package(Qt6 6.6 REQUIRED COMPONENTS Network)
+    target_link_libraries(plasma_lyrics_providers PUBLIC Qt6::Network)
+endif()
+
+if(ENABLE_PROVIDER_NETEASE)
     target_sources(plasma_lyrics_providers PRIVATE
         netease/neteaseprovider.cpp
         netease/neteaseprovider.h
     )
-    target_link_libraries(plasma_lyrics_providers PUBLIC Qt6::Network)
     target_compile_definitions(plasma_lyrics_providers PUBLIC PLASMA_LYRICS_HAVE_NETEASE=1)
+endif()
+
+if(ENABLE_PROVIDER_AMLL)
+    target_sources(plasma_lyrics_providers PRIVATE
+        amll/amllprovider.cpp
+        amll/amllprovider.h
+    )
+    target_compile_definitions(plasma_lyrics_providers PUBLIC PLASMA_LYRICS_HAVE_AMLL=1)
 endif()
 
 if(BUILD_TESTING AND ENABLE_PROVIDER_NETEASE)
@@ -36,4 +47,11 @@ if(BUILD_TESTING)
     add_executable(tst_localprovider tests/tst_localprovider.cpp)
     target_link_libraries(tst_localprovider PRIVATE plasma_lyrics_providers Qt6::Test)
     add_test(NAME tst_localprovider COMMAND tst_localprovider)
+endif()
+
+if(BUILD_TESTING AND ENABLE_PROVIDER_AMLL)
+    find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
+    add_executable(tst_amllprovider tests/tst_amllprovider.cpp)
+    target_link_libraries(tst_amllprovider PRIVATE plasma_lyrics_providers Qt6::Test)
+    add_test(NAME tst_amllprovider COMMAND tst_amllprovider)
 endif()

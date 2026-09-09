@@ -74,6 +74,11 @@ void MprisManager::addService(const QString &service)
             [this, service](bool metadata, bool anchor, bool becamePlaying) {
                 onPlayerChanged(service, metadata, anchor, becamePlaying);
             });
+    connect(player, &MprisPlayer::playbackRoundStarted, this, [this, service] {
+        if (service == m_activeService) {
+            Q_EMIT playbackRoundStarted();
+        }
+    });
     m_players.insert(service, player);
     selectActive(true);
 }

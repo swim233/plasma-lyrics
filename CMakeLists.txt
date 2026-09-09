@@ -8,6 +8,7 @@ option(BUILD_DAEMON "Build plasma-lyricsd" ON)
 option(BUILD_PLASMOID "Build the Plasma applet and QML module" ON)
 option(BUILD_IMPORT_WAYLYRICS "Build the one-shot waylyrics importer" ON)
 option(ENABLE_PROVIDER_NETEASE "Build the NetEase provider" ON)
+option(ENABLE_PROVIDER_AMLL "Build the AMLL TTML database provider" ON)
 
 if(BUILD_PLASMOID)
     find_package(ECM 6.0 REQUIRED NO_MODULE)

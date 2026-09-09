@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tt xmlns="http://www.w3.org/ns/ttml"
+    xmlns:ttm="http://www.w3.org/ns/ttml#metadata"
+    xmlns:itunes="http://itunes.apple.com/lyric-ttml-extensions"
+    xmlns:amll="http://www.example.com/ns/amll">
+  <head>
+    <metadata>
+      <iTunesMetadata xmlns="http://music.apple.com/lyric-ttml-internal">
+        <translations>
+          <translation type="subtitle" xml:lang="en-US">
+            <text for="L23">English translation</text>
+          </translation>
+          <translation type="replacement" xml:lang="zh-Hant-TW">
+            <text for="L23">繁體翻譯</text>
+          </translation>
+          <translation type="subtitle" xml:lang="zh-Hans-CN">
+            <text for="L23"><span>简体</span> <span>翻译</span></text>
+          </translation>
+        </translations>
+      </iTunesMetadata>
+    </metadata>
+  </head>
+  <body>
+    <div>
+      <p itunes:key="L23" ttm:agent="v1" begin="45.404" end="47.812"><span begin="45.404" end="46.000">word1</span> <span begin="46.000" end="47.812">word2</span></p>
+    </div>
+  </body>
+</tt>

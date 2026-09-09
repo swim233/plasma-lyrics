@@ -5,6 +5,7 @@
 #include "daemon/src/mpris/mpristypes.h"
 
 #include <QString>
+#include <QStringList>
 
 namespace PlasmaLyrics {
 
@@ -12,6 +13,12 @@ struct ResolvedLyric {
     QString state = QStringLiteral("searching");
     std::optional<TrackRef> ref;
     LyricDocument document;
+    // Empty means automatic/global ordering.  effectivePreferredProvider is
+    // the first configured source after applying that ordering.
+    QString preferredProvider;
+    QString effectivePreferredProvider;
+    bool temporaryFallback = false;
+    QStringList availableProviders;
 };
 
 class SnapshotWriter
@@ -31,4 +38,3 @@ private:
 };
 
 } // namespace PlasmaLyrics
-

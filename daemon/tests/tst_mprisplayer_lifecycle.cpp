@@ -5,6 +5,7 @@
 #include <QDBusMessage>
 #include <QEventLoop>
 #include <QPointer>
+#include <QSignalSpy>
 #include <QTest>
 #include <QTimer>
 
@@ -47,14 +48,16 @@ public:
     }
 
     QString playbackStatus() const { return QStringLiteral("Playing"); }
-    double rate() const { return 1.0; }
+    double rate() const { return m_rate; }
     qlonglong position() const { return m_position; }
     QVariantMap metadata() const { return m_metadata; }
 
     void setPosition(qlonglong position) { m_position = position; }
+    void setRate(double rate) { m_rate = rate; }
 
 private:
     qlonglong m_position = 12000000;
+    double m_rate = 1.0;
     QVariantMap m_metadata{
         {QStringLiteral("mpris:trackid"), QStringLiteral("/fake/constant-track-id")},
         {QStringLiteral("mpris:length"), qlonglong(240000000)},
@@ -89,6 +92,44 @@ public:
     }
 
     void setPosition(qlonglong position) { m_player->setPosition(position); }
+
+    bool announceRate(double rate)
+    {
+        m_player->setRate(rate);
+        QDBusMessage signal = QDBusMessage::createSignal(
+            QString::fromLatin1(fakePath),
+            QStringLiteral("org.freedesktop.DBus.Properties"),
+            QStringLiteral("PropertiesChanged"));
+        signal << QString::fromLatin1(playerInterface)
+               << QVariant::fromValue(QVariantMap{
+                      {QStringLiteral("Rate"), QVariant::fromValue(rate)}})
+               << QStringList{};
+        return QDBusConnection::sessionBus().send(signal);
+    }
+
+    bool announcePosition(qlonglong position)
+    {
+        setPosition(position);
+        QDBusMessage signal = QDBusMessage::createSignal(
+            QString::fromLatin1(fakePath),
+            QStringLiteral("org.freedesktop.DBus.Properties"),
+            QStringLiteral("PropertiesChanged"));
+        signal << QString::fromLatin1(playerInterface)
+               << QVariant::fromValue(QVariantMap{
+                      {QStringLiteral("Position"), QVariant::fromValue(position)}})
+               << QStringList{};
+        return QDBusConnection::sessionBus().send(signal);
+    }
+
+    bool announceSeeked(qlonglong position)
+    {
+        setPosition(position);
+        QDBusMessage signal = QDBusMessage::createSignal(
+            QString::fromLatin1(fakePath), QString::fromLatin1(playerInterface),
+            QStringLiteral("Seeked"));
+        signal << position;
+        return QDBusConnection::sessionBus().send(signal);
+    }
 
 private:
     QObject m_object;
@@ -224,6 +265,189 @@ private Q_SLOTS:
         QVERIFY(deletion.destroyed);
         QVERIFY(!deletion.timedOut);
         QVERIFY(guard.isNull());
+    }
+
+    void rateOnlyChangeAdvancesOldAnchorAndPublishesNewAnchor()
+    {
+        FakePlayer fake;
+        fake.setPosition(12000000);
+        QVERIFY(fake.announce());
+        qint64 now = 1000000000;
+        MprisPlayer player(QString::fromLatin1(fakeService), [&now] { return now; });
+        QSignalSpy changes(&player, &MprisPlayer::changed);
+        QSignalSpy rounds(&player, &MprisPlayer::playbackRoundStarted);
+
+        now = 3000000000;
+        QVERIFY(fake.announceRate(2.0));
+        QTRY_COMPARE(player.state().rate, 2.0);
+
+        QCOMPARE(player.state().positionUs, 14000000);
+        QCOMPARE(player.state().anchorMonotonicNs, now);
+        QCOMPARE(changes.size(), 1);
+        QVERIFY(!changes.first().at(0).toBool());
+        QVERIFY(changes.first().at(1).toBool());
+        QVERIFY(!changes.first().at(2).toBool());
+        QCOMPARE(rounds.size(), 0);
+    }
+
+    void rateOnlyChangeAdvancesFromTheLatestPolledSample()
+    {
+        FakePlayer fake;
+        fake.setPosition(12000000);
+        QVERIFY(fake.announce());
+        qint64 now = 1000000000;
+        MprisPlayer player(QString::fromLatin1(fakeService), [&now] { return now; });
+        QSignalSpy changes(&player, &MprisPlayer::changed);
+
+        now = 3000000000;
+        fake.setPosition(14000000);
+        player.pollPosition();
+        QCOMPARE(player.state().positionUs, 14000000);
+        QCOMPARE(changes.size(), 0);
+
+        now = 4000000000;
+        QVERIFY(fake.announceRate(2.0));
+        QTRY_COMPARE(player.state().rate, 2.0);
+
+        QCOMPARE(player.state().positionUs, 15000000);
+        QCOMPARE(player.state().anchorMonotonicNs, now);
+        QCOMPARE(changes.size(), 1);
+        QVERIFY(changes.first().at(1).toBool());
+    }
+
+    void endToStartWrapEmitsExactlyOnePlaybackRound()
+    {
+        FakePlayer fake;
+        fake.setPosition(239500000);
+        QVERIFY(fake.announce());
+        qint64 now = 1000000000;
+        MprisPlayer player(QString::fromLatin1(fakeService), [&now] { return now; });
+        QSignalSpy rounds(&player, &MprisPlayer::playbackRoundStarted);
+
+        now = 2000000000;
+        fake.setPosition(500000);
+        player.pollPosition();
+        QCOMPARE(rounds.size(), 1);
+
+        // The next poll samples the same opening position, so the one wrap
+        // cannot fan out into repeated provider retries.
+        player.pollPosition();
+        QCOMPARE(rounds.size(), 1);
+    }
+
+    void ordinaryBackwardSeekDoesNotStartAPlaybackRound()
+    {
+        FakePlayer fake;
+        fake.setPosition(120000000);
+        QVERIFY(fake.announce());
+        MprisPlayer player(QString::fromLatin1(fakeService));
+        QSignalSpy rounds(&player, &MprisPlayer::playbackRoundStarted);
+
+        fake.setPosition(1000000);
+        player.pollPosition();
+
+        QCOMPARE(rounds.size(), 0);
+        QCOMPARE(player.state().positionUs, 1000000);
+    }
+
+    void endToStartManualSeekThroughPollingDoesNotStartAPlaybackRound()
+    {
+        FakePlayer fake;
+        fake.setPosition(235000000);
+        QVERIFY(fake.announce());
+        qint64 now = 1000000000;
+        MprisPlayer player(QString::fromLatin1(fakeService), [&now] { return now; });
+        QSignalSpy rounds(&player, &MprisPlayer::playbackRoundStarted);
+
+        // Only 100 ms elapsed while five seconds remained: this is the P2
+        // regression's manual seek shape, despite crossing both old windows.
+        now = 1100000000;
+        fake.setPosition(1000000);
+        player.pollPosition();
+
+        QCOMPARE(rounds.size(), 0);
+        QCOMPARE(player.state().positionUs, 1000000);
+    }
+
+    void positionPropertyWrapEmitsOnePlaybackRound()
+    {
+        FakePlayer fake;
+        fake.setPosition(239500000);
+        QVERIFY(fake.announce());
+        qint64 now = 1000000000;
+        MprisPlayer player(QString::fromLatin1(fakeService), [&now] { return now; });
+        QSignalSpy rounds(&player, &MprisPlayer::playbackRoundStarted);
+
+        now = 2000000000;
+        QVERIFY(fake.announcePosition(500000));
+        QTRY_COMPARE(rounds.size(), 1);
+
+        // A following poll observes the already-updated opening sample and
+        // must not report the same wrap a second time.
+        player.pollPosition();
+        QCOMPARE(rounds.size(), 1);
+    }
+
+    void endToStartManualSeekThroughPositionPropertyDoesNotStartRound()
+    {
+        FakePlayer fake;
+        fake.setPosition(235000000);
+        QVERIFY(fake.announce());
+        qint64 now = 1000000000;
+        MprisPlayer player(QString::fromLatin1(fakeService), [&now] { return now; });
+        QSignalSpy rounds(&player, &MprisPlayer::playbackRoundStarted);
+
+        now = 1100000000;
+        QVERIFY(fake.announcePosition(1000000));
+        QTRY_COMPARE(player.state().positionUs, 1000000);
+        QCOMPARE(rounds.size(), 0);
+    }
+
+    void seekedSignalReanchorsAndSuppressesManualRound()
+    {
+        FakePlayer fake;
+        fake.setPosition(235000000);
+        QVERIFY(fake.announce());
+        qint64 now = 1000000000;
+        MprisPlayer player(QString::fromLatin1(fakeService), [&now] { return now; });
+        QSignalSpy rounds(&player, &MprisPlayer::playbackRoundStarted);
+        QSignalSpy changes(&player, &MprisPlayer::changed);
+
+        now = 1100000000;
+        QVERIFY(fake.announceSeeked(1000000));
+        QTRY_COMPARE(player.state().positionUs, 1000000);
+        QCOMPARE(changes.size(), 1);
+        QCOMPARE(rounds.size(), 0);
+
+        // Both supported Position observation paths are now based at the seek
+        // target and cannot report the same action as a round later.
+        now = 1200000000;
+        QVERIFY(fake.announcePosition(1100000));
+        QTRY_COMPARE(player.state().positionUs, 1100000);
+        QCOMPARE(rounds.size(), 0);
+        now = 1300000000;
+        player.pollPosition();
+        QCOMPARE(rounds.size(), 0);
+    }
+
+    void naturallyTimedSeekedAtLoopBoundaryEmitsExactlyOnce()
+    {
+        FakePlayer fake;
+        fake.setPosition(239500000);
+        QVERIFY(fake.announce());
+        qint64 now = 1000000000;
+        MprisPlayer player(QString::fromLatin1(fakeService), [&now] { return now; });
+        QSignalSpy rounds(&player, &MprisPlayer::playbackRoundStarted);
+
+        // Some implementations emit Seeked for the repeat boundary as well.
+        // The timing evidence keeps that real round while re-anchoring prevents
+        // its next Position observation from duplicating the event.
+        now = 2000000000;
+        QVERIFY(fake.announceSeeked(500000));
+        QTRY_COMPARE(rounds.size(), 1);
+        now = 2100000000;
+        player.pollPosition();
+        QCOMPARE(rounds.size(), 1);
     }
 };
 

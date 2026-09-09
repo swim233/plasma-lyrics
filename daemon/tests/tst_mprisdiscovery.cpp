@@ -2,6 +2,7 @@
 
 #include <QDBusAbstractAdaptor>
 #include <QDBusConnection>
+#include <QDBusMessage>
 #include <QSignalSpy>
 #include <QTest>
 
@@ -39,8 +40,10 @@ public:
     explicit PlayerAdaptor(QObject *parent) : QDBusAbstractAdaptor(parent) {}
 
     QString playbackStatus() const { return QStringLiteral("Playing"); }
-    double rate() const { return 1.0; }
-    qlonglong position() const { return 12000000; }
+    double rate() const { return m_rate; }
+    qlonglong position() const { return m_position; }
+    void setPosition(qlonglong position) { m_position = position; }
+    void setRate(double rate) { m_rate = rate; }
 
     // No xesam:url, so the policy falls through to the metadata heuristic:
     // a title, a real artist and a length are what make this count as music.
@@ -52,6 +55,10 @@ public:
                 {QStringLiteral("xesam:artist"), QStringList{QStringLiteral("Fake Artist")}},
                 {QStringLiteral("xesam:album"), QStringLiteral("Fake Album")}};
     }
+
+private:
+    qlonglong m_position = 12000000;
+    double m_rate = 1.0;
 };
 
 // Owns the exported object and the bus name, so a test can decide exactly when
@@ -60,9 +67,9 @@ class FakePlayer
 {
 public:
     FakePlayer()
+        : m_player(new PlayerAdaptor(&m_object))
     {
         new RootAdaptor(&m_object);
-        new PlayerAdaptor(&m_object);
     }
 
     ~FakePlayer() { retire(); }
@@ -80,8 +87,25 @@ public:
         QDBusConnection::sessionBus().unregisterObject(QString::fromLatin1(fakePath));
     }
 
+    void setPosition(qlonglong position) { m_player->setPosition(position); }
+
+    bool announceRate(double rate)
+    {
+        m_player->setRate(rate);
+        QDBusMessage signal = QDBusMessage::createSignal(
+            QString::fromLatin1(fakePath),
+            QStringLiteral("org.freedesktop.DBus.Properties"),
+            QStringLiteral("PropertiesChanged"));
+        signal << QStringLiteral("org.mpris.MediaPlayer2.Player")
+               << QVariant::fromValue(QVariantMap{
+                      {QStringLiteral("Rate"), QVariant::fromValue(rate)}})
+               << QStringList{};
+        return QDBusConnection::sessionBus().send(signal);
+    }
+
 private:
     QObject m_object;
+    PlayerAdaptor *m_player;
 };
 
 } // namespace
@@ -151,6 +175,75 @@ private Q_SLOTS:
         QVERIFY(!spy.wait(500));
         QVERIFY(!manager.activeState().has_value());
         QDBusConnection::sessionBus().unregisterService(QStringLiteral("org.example.NotAPlayer"));
+    }
+
+    void forwardsOneEventForEachEndToStartPlaybackRound()
+    {
+        MprisManager manager(PolicyConfig{});
+        QSignalSpy activeSpy(&manager, &MprisManager::activeStateChanged);
+        QSignalSpy roundSpy(&manager, &MprisManager::playbackRoundStarted);
+        FakePlayer player;
+        player.setPosition(239500000);
+        QVERIFY(player.announce());
+        QVERIFY(activeSpy.wait());
+
+        player.setPosition(500000);
+        QTRY_COMPARE_WITH_TIMEOUT(roundSpy.size(), 1, 2500);
+        QTest::qWait(1200);
+        QCOMPARE(roundSpy.size(), 1);
+    }
+
+    void rateOnlyChangePublishesAnUpdatedActiveState()
+    {
+        MprisManager manager(PolicyConfig{});
+        QSignalSpy activeSpy(&manager, &MprisManager::activeStateChanged);
+        QSignalSpy roundSpy(&manager, &MprisManager::playbackRoundStarted);
+        FakePlayer player;
+        QVERIFY(player.announce());
+        QVERIFY(activeSpy.wait());
+        const auto before = manager.activeState();
+        QVERIFY(before.has_value());
+
+        activeSpy.clear();
+        QTest::qWait(20);
+        QVERIFY(player.announceRate(1.5));
+        QVERIFY(activeSpy.wait());
+
+        const auto after = manager.activeState();
+        QVERIFY(after.has_value());
+        QCOMPARE(after->rate, 1.5);
+        QVERIFY(after->anchorMonotonicNs > before->anchorMonotonicNs);
+        QVERIFY(after->positionUs >= before->positionUs);
+        QCOMPARE(roundSpy.size(), 0);
+    }
+
+    void rateOnlyChangeAfterManagerPollUsesThePolledPositionOnce()
+    {
+        MprisManager manager(PolicyConfig{});
+        QSignalSpy activeSpy(&manager, &MprisManager::activeStateChanged);
+        QSignalSpy roundSpy(&manager, &MprisManager::playbackRoundStarted);
+        FakePlayer player;
+        QVERIFY(player.announce());
+        QVERIFY(activeSpy.wait());
+
+        // This is the position expected after roughly one second at Rate=1.
+        // Wait until the manager's real timer has observed it without a jump.
+        player.setPosition(13000000);
+        QTRY_VERIFY_WITH_TIMEOUT(manager.activeState().has_value()
+                                     && manager.activeState()->positionUs == 13000000,
+                                 2500);
+
+        activeSpy.clear();
+        QVERIFY(player.announceRate(2.0));
+        QVERIFY(activeSpy.wait());
+
+        const auto after = manager.activeState();
+        QVERIFY(after.has_value());
+        QCOMPARE(after->rate, 2.0);
+        QVERIFY(after->positionUs >= 13000000);
+        QVERIFY2(after->positionUs < 13500000,
+                 "Rate update must not replay the interval already consumed by polling");
+        QCOMPARE(roundSpy.size(), 0);
     }
 };
 

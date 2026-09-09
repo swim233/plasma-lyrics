@@ -16,6 +16,10 @@ struct ProviderSearchResult {
     // True only when the request failed in transport. HTTP and payload
     // parsing errors can carry error text without becoming network-error.
     bool transportFailed = false;
+    // Immutable identity of the provider index/source snapshot that produced
+    // candidates. Resolver must use this value, not a later cacheVersion(),
+    // when persisting a fetch miss after an asynchronous refresh.
+    QString cacheVersion;
 };
 
 struct ProviderFetchResult {
@@ -36,6 +40,10 @@ public:
     virtual QString id() const = 0;
     virtual bool isConfigured() const = 0;
     virtual bool supportsSearch() const { return true; }
+    virtual MatchPolicy matchPolicy() const { return MatchPolicy::Default; }
+    // Included in provider-scoped negative-cache rows.  Changing a source
+    // endpoint or index revision makes older misses inapplicable.
+    virtual QString cacheVersion() const { return id(); }
     // Network-backed providers must complete through these callbacks without
     // spinning a nested event loop; Resolver discards callbacks from requests
     // that are no longer current.

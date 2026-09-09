@@ -87,7 +87,15 @@ bool SnapshotWriter::write(const std::optional<MprisState> &player,
     root.insert(QStringLiteral("lyric"),
                 QJsonObject{{QStringLiteral("state"), lyric.state},
                             {QStringLiteral("offsetMs"), lyric.document.offsetMs},
-                            {QStringLiteral("lines"), lines}});
+                            {QStringLiteral("lines"), lines},
+                            {QStringLiteral("preferredProvider"), lyric.preferredProvider},
+                            {QStringLiteral("effectivePreferredProvider"), lyric.effectivePreferredProvider},
+                            {QStringLiteral("actualProvider"),
+                             lyric.ref ? lyric.ref->provider : QString()},
+                            {QStringLiteral("temporaryFallback"), lyric.temporaryFallback},
+                            {QStringLiteral("availableProviders"),
+                             QJsonArray::fromStringList(lyric.availableProviders)},
+                            {QStringLiteral("metadata"), lyric.document.metadata}});
 
     QSaveFile file(m_path);
     if (!file.open(QIODevice::WriteOnly)

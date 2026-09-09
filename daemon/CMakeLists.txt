@@ -3,6 +3,8 @@ find_package(Qt6 6.6 REQUIRED COMPONENTS DBus Network)
 add_executable(plasma-lyricsd
     src/config.cpp
     src/config.h
+    src/controlservice.cpp
+    src/controlservice.h
     src/main.cpp
     src/resolver.cpp
     src/resolver.h
@@ -96,4 +98,33 @@ if(BUILD_TESTING)
         Qt6::Test
     )
     add_test(NAME tst_resolver COMMAND tst_resolver)
+
+    if(ENABLE_PROVIDER_AMLL)
+        set(_explain_expected_provider amll)
+    elseif(ENABLE_PROVIDER_NETEASE)
+        set(_explain_expected_provider netease)
+    else()
+        set(_explain_expected_provider none)
+    endif()
+    add_test(NAME explain-provider-selection
+        COMMAND ${CMAKE_COMMAND}
+            -DDAEMON=$<TARGET_FILE:plasma-lyricsd>
+            -DEXPECTED_PROVIDER=${_explain_expected_provider}
+            -DCONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/explain-test-config
+            -DCACHE_HOME=${CMAKE_CURRENT_BINARY_DIR}/explain-test-cache
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_explain_provider.cmake)
+
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_executable(tst_controlservice
+            tests/tst_controlservice.cpp
+            src/controlservice.cpp
+            src/resolver.cpp
+            src/snapshot.cpp
+        )
+        target_include_directories(tst_controlservice PRIVATE ${CMAKE_SOURCE_DIR})
+        target_link_libraries(tst_controlservice PRIVATE
+            plasma_lyrics_core plasma_lyrics_providers Qt6::DBus Qt6::Test)
+        add_test(NAME tst_controlservice
+                 COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_controlservice>)
+    endif()
 endif()

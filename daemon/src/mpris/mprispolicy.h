@@ -36,7 +36,13 @@ public:
                                qint64 monotonicNs,
                                double rate,
                                const QString &status);
+    static bool isPlaybackRound(qint64 previousPositionUs,
+                                qint64 previousMonotonicNs,
+                                qint64 positionUs,
+                                qint64 monotonicNs,
+                                qint64 lengthUs,
+                                double rate,
+                                const QString &status);
 };
 
 } // namespace PlasmaLyrics
-

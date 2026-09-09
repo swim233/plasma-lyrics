@@ -5,6 +5,8 @@ add_library(plasma_lyrics_core STATIC
     lyric/lrcparser.h
     lyric/timeline.cpp
     lyric/timeline.h
+    lyric/ttmlparser.cpp
+    lyric/ttmlparser.h
     match/matcher.cpp
     match/matcher.h
     store/lyricstore.cpp
@@ -19,4 +21,3 @@ if(BUILD_TESTING)
     find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
     add_subdirectory(tests)
 endif()
-

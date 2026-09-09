@@ -40,6 +40,48 @@ private Q_SLOTS:
         QVERIFY(root.value(QStringLiteral("lyric")).toObject().value(QStringLiteral("lines")).toArray().first()
                     .toObject().value(QStringLiteral("words")).isNull());
     }
+
+    void writesProviderStateAndDocumentProvenanceWithoutChangingSchema()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        LyricDocument document;
+        document.hasWords = true;
+        document.lines = {{1000, 2000, QStringLiteral("word line"),
+                           QStringLiteral("translated"),
+                           QList<LyricWord>{{1000, 1500, QStringLiteral("word")},
+                                            {1500, 2000, QStringLiteral(" line")}}}};
+        document.metadata = {{QStringLiteral("source"), QStringLiteral("amll")},
+                             {QStringLiteral("contentId"), QStringLiteral("123.ttml")}};
+        ResolvedLyric lyric{QStringLiteral("ok"),
+                            TrackRef{QStringLiteral("netease"), QStringLiteral("1"), 1},
+                            document,
+                            QStringLiteral("amll"), QStringLiteral("amll"), true,
+                            {QStringLiteral("netease"), QStringLiteral("amll")}};
+        MprisState player;
+        player.fingerprint = QStringLiteral("mediaSrc:test");
+
+        SnapshotWriter writer(path);
+        QVERIFY(writer.write(player, lyric));
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const auto root = QJsonDocument::fromJson(file.readAll()).object();
+        QCOMPARE(root.value(QStringLiteral("schema")).toInt(), 1);
+        const auto stored = root.value(QStringLiteral("lyric")).toObject();
+        QCOMPARE(stored.value(QStringLiteral("preferredProvider")).toString(),
+                 QStringLiteral("amll"));
+        QCOMPARE(stored.value(QStringLiteral("effectivePreferredProvider")).toString(),
+                 QStringLiteral("amll"));
+        QCOMPARE(stored.value(QStringLiteral("actualProvider")).toString(),
+                 QStringLiteral("netease"));
+        QVERIFY(stored.value(QStringLiteral("temporaryFallback")).toBool());
+        QCOMPARE(stored.value(QStringLiteral("availableProviders")).toArray().size(), 2);
+        QCOMPARE(stored.value(QStringLiteral("metadata")).toObject(), document.metadata);
+        const auto line = stored.value(QStringLiteral("lines")).toArray().first().toObject();
+        QCOMPARE(line.value(QStringLiteral("translation")).toString(),
+                 QStringLiteral("translated"));
+        QCOMPARE(line.value(QStringLiteral("words")).toArray().size(), 2);
+    }
 };
 
 QTEST_GUILESS_MAIN(SnapshotTest)

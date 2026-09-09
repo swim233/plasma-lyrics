@@ -9,6 +9,7 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QPointer>
+#include <QSet>
 
 namespace PlasmaLyrics {
 
@@ -16,8 +17,15 @@ struct Resolver::Request {
     quint64 generation = 0;
     MprisState state;
     TrackQuery query;
+    QList<Provider *> providers;
     qsizetype providerIndex = 0;
     bool networkFailed = false;
+    bool sawEmptyLyric = false;
+    bool keepExisting = false;
+    bool force = false;
+    QString manualPreference;
+    QString effectivePreference;
+    QSet<QString> attemptedProviderVersions;
 };
 
 namespace {
@@ -34,6 +42,36 @@ Resolver::Resolver(LyricStore &store, QList<Provider *> providers, bool filterCr
     , m_providers(std::move(providers))
     , m_filterCredits(filterCredits)
 {
+}
+
+QStringList Resolver::availableProviders() const
+{
+    QStringList result;
+    for (auto *provider : m_providers) {
+        if (provider && provider->isConfigured() && provider->supportsSearch()
+            && !result.contains(provider->id())) {
+            result.append(provider->id());
+        }
+    }
+    return result;
+}
+
+QList<Provider *> Resolver::searchChain(const QString &preferred) const
+{
+    QList<Provider *> result;
+    auto appendOnce = [&](Provider *provider) {
+        if (provider && provider->isConfigured() && provider->supportsSearch()
+            && !result.contains(provider)) {
+            result.append(provider);
+        }
+    };
+    if (!preferred.isEmpty()) {
+        for (auto *provider : m_providers) {
+            if (provider && provider->id() == preferred) appendOnce(provider);
+        }
+    }
+    for (auto *provider : m_providers) appendOnce(provider);
+    return result;
 }
 
 std::optional<LyricDocument> Resolver::overridden(const TrackRef &ref) const
@@ -56,6 +94,17 @@ LyricDocument Resolver::forDisplay(LyricDocument document, const TrackRef &ref) 
     }
     document.offsetMs = m_store.offset(ref);
     return document;
+}
+
+ResolvedLyric Resolver::resolvedLyric(const std::shared_ptr<Request> &request,
+                                      const QString &state,
+                                      const std::optional<TrackRef> &ref,
+                                      LyricDocument document) const
+{
+    const bool fallback = ref && !request->effectivePreference.isEmpty()
+        && ref->provider != request->effectivePreference;
+    return {state, ref, std::move(document), request->manualPreference,
+            request->effectivePreference, fallback, availableProviders()};
 }
 
 QStringList Resolver::legacyWaylyricsIds(const MprisState &state)
@@ -117,91 +166,171 @@ void Resolver::cancel()
 
 void Resolver::resolve(const MprisState &state)
 {
+    resolve(state, ResolveOptions{});
+}
+
+void Resolver::resolve(const MprisState &state, ResolveOptions options)
+{
     const auto request = std::make_shared<Request>();
     request->generation = ++m_generation;
     request->state = state;
+    request->force = options.force;
+    request->keepExisting = options.existing
+        && options.existing->state == QStringLiteral("ok")
+        && options.existing->ref.has_value()
+        && !options.existing->document.lines.isEmpty();
+    request->manualPreference = m_store.preferredProvider(state.fingerprint).value_or(QString());
+    request->providers = searchChain(request->manualPreference);
+    if (!request->providers.isEmpty()) {
+        request->effectivePreference = request->providers.first()->id();
+    }
     qInfo().noquote() << QStringLiteral("resolve: fingerprint=%1 platform=%2 music=%3")
                              .arg(state.fingerprint,
                                   state.platform.isEmpty() ? QStringLiteral("unknown") : state.platform,
                                   state.music ? QStringLiteral("true") : QStringLiteral("false"));
     if (!state.music) {
         qInfo() << "state=filtered";
-        finish(request, {QStringLiteral("filtered"), std::nullopt, {}});
+        finish(request, resolvedLyric(request, QStringLiteral("filtered"), std::nullopt));
         return;
     }
-    if (const auto mapped = m_store.refForFingerprint(state.fingerprint)) {
-        if (const auto override = overridden(*mapped)) {
-            const QString resultState = override->lines.isEmpty()
-                ? QStringLiteral("no-lyric") : QStringLiteral("ok");
-            qInfo().noquote() << QStringLiteral("override hit: %1/%2 lines=%3")
-                                     .arg(mapped->provider, mapped->trackId)
-                                     .arg(override->lines.size());
-            qInfo().noquote() << QStringLiteral("state=") + resultState;
-            finish(request, {resultState, *mapped, *override});
-            return;
+    if (!request->force) {
+        const auto preferredMapped = !request->effectivePreference.isEmpty()
+            ? m_store.refForProvider(state.fingerprint, request->effectivePreference)
+            : std::nullopt;
+        if (preferredMapped) {
+            if (const auto override = overridden(*preferredMapped)) {
+                if (!override->lines.isEmpty()) {
+                    mapFingerprint(state.fingerprint, *preferredMapped);
+                    finish(request, resolvedLyric(request, QStringLiteral("ok"),
+                                                  *preferredMapped, *override));
+                    return;
+                }
+            }
+            if (const auto cached = m_store.lyric(*preferredMapped)) {
+                auto display = forDisplay(*cached, *preferredMapped);
+                if (!display.lines.isEmpty()) {
+                    mapFingerprint(state.fingerprint, *preferredMapped);
+                    finish(request, resolvedLyric(request, QStringLiteral("ok"),
+                                                  *preferredMapped, std::move(display)));
+                    return;
+                }
+            }
         }
-        if (const auto cached = m_store.lyric(*mapped)) {
-            auto display = forDisplay(*cached, *mapped);
-            const QString resultState = display.lines.isEmpty()
-                ? QStringLiteral("no-lyric") : QStringLiteral("ok");
-            qInfo().noquote() << QStringLiteral("cache hit: %1/%2 lines=%3")
-                                     .arg(mapped->provider, mapped->trackId)
-                                     .arg(display.lines.size());
-            qInfo().noquote() << QStringLiteral("state=") + resultState;
-            finish(request, {resultState, *mapped, display});
-            return;
+    }
+    if (!request->force) {
+        if (const auto mapped = m_store.refForFingerprint(state.fingerprint)) {
+            bool publishedExisting = false;
+            if (const auto override = overridden(*mapped)) {
+                const QString resultState = override->lines.isEmpty()
+                    ? QStringLiteral("no-lyric") : QStringLiteral("ok");
+                qInfo().noquote() << QStringLiteral("override hit: %1/%2 lines=%3")
+                                         .arg(mapped->provider, mapped->trackId)
+                                         .arg(override->lines.size());
+                qInfo().noquote() << QStringLiteral("state=") + resultState;
+                if (!override->lines.isEmpty()) {
+                    finish(request, resolvedLyric(request, resultState, *mapped, *override));
+                    if (mapped->provider == request->effectivePreference) return;
+                    request->keepExisting = true;
+                    request->providers = searchChain(request->effectivePreference).mid(0, 1);
+                    publishedExisting = true;
+                }
+            }
+            if (!publishedExisting) {
+                if (const auto cached = m_store.lyric(*mapped)) {
+                    auto display = forDisplay(*cached, *mapped);
+                    const QString resultState = display.lines.isEmpty()
+                        ? QStringLiteral("no-lyric") : QStringLiteral("ok");
+                    qInfo().noquote() << QStringLiteral("cache hit: %1/%2 lines=%3")
+                                             .arg(mapped->provider, mapped->trackId)
+                                             .arg(display.lines.size());
+                    qInfo().noquote() << QStringLiteral("state=") + resultState;
+                    if (!display.lines.isEmpty()) {
+                        finish(request, resolvedLyric(request, resultState, *mapped, display));
+                        if (mapped->provider == request->effectivePreference) return;
+                        request->keepExisting = true;
+                        request->providers = searchChain(request->effectivePreference).mid(0, 1);
+                        publishedExisting = true;
+                    }
+                }
+            }
+            if (!publishedExisting) {
+                qInfo().noquote() << QStringLiteral("cache lyric missing: %1/%2")
+                                         .arg(mapped->provider, mapped->trackId);
+            }
+        } else {
+            qInfo().noquote() << QStringLiteral("cache mapping missing: ") + state.fingerprint;
         }
-        qInfo().noquote() << QStringLiteral("cache lyric missing: %1/%2")
-                                 .arg(mapped->provider, mapped->trackId);
-    } else {
-        qInfo().noquote() << QStringLiteral("cache mapping missing: ") + state.fingerprint;
     }
 
-    for (const auto &legacyId : legacyWaylyricsIds(state)) {
-        const TrackRef legacy{QStringLiteral("waylyrics"), legacyId, 1.0};
-        if (const auto imported = m_store.lyric(legacy)) {
-            if (!m_store.mapFingerprint(state.fingerprint, legacy)) {
-                qWarning().noquote() << QStringLiteral("cache map failed: fingerprint=%1 ref=%2/%3")
-                                            .arg(state.fingerprint, legacy.provider, legacy.trackId);
+    if (!request->force && !request->keepExisting) {
+        for (const auto &legacyId : legacyWaylyricsIds(state)) {
+            const TrackRef legacy{QStringLiteral("waylyrics"), legacyId, 1.0};
+            if (const auto imported = m_store.lyric(legacy)) {
+                mapFingerprint(state.fingerprint, legacy);
+                auto display = forDisplay(*imported, legacy);
+                const QString resultState = display.lines.isEmpty()
+                    ? QStringLiteral("no-lyric") : QStringLiteral("ok");
+                qInfo().noquote() << QStringLiteral("cache hit: %1/%2 lines=%3")
+                                         .arg(legacy.provider, legacy.trackId)
+                                         .arg(display.lines.size());
+                qInfo().noquote() << QStringLiteral("state=") + resultState;
+                if (!display.lines.isEmpty()) {
+                    finish(request, resolvedLyric(request, resultState, legacy, display));
+                    request->keepExisting = true;
+                    request->providers = searchChain(request->effectivePreference).mid(0, 1);
+                }
+                break;
             }
-            auto display = forDisplay(*imported, legacy);
-            const QString resultState = display.lines.isEmpty()
-                ? QStringLiteral("no-lyric") : QStringLiteral("ok");
-            qInfo().noquote() << QStringLiteral("cache hit: %1/%2 lines=%3")
-                                     .arg(legacy.provider, legacy.trackId)
-                                     .arg(display.lines.size());
-            qInfo().noquote() << QStringLiteral("state=") + resultState;
-            finish(request, {resultState, legacy, display});
-            return;
         }
     }
     qInfo() << "cache miss";
 
-    // A miss only suppresses another network lookup. Local overrides, normal
-    // cache entries, and a cache imported after the miss must remain usable.
-    const qint64 now = QDateTime::currentSecsSinceEpoch();
-    if (const auto miss = m_store.freshMiss(state.fingerprint, now,
-                                            noCandidateMissTtlSeconds)) {
-        const bool networkMiss = miss->reason == QStringLiteral("network");
-        const qint64 ttlSeconds = networkMiss
-            ? networkMissTtlSeconds : noCandidateMissTtlSeconds;
-        const qint64 ageSeconds = now - miss->triedAt;
-        if (ageSeconds < ttlSeconds) {
-            qInfo().noquote() << QStringLiteral("fresh miss: reason=%1 age=%2s ttl=%3")
-                                     .arg(miss->reason)
-                                     .arg(ageSeconds)
-                                     .arg(networkMiss ? QStringLiteral("300s")
-                                                      : QStringLiteral("7d"));
-            const QString resultState = networkMiss
-                ? QStringLiteral("network-error") : QStringLiteral("not-found");
-            qInfo().noquote() << QStringLiteral("state=") + resultState;
-            finish(request, {resultState, std::nullopt, {}});
-            return;
-        }
-    }
-
     request->query = {state.title, state.artists, state.album, state.lengthUs / 1000};
     continueWithProvider(request);
+}
+
+void Resolver::recordProviderFailure(const std::shared_ptr<Request> &request,
+                                     Provider *provider, const QString &reason,
+                                     const QString &cacheVersion)
+{
+    if (!m_store.recordProviderMiss(request->state.fingerprint, provider->id(), reason,
+                                    cacheVersion)) {
+        qWarning().noquote() << QStringLiteral("provider miss record failed: fingerprint=%1 provider=%2 reason=%3")
+                                    .arg(request->state.fingerprint, provider->id(), reason);
+    }
+}
+
+bool Resolver::retryProviderIfIndexChanged(const std::shared_ptr<Request> &request,
+                                           Provider *provider,
+                                           const QString &attemptedCacheVersion)
+{
+    const QString currentCacheVersion = provider->cacheVersion();
+    const QString currentAttempt = provider->id() + QLatin1Char('\x1f') + currentCacheVersion;
+    if (attemptedCacheVersion.isEmpty() || currentCacheVersion == attemptedCacheVersion
+        || request->attemptedProviderVersions.contains(currentAttempt)) {
+        return false;
+    }
+    qInfo().noquote() << QStringLiteral("provider index changed during resolve: provider=%1 old=%2 new=%3; retrying")
+                             .arg(provider->id(), attemptedCacheVersion, currentCacheVersion);
+    request->providers.insert(request->providerIndex, provider);
+    continueWithProvider(request);
+    return true;
+}
+
+void Resolver::mapFingerprint(const QString &fingerprint, const TrackRef &ref)
+{
+    if (!m_store.mapFingerprint(fingerprint, ref)) {
+        qWarning().noquote() << QStringLiteral("cache map failed: fingerprint=%1 ref=%2/%3")
+                                    .arg(fingerprint, ref.provider, ref.trackId);
+    }
+}
+
+void Resolver::clearProviderMiss(const QString &fingerprint, const QString &provider)
+{
+    if (!m_store.clearProviderMiss(fingerprint, provider)) {
+        qWarning().noquote() << QStringLiteral("provider miss clear failed: fingerprint=%1 provider=%2")
+                                    .arg(fingerprint, provider);
+    }
 }
 
 void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
@@ -210,55 +339,104 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
         return;
     }
     Provider *provider = nullptr;
-    while (request->providerIndex < m_providers.size()) {
-        auto *candidate = m_providers[request->providerIndex++];
+    while (request->providerIndex < request->providers.size()) {
+        auto *candidate = request->providers[request->providerIndex++];
         if (!candidate || !candidate->isConfigured() || !candidate->supportsSearch()) {
             continue;
         }
+        const QString attempt = candidate->id() + QLatin1Char('\x1f') + candidate->cacheVersion();
+        if (request->attemptedProviderVersions.contains(attempt)) {
+            continue;
+        }
+        request->attemptedProviderVersions.insert(attempt);
         provider = candidate;
         break;
     }
     if (!provider) {
-        const QString missReason = request->networkFailed
-            ? QStringLiteral("network") : QStringLiteral("no-candidate");
-        if (m_store.recordMiss(request->state.fingerprint, missReason)) {
-            qInfo().noquote() << QStringLiteral("record miss: reason=") + missReason;
-        } else {
-            qWarning().noquote() << QStringLiteral("cache miss record failed: fingerprint=%1 reason=%2")
-                                        .arg(request->state.fingerprint, missReason);
-        }
+        if (request->keepExisting) return;
         const QString resultState = request->networkFailed
-            ? QStringLiteral("network-error") : QStringLiteral("not-found");
+            ? QStringLiteral("network-error")
+            : request->sawEmptyLyric ? QStringLiteral("no-lyric")
+                                     : QStringLiteral("not-found");
         qInfo().noquote() << QStringLiteral("state=") + resultState;
-        finish(request, {resultState, std::nullopt, {}});
+        finish(request, resolvedLyric(request, resultState, std::nullopt));
         return;
     }
 
+
+    if (!request->force) {
+        const qint64 now = QDateTime::currentSecsSinceEpoch();
+        // Read once with the longest TTL, then apply the reason-specific
+        // baseline.  A cache/index version mismatch makes the method return
+        // empty and immediately re-enables this provider.
+        if (const auto miss = m_store.freshProviderMiss(
+                request->state.fingerprint, provider->id(), provider->cacheVersion(), now,
+                noCandidateMissTtlSeconds)) {
+            const qint64 ttl = miss->reason == QStringLiteral("network")
+                ? networkMissTtlSeconds : noCandidateMissTtlSeconds;
+            if (now - miss->triedAt < ttl) {
+                qInfo().noquote() << QStringLiteral("fresh provider miss: provider=%1 reason=%2")
+                                         .arg(provider->id(), miss->reason);
+                request->networkFailed |= miss->reason == QStringLiteral("network");
+                request->sawEmptyLyric |= miss->reason == QStringLiteral("empty");
+                continueWithProvider(request);
+                return;
+            }
+        }
+        if (const auto mapped = m_store.refForProvider(request->state.fingerprint, provider->id())) {
+            if (const auto cached = m_store.lyric(*mapped)) {
+                auto display = forDisplay(*cached, *mapped);
+                if (!display.lines.isEmpty()) {
+                    mapFingerprint(request->state.fingerprint, *mapped);
+                    finish(request, resolvedLyric(request, QStringLiteral("ok"), *mapped,
+                                                  std::move(display)));
+                    return;
+                }
+            }
+        }
+    }
+
     const QPointer<Resolver> self(this);
+    const QString searchCacheVersion = provider->cacheVersion();
     provider->search(request->query,
-                     [self, request, provider](ProviderSearchResult result) mutable {
+                     [self, request, provider, searchCacheVersion](ProviderSearchResult result) mutable {
         if (!self || request->generation != self->m_generation) {
             return;
         }
+        const QString resultCacheVersion = result.cacheVersion.isEmpty()
+            ? searchCacheVersion : result.cacheVersion;
         if (!result.error.isEmpty()) {
             qInfo().noquote() << QStringLiteral("search failed: %1: %2")
                                      .arg(provider->id(), result.error);
             request->networkFailed |= result.transportFailed;
+            self->recordProviderFailure(request, provider,
+                                        result.transportFailed ? QStringLiteral("network")
+                                                               : QStringLiteral("search-error"),
+                                        resultCacheVersion);
+            if (self->retryProviderIfIndexChanged(request, provider, resultCacheVersion)) return;
             self->continueWithProvider(request);
             return;
         }
         qInfo().noquote() << explainMatch(request->query, result.candidates,
-                                           request->state.platform == QStringLiteral("apple"));
-        const auto ranked = rankCandidates(request->query, result.candidates);
+                                           request->state.platform == QStringLiteral("apple"), true,
+                                           provider->matchPolicy());
+        const auto ranked = rankCandidates(request->query, result.candidates,
+                                           provider->matchPolicy());
         const auto chosen = chooseMatch(ranked,
                                         request->state.platform == QStringLiteral("apple"));
         if (!chosen) {
+            self->recordProviderFailure(request, provider, QStringLiteral("no-candidate"),
+                                        resultCacheVersion);
+            if (self->retryProviderIfIndexChanged(request, provider, resultCacheVersion)) return;
             self->continueWithProvider(request);
             return;
         }
         const TrackRef ref{provider->id(), chosen->candidate.trackId, chosen->score.total};
-        provider->fetch(ref.trackId,
-                        [self, request, ref](ProviderFetchResult result) mutable {
+        const QString contentId = chosen->candidate.contentId.isEmpty()
+            ? chosen->candidate.trackId : chosen->candidate.contentId;
+        provider->fetch(contentId,
+                        [self, request, ref, provider,
+                         resultCacheVersion](ProviderFetchResult result) mutable {
             if (!self || request->generation != self->m_generation) {
                 return;
             }
@@ -268,6 +446,12 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
                                               result.error.isEmpty()
                                                   ? QStringLiteral("unknown error") : result.error);
                 request->networkFailed |= result.transportFailed;
+                self->recordProviderFailure(request, provider,
+                                            result.transportFailed ? QStringLiteral("network")
+                                                                   : QStringLiteral("fetch-error"),
+                                            resultCacheVersion);
+                if (self->retryProviderIfIndexChanged(request, provider,
+                                                      resultCacheVersion)) return;
                 self->continueWithProvider(request);
                 return;
             }
@@ -275,21 +459,37 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
                                      .arg(result.document->lines.size())
                                      .arg(result.document->hasWords
                                               ? QStringLiteral("true") : QStringLiteral("false"));
+            if (result.document->lines.isEmpty()) {
+                request->sawEmptyLyric = true;
+                self->recordProviderFailure(request, provider, QStringLiteral("empty"),
+                                            resultCacheVersion);
+                if (self->retryProviderIfIndexChanged(request, provider,
+                                                      resultCacheVersion)) return;
+                self->continueWithProvider(request);
+                return;
+            }
+            auto finalDocument = self->forDisplay(*result.document, ref);
+            if (finalDocument.lines.isEmpty()) {
+                request->sawEmptyLyric = true;
+                self->recordProviderFailure(request, provider, QStringLiteral("empty"),
+                                            resultCacheVersion);
+                if (self->retryProviderIfIndexChanged(request, provider,
+                                                      resultCacheVersion)) return;
+                self->continueWithProvider(request);
+                return;
+            }
             if (!self->m_store.putLyric(ref, *result.document)) {
                 qWarning().noquote() << QStringLiteral("cache put failed: %1/%2")
                                             .arg(ref.provider, ref.trackId);
             }
-            if (!self->m_store.mapFingerprint(request->state.fingerprint, ref)) {
-                qWarning().noquote() << QStringLiteral("cache map failed: fingerprint=%1 ref=%2/%3")
-                                            .arg(request->state.fingerprint, ref.provider, ref.trackId);
-            }
-            auto finalDocument = self->forDisplay(*result.document, ref);
+            self->mapFingerprint(request->state.fingerprint, ref);
+            self->clearProviderMiss(request->state.fingerprint, ref.provider);
             qInfo().noquote() << QStringLiteral("after filterLeadingCredits: lines=%1")
                                      .arg(finalDocument.lines.size());
-            const QString resultState = finalDocument.lines.isEmpty()
-                ? QStringLiteral("no-lyric") : QStringLiteral("ok");
+            const QString resultState = QStringLiteral("ok");
             qInfo().noquote() << QStringLiteral("state=") + resultState;
-            self->finish(request, {resultState, ref, finalDocument});
+            self->finish(request, self->resolvedLyric(request, resultState, ref,
+                                                      std::move(finalDocument)));
         });
     });
 }
