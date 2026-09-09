@@ -14,3 +14,5 @@
 /packaging/aur/plasma-lyrics-git/
 /packaging/aur/*.pkg.tar.*
 /packaging/aur/*.log
+
+/.codegraph/
