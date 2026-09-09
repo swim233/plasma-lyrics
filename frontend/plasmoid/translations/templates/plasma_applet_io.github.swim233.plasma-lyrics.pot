@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-08 01:04+0800\n"
+"POT-Creation-Date: 2026-09-09 12:49+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -41,7 +41,7 @@ msgstr ""
 #: frontend/plasmoid/package/contents/ui/LyricsView.qml:22
 #: frontend/plasmoid/package/contents/ui/main.qml:247
 #: frontend/plasmoid/package/contents/ui/main.qml:283
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:47
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:51
 msgid "No media is playing"
 msgstr ""
 
@@ -73,19 +73,19 @@ msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/main.qml:250
 #: frontend/plasmoid/package/contents/ui/main.qml:286
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:62
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:57
 msgid "Lyrics not found"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/main.qml:253
 #: frontend/plasmoid/package/contents/ui/main.qml:289
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:77
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:63
 msgid "This track has no lyrics"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/main.qml:256
 #: frontend/plasmoid/package/contents/ui/main.qml:292
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:92
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:69
 msgid "Network error, cannot fetch lyrics"
 msgstr ""
 
@@ -349,7 +349,7 @@ msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:54
 #: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:57
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:39
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:36
 msgid ""
 "These settings apply to this widget only. Every Desktop Lyrics widget keeps "
 "its own copy."
@@ -423,33 +423,27 @@ msgctxt "@label:spinbox"
 msgid "Width:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:45
-msgid "Not playing text:"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:54
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:69
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:84
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:99
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:43
 msgid "Empty text:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:55
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:70
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:85
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:100
-msgid "Use the localized default message"
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:44
+msgid "Use localized default messages"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:60
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:49
+msgid "Not playing text:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:55
 msgid "Lyrics not found text:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:75
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:61
 msgid "No lyrics text:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:90
+#: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:67
 msgid "Network error text:"
 msgstr ""
 

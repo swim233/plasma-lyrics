@@ -242,16 +242,16 @@ PlasmoidItem {
         overflowMode: Plasmoid.configuration.panelOverflow
         animationMode: Plasmoid.configuration.panelAnimation
         showTranslation: Plasmoid.configuration.panelShowTranslation
-        idleText: TextPolicy.effectiveText(Plasmoid.configuration.idleTextUseDefault,
+        idleText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                            Plasmoid.configuration.idleText,
                                            i18n("No media is playing"))
-        notFoundText: TextPolicy.effectiveText(Plasmoid.configuration.notFoundTextUseDefault,
+        notFoundText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                                Plasmoid.configuration.notFoundText,
                                                i18n("Lyrics not found"))
-        noLyricText: TextPolicy.effectiveText(Plasmoid.configuration.noLyricTextUseDefault,
+        noLyricText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                               Plasmoid.configuration.noLyricText,
                                               i18n("This track has no lyrics"))
-        networkErrorText: TextPolicy.effectiveText(Plasmoid.configuration.networkErrorTextUseDefault,
+        networkErrorText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                                    Plasmoid.configuration.networkErrorText,
                                                    i18n("Network error, cannot fetch lyrics"))
         panelMode: true
@@ -278,16 +278,16 @@ PlasmoidItem {
         overflowMode: Plasmoid.configuration.desktopOverflow
         animationMode: Plasmoid.configuration.desktopAnimation
         showTranslation: Plasmoid.configuration.desktopShowTranslation
-        idleText: TextPolicy.effectiveText(Plasmoid.configuration.idleTextUseDefault,
+        idleText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                            Plasmoid.configuration.idleText,
                                            i18n("No media is playing"))
-        notFoundText: TextPolicy.effectiveText(Plasmoid.configuration.notFoundTextUseDefault,
+        notFoundText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                                Plasmoid.configuration.notFoundText,
                                                i18n("Lyrics not found"))
-        noLyricText: TextPolicy.effectiveText(Plasmoid.configuration.noLyricTextUseDefault,
+        noLyricText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                               Plasmoid.configuration.noLyricText,
                                               i18n("This track has no lyrics"))
-        networkErrorText: TextPolicy.effectiveText(Plasmoid.configuration.networkErrorTextUseDefault,
+        networkErrorText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                                    Plasmoid.configuration.networkErrorText,
                                                    i18n("Network error, cannot fetch lyrics"))
         panelMode: false

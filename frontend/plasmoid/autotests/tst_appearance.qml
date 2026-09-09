@@ -78,10 +78,15 @@ TestCase {
     Component {
         id: textConfigurationComponent
         QtObject {
+            property string idleText: ""
+            property bool idleTextUseDefault: true
             property string notFoundText: ""
             property bool notFoundTextUseDefault: true
+            property string noLyricText: ""
             property bool noLyricTextUseDefault: true
+            property string networkErrorText: ""
             property bool networkErrorTextUseDefault: true
+            property bool emptyTextUseDefault: true
             property int textConfigVersion: 0
         }
     }
@@ -460,77 +465,121 @@ TestCase {
         compare(view.effectiveText, "offline");
     }
 
-    function test_nonLyricTextDefaultsEditsAndExplicitEmpty() {
+    function test_textConfigurationUsesOneEmptyFallbackSwitch() {
         const page = createTemporaryObject(configTextComponent, this);
         verify(page !== null);
 
         const cases = [
-            { text: "cfg_notFoundText", useDefault: "cfg_notFoundTextUseDefault",
+            { text: "cfg_idleText",
+              state: "idle", viewText: "idleText", custom: "resting" },
+            { text: "cfg_notFoundText",
               state: "not-found", viewText: "notFoundText", custom: "missing" },
-            { text: "cfg_noLyricText", useDefault: "cfg_noLyricTextUseDefault",
+            { text: "cfg_noLyricText",
               state: "no-lyric", viewText: "noLyricText", custom: "instrumental" },
-            { text: "cfg_networkErrorText", useDefault: "cfg_networkErrorTextUseDefault",
+            { text: "cfg_networkErrorText",
               state: "network-error", viewText: "networkErrorText", custom: "offline" }
         ];
         const fields = findAll(page, o => typeof o.textEdited === "function"
             && o.placeholderText !== undefined);
-        // The first field is idle text; the remaining three correspond to
-        // the cases above in declaration order.
         compare(fields.length, 4);
+        const switches = findAll(page,
+            o => o.objectName === "emptyTextUseDefaultCheckBox");
+        compare(switches.length, 1);
+        compare(page.cfg_emptyTextUseDefault, true);
 
         for (let i = 0; i < cases.length; ++i) {
             const current = cases[i];
-            const field = fields[i + 1];
-            compare(page[current.useDefault], true);
+            const field = fields[i];
 
             field.text = current.custom;
             field.textEdited();
             compare(page[current.text], current.custom);
-            compare(page[current.useDefault], false);
+            compare(page.cfg_emptyTextUseDefault, true);
+            compare(TextPolicy.effectiveText(page.cfg_emptyTextUseDefault,
+                                             page[current.text], "localized default"),
+                    current.custom);
 
-            // Empty is a deliberate display choice once the default checkbox
-            // is off.  Exercise the same policy function used by both the
-            // compact and full representations, then pass the result through
-            // LyricsView's state selection to prove it remains hidden.
             field.text = "";
             field.textEdited();
             compare(page[current.text], "");
-            compare(page[current.useDefault], false);
-            const effective = TextPolicy.effectiveText(page[current.useDefault],
+            compare(TextPolicy.effectiveText(page.cfg_emptyTextUseDefault,
+                                             page[current.text], "localized default"),
+                    "localized default");
+        }
+
+        switches[0].checked = false;
+        switches[0].toggled();
+        compare(page.cfg_emptyTextUseDefault, false);
+
+        // With the one switch off, every empty field renders empty. A custom
+        // nonempty value remains authoritative regardless of the switch.
+        for (let i = 0; i < cases.length; ++i) {
+            const current = cases[i];
+            const effective = TextPolicy.effectiveText(page.cfg_emptyTextUseDefault,
                                                         page[current.text], "localized default");
             compare(effective, "");
+            const sourceProperties = current.state === "idle"
+                ? { playbackStatus: "Stopped" }
+                : { lyricState: current.state };
             const source = createTemporaryObject(fakeSourceComponent, this,
-                { lyricState: current.state });
+                sourceProperties);
             const props = { source: source };
             props[current.viewText] = effective;
             const view = createTemporaryObject(lyricsViewComponent, this, props);
             verify(view !== null);
             compare(view.effectiveText, "");
         }
+        compare(TextPolicy.effectiveText(page.cfg_emptyTextUseDefault,
+                                         "custom", "localized default"),
+                "custom");
     }
 
-    function test_nonLyricTextConfigurationMigration() {
+    function test_textConfigurationMigration() {
         const upgraded = createTemporaryObject(textConfigurationComponent, this,
             { notFoundText: "legacy custom text" });
         verify(upgraded !== null);
         compare(TextPolicy.migrateConfiguration(upgraded), true);
         compare(upgraded.notFoundTextUseDefault, false);
-        compare(upgraded.noLyricTextUseDefault, true);
-        compare(upgraded.networkErrorTextUseDefault, true);
-        compare(upgraded.textConfigVersion, 1);
+        compare(upgraded.emptyTextUseDefault, true);
+        compare(upgraded.textConfigVersion, 2);
+        compare(TextPolicy.effectiveText(upgraded.emptyTextUseDefault,
+                                         upgraded.notFoundText, "localized default"),
+                "legacy custom text");
 
         // Once migrated, a later user choice must not be overwritten.
-        upgraded.notFoundTextUseDefault = true;
+        upgraded.emptyTextUseDefault = false;
         compare(TextPolicy.migrateConfiguration(upgraded), false);
-        compare(upgraded.notFoundTextUseDefault, true);
+        compare(upgraded.emptyTextUseDefault, false);
+
+        const mixed = createTemporaryObject(textConfigurationComponent, this, {
+            idleTextUseDefault: false,
+            notFoundTextUseDefault: false,
+            noLyricTextUseDefault: false,
+            networkErrorTextUseDefault: true,
+            textConfigVersion: 1
+        });
+        verify(mixed !== null);
+        compare(TextPolicy.migrateConfiguration(mixed), true);
+        compare(mixed.emptyTextUseDefault, true);
+        compare(mixed.textConfigVersion, 2);
+
+        const allDisabled = createTemporaryObject(textConfigurationComponent, this, {
+            idleTextUseDefault: false,
+            notFoundTextUseDefault: false,
+            noLyricTextUseDefault: false,
+            networkErrorTextUseDefault: false,
+            textConfigVersion: 1
+        });
+        verify(allDisabled !== null);
+        compare(TextPolicy.migrateConfiguration(allDisabled), true);
+        compare(allDisabled.emptyTextUseDefault, false);
+        compare(allDisabled.textConfigVersion, 2);
 
         const fresh = createTemporaryObject(textConfigurationComponent, this);
         verify(fresh !== null);
         compare(TextPolicy.migrateConfiguration(fresh), true);
-        compare(fresh.notFoundTextUseDefault, true);
-        compare(fresh.noLyricTextUseDefault, true);
-        compare(fresh.networkErrorTextUseDefault, true);
-        compare(fresh.textConfigVersion, 1);
+        compare(fresh.emptyTextUseDefault, true);
+        compare(fresh.textConfigVersion, 2);
     }
 
     function test_restartFeedbackAndCleanRetryButton() {

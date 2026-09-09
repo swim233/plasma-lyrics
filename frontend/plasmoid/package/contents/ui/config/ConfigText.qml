@@ -15,13 +15,10 @@ Kirigami.ScrollablePage {
     id: page
 
     property string cfg_idleText
-    property bool cfg_idleTextUseDefault: true
     property string cfg_notFoundText
-    property bool cfg_notFoundTextUseDefault: true
     property string cfg_noLyricText
-    property bool cfg_noLyricTextUseDefault: true
     property string cfg_networkErrorText
-    property bool cfg_networkErrorTextUseDefault: true
+    property bool cfg_emptyTextUseDefault: true
 
     ColumnLayout {
         width: parent.width
@@ -41,65 +38,36 @@ Kirigami.ScrollablePage {
 
         Kirigami.FormLayout {
             Layout.fillWidth: true
+            QQC2.CheckBox {
+                objectName: "emptyTextUseDefaultCheckBox"
+                Kirigami.FormData.label: i18n("Empty text:")
+                text: i18n("Use localized default messages")
+                checked: page.cfg_emptyTextUseDefault
+                onToggled: page.cfg_emptyTextUseDefault = checked
+            }
             QQC2.TextField {
                 Kirigami.FormData.label: i18n("Not playing text:")
                 text: page.cfg_idleText
                 placeholderText: i18n("No media is playing")
-                onTextEdited: {
-                    page.cfg_idleText = text;
-                    page.cfg_idleTextUseDefault = false;
-                }
-            }
-            QQC2.CheckBox {
-                Kirigami.FormData.label: i18n("Empty text:")
-                text: i18n("Use the localized default message")
-                checked: page.cfg_idleTextUseDefault
-                onToggled: page.cfg_idleTextUseDefault = checked
+                onTextEdited: page.cfg_idleText = text
             }
             QQC2.TextField {
                 Kirigami.FormData.label: i18n("Lyrics not found text:")
                 text: page.cfg_notFoundText
                 placeholderText: i18n("Lyrics not found")
-                onTextEdited: {
-                    page.cfg_notFoundText = text;
-                    page.cfg_notFoundTextUseDefault = false;
-                }
-            }
-            QQC2.CheckBox {
-                Kirigami.FormData.label: i18n("Empty text:")
-                text: i18n("Use the localized default message")
-                checked: page.cfg_notFoundTextUseDefault
-                onToggled: page.cfg_notFoundTextUseDefault = checked
+                onTextEdited: page.cfg_notFoundText = text
             }
             QQC2.TextField {
                 Kirigami.FormData.label: i18n("No lyrics text:")
                 text: page.cfg_noLyricText
                 placeholderText: i18n("This track has no lyrics")
-                onTextEdited: {
-                    page.cfg_noLyricText = text;
-                    page.cfg_noLyricTextUseDefault = false;
-                }
-            }
-            QQC2.CheckBox {
-                Kirigami.FormData.label: i18n("Empty text:")
-                text: i18n("Use the localized default message")
-                checked: page.cfg_noLyricTextUseDefault
-                onToggled: page.cfg_noLyricTextUseDefault = checked
+                onTextEdited: page.cfg_noLyricText = text
             }
             QQC2.TextField {
                 Kirigami.FormData.label: i18n("Network error text:")
                 text: page.cfg_networkErrorText
                 placeholderText: i18n("Network error, cannot fetch lyrics")
-                onTextEdited: {
-                    page.cfg_networkErrorText = text;
-                    page.cfg_networkErrorTextUseDefault = false;
-                }
-            }
-            QQC2.CheckBox {
-                Kirigami.FormData.label: i18n("Empty text:")
-                text: i18n("Use the localized default message")
-                checked: page.cfg_networkErrorTextUseDefault
-                onToggled: page.cfg_networkErrorTextUseDefault = checked
+                onTextEdited: page.cfg_networkErrorText = text
             }
         }
     }

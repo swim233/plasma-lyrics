@@ -12,6 +12,9 @@
     <entry name="noLyricTextUseDefault" type="Bool"><default>true</default></entry>
     <entry name="networkErrorText" type="String"><default></default></entry>
     <entry name="networkErrorTextUseDefault" type="Bool"><default>true</default></entry>
+    <!-- The four *TextUseDefault entries above are retained only so version
+         0/1 instances can be migrated into this shared version 2 policy. -->
+    <entry name="emptyTextUseDefault" type="Bool"><default>true</default></entry>
     <entry name="textConfigVersion" type="Int"><default>0</default></entry>
 
     <entry name="desktopPlateMode" type="String"><default>ksvg</default></entry>
