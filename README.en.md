@@ -3,9 +3,9 @@
 [中文](README.md)
 
 A native Plasma 6 widget that shows synchronized lyrics for the current MPRIS
-player. The first release targets NetEase Cloud Music in a browser through
-`plasma-browser-integration`, while keeping the provider and frontend seams
-open for later additions. A persistent track-info row above the lyrics shows
+player. Browser playback through `plasma-browser-integration` and local MPRIS
+players are supported. Lyrics use NetEase first and fall back to AMLL TTML DB
+by default; the global order and per-song preference are configurable. A persistent track-info row above the lyrics shows
 the current title and artist, on by default on the desktop and off in the
 panel; both are independently configurable.
 
@@ -21,8 +21,8 @@ DESTDIR="$PWD/staging" cmake --install build
 ```
 
 The top-level options `BUILD_DAEMON`, `BUILD_PLASMOID`,
-`BUILD_IMPORT_WAYLYRICS`, and `ENABLE_PROVIDER_NETEASE` can disable individual
-parts.
+`BUILD_IMPORT_WAYLYRICS`, `ENABLE_PROVIDER_NETEASE`, and
+`ENABLE_PROVIDER_AMLL` can disable individual parts.
 
 After installing the package, start the user service:
 
@@ -38,13 +38,28 @@ maximized windows; desktop widgets cannot be above normal windows.
 
 ```sh
 plasma-lyricsd --explain "Song title" "Artist"
+plasma-lyricsd --explain --provider amll --platform apple "Song title" "Artist"
 journalctl --user -u plasma-lyricsd.service -f
 ```
+
+The explanation reports the configured provider chain, provider-specific version
+tier, and rejection reasons. An unavailable explicit provider lists the providers
+compiled and configured in the current build.
 
 Timing can be adjusted by 500 ms from the widget context menu, per song by
 default; the "Global settings" configuration tab can switch this to one
 shared offset for every song instead. Manual LRC replacements belong in
 `~/.local/share/plasma-lyrics/overrides/<provider>:<track-id>.lrc`.
+
+The same context menu can prefer NetEase or AMLL for the current song, restore
+automatic ordering, or force a fresh search. A temporary fallback never
+overwrites the saved per-song preference. AMLL word timing and provenance are
+preserved in storage and snapshots, while the current UI intentionally remains
+line-based rather than showing word-level highlighting.
+
+AMLL TTML DB is a CC0 community database; rights in lyrics and other third-party
+works remain with their respective owners. See the
+[AMLL TTML DB project](https://github.com/amll-dev/amll-ttml-db) and its contributors.
 
 To import an existing waylyrics JSON cache:
 

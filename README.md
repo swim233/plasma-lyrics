@@ -21,15 +21,18 @@
 
 ---
 
-监听当前会话中的 MPRIS 播放器并显示同步歌词。首个版本经
-`plasma-browser-integration` 支持浏览器中的网易云音乐网页版；歌词源与前端均为
-可扩展接口。歌词上方有一行常驻的曲目信息（标题 — 歌手），桌面默认开启、面板默认
+监听当前会话中的 MPRIS 播放器并显示同步歌词。经
+`plasma-browser-integration` 支持浏览器中的网易云音乐网页版，也支持本地 MPRIS
+播放器。歌词默认依次从网易云、AMLL TTML DB 获取，并在首选源无可用歌词时自动回退。
+歌词上方有一行常驻的曲目信息（标题 — 歌手），桌面默认开启、面板默认
 关闭，两者可独立配置。
 
 ## ✨ 功能特性
 
 - 🖥️ **桌面 + 面板双形态** —— 同一个部件，两种形态的外观配置各自独立互不影响
 - 🎤 **同步滚动歌词** —— 按行高亮，支持翻译行显示
+- 🔀 **多歌词源回退** —— 默认网易云 → AMLL，可全局调整顺序，也可为当前歌曲指定首选源或立即重搜
+- 📚 **AMLL TTML 支持** —— 保存逐词时间与来源信息；当前界面仍按行显示，不提供逐词高亮
 - 🪟 **全屏可见** —— 面板形态配合「窗口置于下方」，歌词在最大化窗口旁依然可见
 - 🎨 **外观自由定制** —— 底板样式（主题 / 纯色 / 无）、文字描边、字号、六档字重、颜色
 - 📏 **溢出策略** —— 自适应缩放 `fit` / 换行 `wrap` / 跑马灯 `marquee`
@@ -74,7 +77,7 @@ sudo cmake --install build
 ```
 
 顶层 CMake 选项可分别关闭各部分：`BUILD_DAEMON`、`BUILD_PLASMOID`、
-`BUILD_IMPORT_WAYLYRICS`、`ENABLE_PROVIDER_NETEASE`。
+`BUILD_IMPORT_WAYLYRICS`、`ENABLE_PROVIDER_NETEASE`、`ENABLE_PROVIDER_AMLL`。
 
 ## 🚀 使用方式
 
@@ -103,17 +106,32 @@ systemctl --user enable --now plasma-lyricsd.service
 | 操作                | 方式                                                                              |
 | ------------------- | --------------------------------------------------------------------------------- |
 | 歌词偏早 / 偏晚     | 右键部件 → 时序 **±0.5 s** 微调，默认按歌曲记录；「全局设置」可改为所有歌曲共用     |
+| 选择当前曲歌词源    | 右键部件 → 选择自动、首选网易云或首选 AMLL；临时回退不会覆盖该选择                |
+| 立即重新搜索        | 右键部件 →「重新搜索歌词」，绕过已有命中和负缓存                                  |
 | 修改外观            | 右键部件 →「配置」，桌面与面板形态的配置各自独立                                  |
 | 替换某首歌的歌词    | 将 `.lrc` 放入 `~/.local/share/plasma-lyrics/overrides/<provider>:<track-id>.lrc` |
 | 迁移 waylyrics 缓存 | `plasma-lyrics-import-waylyrics --source ~/.cache/waylyrics`                      |
 
 ## 🎵 支持的播放源
 
+这里的“播放源”是提供 MPRIS 播放状态的播放器，不是获取歌词的 provider。
+
 | 播放源            | 说明                                                                  |
 | ----------------- | --------------------------------------------------------------------- |
 | 网易云音乐网页版  | 经 `plasma-browser-integration`（浏览器扩展）接入，首个版本的主要音源 |
 | 本地 MPRIS 播放器 | 任何实现了 MPRIS 接口的播放器                                         |
 | KDE Connect 手机  | 支持，但默认忽略（可在守护进程配置中调整）                            |
+
+## 🎤 歌词源
+
+| 歌词源 | 说明 |
+| ------ | ---- |
+| 网易云 | 默认首选；按标题、歌手、专辑与时长在线检索 LRC 与翻译 |
+| AMLL TTML DB | 默认补充源；缓存元数据索引后本地检索，按需下载 TTML；支持翻译和逐词时间的存储 |
+
+可在部件的「歌词服务」设置页调整全局顺序、网络地址、超时和 AMLL 索引刷新间隔。
+AMLL 数据库以 CC0 提供；歌词原作及第三方内容权利仍由相应权利人持有。项目与贡献者信息见
+[AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db)。
 
 ## ⚙️ 配置与数据文件
 
@@ -122,6 +140,7 @@ systemctl --user enable --now plasma-lyricsd.service
 | `~/.config/plasma-lyrics/plasma-lyricsd.ini`      | 守护进程配置（INI）                  |
 | `~/.local/share/plasma-lyrics/overrides/`         | 手工 `.lrc` 覆盖目录                 |
 | `~/.local/share/plasma-lyrics/plasma-lyricsd.log` | 可选日志文件（默认关闭）             |
+| `~/.cache/plasma-lyrics/amll-index.jsonl`          | AMLL 元数据索引缓存                   |
 | `$XDG_RUNTIME_DIR/plasma-lyricsd/state.json`      | 整曲歌词原子快照（前端唯一数据来源） |
 
 部件的外观、文本等设置在该部件自身的配置页中修改，桌面与面板部件互不影响。
@@ -132,9 +151,15 @@ systemctl --user enable --now plasma-lyricsd.service
 # 离线复现一首歌的匹配全过程（不依赖正在播放的音乐）
 plasma-lyricsd --explain "歌名" "歌手"
 
+# 只诊断某个歌词源；也可显式给出播放平台以复现平台相关匹配策略
+plasma-lyricsd --explain --provider amll --platform apple "歌名" "歌手"
+
 # 跟随守护进程日志
 journalctl --user -u plasma-lyricsd.service -f
 ```
+
+诊断会打印当前构建和配置中的歌词源链、各源的版本匹配层级与拒绝原因；指定未编译或未配置的
+歌词源时会列出可用来源。
 
 ## 🛠️ 开发检查
 
@@ -147,8 +172,8 @@ xmllint --noout frontend/plasmoid/package/contents/config/main.xml
 QML2_IMPORT_PATH="$PWD/build/bin" plasmoidviewer -a io.github.swim233.plasma-lyrics -f planar
 ```
 
-CI 在 Arch Linux 与 Debian 13 双平台上构建、测试并打包（含 `ENABLE_PROVIDER_NETEASE=OFF`
-配置），各版本变更见 [CHANGELOG.md](CHANGELOG.md)。
+CI 在 Arch Linux 与 Debian 13 双平台上构建、测试并打包（含分别关闭网易云与 AMLL
+provider 的配置），各版本变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 📄 许可证
 
