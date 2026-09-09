@@ -1,6 +1,6 @@
 # Repository notes
 
-`DESIGN.md` is the source of truth. Keep `core/` free of QtNetwork and QtDBus;
+`docs/DESIGN.md` is the source of truth. Keep `core/` free of QtNetwork and QtDBus;
 provider integrations belong under `providers/`, MPRIS belongs under `daemon/`,
 and every plasmoid instance must remain a read-only consumer of the atomic
 snapshot except for explicit user configuration such as per-track offsets.

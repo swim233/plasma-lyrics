@@ -261,7 +261,7 @@ plasma-lyrics/
 | 1 | 目标：把 waylyrics 的能力做成真正长在 Plasma 桌面里的部件，**最终替代 waylyrics** |
 | 2 | 一等音源：浏览器网页版网易云（pbi）；本地播放器二等；kdeconnect 手机源**支持但默认忽略** |
 | 3 | 形态：一个 plasmoid，桌面 + 面板双形态自适应；"全屏可见"用「面板 + 窗口置于下方」满足 |
-| 4 | 曲库无必达项，查不到就算了；网易云单源即够（实测 waylyrics 单开网易云基本都能查到） |
+| 4 | 曲库无必达项，查不到就算了；默认按网易云 → AMLL 串行查询，首选源无可用歌词时回退，不跨源拼接正文与翻译 |
 | 5 | 显示：**曲目信息（可关）+** 单行歌词 + 翻译；逐字为**可选远期目标** |
 | 6 | 桌面上只显示歌词**与曲目信息**，其余功能全部放进设置菜单，**不做播放控制**——这条约束的是**交互**，不是信息密度 |
 | 7 | 第一版只为自己；未来考虑发布，但代码结构从第一天就切开 provider 与 UI |
@@ -276,7 +276,7 @@ plasma-lyrics/
 | 12 | 匹配照 waylyrics 的思路：标题+歌手+专辑搜索 → 时长容差打分（2s 内判为最佳）→ 记录清洗前后关键词与候选打分 |
 | 15 | 非音乐过滤：URL 白名单 + 元数据启发式 + "搜不到就算了"，三者均可在设置中配置 |
 | 19/20 | 单个 SQLite；主键为 `(provider, track_id)` 复合键；`overrides/*.lrc` 目录承载手工修正 |
-| 23 | provider 编译期扩展（每个一个 CMake option）；阵容照 waylyrics（网易云 / QQ音乐 / LRCLIB），**第一版只实现网易云**；接口允许每 provider 带自己的配置块 |
+| 23 | provider 编译期扩展（每个一个 CMake option）；已实现网易云与 AMLL TTML DB，接口允许每 provider 带自己的配置块；不引入运行时动态插件 ABI |
 | 42 | **来源平台判定**：在决策 15 的 URL 白名单之上引入「来源平台」概念（`netease` / `apple`），由 D-Bus service 通配（`*.sidra`、`*.cider*`）与 `xesam:url` 前缀（`music.163.com`、`music.apple.com`、`classical.music.apple.com`）共同推导，**service 优先**——Sidra 的电台/古典条目没有 `xesam:url`，只有 service name 能认出它。`*.cider*` 点锚定（而非 `*cider*`）是为了不误吃 `org.mpris.MediaPlayer2.decider` 这类服务名里恰好含 `cider` 子串但并非 Cider 的播放器，和旁边 `*.sidra` 的锚定方式一致；真实 Cider（`ciderapp/Cider` 的 `src/main/plugins/mpris.ts`）注册的服务名就是字面量 `org.mpris.MediaPlayer2.cider`，收紧后仍然命中。`isMusic` 消费同一个判定：平台非空则只看是否在设置里勾选；**平台为空（未知来源）时沿用改动前的 URL 白名单 + 元数据启发式逐字节不变**，绝不能让升级当天所有本地播放器一起变哑。设置只列默认勾选的两个平台（网易云音乐、Apple Music），不列 YouTube Music / QQ音乐 / Spotify——列了又不勾会造成静默回归。`filter/musicUrlPrefixes` 原键原义保留（只装自定义 URL 前缀），新增 `filter/platforms` 装勾选结果，两者互不影响、零迁移 |
 | 43 | **`transNames` 参与打分**：`Candidate` 新增 `alternateTitles`（网易云 `transNames`，storefront 本地化译名），`scoreCandidate` 对每个别名重算 `textSimilarity` 并取与主标题的 `max` 作为 `score.title`——只加证据、不降标准，权重（0.5/0.2/0.1/0.2）与阈值（0.55/0.58）不变。**只读 `transNames`，不读 `alias`**：实测 `alias=["TV动画《我推的孩子》片头曲"]` 是番剧挂钩语，`transNames=["偶像"]` 才是「アイドル」的译名；混进 `alias` 会把不相关的宣传文案当证据。字段缺失或为 `null` 都当空处理（`QJsonValue::toArray()` 对两者返回同一个空数组，天然安全）。`ScoreBreakdown` 新增 `titleViaAlternate`，`explainMatch` 打印 `titleVia=alias`/`titleVia=title`——否则诊断日志只会看到分数无端变高，看不出是哪条候选证据起的作用。`LocalProvider::search` 恒返回空列表，从不构造 `Candidate`，`alternateTitles` 无需处理 |
 | 44 | **`cleanArtists` 拆分「主名 (括号内容)」的并列写法**：网易云把部分艺人名存成复合串，字面量如 `BTS (防弹少年团)`——实测 `--explain 春日 BTS` 之前 `artistSimilarity` 把整串当一个 token 算子串比例（`3/9≈0.333`），远低于本该有的精确匹配。`cleanArtists` 新增一条正则，仅当整条艺人字符串**以括号收尾**（`(...)`/`（...）`）时才把结尾这组拆成独立的一条，前后两段各自再走原有的斜杠/顿号/`&`/`feat.` 分隔逻辑；条件收紧到"结尾"是为了不误吃合作艺人本身名字里带括号的巧合写法（如 `(Sandy) Alex G`，括号在开头不在结尾，不拆）。**影响面不限于「同一实体的另一种文字写法」**：ACG 角色曲在网易云上常见 `神楽ひかり(CV:三森すずこ)` 这类写法，括号内是**扮演该角色的声优**，和角色本身是两个不同实体，同样会被拆成两条——这里拆开依然无害，理由和整个改动的正当性是同一条、同样是经验性的（见下文）：MPRIS 侧报的是裸名字（角色名或艺人名），拆开只是让任一段都有机会单独匹配上，而会降分的那种形状要求**对侧**给出没有分隔的合并写法，CV 场景同样没有观测到这样的来源。**这个改动在数学上没有任何一个方向是无条件单调的**：它把一个合并 token **替换**成拆开的若干 token（不是纯追加），而 `cleanArtists` 被 query、candidate 两侧共用，`artistSimilarity` 的分母又取 query 侧的 token 数——被替换掉的那个合并 token 本身往往就是最佳匹配，所以哪一侧被替换、分数都可能下降。实测反例（qa-2）：query 侧固定为 `["BTS 防弹少年团"]`（本身不含括号，逐字节不受这次改动影响），candidate 侧从未拆分的 `["BTS 防弹少年团"]` 变成拆分后的 `["BTS", "防弹少年团"]`，`artists` 从精确匹配 `1.000` 掉到 `0.556`。**"只增不减"的变体也救不了**：若改成保留原始合并串、再追加拆出的两段（candidate 侧从 1 个 token 变 3 个），的确不会在 candidate 侧丢信息，但同一改动应用在 query 侧时会撑大 `artistSimilarity` 的分母，同样能把分数往下拉——两个方向都堵死，不存在无条件安全的写法。**这个改动的正当性是经验性的，不是数学证明**：真实数据的形状是 MPRIS 报裸名字（如 `BTS`）、网易云存复合串（如 `BTS (防弹少年团)`），这个方向上是严格改善，实测 `0.333 → 1.000`（`--explain 春日 BTS`）；会降分的那些形状都要求**对侧**给出"没有分隔的合并写法"（如 qa-2 反例里 query 侧那个 `"BTS 防弹少年团"`），而目前观测到的各 MPRIS 来源都不会这样报艺人字段。测试 `compoundCandidateNameNoLongerUndercountsArtistSimilarity` 只验证了这一个具体实例（query 固定为裸 `"BTS"`，candidate 拆分前后对比），不代表任何通用结论。**副作用范围已按来源逐一核实**：`MprisPolicy::fingerprint` 只在 `state.mediaSrc` 为空时才退化到 `cleanArtists(...).join('/')` 参与的四元组哈希（决策 11 的兜底分支），而 `kde:mediaSrc` 是 **pbi 专属**的 KDE 扩展属性——实测 pbi 报网易云网页版时 `kde:mediaSrc` 是那个 mp3 直链（存在），Sidra 完全没有这个键。因此：**网易云网页版（pbi）不受影响**，走的是 `mediaSrc:` 分支，四元组哈希根本不参与；受影响的是**没有 `kde:mediaSrc` 的来源**——Sidra/Cider 这些本次才开始支持的 Apple 客户端（升级前本来就没有历史缓存，代价为零），以及本地播放器如 mpv/VLC（这类会真的经历一次 fingerprint 变化）。`fingerprint` 表（`fingerprint → provider, track_id`）与 `lyric`/`offset` 表（主键都是 `(provider, track_id)`）是三张独立的表，旧 fingerprint 行只是被孤立、不会级联删除任何东西。**用户可感知的影响**：受影响曲目升级后第一次播放会触发一次真实网络搜索（与任意一次正常的元数据变化触发重新解析毫无区别），期间可能短暂显示"匹配中"或"未找到"，随后恢复正常；不丢失已缓存的歌词或偏移；一次性代价，不会重复出现 |
@@ -291,7 +291,7 @@ plasma-lyrics/
 
 250ms 把碰撞率从 3.91% 压到 0.51%（降 4.6 倍），且不挡任何已知真命中，符合用户"宁可 `notFoundText` 也不要错歌词"的取向；100ms 再压一档收益已经很薄，250ms 是两头都够用的折中，**同样不是一个被精确校准出来的最优值**，往后如果实测数据要求更紧可以继续收。**qa-1 独立复现过这张表，指出两处方法论偏差，如实记下**：①"有同艺人邻居"这一列对取样量敏感——把 `limit` 从 30 提到 60（135→263 首）后，250ms 档从 13% 涨到 23%（"至少一个邻居"这种统计量会随候选池变大单调升高，13% 不能当成真实用户遇到误顶替的绝对概率，真实索引里同一艺人的曲目远不止 30 条，这一列还会继续升高）；"碰撞对占比"这一列稳健，250ms 档 0.51%→0.51%、2000ms 档 3.91%→3.83%，**上面"降 4.6 倍"引用的正是这一列**。②测量脚本按 trim+小写去重，比代码里实际用的 `normalizeSearchText`（NFKC 归一化）松——实例：YOASOBI「たぶん」在搜索结果里出现两次、时长完全相同，一个「ぶ」是预组合字符（U+3076）、另一个是基字符+浊点组合（U+3075 U+3099），脚本当成两首歌记了一次虚假碰撞，真实代码会正确合并；按 NFKC 重跑后 135→134 首，各档数字变化 0.05～1.2 个百分点（250ms 档：13.33%→11.94%、0.51%→0.46%），方向是把风险算高了一点，结论不变。**顺带发现（残留风险，不在本次范围）**：收紧只是把这类误顶替的概率降低，没有消除——真曲的时长恰好落在 250ms 窗外、且恰好有另一首同艺人歌曲落在窗内时，`chooseMatch` 仍会返回错误的歌，现有测试结构上覆盖不到这一类（能覆盖的只是"两者都在窗内"的双候选歧义）。**别名艺人闸**堵住决策 43 打开的口子：`transNames` 会广泛传播到同一首歌的翻唱/remix 条目上（实测 `偶像 YOASOBI`/`吵死了 Ado`/`大概 YOASOBI` 三组皆如此），一条错艺人的翻唱靠继承来的 `transNames` 就能把 `score.title` 顶到 1.0、总分越过两道阈值（0.55/0.58）——`titleViaAlternate` 为真的候选因此额外要求 `score.artists >= 0.5` 才算可接受。**这道闸只挂在 `chooseMatch` 第一个返回点（主路径）**，不挂在兜底路径（survivors 那一步）：兜底路径的 survivors 已经要求 `artists >= 0.9`，严于闸的 `0.5` 阈值，`0.9 >= 0.5` 恒真，再判一次是够不成立的死代码（qa-1 指出）。挂在 `chooseMatch` 而不是 `isAcceptableMatch`，是因为 `Resolver` 只评估 `ranked.first()`，翻唱一旦排第一会在 `isAcceptableMatch` 失败之前就返回，`isAcceptableMatch` 内部判不到。0.5 而非本条兜底判据的 0.9：这里标题证据本身存在且强（网易云自己声明了译名），艺人只需排除"完全不相干的人"。**但 0.5 这个具体数字本身没有被校准过，如实说清楚**：实测覆盖日/韩/英文原曲共 12 组本地化标题查询（YOASOBI×4、Ado、IU×4、BTS、《冰雪奇缘》原声、《爱乐之城》原声，决策 44 落地后用裸名字重新跑过一遍结论不变），正确原曲的 `artists` 分全部聚在 `1.000`；已知的错误候选（`YunFuCola remix`）`artists=0.143`。`(0.143, 1.0)` 这一整段区间**没有任何观测点**，0.5 只是这段空档里取的中间值——这批数据能证明的只是"0.5 落在安全区间内"，证明不了"0.5 本身有什么特别之处"：换成 0.6/0.7/0.8/0.9，在现有数据下会得到一模一样的结论。校准数据的作用是划出空档的两端边界，不是选定 0.5 这个点；往后如果出现新的错误候选样本落进这段空档，才需要真的收紧这个数字。**顺带发现（不在本次范围）**：`isAcceptableMatch` 本身从不检查 `score.artists`，"标题字面相同、艺人完全不相干"的候选在 `transNames` 特性引入之前就能被接受（`--explain Gunjou YOASOBI` 会选中 `GUNJOU (Cover)/Omnixor`，靠的是主标题、与 `transNames` 无关；但那是 `--explain` 不传时长的最坏情形——真实 daemon 路径下该候选 `cleanTitle` 先剥掉 `(Cover)` 使 `title=1.000`（不是子串比例），`Δ=13709 ms`，时长分 `0.9-(13709-2000)/15000=0.119`，总分 `1.0×0.5+0+0+0.119×0.2=0.524`，仍低于 0.58 不会被选中，只有 `--explain` 的时长恒缺失最坏情形才会显形）。别名艺人闸只堵住了 `transNames` 打开的新路径，这条更早存在的旧路径仍然敞着，修它会改变一条已经在工作的路径的行为，应当单独立项，此处仅记录、不顺手改 |
 
-| 46 | **匹配诊断与实际决策一致**：`Resolver::resolve` 传入已判定的来源平台，`explainMatch` 的 `selected:` 必须与实际 `chooseMatch` 结果相同；仅有在反事实中开启本地化标题兜底才会改变结果时，额外输出 `would-select-with-fallback:`。搜索本身失败时不得调用 `explainMatch`、不得打印会被误读为成功搜索结果的 `selected: none`，而应只记录 provider 错误。`--explain` 无法得知平台，因此只输出明确标注的反事实，不冒充 daemon 的实际选择；搜索失败时同样只输出错误 |
+| 46 | **匹配诊断与实际决策一致**：`Resolver::resolve` 传入已判定的来源平台，`explainMatch` 的 `selected:` 必须与实际 `chooseMatch` 结果相同；仅有在反事实中开启本地化标题兜底才会改变结果时，额外输出 `would-select-with-fallback:`。搜索本身失败时不得调用 `explainMatch`、不得打印会被误读为成功搜索结果的 `selected: none`，而应只记录 provider 错误。`--explain` 默认遍历当前构建和配置中的实际 provider 链，也接受 `--provider` 限定来源、`--platform` 显式提供播放平台；逐源打印 provider、匹配策略、版本层级、选择或阈值/版本拒绝原因，搜索失败仍只输出该 provider 的具体错误。未编译网易云但启用 AMLL 的构建必须同样可用 |
 | 47 | **provider 全链路异步**：网络 provider 以回调交付搜索与获取结果，不再用 `QEventLoop::exec()` 重入主事件循环；`Resolver::resolve` 发起工作后返回，完成时发 `resolved` 信号。daemon 在调用前本就发布 `searching` 快照，因此前端契约不变。每次解析带世代号，换曲或播放器消失后到达的旧回调不得写缓存、不得覆盖当前快照 |
 | 48 | **网络重试与错误分类**：搜索与歌词获取最多尝试 3 次，网络传输错误可重试——既包括完全没收到 HTTP 响应，也包括已经收到 2xx 响应头、随后正文截断而产生的 `RemoteHostClosedError`；HTTP 非成功响应是服务端明确答复，JSON/业务解析错误发生在传输成功之后，二者均立即交付错误、不重试。provider 结果显式携带 `transportFailed`，Resolver 只把该标志归为 `network-error`；HTTP/解析错误归为 `not-found`，不能靠非空错误字符串冒充网络失败。`providers/netease/timeoutMs` 表示第一次尝试的超时，默认由 8000 ms 改为 4000 ms；后两次为该值的 1.5 倍和 2 倍，默认即 4/6/8 s。`network` 负缓存只保留 5 分钟，网络恢复后可重新尝试；`no-candidate` 仍保留 7 天 |
 | 49 | **日志配置在单实例锁之前生效**：`Config` 的构造和日志文件安装有意放在 daemon 单实例锁检查之前，使第二个实例的「已在运行」失败原因也能写入用户配置的日志文件。日志 handler 在 `main()` 的所有正常返回路径退出前卸载并清空文件指针，必须早于函数局部静态 `QFile` 的析构，不能把悬垂风险推迟到静态析构期 |
@@ -299,6 +299,7 @@ plasma-lyrics/
 | 51 | **服务重启结果必须可见且可重试**：`BackendConfig` 用自己持有的异步 `QProcess` 运行 `systemctl --user restart plasma-lyricsd`，分别处理启动失败、非零退出码、crash 与成功，配置页显示成功/失败 InlineMessage。运行中拒绝重复调用并禁用按钮；保存成功会清掉 `dirty`，但重启失败后按钮仍可直接再次执行重启，不要求用户制造一次无意义的配置编辑。对象销毁时终止仍在运行的子进程，避免完成回调访问失效对象 |
 | 52 | **缓存诊断覆盖读写两端**：解析日志把「fingerprint 映射不存在」与「映射存在但歌词正文不存在」分开记录；provider 搜索失败记录 provider id 与原始错误文本。`putLyric`、`mapFingerprint`、`recordMiss` 的 Bool 结果都必须检查，失败分别写日志；`record miss` 成功日志只能在负缓存真正落库后输出，不能把失败误报成成功。当前播放仍可使用刚获取的内存文档，原子整首快照契约不因缓存持久化失败而改变 |
 | 53 | **空文案回退改为单一策略开关**：决策 14/50 的四个伴生 `*TextUseDefault` 开关在设置页合并为一个每实例 `emptyTextUseDefault`。非空自定义文案始终优先；只有字段为空时，该开关才决定显示本地化默认文案还是保持空白，因此编辑一个字段不会连带关闭其他字段的回退。旧四键保留在 kcfg 中只供迁移读取，不再参与版本 2 的运行时渲染。`textConfigVersion` 从 1 升至 2：从版本 0 直升时先执行决策 50 的 `notFoundText` 保护，再以四个旧 Bool 的逻辑或写入新键；只要旧实例任一状态仍使用默认文案就继续开启，只有四项全部明确关闭时才迁移为关闭。版本闸保持迁移幂等，迁移后用户对新开关的选择不会被旧键覆盖 |
+| 54 | **多歌词源与 AMLL**：后端全局顺序默认 `netease → amll`，单曲首选按现有指纹持久化并移到链首，其余已配置源仍按全局顺序回退且每次只查询一次。缓存分为用户首选、实际命中、按 provider 失败冷却三种状态；旧 `fingerprint` 只迁移为实际结果，旧全局 `miss` 不抑制 AMLL。正常播放可先发布已有回退歌词；只有保留项是非空、状态为 `ok` 的有效歌词时，强制重搜失败才不清屏，否则必须发布 `not-found` 或具体错误终态。首选源冷却结束后仅在明确的播放轮次事件后台重试且一轮最多一次。MPRIS `Seeked` 到达时立即用目标位置和单调时钟重新锚定，通常作为手工跳转抑制轮次；考虑少数播放器也会在自然循环时发送该信号，只有同一套自然过尾证据独立成立时仍保留一轮事件。对 pbi 等不发 `Seeked` 的来源，曲尾→开头只有在 `(单调时间差 × Rate)` 已足以消耗上一采样点的曲尾剩余时长、且当前位置接近预期的循环后相位时才算新轮次；轮询、`Seeked` 与脏 `PropertiesChanged(Position)` 共用判据并在采样后统一重锚，普通回退仍只重新对轴且同一次回跳不会重复。协议极限是：若用户跳转发生在恰好与自然过尾相同的时刻且目标又与预期相位吻合，MPRIS 没有提供 seek 原因，客户端没有可观察信息区分两者；错误的曲长、Rate 或严重延迟也可能让非标准播放器越出容差。手动换源/恢复自动/重搜经带预期指纹的会话 D-Bus 控制接口执行，强制请求绕过映射与负缓存，并由世代号阻止旧回调提交。AMLL 缓存 JSONL 索引，24 小时后条件刷新，校验成功才原子替换；缓存版本纳入规范化索引与内容 URL，索引元数据记录来源，来源变化时强制无条件重验证并丢弃旧 ETag/Last-Modified。历史记录以关联为边做传递合并，稳定引用优先使用最早组；标题、艺人和已知 ISRC 冲突阻止误合并，具体 `rawLyricFile` 仅作为内容版本。AMLL 匹配保留 Live/Remix/Cover/重制等后缀：版本一致或双方无标记为正常层，仅单边标记为低层，明确冲突排除。TTML 在 `core/` 解析为现有整首模型，接受带单位或无单位秒时间、保留 `span` 间有效空白，并把官方 `<translations>/<translation>/<text for>` 按行 id 映射；翻译语言按 BCP-47 主语言、脚本和地区确定性选择。保存行/词时间及来源元数据；`x-bg` 与罗马音不拼入主歌词，前端首版仍按行显示。音乐播放平台（MPRIS 来源）与歌词 provider 是两个独立概念 |
 
 ### 工程结构
 | # | 决策 |
@@ -344,16 +345,17 @@ plasma-lyrics/
 ```sql
 -- 歌词正文（可再生）
 CREATE TABLE lyric (
-  provider    TEXT    NOT NULL,          -- 'netease' | 'lrclib' | 'local'
-  track_id    TEXT    NOT NULL,          -- 平台内 id；local 用 sha1(绝对路径)
+  provider    TEXT    NOT NULL,          -- 'netease' | 'amll' | 'waylyrics'
+  track_id    TEXT    NOT NULL,          -- provider 内稳定引用
   fetched_at  INTEGER NOT NULL,
   origin      TEXT,                      -- 规范化后的行数组 JSON
   translation TEXT,
   has_words   INTEGER NOT NULL DEFAULT 0,
+  metadata    TEXT,                      -- 来源、作者、内容版本等 JSON
   PRIMARY KEY (provider, track_id)
 );
 
--- 指纹 → TrackRef。指纹规则将来若改，重建此表即可，不必重抓歌词
+-- 指纹 → 当前实际采用的 TrackRef；保留旧表供兼容
 CREATE TABLE fingerprint (
   fingerprint TEXT    PRIMARY KEY,
   provider    TEXT    NOT NULL,
@@ -362,7 +364,34 @@ CREATE TABLE fingerprint (
   score       REAL                       -- 当时的匹配得分，便于事后复盘
 );
 
--- 负缓存：查过了没有。TTL 7 天
+-- 同一指纹可保留每个 provider 各自的成功映射
+CREATE TABLE provider_fingerprint (
+  fingerprint TEXT NOT NULL,
+  provider    TEXT NOT NULL,
+  track_id    TEXT NOT NULL,
+  matched_at  INTEGER NOT NULL,
+  score       REAL,
+  PRIMARY KEY (fingerprint, provider)
+);
+
+-- 用户明确指定的单曲首选；不存在即按全局顺序自动选择
+CREATE TABLE track_preference (
+  fingerprint TEXT PRIMARY KEY,
+  provider     TEXT NOT NULL,
+  updated_at   INTEGER NOT NULL
+);
+
+-- provider 级负缓存；网络 5 分钟，其他失败默认 7 天
+CREATE TABLE provider_miss (
+  fingerprint   TEXT NOT NULL,
+  provider      TEXT NOT NULL,
+  tried_at      INTEGER NOT NULL,
+  reason        TEXT NOT NULL,
+  cache_version TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (fingerprint, provider)
+);
+
+-- 旧全局负缓存仅为迁移兼容保留；新解析流程不读取它
 CREATE TABLE miss (
   fingerprint TEXT    PRIMARY KEY,
   tried_at    INTEGER NOT NULL,
@@ -378,7 +407,8 @@ CREATE TABLE offset (
 );
 ```
 
-**负缓存是必需的**，不是优化：不做它，每看一个 B 站视频都会打一次网易云搜索接口。
+**按 provider 的负缓存是必需的**，不是优化：不做它，每看一个 B 站视频都会向所有在线源
+重复搜索；若继续使用旧全局 miss，又会让升级前的网易云失败错误抑制新加入的 AMLL。
 
 **手工改歌词不改数据库**，走 `~/.local/share/plasma-lyrics/overrides/<provider>:<id>.lrc`，
 由 `local` provider 以最高优先级读取。这样缓存保持"纯粹可再生"的语义，覆盖目录是"你的数据"，
@@ -389,13 +419,16 @@ CREATE TABLE offset (
 ## 5. Provider 接口
 
 ```cpp
-struct TrackQuery { QString title; QStringList artists; QString album; qint64 lengthMs; };
+struct TrackQuery { QString title; QStringList artists; QString album; qint64 lengthMs;
+                    QHash<QString, QStringList> platformIds; };
 struct Candidate  { QString trackId; QString title; QStringList artists;
-                    QString album; qint64 lengthMs; };
-struct LyricDoc   { LyricLines origin; LyricLines translation; bool hasWords; };
+                    QString album; qint64 lengthMs; QStringList alternateTitles;
+                    QString contentId; QHash<QString, QStringList> platformIds;
+                    QStringList authors; };
+struct LyricDoc   { LyricLines lines; int offsetMs; bool hasWords; QJsonObject metadata; };
 
-struct ProviderSearchResult { QList<Candidate> candidates; QString error; };
-struct ProviderFetchResult  { std::optional<LyricDoc> document; QString error; };
+struct ProviderSearchResult { QList<Candidate> candidates; QString error; bool transportFailed; };
+struct ProviderFetchResult  { std::optional<LyricDoc> document; QString error; bool transportFailed; };
 
 class Provider {
 public:
@@ -404,6 +437,8 @@ public:
     virtual ~Provider() = default;
     virtual QString id() const = 0;                          // "netease"
     virtual bool    isConfigured() const = 0;                // 未配置则跳过
+    virtual MatchPolicy matchPolicy() const;                 // AMLL 保留版本后缀
+    virtual QString cacheVersion() const;                    // 负缓存失效键
     virtual void search(const TrackQuery &, SearchCallback) = 0;
     virtual void fetch(const QString &trackId, FetchCallback) = 0;
 };
@@ -438,6 +473,12 @@ public:
     换成 `Metadata` 变更会让 `metadataChanged || oldStatus != m_state.playbackStatus` 短路掉
     那次成员读，剩下的野指针解引用落在 libQt6Core 里，而 ASan 只插桩本项目自己的编译单元，
     测试会在坏代码上照样全绿
+11. **AMLL 匹配与 TTML** — 版本正常/单边/冲突三层、别名后缀、平台 ID、历史修订去重；
+    行/词时间、空白、行内与关联翻译、多语言优先级、背景声隔离、重叠与非法时间轴
+12. **多 provider 编排** — 首选与回退、空/全制作信息歌词继续、按源冷却及版本失效、旧全局
+    miss 不抑制新源、强制重搜、缓存先显示、换曲/换源/重复重搜的旧回调隔离
+13. **控制与快照** — 私有会话总线验证指纹不符拒绝和偏好落库；快照与前端往返验证首选、
+    实际来源、临时回退、翻译、词时间和来源元数据
 
 **其他：** 第 6 项"时间锚点推进（含休眠唤醒后 monotonic 的行为）"通过**可注入时钟**的接口来测
 （否则要真的休眠一次）；第 8 项构建期检查沿用 nethogs 的四道命令。
