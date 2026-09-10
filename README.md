@@ -169,6 +169,60 @@ journalctl --user -u plasma-lyricsd.service -f
 诊断会打印当前构建和配置中的歌词源链、各源的版本匹配层级与拒绝原因；指定未编译或未配置的
 歌词源时会列出可用来源。
 
+「歌词服务」设置页「诊断」下的「记录调试信息」开关（配置项 `logging/debug`，默认关闭）为以下
+六个分类打开 debug 级日志，重启服务后生效：
+
+| 分类 | 内容 |
+| --- | --- |
+| `plasmalyrics.daemon` | 服务生命周期与控制调用 |
+| `plasmalyrics.resolver` | 歌词解析流程 |
+| `plasmalyrics.mpris` | MPRIS 播放器发现与状态 |
+| `plasmalyrics.provider.netease` | 网易云歌词源请求 |
+| `plasmalyrics.provider.amll` | AMLL TTML 数据库歌词源请求 |
+| `plasmalyrics.provider.local` | 本地歌词目录 |
+
+开启全部分类的调试信息用设置页勾选框即可；只想临时调试某一个分类时，可用 `QT_LOGGING_RULES`
+环境变量单独控制，优先级高于该配置项。守护进程以 `systemd --user` 服务运行，环境变量要先经
+`set-environment` 写入该用户实例再重启服务才会生效：
+
+```sh
+systemctl --user set-environment QT_LOGGING_RULES="plasmalyrics.mpris.debug=true"
+systemctl --user restart plasma-lyricsd
+
+# 用完还原
+systemctl --user unset-environment QT_LOGGING_RULES
+systemctl --user restart plasma-lyricsd
+```
+
+安装 KDE 版部件（`BUILD_PLASMOID=ON`）后，这六个分类会出现在 `kdebugsettings` 中，可按分类
+单独开关，但仅在「记录调试信息」关闭时生效——该勾选框的优先级高于 kdebugsettings，开启时会
+覆盖在那里对单个分类的 debug 开关。
+
+**读日志**：每行格式为 `[时间] 级别 分类 内容`。每次歌词解析都以 `#编号` 开头关联同一次请求
+的全部日志行；编号不连续属正常现象：守护进程发现当前没有可解析的播放内容时（服务启动时无播放器、
+最后一个播放器退出、剩余来源都被过滤且未在播放）会取消进行中的解析，也消耗一个编号。info 级
+默认只在解析的起点、经过的关键节点、终点各打一行：
+
+```
+#42 resolve: trigger=track-changed identity="Spotify" service=org.mpris.MediaPlayer2.spotify fingerprint="mediaSrc:0f3e…" platform=netease music=true title="劣等上等" artist="鏡音リン"
+#42 search provider=netease candidates=1 selected=1294899572 score=0.900 elapsed=1488ms
+#42 state=ok from=provider source=netease/1294899572 lines=59 elapsed=2061ms
+```
+
+起点行的 `trigger=` 说明触发这次解析的原因：
+
+| 取值 | 含义 |
+| --- | --- |
+| `startup` | 服务启动后的首次解析 |
+| `track-changed` | 同一播放器切到新曲目 |
+| `player-changed` | 当前活动播放器发生变化 |
+| `replay` | 同一曲目循环播放进入新一轮 |
+| `research` | 部件菜单「重新搜索歌词」 |
+| `set-preferred` | 为当前曲目指定了首选歌词源 |
+| `clear-preferred` | 清除了当前曲目的首选歌词源 |
+
+开启「记录调试信息」后还会打印候选打分明细、缓存查找细节等 debug 级行。
+
 ## 🛠️ 开发检查
 
 ```sh

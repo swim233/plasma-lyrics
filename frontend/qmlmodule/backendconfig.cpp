@@ -120,6 +120,7 @@ GETTER(int, amllTimeoutMs, m_amllTimeoutMs)
 GETTER(int, amllIndexRefreshHours, m_amllIndexRefreshHours)
 GETTER(bool, fileLoggingEnabled, m_fileLoggingEnabled)
 GETTER(QString, logFilePath, m_logFilePath)
+GETTER(bool, debugLoggingEnabled, m_debugLoggingEnabled)
 GETTER(bool, dirty, m_dirty)
 GETTER(BackendConfig::RestartState, restartState, m_restartState)
 GETTER(bool, restartInProgress, m_restartInProgress)
@@ -187,6 +188,7 @@ SETTER(int, setAmllTimeoutMs, m_amllTimeoutMs)
 SETTER(int, setAmllIndexRefreshHours, m_amllIndexRefreshHours)
 SETTER(bool, setFileLoggingEnabled, m_fileLoggingEnabled)
 SETTER(const QString &, setLogFilePath, m_logFilePath)
+SETTER(bool, setDebugLoggingEnabled, m_debugLoggingEnabled)
 SETTER(const QString &, setLocalLyricsDirectory, m_localLyricsDirectory)
 #undef SETTER
 
@@ -284,6 +286,7 @@ void BackendConfig::load()
         QStringLiteral("logging/filePath"),
         QString(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
             + QStringLiteral("/plasma-lyrics/plasma-lyricsd.log"))).toString();
+    m_debugLoggingEnabled = config.value(QStringLiteral("logging/debug"), false).toBool();
     const bool wasDirty = m_dirty;
     m_dirty = false;
     Q_EMIT changed();
@@ -318,6 +321,7 @@ bool BackendConfig::save()
     config.setValue(QStringLiteral("providers/amll/indexRefreshHours"), m_amllIndexRefreshHours);
     config.setValue(QStringLiteral("logging/fileEnabled"), m_fileLoggingEnabled);
     config.setValue(QStringLiteral("logging/filePath"), m_logFilePath);
+    config.setValue(QStringLiteral("logging/debug"), m_debugLoggingEnabled);
     config.sync();
     if (config.status() != QSettings::NoError) {
         return false;

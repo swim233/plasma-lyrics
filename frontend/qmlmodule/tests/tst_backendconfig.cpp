@@ -92,6 +92,24 @@ private Q_SLOTS:
         }
     }
 
+    void debugLoggingDefaultsToFalse()
+    {
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        QCOMPARE(config.debugLoggingEnabled(), false);
+    }
+
+    void debugLoggingReadsBackWrittenValue()
+    {
+        {
+            auto config = shellConfig(QStringLiteral("exit 0"));
+            config.setDebugLoggingEnabled(true);
+            QVERIFY(config.dirty());
+            QVERIFY(config.save());
+        }
+        auto restored = shellConfig(QStringLiteral("exit 0"));
+        QCOMPARE(restored.debugLoggingEnabled(), true);
+    }
+
     void discoversAvailableProvidersFromDaemon()
     {
         auto bus = QDBusConnection::sessionBus();

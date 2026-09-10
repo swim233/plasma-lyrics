@@ -46,6 +46,62 @@ The explanation reports the configured provider chain, provider-specific version
 tier, and rejection reasons. An unavailable explicit provider lists the providers
 compiled and configured in the current build.
 
+The "Record debug details" checkbox under the "Lyrics Service" configuration
+page's Diagnostics section (`logging/debug`, off by default) turns on debug-level
+logging for six categories, effective after the service restarts:
+
+| Category | Covers |
+| --- | --- |
+| `plasmalyrics.daemon` | Service lifecycle and control calls |
+| `plasmalyrics.resolver` | The lyric resolution pipeline |
+| `plasmalyrics.mpris` | MPRIS player discovery and state |
+| `plasmalyrics.provider.netease` | NetEase lyric source requests |
+| `plasmalyrics.provider.amll` | AMLL TTML database lyric source requests |
+| `plasmalyrics.provider.local` | The local lyrics directory |
+
+That checkbox is the way to turn on every category at once; to debug a single
+category instead, use the `QT_LOGGING_RULES` environment variable, which takes
+precedence over the config value. The service runs under `systemd --user`, so the
+variable has to go through `set-environment` for that user instance before
+restarting the service:
+
+```sh
+systemctl --user set-environment QT_LOGGING_RULES="plasmalyrics.mpris.debug=true"
+systemctl --user restart plasma-lyricsd
+
+# to revert
+systemctl --user unset-environment QT_LOGGING_RULES
+systemctl --user restart plasma-lyricsd
+```
+
+With the KDE package installed (`BUILD_PLASMOID=ON`), these categories also show up
+in `kdebugsettings` and can be toggled individually there, but only while "Record
+debug details" is off — that checkbox takes precedence over kdebugsettings and
+overrides its per-category debug toggle while it's on.
+
+Each line is formatted as `[time] level category message`. Every resolve is tagged
+with a `#number` prefix shared by all its log lines; gaps in the numbering are
+normal — a cancellation also consumes a number whenever the daemon finds nothing
+playable to resolve: no player at startup, the last player exiting, or every
+remaining source being filtered out and not playing. At info level, a resolve logs
+one line each at its start, at the key steps along the way, and at its end:
+
+```
+#42 resolve: trigger=track-changed identity="Spotify" service=org.mpris.MediaPlayer2.spotify fingerprint="mediaSrc:0f3e…" platform=netease music=true title="劣等上等" artist="鏡音リン"
+#42 search provider=netease candidates=1 selected=1294899572 score=0.900 elapsed=1488ms
+#42 state=ok from=provider source=netease/1294899572 lines=59 elapsed=2061ms
+```
+
+`trigger=` on the start line explains why the resolve ran: `startup` (the service's
+first resolve), `track-changed` (same player, new track), `player-changed` (the
+active player changed), `replay` (the same track looped into a new round),
+`research` (the widget menu's "Search for lyrics again"), `set-preferred` (a
+per-song provider preference was set), or `clear-preferred` (a per-song preference
+was cleared).
+
+With "Record debug details" on, this also prints debug-level lines such as
+per-candidate match scoring and cache-lookup details.
+
 Timing can be adjusted by 500 ms from the widget context menu, per song by
 default; the "Global settings" configuration tab can switch this to one
 shared offset for every song instead. Manual LRC replacements belong in

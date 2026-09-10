@@ -31,6 +31,7 @@ class BackendConfig : public QObject
     Q_PROPERTY(int amllIndexRefreshHours READ amllIndexRefreshHours WRITE setAmllIndexRefreshHours NOTIFY changed)
     Q_PROPERTY(bool fileLoggingEnabled READ fileLoggingEnabled WRITE setFileLoggingEnabled NOTIFY changed)
     Q_PROPERTY(QString logFilePath READ logFilePath WRITE setLogFilePath NOTIFY changed)
+    Q_PROPERTY(bool debugLoggingEnabled READ debugLoggingEnabled WRITE setDebugLoggingEnabled NOTIFY changed)
     Q_PROPERTY(bool dirty READ dirty NOTIFY dirtyChanged)
     Q_PROPERTY(RestartState restartState READ restartState NOTIFY restartStateChanged)
     Q_PROPERTY(bool restartInProgress READ restartInProgress NOTIFY restartInProgressChanged)
@@ -68,6 +69,7 @@ public:
     int amllIndexRefreshHours() const;
     bool fileLoggingEnabled() const;
     QString logFilePath() const;
+    bool debugLoggingEnabled() const;
     bool dirty() const;
     RestartState restartState() const;
     bool restartInProgress() const;
@@ -90,6 +92,7 @@ public:
     void setAmllIndexRefreshHours(int value);
     void setFileLoggingEnabled(bool value);
     void setLogFilePath(const QString &value);
+    void setDebugLoggingEnabled(bool value);
 
     Q_INVOKABLE void load();
     Q_INVOKABLE bool save();
@@ -131,6 +134,7 @@ private:
     int m_amllIndexRefreshHours = 24;
     bool m_fileLoggingEnabled = false;
     QString m_logFilePath;
+    bool m_debugLoggingEnabled = false;
     bool m_dirty = false;
     QString m_restartProgram;
     QStringList m_restartArguments;

@@ -230,6 +230,19 @@ Kirigami.ScrollablePage {
                 checked: backend.fileLoggingEnabled
                 onToggled: backend.fileLoggingEnabled = checked
             }
+            QQC2.CheckBox {
+                text: i18n("Record debug details")
+                checked: backend.debugLoggingEnabled
+                onToggled: backend.debugLoggingEnabled = checked
+            }
+            QQC2.Label {
+                Layout.fillWidth: true
+                Layout.maximumWidth: Kirigami.Units.gridUnit * 20
+                text: i18n("Adds request URLs, match scoring and player events to the log. Takes effect after the service restarts.")
+                wrapMode: Text.WordWrap
+                color: Kirigami.Theme.disabledTextColor
+                font: Kirigami.Theme.smallFont
+            }
             QQC2.TextField {
                 Kirigami.FormData.label: i18n("Log file:")
                 visible: backend.fileLoggingEnabled
