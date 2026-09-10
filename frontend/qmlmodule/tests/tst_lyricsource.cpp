@@ -11,6 +11,8 @@
 #include <QTemporaryDir>
 #include <QTest>
 
+#include <KLocalizedString>
+
 using namespace PlasmaLyrics;
 
 // Every LyricSource in this file is constructed with an explicit storePath
@@ -67,6 +69,16 @@ private:
     }
 
 private Q_SLOTS:
+    // providerDisplayName() goes through i18nd(), so the expected strings below
+    // are only stable when the catalogue lookup is pinned to the source
+    // language. Without this the suite fails on any machine whose session
+    // locale has an installed translation -- including this project's own
+    // plasma-lyrics-git install, which puts zh_CN into /usr/share/locale.
+    void initTestCase()
+    {
+        KLocalizedString::setLanguages({QStringLiteral("en_US")});
+    }
+
     void advancesWithInjectedMonotonicClock()
     {
         QTemporaryDir directory;
