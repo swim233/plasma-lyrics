@@ -174,6 +174,8 @@
   "lyric": {
     "state": "ok",
     "offsetMs": 0,
+    "globalOffsetEnabled": false,
+    "switchingProvider": "",
     "lines": [
       { "startMs": 28630, "endMs": 31620, "text": "若能再相见", "translation": null, "words": null },
       { "startMs": 31620, "endMs": 35000, "text": "那条长街",   "translation": null, "words": null }
@@ -300,11 +302,13 @@ plasma-lyrics/
 | 51 | **服务重启结果必须可见且可重试**：`BackendConfig` 用自己持有的异步 `QProcess` 运行 `systemctl --user restart plasma-lyricsd`，分别处理启动失败、非零退出码、crash 与成功，配置页显示成功/失败 InlineMessage。运行中拒绝重复调用并禁用按钮；保存成功会清掉 `dirty`，但重启失败后按钮仍可直接再次执行重启，不要求用户制造一次无意义的配置编辑。对象销毁时终止仍在运行的子进程，避免完成回调访问失效对象 |
 | 52 | **缓存诊断覆盖读写两端**：解析日志把「fingerprint 映射不存在」与「映射存在但歌词正文不存在」分开记录；provider 搜索失败记录 provider id 与原始错误文本。`putLyric`、`mapFingerprint`、`recordMiss` 的 Bool 结果都必须检查，失败分别写日志；`record miss` 成功日志只能在负缓存真正落库后输出，不能把失败误报成成功。当前播放仍可使用刚获取的内存文档，原子整首快照契约不因缓存持久化失败而改变 |
 | 53 | **空文案回退改为单一策略开关**：决策 14/50 的四个伴生 `*TextUseDefault` 开关在设置页合并为一个每实例 `emptyTextUseDefault`。非空自定义文案始终优先；只有字段为空时，该开关才决定显示本地化默认文案还是保持空白，因此编辑一个字段不会连带关闭其他字段的回退。旧四键保留在 kcfg 中只供迁移读取，不再参与版本 2 的运行时渲染。`textConfigVersion` 从 1 升至 2：从版本 0 直升时先执行决策 50 的 `notFoundText` 保护，再以四个旧 Bool 的逻辑或写入新键；只要旧实例任一状态仍使用默认文案就继续开启，只有四项全部明确关闭时才迁移为关闭。版本闸保持迁移幂等，迁移后用户对新开关的选择不会被旧键覆盖 |
-| 54 | **多歌词源与 AMLL**：后端全局顺序默认 `netease → amll`，单曲首选按现有指纹持久化并移到链首，其余已配置源仍按全局顺序回退且每次只查询一次。缓存分为用户首选、实际命中、按 provider 失败冷却三种状态；旧 `fingerprint` 只迁移为实际结果，旧全局 `miss` 不抑制 AMLL。正常播放可先发布已有回退歌词；只有保留项是非空、状态为 `ok` 的有效歌词时，强制重搜失败才不清屏，否则必须发布 `not-found` 或具体错误终态。首选源冷却结束后仅在明确的播放轮次事件后台重试且一轮最多一次。MPRIS `Seeked` 到达时立即用目标位置和单调时钟重新锚定，通常作为手工跳转抑制轮次；考虑少数播放器也会在自然循环时发送该信号，只有同一套自然过尾证据独立成立时仍保留一轮事件。对 pbi 等不发 `Seeked` 的来源，曲尾→开头只有在 `(单调时间差 × Rate)` 已足以消耗上一采样点的曲尾剩余时长、且当前位置接近预期的循环后相位时才算新轮次；轮询、`Seeked` 与脏 `PropertiesChanged(Position)` 共用判据并在采样后统一重锚，普通回退仍只重新对轴且同一次回跳不会重复。协议极限是：若用户跳转发生在恰好与自然过尾相同的时刻且目标又与预期相位吻合，MPRIS 没有提供 seek 原因，客户端没有可观察信息区分两者；错误的曲长、Rate 或严重延迟也可能让非标准播放器越出容差。手动换源/恢复自动/重搜经带预期指纹的会话 D-Bus 控制接口执行，强制请求绕过映射与负缓存，并由世代号阻止旧回调提交。AMLL 缓存 JSONL 索引，24 小时后条件刷新，校验成功才原子替换；缓存版本纳入规范化索引与内容 URL，索引元数据记录来源，来源变化时强制无条件重验证并丢弃旧 ETag/Last-Modified。历史记录以关联为边做传递合并，稳定引用优先使用最早组；标题、艺人和已知 ISRC 冲突阻止误合并，具体 `rawLyricFile` 仅作为内容版本。AMLL 匹配保留 Live/Remix/Cover/重制等后缀：版本一致或双方无标记为正常层，仅单边标记为低层，明确冲突排除。TTML 在 `core/` 解析为现有整首模型，接受带单位或无单位秒时间、保留 `span` 间有效空白，并把官方 `<translations>/<translation>/<text for>` 按行 id 映射；翻译语言按 BCP-47 主语言、脚本和地区确定性选择。保存行/词时间及来源元数据；`x-bg` 与罗马音不拼入主歌词，前端首版仍按行显示。音乐播放平台（MPRIS 来源）与歌词 provider 是两个独立概念 |
+| 54 | **多歌词源与 AMLL**：后端全局顺序默认 `local → netease → amll`，单曲首选按现有指纹持久化并移到链首，其余已配置源仍按全局顺序回退且每次只查询一次。缓存分为用户首选、实际命中、按 provider 失败冷却三种状态；旧 `fingerprint` 只迁移为实际结果，旧全局 `miss` 不抑制 AMLL。正常播放可先发布已有回退歌词；只有保留项是非空、状态为 `ok` 的有效歌词时，强制重搜失败才不清屏，否则必须发布 `not-found` 或具体错误终态。首选源冷却结束后仅在明确的播放轮次事件后台重试且一轮最多一次。MPRIS `Seeked` 到达时立即用目标位置和单调时钟重新锚定，通常作为手工跳转抑制轮次；考虑少数播放器也会在自然循环时发送该信号，只有同一套自然过尾证据独立成立时仍保留一轮事件。对 pbi 等不发 `Seeked` 的来源，曲尾→开头只有在 `(单调时间差 × Rate)` 已足以消耗上一采样点的曲尾剩余时长、且当前位置接近预期的循环后相位时才算新轮次；轮询、`Seeked` 与脏 `PropertiesChanged(Position)` 共用判据并在采样后统一重锚，普通回退仍只重新对轴且同一次回跳不会重复。协议极限是：若用户跳转发生在恰好与自然过尾相同的时刻且目标又与预期相位吻合，MPRIS 没有提供 seek 原因，客户端没有可观察信息区分两者；错误的曲长、Rate 或严重延迟也可能让非标准播放器越出容差。手动换源/恢复自动/重搜经带预期指纹的会话 D-Bus 控制接口执行，强制请求绕过映射与负缓存，并由世代号阻止旧回调提交。AMLL 缓存 JSONL 索引，24 小时后条件刷新，校验成功才原子替换；缓存版本纳入规范化索引与内容 URL，索引元数据记录来源，来源变化时强制无条件重验证并丢弃旧 ETag/Last-Modified。历史记录以关联为边做传递合并，稳定引用优先使用最早组；标题、艺人和已知 ISRC 冲突阻止误合并，具体 `rawLyricFile` 仅作为内容版本。AMLL 匹配保留 Live/Remix/Cover/重制等后缀：版本一致或双方无标记为正常层，仅单边标记为低层，明确冲突排除。TTML 在 `core/` 解析为现有整首模型，接受带单位或无单位秒时间、保留 `span` 间有效空白，并把官方 `<translations>/<translation>/<text for>` 按行 id 映射；翻译语言按 BCP-47 主语言、脚本和地区确定性选择。保存行/词时间及来源元数据；`x-bg` 与罗马音不拼入主歌词，前端首版仍按行显示。音乐播放平台（MPRIS 来源）与歌词 provider 是两个独立概念 |
 | 55 | **部件是 SQLite 零接触的快照消费者**：`lyric.offsetMs` 是生效偏移，快照另带 `globalOffsetEnabled`；偏移调整经带预期指纹的 `AdjustOffset(deltaMs)` / `ResetOffset` 写入守护进程并立即重发快照。2 秒健康检查只做 daemon pid 存活检测。唯一例外是配置对话框中的 `GlobalConfig`：它为同步报告保存失败而直连 `LyricStore`，成功后以 `RefreshGlobalOffset` 通知 daemon 重发快照；通知失败不改变已经成功落盘的设置，下次 daemon 启动会读取它。因此 `LyricStore` 只有守护进程与配置对话框两类调用方 |
 | 56 | **MPRIS Position 与锚点永远同刻采样**：每次位置轮询都同时更新 `positionUs` 与 `anchorMonotonicNs`；跳变判据只决定是否发布状态，不得决定缓存配对是否自洽。媒体指纹和 `m_lastSample*` 跳变检测逻辑保持独立 |
+| 57 | **歌词源配置是顺序与启用集合两个维度**：`providers/order` 保存全部源的稳定顺序，`providers/enabled` 保存勾选集合；设置页使用可拖拽、可勾选列表且至少保留一个可见源。守护进程的 `AvailableProviders` 经 D-Bus 提供当前构建支持的全部源（包括未启用源），与 Resolver 的启用解析链严格分离；否则重启后被禁用的源会从设置页消失、无法重新启用。停机时前端退回静态列表；保存必须原样保留未编译或未知 id。空顺序/空启用结果回退内置默认并写日志 |
 | 58 | **本地歌词是可搜索 provider**：默认顺序为 `local → netease → amll`，升级旧顺序时自动前置并启用 `local`。先尝试本地音频同级 sidecar，再扫描配置的歌词目录；本地路径优先使用有效且存在的 KDE 私有 `kde:mediaSrc`，否则回退到标准 MPRIS `xesam:url`，只影响查询输入而不改变指纹/曲目身份语义。目录文件用文件名和 LRC `[ti:]`/`[ar:]`/`[al:]`/`[length:]` 填充 `Candidate` 并复用统一 Matcher。目录状态组成 `cacheVersion()`；对本地音频的查询从搜索到获取、空歌词及过滤后为空的全部失败路径都不写 provider 负缓存，因为新增或原地修复 sidecar 不会改变目录版本，旧失败不得抑制新内容 |
 | 59 | **手工覆盖不是 provider 能力**：`overrideFor` 从 `Provider` 接口移除，覆盖读取器位于 `core/store/` 并由 Resolver 在缓存正文之前独立调用。`overrides/<provider>:<track-id>.lrc` 的路径与行为保持不变 |
+| 60 | **强制切源进度由快照表达**：`lyric.switchingProvider` 非空表示指定源的强制解析仍在进行；部件据此禁用所有来源命令并显示目标源，Resolver 成功或失败都清空该字段。旧歌词在有效时继续显示，不使用前端固定超时猜测后端状态 |
 
 ### 工程结构
 | # | 决策 |
@@ -416,7 +420,7 @@ CREATE TABLE offset (
 重复搜索；若继续使用旧全局 miss，又会让升级前的网易云失败错误抑制新加入的 AMLL。
 
 **手工改歌词不改数据库**，走 `~/.local/share/plasma-lyrics/overrides/<provider>:<id>.lrc`，
-由 `local` provider 以最高优先级读取。这样缓存保持"纯粹可再生"的语义，覆盖目录是"你的数据"，
+由 `core/store/` 的覆盖读取器在 provider 结果之后读取。这样缓存保持"纯粹可再生"的语义，覆盖目录是"你的数据"，
 备份时只需备份后者。
 
 ---
@@ -425,14 +429,15 @@ CREATE TABLE offset (
 
 ```cpp
 struct TrackQuery { QString title; QStringList artists; QString album; qint64 lengthMs;
-                    QHash<QString, QStringList> platformIds; };
+                    QHash<QString, QStringList> platformIds; QString mediaSrc; };
 struct Candidate  { QString trackId; QString title; QStringList artists;
                     QString album; qint64 lengthMs; QStringList alternateTitles;
                     QString contentId; QHash<QString, QStringList> platformIds;
                     QStringList authors; };
 struct LyricDoc   { LyricLines lines; int offsetMs; bool hasWords; QJsonObject metadata; };
 
-struct ProviderSearchResult { QList<Candidate> candidates; QString error; bool transportFailed; };
+struct ProviderSearchResult { QList<Candidate> candidates; QString error; bool transportFailed;
+                              QString cacheVersion; bool cacheableMiss; };
 struct ProviderFetchResult  { std::optional<LyricDoc> document; QString error; bool transportFailed; };
 
 class Provider {

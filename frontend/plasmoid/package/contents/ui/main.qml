@@ -309,7 +309,10 @@ PlasmoidItem {
 
     Plasmoid.contextualActions: [
         PlasmaCore.Action {
-            text: lyricSource.actualProvider.length > 0
+            text: lyricSource.switchingProvider.length > 0
+                ? i18n("Getting lyrics from %1…",
+                       lyricSource.providerDisplayName(lyricSource.switchingProvider))
+                : lyricSource.actualProvider.length > 0
                 ? (lyricSource.temporaryFallback
                     ? i18n("Current lyrics: %1 (temporary fallback)",
                            lyricSource.providerDisplayName(lyricSource.actualProvider))
@@ -328,12 +331,21 @@ PlasmoidItem {
             onTriggered: lyricSource.clearPreferredProvider()
         },
         PlasmaCore.Action {
+            text: i18n("Prefer local files for this song")
+            icon.name: "folder-music-symbolic"
+            checkable: true
+            checked: lyricSource.preferredProvider === "local"
+            visible: lyricSource.availableProviders.indexOf("local") >= 0
+            enabled: lyricSource.canControlProvider
+            onTriggered: lyricSource.setPreferredProvider("local")
+        },
+        PlasmaCore.Action {
             text: i18n("Prefer NetEase for this song")
             icon.name: "cloud"
             checkable: true
             checked: lyricSource.preferredProvider === "netease"
+            visible: lyricSource.availableProviders.indexOf("netease") >= 0
             enabled: lyricSource.canControlProvider
-                && lyricSource.availableProviders.indexOf("netease") >= 0
             onTriggered: lyricSource.setPreferredProvider("netease")
         },
         PlasmaCore.Action {
@@ -341,8 +353,8 @@ PlasmoidItem {
             icon.name: "cloud"
             checkable: true
             checked: lyricSource.preferredProvider === "amll"
+            visible: lyricSource.availableProviders.indexOf("amll") >= 0
             enabled: lyricSource.canControlProvider
-                && lyricSource.availableProviders.indexOf("amll") >= 0
             onTriggered: lyricSource.setPreferredProvider("amll")
         },
         PlasmaCore.Action {

@@ -31,8 +31,14 @@ if(BUILD_TESTING)
         backendconfig.cpp
     )
     target_include_directories(tst_backendconfig PRIVATE ${CMAKE_SOURCE_DIR})
-    target_link_libraries(tst_backendconfig PRIVATE Qt6::Core Qt6::Qml Qt6::Test)
-    add_test(NAME tst_backendconfig COMMAND tst_backendconfig)
+    target_link_libraries(tst_backendconfig PRIVATE Qt6::Core Qt6::DBus Qt6::Qml Qt6::Test)
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(NAME tst_backendconfig
+                 COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_backendconfig>)
+    else()
+        add_test(NAME tst_backendconfig COMMAND tst_backendconfig)
+    endif()
+    set_tests_properties(tst_backendconfig PROPERTIES RESOURCE_LOCK plasma_lyrics_config)
 
     add_executable(tst_globalconfig
         tests/tst_globalconfig.cpp

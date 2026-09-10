@@ -16,7 +16,10 @@ public:
     PolicyConfig policy() const;
     QUrl neteaseBaseUrl() const;
     int networkTimeoutMs() const;
+    // The persisted priority list is independent from the enabled subset so
+    // disabling a provider never erases its position from configuration UI.
     QStringList providerOrder() const;
+    QStringList enabledProviderOrder() const;
     QString localLyricsDirectory() const;
     QUrl amllIndexUrl() const;
     QUrl amllContentBaseUrl() const;

@@ -1,5 +1,6 @@
 #include "frontend/qmlmodule/backendconfig.h"
 
+#include <QDBusConnection>
 #include <QElapsedTimer>
 #include <QSignalSpy>
 #include <QSettings>
@@ -7,6 +8,18 @@
 #include <QTest>
 
 namespace {
+
+class FakeControlService final : public QObject
+{
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "io.github.swim233.PlasmaLyrics.Control")
+
+public Q_SLOTS:
+    QStringList AvailableProviders() const
+    {
+        return {QStringLiteral("local"), QStringLiteral("amll")};
+    }
+};
 
 BackendConfig shellConfig(const QString &command)
 {
@@ -26,6 +39,18 @@ private Q_SLOTS:
         QStandardPaths::setTestModeEnabled(true);
     }
 
+    void init()
+    {
+        auto bus = QDBusConnection::sessionBus();
+        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
+        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                           QStringLiteral("plasma-lyrics"),
+                           QStringLiteral("plasma-lyricsd"));
+        settings.clear();
+        settings.sync();
+    }
+
     void persistsProviderOrderAndAmllSettings()
     {
         QSettings settings(QSettings::IniFormat, QSettings::UserScope,
@@ -35,8 +60,13 @@ private Q_SLOTS:
         settings.sync();
         {
             auto config = shellConfig(QStringLiteral("exit 0"));
-            QCOMPARE(config.providerOrder(), QStringLiteral("netease\namll"));
-            config.setProviderOrder(QStringLiteral(" AMLL \nnetease\namll\nunknown"));
+            QCOMPARE(config.providerOrder(),
+                     QStringList({QStringLiteral("local"), QStringLiteral("netease"),
+                                  QStringLiteral("amll")}));
+            config.setProviderOrder({QStringLiteral("amll"), QStringLiteral("unknown"),
+                                     QStringLiteral("local"), QStringLiteral("netease")});
+            config.setEnabledProviders({QStringLiteral("local"), QStringLiteral("amll"),
+                                        QStringLiteral("unknown")});
             config.setAmllIndexUrl(QStringLiteral("https://example.invalid/index.jsonl"));
             config.setAmllContentBaseUrl(QStringLiteral("https://example.invalid/content/"));
             config.setAmllTimeoutMs(12345);
@@ -47,7 +77,12 @@ private Q_SLOTS:
         }
         {
             auto restored = shellConfig(QStringLiteral("exit 0"));
-            QCOMPARE(restored.providerOrder(), QStringLiteral("amll\nnetease"));
+            QCOMPARE(restored.providerOrder(),
+                     QStringList({QStringLiteral("amll"), QStringLiteral("unknown"),
+                                  QStringLiteral("local"), QStringLiteral("netease")}));
+            QCOMPARE(restored.enabledProviders(),
+                     QStringList({QStringLiteral("local"), QStringLiteral("amll"),
+                                  QStringLiteral("unknown")}));
             QCOMPARE(restored.amllIndexUrl(),
                      QStringLiteral("https://example.invalid/index.jsonl"));
             QCOMPARE(restored.amllContentBaseUrl(),
@@ -55,6 +90,113 @@ private Q_SLOTS:
             QCOMPARE(restored.amllTimeoutMs(), 12345);
             QCOMPARE(restored.amllIndexRefreshHours(), 36);
         }
+    }
+
+    void discoversAvailableProvidersFromDaemon()
+    {
+        auto bus = QDBusConnection::sessionBus();
+        FakeControlService service;
+        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
+        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
+                                   &service, QDBusConnection::ExportAllSlots));
+
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        QVERIFY(!config.providerDiscoveryFallback());
+        const auto entries = config.providerEntries();
+        QCOMPARE(entries.size(), 2);
+        QCOMPARE(entries.at(0).toMap().value(QStringLiteral("id")).toString(),
+                 QStringLiteral("local"));
+        QCOMPARE(entries.at(1).toMap().value(QStringLiteral("id")).toString(),
+                 QStringLiteral("amll"));
+
+        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
+        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
+    }
+
+    void fallsBackWhenDaemonIsUnavailable()
+    {
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        QVERIFY(config.providerDiscoveryFallback());
+        QCOMPARE(config.providerEntries().size(), 3);
+    }
+
+    void reordersVisibleProvidersWithoutDroppingUnknownOnes()
+    {
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                           QStringLiteral("plasma-lyrics"),
+                           QStringLiteral("plasma-lyricsd"));
+        settings.clear();
+        settings.setValue(QStringLiteral("providers/order"),
+                          QStringList({QStringLiteral("local"), QStringLiteral("future"),
+                                       QStringLiteral("netease"), QStringLiteral("amll")}));
+        settings.sync();
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        QVERIFY(config.moveProvider(0, 2));
+        QVERIFY(config.providerOrder().contains(QStringLiteral("future")));
+        QVERIFY(config.save());
+        QCOMPARE(settings.value(QStringLiteral("providers/order")).toStringList(),
+                 config.providerOrder());
+    }
+
+    void refusesToDisableTheLastVisibleProvider()
+    {
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        config.setEnabledProviders({QStringLiteral("local")});
+        QVERIFY(!config.setProviderEnabled(QStringLiteral("local"), false));
+        QVERIFY(config.enabledProviders().contains(QStringLiteral("local")));
+    }
+
+    void disablingAndReenablingDoesNotChangePriority()
+    {
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        const auto before = config.providerOrder();
+        QVERIFY(config.setProviderEnabled(QStringLiteral("amll"), false));
+        QVERIFY(config.setProviderEnabled(QStringLiteral("amll"), true));
+        QCOMPARE(config.providerOrder(), before);
+    }
+
+    void disabledAmllRemainsVisibleAndCanBeReenabledAfterRestart()
+    {
+        auto bus = QDBusConnection::sessionBus();
+        FakeControlService service;
+        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
+        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
+                                   &service, QDBusConnection::ExportAllSlots));
+
+        QStringList savedOrder;
+        {
+            auto config = shellConfig(QStringLiteral("exit 0"));
+            QCOMPARE(config.providerEntries().size(), 2);
+            QVERIFY(config.moveProvider(1, 0));
+            savedOrder = config.providerOrder();
+            QVERIFY(config.setProviderEnabled(QStringLiteral("amll"), false));
+            QVERIFY(config.save());
+        }
+        {
+            auto restarted = shellConfig(QStringLiteral("exit 0"));
+            QCOMPARE(restarted.providerOrder(), savedOrder);
+            const auto entries = restarted.providerEntries();
+            QCOMPARE(entries.size(), 2);
+            QCOMPARE(entries.at(0).toMap().value(QStringLiteral("id")).toString(),
+                     QStringLiteral("amll"));
+            QCOMPARE(entries.at(0).toMap().value(QStringLiteral("enabled")).toBool(), false);
+            QCOMPARE(entries.at(1).toMap().value(QStringLiteral("id")).toString(),
+                     QStringLiteral("local"));
+            QVERIFY(restarted.setProviderEnabled(QStringLiteral("amll"), true));
+            QCOMPARE(restarted.providerOrder(), savedOrder);
+            QVERIFY(restarted.save());
+        }
+        {
+            auto restartedAgain = shellConfig(QStringLiteral("exit 0"));
+            QCOMPARE(restartedAgain.providerOrder(), savedOrder);
+            const auto entries = restartedAgain.providerEntries();
+            QCOMPARE(entries.at(0).toMap().value(QStringLiteral("id")).toString(),
+                     QStringLiteral("amll"));
+            QCOMPARE(entries.at(0).toMap().value(QStringLiteral("enabled")).toBool(), true);
+        }
+
+        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
+        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
     }
 
     void reportsSuccessfulRestart()

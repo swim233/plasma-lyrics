@@ -33,6 +33,7 @@ class LyricSource : public QObject
     Q_PROPERTY(QString actualProvider READ actualProvider NOTIFY providerStateChanged)
     Q_PROPERTY(bool temporaryFallback READ temporaryFallback NOTIFY providerStateChanged)
     Q_PROPERTY(QStringList availableProviders READ availableProviders NOTIFY providerStateChanged)
+    Q_PROPERTY(QString switchingProvider READ switchingProvider NOTIFY providerStateChanged)
     Q_PROPERTY(bool canControlProvider READ canControlProvider NOTIFY canControlProviderChanged)
     Q_PROPERTY(bool controlInProgress READ controlInProgress NOTIFY controlInProgressChanged)
     Q_PROPERTY(QString controlError READ controlError NOTIFY controlErrorChanged)
@@ -64,6 +65,7 @@ public:
     QString actualProvider() const;
     bool temporaryFallback() const;
     QStringList availableProviders() const;
+    QString switchingProvider() const;
     bool canControlProvider() const;
     bool controlInProgress() const;
     QString controlError() const;
@@ -129,6 +131,7 @@ private:
     QString m_actualProvider;
     QStringList m_availableProviders;
     bool m_temporaryFallback = false;
+    QString m_switchingProvider;
     bool m_controlInProgress = false;
     QString m_controlError;
     PlasmaLyrics::LyricLines m_lines;

@@ -60,6 +60,7 @@ private Q_SLOTS:
                             {QStringLiteral("netease"), QStringLiteral("amll")}};
         lyric.globalOffsetEnabled = true;
         lyric.document.offsetMs = 750;
+        lyric.switchingProvider = QStringLiteral("amll");
         MprisState player;
         player.fingerprint = QStringLiteral("mediaSrc:test");
 
@@ -79,6 +80,8 @@ private Q_SLOTS:
         QVERIFY(stored.value(QStringLiteral("temporaryFallback")).toBool());
         QVERIFY(stored.value(QStringLiteral("globalOffsetEnabled")).toBool());
         QCOMPARE(stored.value(QStringLiteral("offsetMs")).toInt(), 750);
+        QCOMPARE(stored.value(QStringLiteral("switchingProvider")).toString(),
+                 QStringLiteral("amll"));
         QCOMPARE(stored.value(QStringLiteral("availableProviders")).toArray().size(), 2);
         QCOMPARE(stored.value(QStringLiteral("metadata")).toObject(), document.metadata);
         const auto line = stored.value(QStringLiteral("lines")).toArray().first().toObject();

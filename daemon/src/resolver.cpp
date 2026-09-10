@@ -24,6 +24,7 @@ struct Resolver::Request {
     bool networkFailed = false;
     bool sawEmptyLyric = false;
     bool keepExisting = false;
+    std::optional<ResolvedLyric> existing;
     bool force = false;
     QString manualPreference;
     QString effectivePreference;
@@ -189,6 +190,7 @@ void Resolver::resolve(const MprisState &state, ResolveOptions options)
         && options.existing->state == QStringLiteral("ok")
         && options.existing->ref.has_value()
         && !options.existing->document.lines.isEmpty();
+    if (request->keepExisting) request->existing = std::move(options.existing);
     request->manualPreference = m_store.preferredProvider(state.fingerprint).value_or(QString());
     request->providers = searchChain(request->manualPreference);
     if (!request->providers.isEmpty()) {
@@ -368,7 +370,20 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
         break;
     }
     if (!provider) {
-        if (request->keepExisting) return;
+        if (request->keepExisting) {
+            if (request->existing) {
+                auto retained = std::move(*request->existing);
+                retained.preferredProvider = request->manualPreference;
+                retained.effectivePreferredProvider = request->effectivePreference;
+                retained.temporaryFallback = retained.ref
+                    && !request->effectivePreference.isEmpty()
+                    && retained.ref->provider != request->effectivePreference;
+                retained.availableProviders = availableProviders();
+                retained.switchingProvider.clear();
+                finish(request, std::move(retained));
+            }
+            return;
+        }
         const QString resultState = request->networkFailed
             ? QStringLiteral("network-error")
             : request->sawEmptyLyric ? QStringLiteral("no-lyric")

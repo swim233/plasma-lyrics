@@ -124,7 +124,11 @@ QString LyricSource::effectivePreferredProvider() const { return m_effectivePref
 QString LyricSource::actualProvider() const { return m_actualProvider; }
 bool LyricSource::temporaryFallback() const { return m_temporaryFallback; }
 QStringList LyricSource::availableProviders() const { return m_availableProviders; }
-bool LyricSource::controlInProgress() const { return m_controlInProgress; }
+QString LyricSource::switchingProvider() const { return m_switchingProvider; }
+bool LyricSource::controlInProgress() const
+{
+    return m_controlInProgress || !m_switchingProvider.isEmpty();
+}
 QString LyricSource::controlError() const { return m_controlError; }
 bool LyricSource::hasTrackRef() const { return !m_provider.isEmpty() && !m_trackId.isEmpty(); }
 
@@ -133,6 +137,7 @@ QString LyricSource::providerDisplayName(const QString &provider) const
     constexpr auto domain = "plasma_applet_io.github.swim233.plasma-lyrics";
     if (provider == QStringLiteral("amll")) return i18nd(domain, "AMLL");
     if (provider == QStringLiteral("netease")) return i18nd(domain, "NetEase");
+    if (provider == QStringLiteral("local")) return i18nd(domain, "Local files");
     if (provider == QStringLiteral("waylyrics")) return i18nd(domain, "Waylyrics import");
     if (provider.isEmpty()) return i18nd(domain, "No lyrics source");
     return i18nd(domain, "Other lyrics source (%1)", provider);
@@ -306,6 +311,7 @@ void LyricSource::reloadImpl()
     const auto oldActualProvider = m_actualProvider;
     const auto oldAvailableProviders = m_availableProviders;
     const bool oldTemporaryFallback = m_temporaryFallback;
+    const QString oldSwitchingProvider = m_switchingProvider;
     const int oldOffsetMs = m_offsetMs;
     const bool oldGlobalOffsetEnabled = m_globalOffsetEnabled;
 
@@ -328,6 +334,7 @@ void LyricSource::reloadImpl()
     m_actualProvider = lyric.value(QStringLiteral("actualProvider")).toString(m_provider);
     m_temporaryFallback = lyric.value(QStringLiteral("temporaryFallback")).toBool();
     m_availableProviders = lyric.value(QStringLiteral("availableProviders")).toVariant().toStringList();
+    m_switchingProvider = lyric.value(QStringLiteral("switchingProvider")).toString();
     m_globalOffsetEnabled = lyric.value(QStringLiteral("globalOffsetEnabled")).toBool();
     m_offsetMs = lyric.value(QStringLiteral("offsetMs")).toInt();
     m_lines.clear();
@@ -350,8 +357,14 @@ void LyricSource::reloadImpl()
         || oldEffectivePreferredProvider != m_effectivePreferredProvider
         || oldActualProvider != m_actualProvider
         || oldTemporaryFallback != m_temporaryFallback
-        || oldAvailableProviders != m_availableProviders) {
+        || oldAvailableProviders != m_availableProviders
+        || oldSwitchingProvider != m_switchingProvider) {
         Q_EMIT providerStateChanged();
+    }
+    if (oldSwitchingProvider != m_switchingProvider) {
+        Q_EMIT controlInProgressChanged();
+        Q_EMIT canControlProviderChanged();
+        Q_EMIT canAdjustOffsetChanged();
     }
     if (oldGlobalOffsetEnabled != m_globalOffsetEnabled) {
         Q_EMIT globalOffsetEnabledChanged();

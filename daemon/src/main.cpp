@@ -166,9 +166,16 @@ int main(int argc, char **argv)
                       config.amllTimeoutMs(), {}, config.amllIndexMaxAgeSeconds());
 #endif
     LocalProvider local(config.localLyricsDirectory());
+    QStringList supportedProviders{local.id()};
+#ifdef PLASMA_LYRICS_HAVE_NETEASE
+    supportedProviders.append(netease.id());
+#endif
+#ifdef PLASMA_LYRICS_HAVE_AMLL
+    supportedProviders.append(amll.id());
+#endif
     QList<Provider *> providers;
-    const QStringList providerOrder = config.providerOrder();
-    for (const auto &providerId : providerOrder) {
+    const QStringList enabledProviderOrder = config.enabledProviderOrder();
+    for (const auto &providerId : enabledProviderOrder) {
         if (providerId == QStringLiteral("local") && local.isConfigured()) {
             providers.append(&local);
         }
@@ -184,9 +191,9 @@ int main(int argc, char **argv)
 #endif
     }
     if (providers.isEmpty()) {
-        // Invalid URLs or a hand-edited order must not leave the resolver
-        // without a source. Local is always safe: it can still find an
-        // adjacent sidecar even when its search directory is empty.
+        // Invalid URLs or a hand-edited enabled list must not leave the
+        // resolver without a source. Local is always safe: it can still find
+        // an adjacent sidecar even when its search directory is empty.
         qWarning() << "no configured provider can be assembled; using the local provider";
         providers.append(&local);
     }
@@ -205,7 +212,7 @@ int main(int argc, char **argv)
                 }), providers.end());
             if (providers.isEmpty()) {
                 QStringList available;
-                for (const auto &providerId : providerOrder) {
+                for (const auto &providerId : enabledProviderOrder) {
                     if (providerId == QStringLiteral("local") && local.isConfigured()) {
                         available.append(providerId);
                     }
@@ -351,12 +358,14 @@ int main(int argc, char **argv)
             && !resolved.effectivePreferredProvider.isEmpty()
             && resolved.ref->provider != resolved.effectivePreferredProvider;
         resolved.availableProviders = available;
+        resolved.switchingProvider = resolved.effectivePreferredProvider;
         publish(state, resolved);
         resolver.resolve(state, {.force = true, .existing = std::move(existing)});
     };
     ControlService control(
         store, resolver, [&manager] { return manager.activeState(); }, forceResolve,
-        [&resolved] { return resolved.ref; }, [&update] { update(false); });
+        [&resolved] { return resolved.ref; }, [&update] { update(false); },
+        supportedProviders);
     auto bus = QDBusConnection::sessionBus();
     if (!bus.registerService(ControlService::serviceName())
         || !bus.registerObject(ControlService::objectPath(), &control,

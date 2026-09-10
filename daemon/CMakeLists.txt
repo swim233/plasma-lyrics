@@ -35,6 +35,15 @@ install(TARGETS plasma-lyricsd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
 if(BUILD_TESTING)
     find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
+    add_executable(tst_config
+        tests/tst_config.cpp
+        src/config.cpp
+    )
+    target_include_directories(tst_config PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(tst_config PRIVATE plasma_lyrics_core plasma_lyrics_providers Qt6::Test)
+    add_test(NAME tst_config COMMAND tst_config)
+    set_tests_properties(tst_config PROPERTIES RESOURCE_LOCK plasma_lyrics_config)
+
     add_executable(tst_mprispolicy
         tests/tst_mprispolicy.cpp
         src/mpris/mprispolicy.cpp

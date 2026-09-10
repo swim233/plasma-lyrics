@@ -45,6 +45,29 @@ class ControlServiceTest : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void reportsBuildCapabilitiesOutsideTheEnabledResolverChain()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider local(QStringLiteral("local"));
+        Resolver resolver(store, {&local});
+        MprisState current;
+        current.music = true;
+        current.fingerprint = QStringLiteral("mediaSrc:supported-providers");
+        current.title = QStringLiteral("song");
+        ControlService service(
+            store, resolver, [&] { return std::optional<MprisState>(current); },
+            [](const MprisState &) {}, {}, {},
+            {QStringLiteral("local"), QStringLiteral("netease"), QStringLiteral("amll")});
+
+        QCOMPARE(service.AvailableProviders(),
+                 QStringList({QStringLiteral("local"), QStringLiteral("netease"),
+                              QStringLiteral("amll")}));
+        QCOMPARE(service.SetPreferredProvider(current.fingerprint, QStringLiteral("amll")),
+                 QStringLiteral("provider-unavailable"));
+    }
+
     void validatesFingerprintAndPersistsCommands()
     {
         QTemporaryDir directory;
@@ -72,6 +95,11 @@ private Q_SLOTS:
         QDBusInterface interface(ControlService::serviceName(), ControlService::objectPath(),
                                  ControlService::interfaceName(), bus);
         QVERIFY(interface.isValid());
+
+        QDBusReply<QStringList> providers = interface.call(QStringLiteral("AvailableProviders"));
+        QVERIFY(providers.isValid());
+        QCOMPARE(providers.value(),
+                 QStringList({QStringLiteral("netease"), QStringLiteral("amll")}));
 
         QDBusReply<QString> mismatch = interface.call(
             QStringLiteral("SetPreferredProvider"), QStringLiteral("old"), QStringLiteral("amll"));
@@ -135,6 +163,7 @@ private Q_SLOTS:
 
         QVERIFY(store.setGlobalOffsetEnabled(true));
         QList<QDBusPendingCallWatcher *> pending;
+        QList<QDBusPendingCallWatcher *> providerQueries;
         for (int i = 0; i < 20; ++i) {
             pending.append(new QDBusPendingCallWatcher(interface.asyncCall(
                 QStringLiteral("SetPreferredProvider"), current.fingerprint,
@@ -149,16 +178,26 @@ private Q_SLOTS:
                 QStringLiteral("ResetOffset"), current.fingerprint), this));
             pending.append(new QDBusPendingCallWatcher(interface.asyncCall(
                 QStringLiteral("RefreshGlobalOffset")), this));
+            providerQueries.append(new QDBusPendingCallWatcher(interface.asyncCall(
+                QStringLiteral("AvailableProviders")), this));
         }
-        const auto allFinished = [&pending] {
+        const auto allFinished = [&pending, &providerQueries] {
             const auto finished = [](const auto *call) { return call->isFinished(); };
-            return std::all_of(pending.cbegin(), pending.cend(), finished);
+            return std::all_of(pending.cbegin(), pending.cend(), finished)
+                && std::all_of(providerQueries.cbegin(), providerQueries.cend(), finished);
         };
         QTRY_VERIFY_WITH_TIMEOUT(allFinished(), 5000);
         for (auto *call : pending) {
             const QDBusPendingReply<QString> reply = *call;
             QVERIFY(reply.isValid());
             QCOMPARE(reply.value(), QString());
+            call->deleteLater();
+        }
+        for (auto *call : providerQueries) {
+            const QDBusPendingReply<QStringList> reply = *call;
+            QVERIFY(reply.isValid());
+            QCOMPARE(reply.value(),
+                     QStringList({QStringLiteral("netease"), QStringLiteral("amll")}));
             call->deleteLater();
         }
         QVERIFY(!store.preferredProvider(current.fingerprint));

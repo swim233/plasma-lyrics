@@ -4,8 +4,8 @@
 
 A native Plasma 6 widget that shows synchronized lyrics for the current MPRIS
 player. Browser playback through `plasma-browser-integration` and local MPRIS
-players are supported. Lyrics use NetEase first and fall back to AMLL TTML DB
-by default; the global order and per-song preference are configurable. A persistent track-info row above the lyrics shows
+players are supported. Lyrics use local files first, then NetEase and AMLL TTML DB
+by default; sources can be reordered, enabled individually, and preferred per song. A persistent track-info row above the lyrics shows
 the current title and artist, on by default on the desktop and off in the
 panel; both are independently configurable.
 
@@ -51,7 +51,13 @@ default; the "Global settings" configuration tab can switch this to one
 shared offset for every song instead. Manual LRC replacements belong in
 `~/.local/share/plasma-lyrics/overrides/<provider>:<track-id>.lrc`.
 
-The same context menu can prefer NetEase or AMLL for the current song, restore
+The searchable local source first checks for an `.lrc` sidecar beside a local
+audio file, then scans the configurable lyrics directory (default
+`~/.local/share/plasma-lyrics/lyrics/`). Files there are matched from their
+names and LRC `[ti:]`, `[ar:]`, `[al:]`, and `[length:]` tags. This directory is
+separate from the exact provider/track replacement directory above.
+
+The same context menu can prefer local files, NetEase, or AMLL for the current song, restore
 automatic ordering, or force a fresh search. A temporary fallback never
 overwrites the saved per-song preference. AMLL word timing and provenance are
 preserved in storage and snapshots, while the current UI intentionally remains

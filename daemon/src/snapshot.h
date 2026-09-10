@@ -22,6 +22,8 @@ struct ResolvedLyric {
     // Snapshot consumers use this daemon-computed effective offset instead
     // of opening the store. The flag is still needed for menu wording.
     bool globalOffsetEnabled = false;
+    // Non-empty while a forced resolve is replacing/confirming this source.
+    QString switchingProvider;
 };
 
 class SnapshotWriter

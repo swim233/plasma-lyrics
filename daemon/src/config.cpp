@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include <QStandardPaths>
+#include <QDebug>
 #include <QUrl>
 
 namespace PlasmaLyrics {
@@ -44,6 +45,10 @@ QStringList Config::providerOrder() const
                                QStringLiteral("amll")};
     QStringList result;
     auto configured = m_settings.value(QStringLiteral("providers/order"), defaults).toStringList();
+    if (configured.isEmpty()) {
+        qWarning() << "providers/order is empty; using the built-in provider order";
+        configured = defaults;
+    }
     // Existing configurations predate the local provider. Put the new,
     // failure-free source first once; the settings UI will persist the full
     // three-source order on its next save.
@@ -54,13 +59,35 @@ QStringList Config::providerOrder() const
     if (!hasLocal) configured.prepend(QStringLiteral("local"));
     for (const auto &provider : configured) {
         const QString id = provider.trimmed().toCaseFolded();
-        if ((id == QStringLiteral("local") || id == QStringLiteral("netease")
-             || id == QStringLiteral("amll"))
-            && !result.contains(id)) {
+        if (!id.isEmpty() && !result.contains(id)) {
             result.append(id);
         }
     }
     return result;
+}
+
+QStringList Config::enabledProviderOrder() const
+{
+    const QStringList order = providerOrder();
+    QStringList enabled;
+    if (m_settings.contains(QStringLiteral("providers/enabled"))) {
+        for (const auto &provider : m_settings.value(QStringLiteral("providers/enabled")).toStringList()) {
+            const QString id = provider.trimmed().toCaseFolded();
+            if (!id.isEmpty() && !enabled.contains(id)) enabled.append(id);
+        }
+    } else {
+        enabled = order;
+    }
+    QStringList active;
+    for (const auto &provider : order) {
+        if (enabled.contains(provider)) active.append(provider);
+    }
+    if (active.isEmpty()) {
+        qWarning() << "providers/enabled selects no ordered provider; using built-in defaults";
+        return {QStringLiteral("local"), QStringLiteral("netease"),
+                QStringLiteral("amll")};
+    }
+    return active;
 }
 
 QString Config::localLyricsDirectory() const

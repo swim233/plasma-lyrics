@@ -3,6 +3,7 @@
 #include <QObject>
 #include <QQmlEngine>
 #include <QStringList>
+#include <QVariantList>
 
 class QProcess;
 
@@ -19,7 +20,11 @@ class BackendConfig : public QObject
     Q_PROPERTY(bool filterCredits READ filterCredits WRITE setFilterCredits NOTIFY changed)
     Q_PROPERTY(QString neteaseBaseUrl READ neteaseBaseUrl WRITE setNeteaseBaseUrl NOTIFY changed)
     Q_PROPERTY(int networkTimeoutMs READ networkTimeoutMs WRITE setNetworkTimeoutMs NOTIFY changed)
-    Q_PROPERTY(QString providerOrder READ providerOrder WRITE setProviderOrder NOTIFY changed)
+    Q_PROPERTY(QStringList providerOrder READ providerOrder WRITE setProviderOrder NOTIFY changed)
+    Q_PROPERTY(QStringList enabledProviders READ enabledProviders WRITE setEnabledProviders NOTIFY changed)
+    Q_PROPERTY(QVariantList providerEntries READ providerEntries NOTIFY changed)
+    Q_PROPERTY(bool providerDiscoveryFallback READ providerDiscoveryFallback NOTIFY changed)
+    Q_PROPERTY(QString localLyricsDirectory READ localLyricsDirectory WRITE setLocalLyricsDirectory NOTIFY changed)
     Q_PROPERTY(QString amllIndexUrl READ amllIndexUrl WRITE setAmllIndexUrl NOTIFY changed)
     Q_PROPERTY(QString amllContentBaseUrl READ amllContentBaseUrl WRITE setAmllContentBaseUrl NOTIFY changed)
     Q_PROPERTY(int amllTimeoutMs READ amllTimeoutMs WRITE setAmllTimeoutMs NOTIFY changed)
@@ -52,7 +57,11 @@ public:
     bool filterCredits() const;
     QString neteaseBaseUrl() const;
     int networkTimeoutMs() const;
-    QString providerOrder() const;
+    QStringList providerOrder() const;
+    QStringList enabledProviders() const;
+    QVariantList providerEntries() const;
+    bool providerDiscoveryFallback() const;
+    QString localLyricsDirectory() const;
     QString amllIndexUrl() const;
     QString amllContentBaseUrl() const;
     int amllTimeoutMs() const;
@@ -72,7 +81,9 @@ public:
     void setFilterCredits(bool value);
     void setNeteaseBaseUrl(const QString &value);
     void setNetworkTimeoutMs(int value);
-    void setProviderOrder(const QString &value);
+    void setProviderOrder(const QStringList &value);
+    void setEnabledProviders(const QStringList &value);
+    void setLocalLyricsDirectory(const QString &value);
     void setAmllIndexUrl(const QString &value);
     void setAmllContentBaseUrl(const QString &value);
     void setAmllTimeoutMs(int value);
@@ -83,6 +94,8 @@ public:
     Q_INVOKABLE void load();
     Q_INVOKABLE bool save();
     Q_INVOKABLE bool restartService();
+    Q_INVOKABLE bool moveProvider(int from, int to);
+    Q_INVOKABLE bool setProviderEnabled(const QString &provider, bool enabled);
 
 Q_SIGNALS:
     void changed();
@@ -96,6 +109,8 @@ Q_SIGNALS:
 private:
     void markDirty();
     void finishRestart(RestartState state, const QString &error = {});
+    void discoverProviders();
+    QStringList visibleProviderOrder() const;
 
     QString m_serviceBlacklist;
     QString m_musicUrlPrefixes;
@@ -105,7 +120,11 @@ private:
     bool m_filterCredits = true;
     QString m_neteaseBaseUrl;
     int m_networkTimeoutMs = 4000;
-    QString m_providerOrder;
+    QStringList m_providerOrder;
+    QStringList m_enabledProviders;
+    QStringList m_availableProviders;
+    bool m_providerDiscoveryFallback = true;
+    QString m_localLyricsDirectory;
     QString m_amllIndexUrl;
     QString m_amllContentBaseUrl;
     int m_amllTimeoutMs = 8000;

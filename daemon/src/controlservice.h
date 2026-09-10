@@ -4,6 +4,7 @@
 #include "daemon/src/mpris/mpristypes.h"
 
 #include <QObject>
+#include <QStringList>
 #include <functional>
 #include <optional>
 
@@ -24,7 +25,8 @@ public:
 
     ControlService(LyricStore &store, Resolver &resolver, CurrentState currentState,
                    ResolveCurrent resolveCurrent, CurrentRef currentRef = {},
-                   PublishCurrent publishCurrent = {}, QObject *parent = nullptr);
+                   PublishCurrent publishCurrent = {}, QStringList supportedProviders = {},
+                   QObject *parent = nullptr);
 
     static QString serviceName();
     static QString objectPath();
@@ -41,6 +43,7 @@ public Q_SLOTS:
     QString AdjustOffset(const QString &expectedFingerprint, int deltaMs);
     QString ResetOffset(const QString &expectedFingerprint);
     QString RefreshGlobalOffset();
+    QStringList AvailableProviders() const;
 
 private:
     std::optional<MprisState> checkedState(const QString &expectedFingerprint,
@@ -52,6 +55,7 @@ private:
     ResolveCurrent m_resolveCurrent;
     CurrentRef m_currentRef;
     PublishCurrent m_publishCurrent;
+    QStringList m_supportedProviders;
 };
 
 } // namespace PlasmaLyrics

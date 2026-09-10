@@ -29,7 +29,8 @@ private:
                               bool temporaryFallback = false,
                               const QStringList &availableProviders = {
                                   QStringLiteral("netease"), QStringLiteral("amll")},
-                              bool globalOffsetEnabled = false)
+                              bool globalOffsetEnabled = false,
+                              const QString &switchingProvider = {})
     {
         QDir().mkpath(QFileInfo(path).absolutePath());
         const QJsonObject root{
@@ -52,6 +53,7 @@ private:
                                                    {QStringLiteral("actualProvider"), actualProvider},
                                                    {QStringLiteral("temporaryFallback"), temporaryFallback},
                                                    {QStringLiteral("globalOffsetEnabled"), globalOffsetEnabled},
+                                                   {QStringLiteral("switchingProvider"), switchingProvider},
                                                    {QStringLiteral("availableProviders"),
                                                     QJsonArray::fromStringList(availableProviders)},
                                                    {QStringLiteral("lines"), QJsonArray{lineToJson({1000, endMs, text, std::nullopt, std::nullopt})}}}}};
@@ -231,6 +233,29 @@ private Q_SLOTS:
 
         QTRY_COMPARE(panel.offsetMs(), 500);
         QTRY_COMPARE(desktop.offsetMs(), 500);
+    }
+
+    void switchingStateDisablesControlsUntilSnapshotClearsIt()
+    {
+        QTemporaryDir directory;
+        const QString snapshotPath = directory.filePath(QStringLiteral("runtime/state.json"));
+        writeSnapshot(snapshotPath, 1, 1000000000, QStringLiteral("first"),
+                      QCoreApplication::applicationPid(), 2000, 0,
+                      QStringLiteral("netease"), QStringLiteral("1"), {},
+                      QStringLiteral("amll"), QStringLiteral("netease"), false,
+                      {QStringLiteral("netease"), QStringLiteral("amll")}, false,
+                      QStringLiteral("amll"));
+
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(snapshotPath);
+        QCOMPARE(source.switchingProvider(), QStringLiteral("amll"));
+        QVERIFY(source.controlInProgress());
+        QVERIFY(!source.canControlProvider());
+        QVERIFY(!source.canAdjustOffset());
+
+        writeSnapshot(snapshotPath, 2, 1000000000, QStringLiteral("second"));
+        QTRY_VERIFY(!source.controlInProgress());
+        QVERIFY(source.canControlProvider());
     }
 
     void canAdjustOffsetStillRequiresATrackRefWhenGlobalOffsetDisabled()

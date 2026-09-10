@@ -8,7 +8,7 @@ namespace PlasmaLyrics {
 ControlService::ControlService(LyricStore &store, Resolver &resolver,
                                CurrentState currentState, ResolveCurrent resolveCurrent,
                                CurrentRef currentRef, PublishCurrent publishCurrent,
-                               QObject *parent)
+                               QStringList supportedProviders, QObject *parent)
     : QObject(parent)
     , m_store(store)
     , m_resolver(resolver)
@@ -16,7 +16,11 @@ ControlService::ControlService(LyricStore &store, Resolver &resolver,
     , m_resolveCurrent(std::move(resolveCurrent))
     , m_currentRef(std::move(currentRef))
     , m_publishCurrent(std::move(publishCurrent))
+    , m_supportedProviders(std::move(supportedProviders))
 {
+    if (m_supportedProviders.isEmpty()) {
+        m_supportedProviders = m_resolver.availableProviders();
+    }
 }
 
 QString ControlService::serviceName() { return QStringLiteral("io.github.swim233.PlasmaLyrics"); }
@@ -121,6 +125,11 @@ QString ControlService::RefreshGlobalOffset()
     // newly effective value to every snapshot consumer.
     if (m_publishCurrent) m_publishCurrent();
     return {};
+}
+
+QStringList ControlService::AvailableProviders() const
+{
+    return m_supportedProviders;
 }
 
 } // namespace PlasmaLyrics

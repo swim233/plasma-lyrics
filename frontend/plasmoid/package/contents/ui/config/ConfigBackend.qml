@@ -7,6 +7,16 @@ import io.github.swim233.lyrics
 Kirigami.ScrollablePage {
     id: page
 
+    property bool unsavedChanges: backend.dirty
+    property bool saveFailed: false
+    function saveConfig() { page.saveFailed = !backend.save(); }
+    function providerName(provider) {
+        if (provider === "local") return i18n("Local files");
+        if (provider === "netease") return i18n("NetEase");
+        if (provider === "amll") return i18n("AMLL");
+        return provider;
+    }
+
     BackendConfig { id: backend }
 
     ColumnLayout {
@@ -20,6 +30,20 @@ Kirigami.ScrollablePage {
             text: i18n("These service settings affect every Desktop Lyrics widget. Restart plasma-lyricsd after saving.")
         }
 
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: backend.providerDiscoveryFallback
+            type: Kirigami.MessageType.Warning
+            text: i18n("The lyrics service is not running. Showing the built-in source list; unavailable sources will be preserved when saving.")
+        }
+
+        Kirigami.InlineMessage {
+            Layout.fillWidth: true
+            visible: page.saveFailed
+            type: Kirigami.MessageType.Error
+            text: i18n("Could not save the lyrics service settings.")
+        }
+
         RestartFeedback {
             objectName: "restartFeedback"
             Layout.fillWidth: true
@@ -30,11 +54,97 @@ Kirigami.ScrollablePage {
 
         Kirigami.FormLayout {
             Layout.fillWidth: true
-            QQC2.TextArea {
+            Item {
                 Kirigami.FormData.label: i18n("Lyrics source priority:")
-                text: backend.providerOrder
-                placeholderText: i18n("One source per line: netease or amll")
-                onTextChanged: backend.providerOrder = text
+                implicitWidth: Kirigami.Units.gridUnit * 18
+                implicitHeight: sourceList.contentHeight
+
+                ListView {
+                    id: sourceList
+                    anchors.fill: parent
+                    interactive: false
+                    spacing: Kirigami.Units.smallSpacing
+                    model: backend.providerEntries
+
+                    delegate: Item {
+                        id: sourceDelegate
+                        required property int index
+                        required property var modelData
+                        width: sourceList.width
+                        height: Kirigami.Units.gridUnit * 2
+
+                        Rectangle {
+                            id: sourceRow
+                            width: parent.width
+                            height: parent.height
+                            radius: Kirigami.Units.smallSpacing
+                            color: dragArea.drag.active
+                                ? Kirigami.Theme.highlightColor
+                                : Kirigami.Theme.backgroundColor
+                            border.color: Kirigami.Theme.disabledTextColor
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: Kirigami.Units.smallSpacing
+                                anchors.rightMargin: Kirigami.Units.smallSpacing
+                                QQC2.Label {
+                                    text: "☰"
+                                    Accessible.name: i18n("Drag to reorder")
+                                }
+                                QQC2.CheckBox {
+                                    Layout.fillWidth: true
+                                    text: page.providerName(sourceDelegate.modelData.id)
+                                    checked: sourceDelegate.modelData.enabled
+                                    onToggled: {
+                                        if (!backend.setProviderEnabled(sourceDelegate.modelData.id,
+                                                                        checked)) {
+                                            checked = sourceDelegate.modelData.enabled;
+                                        }
+                                    }
+                                }
+                                QQC2.ToolButton {
+                                    icon.name: "go-up"
+                                    enabled: sourceDelegate.index > 0
+                                    Accessible.name: i18n("Move source up")
+                                    onClicked: backend.moveProvider(sourceDelegate.index,
+                                                                    sourceDelegate.index - 1)
+                                }
+                                QQC2.ToolButton {
+                                    icon.name: "go-down"
+                                    enabled: sourceDelegate.index + 1 < sourceList.count
+                                    Accessible.name: i18n("Move source down")
+                                    onClicked: backend.moveProvider(sourceDelegate.index,
+                                                                    sourceDelegate.index + 1)
+                                }
+                            }
+
+                            MouseArea {
+                                id: dragArea
+                                anchors.left: parent.left
+                                width: Kirigami.Units.gridUnit * 2
+                                height: parent.height
+                                cursorShape: Qt.SizeVerCursor
+                                drag.target: sourceRow
+                                drag.axis: Drag.YAxis
+                                drag.minimumY: -sourceDelegate.index * sourceDelegate.height
+                                drag.maximumY: (sourceList.count - sourceDelegate.index - 1)
+                                               * sourceDelegate.height
+                                onReleased: {
+                                    const target = Math.max(0, Math.min(sourceList.count - 1,
+                                        sourceDelegate.index
+                                        + Math.round(sourceRow.y / sourceDelegate.height)));
+                                    sourceRow.y = 0;
+                                    backend.moveProvider(sourceDelegate.index, target);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            QQC2.TextField {
+                Kirigami.FormData.label: i18n("Local lyrics directory:")
+                text: backend.localLyricsDirectory
+                onTextEdited: backend.localLyricsDirectory = text
             }
             QQC2.TextField {
                 Kirigami.FormData.label: i18n("NetEase API URL:")
@@ -131,13 +241,16 @@ Kirigami.ScrollablePage {
             QQC2.Button {
                 text: i18n("Reload")
                 icon.name: "view-refresh"
-                onClicked: backend.load()
+                onClicked: {
+                    page.saveFailed = false;
+                    backend.load();
+                }
             }
             QQC2.Button {
                 text: i18n("Save service settings")
                 icon.name: "document-save"
                 enabled: backend.dirty
-                onClicked: backend.save()
+                onClicked: page.saveConfig()
             }
             QQC2.Button {
                 objectName: "restartServiceButton"
@@ -145,7 +258,8 @@ Kirigami.ScrollablePage {
                 icon.name: "system-reboot"
                 enabled: !backend.restartInProgress
                 onClicked: {
-                    if (!backend.dirty || backend.save()) backend.restartService();
+                    if (backend.dirty) page.saveConfig();
+                    if (!page.saveFailed) backend.restartService();
                 }
             }
         }

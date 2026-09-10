@@ -1,5 +1,8 @@
 #include "backendconfig.h"
 
+#include <QDBusConnection>
+#include <QDBusInterface>
+#include <QDBusReply>
 #include <QProcess>
 #include <QSettings>
 #include <QStandardPaths>
@@ -26,6 +29,31 @@ QStringList list(const QString &value)
         }
     }
     return result;
+}
+
+QStringList normalized(const QStringList &values)
+{
+    QStringList result;
+    for (const auto &value : values) {
+        const QString id = value.trimmed();
+        if (id.isEmpty()) continue;
+        bool duplicate = false;
+        for (const auto &existing : result) {
+            duplicate |= existing.compare(id, Qt::CaseInsensitive) == 0;
+        }
+        if (!duplicate) result.append(id);
+    }
+    return result;
+}
+
+bool containsProvider(const QStringList &values, const QString &provider)
+{
+    return values.contains(provider, Qt::CaseInsensitive);
+}
+
+QStringList defaultProviders()
+{
+    return {QStringLiteral("local"), QStringLiteral("netease"), QStringLiteral("amll")};
 }
 
 } // namespace
@@ -86,7 +114,6 @@ GETTER(bool, metadataHeuristic, m_metadataHeuristic)
 GETTER(bool, filterCredits, m_filterCredits)
 GETTER(QString, neteaseBaseUrl, m_neteaseBaseUrl)
 GETTER(int, networkTimeoutMs, m_networkTimeoutMs)
-GETTER(QString, providerOrder, m_providerOrder)
 GETTER(QString, amllIndexUrl, m_amllIndexUrl)
 GETTER(QString, amllContentBaseUrl, m_amllContentBaseUrl)
 GETTER(int, amllTimeoutMs, m_amllTimeoutMs)
@@ -98,6 +125,37 @@ GETTER(BackendConfig::RestartState, restartState, m_restartState)
 GETTER(bool, restartInProgress, m_restartInProgress)
 GETTER(QString, restartError, m_restartError)
 #undef GETTER
+
+QStringList BackendConfig::providerOrder() const { return m_providerOrder; }
+QStringList BackendConfig::enabledProviders() const { return m_enabledProviders; }
+bool BackendConfig::providerDiscoveryFallback() const { return m_providerDiscoveryFallback; }
+QString BackendConfig::localLyricsDirectory() const { return m_localLyricsDirectory; }
+
+QStringList BackendConfig::visibleProviderOrder() const
+{
+    QStringList result;
+    for (const auto &ordered : m_providerOrder) {
+        for (const auto &available : m_availableProviders) {
+            if (ordered.compare(available, Qt::CaseInsensitive) == 0
+                && !containsProvider(result, available)) {
+                result.append(available);
+            }
+        }
+    }
+    return result;
+}
+
+QVariantList BackendConfig::providerEntries() const
+{
+    QVariantList result;
+    for (const auto &provider : visibleProviderOrder()) {
+        QVariantMap entry;
+        entry.insert(QStringLiteral("id"), provider);
+        entry.insert(QStringLiteral("enabled"), containsProvider(m_enabledProviders, provider));
+        result.append(entry);
+    }
+    return result;
+}
 
 void BackendConfig::markDirty()
 {
@@ -123,17 +181,54 @@ SETTER(bool, setMetadataHeuristic, m_metadataHeuristic)
 SETTER(bool, setFilterCredits, m_filterCredits)
 SETTER(const QString &, setNeteaseBaseUrl, m_neteaseBaseUrl)
 SETTER(int, setNetworkTimeoutMs, m_networkTimeoutMs)
-SETTER(const QString &, setProviderOrder, m_providerOrder)
 SETTER(const QString &, setAmllIndexUrl, m_amllIndexUrl)
 SETTER(const QString &, setAmllContentBaseUrl, m_amllContentBaseUrl)
 SETTER(int, setAmllTimeoutMs, m_amllTimeoutMs)
 SETTER(int, setAmllIndexRefreshHours, m_amllIndexRefreshHours)
 SETTER(bool, setFileLoggingEnabled, m_fileLoggingEnabled)
 SETTER(const QString &, setLogFilePath, m_logFilePath)
+SETTER(const QString &, setLocalLyricsDirectory, m_localLyricsDirectory)
 #undef SETTER
+
+void BackendConfig::setProviderOrder(const QStringList &value)
+{
+    const auto order = normalized(value);
+    if (m_providerOrder == order) return;
+    m_providerOrder = order;
+    markDirty();
+}
+
+void BackendConfig::setEnabledProviders(const QStringList &value)
+{
+    const auto enabled = normalized(value);
+    if (m_enabledProviders == enabled) return;
+    m_enabledProviders = enabled;
+    markDirty();
+}
+
+void BackendConfig::discoverProviders()
+{
+    QStringList available;
+    QDBusInterface interface(
+        QStringLiteral("io.github.swim233.PlasmaLyrics"),
+        QStringLiteral("/io/github/swim233/PlasmaLyrics"),
+        QStringLiteral("io.github.swim233.PlasmaLyrics.Control"),
+        QDBusConnection::sessionBus());
+    interface.setTimeout(1000);
+    const QDBusReply<QStringList> reply = interface.call(QStringLiteral("AvailableProviders"));
+    if (reply.isValid() && !reply.value().isEmpty()) {
+        available = normalized(reply.value());
+        m_providerDiscoveryFallback = false;
+    } else {
+        available = defaultProviders();
+        m_providerDiscoveryFallback = true;
+    }
+    m_availableProviders = available;
+}
 
 void BackendConfig::load()
 {
+    discoverProviders();
     auto config = settings();
     m_serviceBlacklist = lines(config.value(
         QStringLiteral("players/blacklist"),
@@ -151,9 +246,31 @@ void BackendConfig::load()
     m_neteaseBaseUrl = config.value(QStringLiteral("providers/netease/baseUrl"),
                                     QStringLiteral("https://music.163.com")).toString();
     m_networkTimeoutMs = config.value(QStringLiteral("providers/netease/timeoutMs"), 4000).toInt();
-    m_providerOrder = lines(config.value(
-        QStringLiteral("providers/order"),
-        QStringList{QStringLiteral("netease"), QStringLiteral("amll")}).toStringList());
+    m_providerOrder = normalized(config.value(
+        QStringLiteral("providers/order"), defaultProviders()).toStringList());
+    if (m_providerOrder.isEmpty()) m_providerOrder = defaultProviders();
+    if (!m_providerOrder.contains(QStringLiteral("local"), Qt::CaseInsensitive)) {
+        m_providerOrder.prepend(QStringLiteral("local"));
+    }
+    for (const auto &provider : m_availableProviders) {
+        if (!m_providerOrder.contains(provider, Qt::CaseInsensitive)) {
+            m_providerOrder.append(provider);
+        }
+    }
+    m_enabledProviders = config.contains(QStringLiteral("providers/enabled"))
+        ? normalized(config.value(QStringLiteral("providers/enabled")).toStringList())
+        : m_providerOrder;
+    bool hasVisibleEnabled = false;
+    for (const auto &provider : visibleProviderOrder()) {
+        hasVisibleEnabled |= containsProvider(m_enabledProviders, provider);
+    }
+    if (!hasVisibleEnabled && !visibleProviderOrder().isEmpty()) {
+        m_enabledProviders.append(visibleProviderOrder().first());
+    }
+    m_localLyricsDirectory = config.value(
+        QStringLiteral("providers/local/directory"),
+        QString(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+            + QStringLiteral("/plasma-lyrics/lyrics"))).toString();
     m_amllIndexUrl = config.value(
         QStringLiteral("providers/amll/indexUrl"),
         QStringLiteral("https://raw.githubusercontent.com/amll-dev/amll-ttml-db/main/metadata/raw-lyrics-index.jsonl")).toString();
@@ -192,15 +309,9 @@ bool BackendConfig::save()
     config.setValue(QStringLiteral("lyrics/filterLeadingCredits"), m_filterCredits);
     config.setValue(QStringLiteral("providers/netease/baseUrl"), m_neteaseBaseUrl);
     config.setValue(QStringLiteral("providers/netease/timeoutMs"), m_networkTimeoutMs);
-    QStringList order;
-    for (const auto &value : list(m_providerOrder)) {
-        const QString id = value.toCaseFolded();
-        if ((id == QStringLiteral("netease") || id == QStringLiteral("amll"))
-            && !order.contains(id)) {
-            order.append(id);
-        }
-    }
-    config.setValue(QStringLiteral("providers/order"), order);
+    config.setValue(QStringLiteral("providers/order"), m_providerOrder);
+    config.setValue(QStringLiteral("providers/enabled"), m_enabledProviders);
+    config.setValue(QStringLiteral("providers/local/directory"), m_localLyricsDirectory);
     config.setValue(QStringLiteral("providers/amll/indexUrl"), m_amllIndexUrl);
     config.setValue(QStringLiteral("providers/amll/contentBaseUrl"), m_amllContentBaseUrl);
     config.setValue(QStringLiteral("providers/amll/timeoutMs"), m_amllTimeoutMs);
@@ -216,6 +327,47 @@ bool BackendConfig::save()
         Q_EMIT dirtyChanged();
     }
     Q_EMIT saved();
+    return true;
+}
+
+bool BackendConfig::moveProvider(int from, int to)
+{
+    auto visible = visibleProviderOrder();
+    if (from < 0 || to < 0 || from >= visible.size() || to >= visible.size()
+        || from == to) {
+        return false;
+    }
+    visible.move(from, to);
+    qsizetype visibleIndex = 0;
+    QStringList reordered = m_providerOrder;
+    for (qsizetype i = 0; i < reordered.size(); ++i) {
+        if (m_availableProviders.contains(reordered.at(i), Qt::CaseInsensitive)) {
+            reordered[i] = visible.at(visibleIndex++);
+        }
+    }
+    m_providerOrder = reordered;
+    markDirty();
+    return true;
+}
+
+bool BackendConfig::setProviderEnabled(const QString &provider, bool enabled)
+{
+    if (!containsProvider(m_availableProviders, provider)) return false;
+    const bool currentlyEnabled = containsProvider(m_enabledProviders, provider);
+    if (currentlyEnabled == enabled) return true;
+    if (!enabled) {
+        int visibleEnabled = 0;
+        for (const auto &id : visibleProviderOrder()) {
+            if (containsProvider(m_enabledProviders, id)) ++visibleEnabled;
+        }
+        if (visibleEnabled <= 1) return false;
+        m_enabledProviders.removeIf([&provider](const QString &id) {
+            return id.compare(provider, Qt::CaseInsensitive) == 0;
+        });
+    } else {
+        m_enabledProviders.append(provider);
+    }
+    markDirty();
     return true;
 }
 

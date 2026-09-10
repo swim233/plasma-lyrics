@@ -94,6 +94,7 @@ bool SnapshotWriter::write(const std::optional<MprisState> &player,
                              lyric.ref ? lyric.ref->provider : QString()},
                             {QStringLiteral("temporaryFallback"), lyric.temporaryFallback},
                             {QStringLiteral("globalOffsetEnabled"), lyric.globalOffsetEnabled},
+                            {QStringLiteral("switchingProvider"), lyric.switchingProvider},
                             {QStringLiteral("availableProviders"),
                              QJsonArray::fromStringList(lyric.availableProviders)},
                             {QStringLiteral("metadata"), lyric.document.metadata}});

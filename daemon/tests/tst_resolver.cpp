@@ -915,7 +915,11 @@ private Q_SLOTS:
         resolver.resolve(state, {.force = true, .existing = existing});
 
         QCOMPARE(provider.searchCount(), 1);
-        QCOMPARE(resolvedSpy.size(), 0);
+        QCOMPARE(resolvedSpy.size(), 1);
+        const auto retained = resolvedSpy.first().at(1).value<ResolvedLyric>();
+        QCOMPARE(retained.state, QStringLiteral("ok"));
+        QCOMPARE(retained.document.lines.first().text, QStringLiteral("visible"));
+        QVERIFY(retained.switchingProvider.isEmpty());
     }
 
     void cachedFallbackStaysVisibleWhilePreferredProviderRetries()
