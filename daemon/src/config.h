@@ -27,6 +27,7 @@ public:
     qint64 amllIndexMaxAgeSeconds() const;
     bool fileLoggingEnabled() const;
     QString logFilePath() const;
+    bool debugLoggingEnabled() const;
     bool filterCredits() const;
 
 private:

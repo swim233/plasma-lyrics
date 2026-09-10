@@ -1,7 +1,9 @@
 #include "controlservice.h"
 
+#include "core/log/logformat.h"
 #include "core/store/lyricstore.h"
 #include "daemon/src/resolver.h"
+#include "logging.h"
 
 namespace PlasmaLyrics {
 
@@ -63,75 +65,133 @@ bool ControlService::checkedOffsetContext(const QString &expectedFingerprint,
 QString ControlService::SetPreferredProvider(const QString &expectedFingerprint,
                                              const QString &provider)
 {
+    const auto log = [&](const QString &result) {
+        qCInfo(lcDaemon).noquote()
+            << QStringLiteral("control SetPreferredProvider fingerprint=%1 provider=%2 result=%3")
+                   .arg(quoted(expectedFingerprint), quoted(provider), result);
+    };
     QString error;
     const auto state = checkedState(expectedFingerprint, &error);
-    if (!state) return error;
+    if (!state) {
+        log(error);
+        return error;
+    }
     if (!m_resolver.availableProviders().contains(provider)) {
+        log(QStringLiteral("provider-unavailable"));
         return QStringLiteral("provider-unavailable");
     }
     if (!m_store.setPreferredProvider(expectedFingerprint, provider)) {
+        log(QStringLiteral("preference-save-failed"));
         return QStringLiteral("preference-save-failed");
     }
     m_resolveCurrent(*state);
+    log(QStringLiteral("ok"));
     return {};
 }
 
 QString ControlService::ClearPreferredProvider(const QString &expectedFingerprint)
 {
+    const auto log = [&](const QString &result) {
+        qCInfo(lcDaemon).noquote()
+            << QStringLiteral("control ClearPreferredProvider fingerprint=%1 result=%2")
+                   .arg(quoted(expectedFingerprint), result);
+    };
     QString error;
     const auto state = checkedState(expectedFingerprint, &error);
-    if (!state) return error;
+    if (!state) {
+        log(error);
+        return error;
+    }
     if (!m_store.clearPreferredProvider(expectedFingerprint)) {
+        log(QStringLiteral("preference-clear-failed"));
         return QStringLiteral("preference-clear-failed");
     }
     m_resolveCurrent(*state);
+    log(QStringLiteral("ok"));
     return {};
 }
 
 QString ControlService::Research(const QString &expectedFingerprint)
 {
+    const auto log = [&](const QString &result) {
+        qCInfo(lcDaemon).noquote()
+            << QStringLiteral("control Research fingerprint=%1 result=%2")
+                   .arg(quoted(expectedFingerprint), result);
+    };
     QString error;
     const auto state = checkedState(expectedFingerprint, &error);
-    if (!state) return error;
+    if (!state) {
+        log(error);
+        return error;
+    }
     m_resolveCurrent(*state);
+    log(QStringLiteral("ok"));
     return {};
 }
 
 QString ControlService::AdjustOffset(const QString &expectedFingerprint, int deltaMs)
 {
+    const auto log = [&](const QString &result) {
+        qCInfo(lcDaemon).noquote()
+            << QStringLiteral("control AdjustOffset fingerprint=%1 deltaMs=%2 result=%3")
+                   .arg(quoted(expectedFingerprint), QString::number(deltaMs), result);
+    };
     QString error;
-    if (!checkedOffsetContext(expectedFingerprint, &error)) return error;
+    if (!checkedOffsetContext(expectedFingerprint, &error)) {
+        log(error);
+        return error;
+    }
     if (m_store.globalOffsetEnabled()) {
         if (!m_store.adjustGlobalOffset(deltaMs)) {
+            log(QStringLiteral("offset-save-failed"));
             return QStringLiteral("offset-save-failed");
         }
     } else {
         const auto ref = m_currentRef ? m_currentRef() : std::nullopt;
-        if (!ref) return QStringLiteral("no-track-ref");
+        if (!ref) {
+            log(QStringLiteral("no-track-ref"));
+            return QStringLiteral("no-track-ref");
+        }
         if (!m_store.adjustOffset(*ref, deltaMs)) {
+            log(QStringLiteral("offset-save-failed"));
             return QStringLiteral("offset-save-failed");
         }
     }
     if (m_publishCurrent) m_publishCurrent();
+    log(QStringLiteral("ok"));
     return {};
 }
 
 QString ControlService::ResetOffset(const QString &expectedFingerprint)
 {
+    const auto log = [&](const QString &result) {
+        qCInfo(lcDaemon).noquote()
+            << QStringLiteral("control ResetOffset fingerprint=%1 result=%2")
+                   .arg(quoted(expectedFingerprint), result);
+    };
     QString error;
-    if (!checkedOffsetContext(expectedFingerprint, &error)) return error;
+    if (!checkedOffsetContext(expectedFingerprint, &error)) {
+        log(error);
+        return error;
+    }
     if (m_store.globalOffsetEnabled()) {
         if (!m_store.setGlobalOffsetMs(0)) {
+            log(QStringLiteral("offset-save-failed"));
             return QStringLiteral("offset-save-failed");
         }
     } else {
         const auto ref = m_currentRef ? m_currentRef() : std::nullopt;
-        if (!ref) return QStringLiteral("no-track-ref");
+        if (!ref) {
+            log(QStringLiteral("no-track-ref"));
+            return QStringLiteral("no-track-ref");
+        }
         if (!m_store.setOffset(*ref, 0)) {
+            log(QStringLiteral("offset-save-failed"));
             return QStringLiteral("offset-save-failed");
         }
     }
     if (m_publishCurrent) m_publishCurrent();
+    log(QStringLiteral("ok"));
     return {};
 }
 
@@ -142,11 +202,14 @@ QString ControlService::RefreshGlobalOffset()
     // succeeds, this best-effort notification makes the daemon republish the
     // newly effective value to every snapshot consumer.
     if (m_publishCurrent) m_publishCurrent();
+    qCInfo(lcDaemon) << "control RefreshGlobalOffset result=ok";
     return {};
 }
 
 QStringList ControlService::AvailableProviders() const
 {
+    qCInfo(lcDaemon).noquote() << QStringLiteral("control AvailableProviders result=%1")
+                                      .arg(m_supportedProviders.join(QLatin1Char(',')));
     return m_supportedProviders;
 }
 

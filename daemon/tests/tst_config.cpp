@@ -99,6 +99,20 @@ private Q_SLOTS:
         QCOMPARE(config.enabledProviderOrder(),
                  QStringList({QStringLiteral("local"), QStringLiteral("netease")}));
     }
+
+    void debugLoggingDefaultsToFalse()
+    {
+        QCOMPARE(Config().debugLoggingEnabled(), false);
+    }
+
+    void debugLoggingReadsBackWrittenValue()
+    {
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                           QStringLiteral("plasma-lyrics"), QStringLiteral("plasma-lyricsd"));
+        settings.setValue(QStringLiteral("logging/debug"), true);
+        settings.sync();
+        QCOMPARE(Config().debugLoggingEnabled(), true);
+    }
 };
 
 QTEST_GUILESS_MAIN(ConfigTest)

@@ -5,6 +5,8 @@ add_executable(plasma-lyricsd
     src/config.h
     src/controlservice.cpp
     src/controlservice.h
+    src/logging.cpp
+    src/logging.h
     src/main.cpp
     src/resolver.cpp
     src/resolver.h
@@ -33,11 +35,19 @@ target_link_libraries(plasma-lyricsd PRIVATE
 )
 install(TARGETS plasma-lyricsd RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 
+# kdebugsettings discovers logging categories via KDE_INSTALL_LOGGINGCATEGORIESDIR,
+# which only KDEInstallDirs6 (pulled in under BUILD_PLASMOID) provides.
+if(BUILD_PLASMOID)
+    install(FILES plasma-lyricsd.categories
+            DESTINATION ${KDE_INSTALL_LOGGINGCATEGORIESDIR})
+endif()
+
 if(BUILD_TESTING)
     find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
     add_executable(tst_config
         tests/tst_config.cpp
         src/config.cpp
+        src/logging.cpp
     )
     target_include_directories(tst_config PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_config PRIVATE plasma_lyrics_core plasma_lyrics_providers Qt6::Test)
@@ -127,6 +137,7 @@ if(BUILD_TESTING)
         add_executable(tst_controlservice
             tests/tst_controlservice.cpp
             src/controlservice.cpp
+            src/logging.cpp
             src/resolver.cpp
             src/snapshot.cpp
         )

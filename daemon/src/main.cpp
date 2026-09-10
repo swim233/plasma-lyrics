@@ -1,7 +1,9 @@
 #include "config.h"
 #include "controlservice.h"
+#include "logging.h"
 #include "resolver.h"
 #include "snapshot.h"
+#include "core/log/logformat.h"
 #include "core/match/matcher.h"
 #include "core/store/lyricstore.h"
 #include "daemon/src/mpris/mprismanager.h"
@@ -20,12 +22,18 @@
 #include <QDBusError>
 #include <QFile>
 #include <QLockFile>
+#include <QLoggingCategory>
 #include <QMutex>
 #include <QScopeGuard>
+#include <QSocketNotifier>
 #include <QTextStream>
+#include <cerrno>
 #include <cstdio>
+#include <csignal>
+#include <fcntl.h>
 #include <functional>
 #include <memory>
+#include <unistd.h>
 
 using namespace PlasmaLyrics;
 
@@ -51,6 +59,80 @@ void stopMirroredLogging()
     qInstallMessageHandler(nullptr);
     QMutexLocker locker(&logMutex);
     logFile = nullptr;
+}
+
+// Classic self-pipe trick: the signal handler only writes one byte (the only
+// async-signal-safe thing it may do) and QSocketNotifier delivers the actual
+// shutdown on the Qt event loop thread. One pipe per signal keeps the two
+// causes distinguishable without decoding a payload in the handler.
+int termPipe[2] = {-1, -1};
+int intPipe[2] = {-1, -1};
+
+void writeWakeByte(int fd)
+{
+    // A signal handler must not leave errno different from how it found it:
+    // the interrupted code may be about to check errno itself.
+    const int savedErrno = errno;
+    const char byte = 1;
+    // The write is best-effort by construction: a full pipe still means a
+    // wake-up byte is already queued, so a dropped write here cannot lose
+    // the shutdown request. Capturing the result only silences
+    // -Werror=unused-result under _FORTIFY_SOURCE (Arch's makepkg default).
+    [[maybe_unused]] const ssize_t written = ::write(fd, &byte, sizeof(byte));
+    errno = savedErrno;
+}
+
+void handleSigTerm(int)
+{
+    writeWakeByte(termPipe[1]);
+}
+
+void handleSigInt(int)
+{
+    writeWakeByte(intPipe[1]);
+}
+
+bool installTerminationHandlers(QCoreApplication &application)
+{
+    if (::pipe2(termPipe, O_NONBLOCK | O_CLOEXEC) != 0
+        || ::pipe2(intPipe, O_NONBLOCK | O_CLOEXEC) != 0) {
+        return false;
+    }
+
+    // Notifiers are wired up before either sigaction() call, and both are in
+    // place before the first one is installed. That way a signal delivered
+    // between the two sigaction() calls -- or the second one failing outright
+    // -- can never land on an installed handler with nobody reading its
+    // pipe, which would silently swallow the wake-up byte.
+    auto *termNotifier = new QSocketNotifier(termPipe[0], QSocketNotifier::Read, &application);
+    QObject::connect(termNotifier, &QSocketNotifier::activated, &application, [] {
+        char discard[16];
+        while (::read(termPipe[0], discard, sizeof(discard)) > 0) {}
+        qCInfo(lcDaemon) << "stopping reason=SIGTERM";
+        QCoreApplication::quit();
+    });
+
+    auto *intNotifier = new QSocketNotifier(intPipe[0], QSocketNotifier::Read, &application);
+    QObject::connect(intNotifier, &QSocketNotifier::activated, &application, [] {
+        char discard[16];
+        while (::read(intPipe[0], discard, sizeof(discard)) > 0) {}
+        qCInfo(lcDaemon) << "stopping reason=SIGINT";
+        QCoreApplication::quit();
+    });
+
+    struct sigaction termAction = {};
+    termAction.sa_handler = handleSigTerm;
+    sigemptyset(&termAction.sa_mask);
+    termAction.sa_flags = SA_RESTART;
+    if (sigaction(SIGTERM, &termAction, nullptr) != 0) return false;
+
+    struct sigaction intAction = {};
+    intAction.sa_handler = handleSigInt;
+    sigemptyset(&intAction.sa_mask);
+    intAction.sa_flags = SA_RESTART;
+    if (sigaction(SIGINT, &intAction, nullptr) != 0) return false;
+
+    return true;
 }
 
 int explainProviders(QCoreApplication &application, const TrackQuery &query,
@@ -137,6 +219,14 @@ int main(int argc, char **argv)
     parser.process(application);
 
     Config config;
+    // Set unconditionally, and before the single-instance lock check below,
+    // so a second instance's "already running" failure is formatted the same
+    // way whether or not file logging ends up installed (DESIGN.md #49).
+    qSetMessagePattern(QStringLiteral(
+        "[%{time yyyy-MM-dd hh:mm:ss.zzz}] %{type} %{category} %{message}"));
+    if (config.debugLoggingEnabled()) {
+        QLoggingCategory::setFilterRules(QStringLiteral("plasmalyrics.*.debug=true"));
+    }
     static QFile configuredLog;
     bool mirroredLoggingInstalled = false;
     if (config.fileLoggingEnabled()) {
@@ -144,13 +234,12 @@ int main(int argc, char **argv)
         QDir().mkpath(QFileInfo(configuredLog.fileName()).absolutePath());
         if (configuredLog.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
             logFile = &configuredLog;
-            qSetMessagePattern(QStringLiteral("[%{time yyyy-MM-dd hh:mm:ss.zzz}] %{type} %{message}"));
             qInstallMessageHandler(mirrorMessage);
             mirroredLoggingInstalled = true;
         } else {
-            qWarning().noquote() << "cannot open log file:"
-                                 << configuredLog.fileName() + QLatin1Char(':')
-                                 << configuredLog.errorString();
+            qCWarning(lcDaemon).noquote() << "cannot open log file:"
+                                          << configuredLog.fileName() + QLatin1Char(':')
+                                          << configuredLog.errorString();
         }
     }
     const auto loggingGuard = qScopeGuard([mirroredLoggingInstalled] {
@@ -194,7 +283,7 @@ int main(int argc, char **argv)
         // Invalid URLs or a hand-edited enabled list must not leave the
         // resolver without a source. Local is always safe: it can still find
         // an adjacent sidecar even when its search directory is empty.
-        qWarning() << "no configured provider can be assembled; using the local provider";
+        qCWarning(lcDaemon) << "no configured provider can be assembled; using the local provider";
         providers.append(&local);
     }
     if (parser.isSet(QStringLiteral("explain"))) {
@@ -253,14 +342,22 @@ int main(int argc, char **argv)
     QLockFile lock(lockDirectory + QStringLiteral("/daemon.lock"));
     lock.setStaleLockTime(10000);
     if (!lock.tryLock(100)) {
-        qCritical("plasma-lyricsd is already running");
+        qCCritical(lcDaemon, "plasma-lyricsd is already running");
         return 2;
+    }
+
+    // Installed as early as possible in the daemon-only path (--explain
+    // already returned above) so a signal arriving during store/resolver/
+    // D-Bus setup still produces a "stopping" line and a clean exit instead
+    // of the process dying under the default or inherited disposition.
+    if (!installTerminationHandlers(application)) {
+        qCWarning(lcDaemon) << "cannot install SIGTERM/SIGINT handlers; graceful shutdown disabled";
     }
 
     LyricStore store;
     QString error;
     if (!store.open(&error)) {
-        qCritical().noquote() << "cannot open lyric store:" << error;
+        qCCritical(lcDaemon).noquote() << "cannot open lyric store:" << error;
         return 3;
     }
     Resolver resolver(store, providers, config.filterCredits());
@@ -278,7 +375,7 @@ int main(int argc, char **argv)
             : lyric.ref ? store.offset(*lyric.ref) : 0;
         QString error;
         if (!snapshots.write(state, lyric, &error)) {
-            qWarning().noquote() << "cannot write lyric snapshot:" << error;
+            qCWarning(lcDaemon).noquote() << "cannot write lyric snapshot:" << error;
         }
     };
 
@@ -386,10 +483,30 @@ int main(int argc, char **argv)
     if (!bus.registerService(ControlService::serviceName())
         || !bus.registerObject(ControlService::objectPath(), &control,
                                QDBusConnection::ExportAllSlots)) {
-        qCritical().noquote() << QStringLiteral("cannot register control D-Bus interface: ")
-                                 + bus.lastError().message();
+        qCCritical(lcDaemon).noquote() << QStringLiteral("cannot register control D-Bus interface: ")
+                                          + bus.lastError().message();
         return 4;
     }
+
+    const QStringList enabledProviders = resolver.availableProviders();
+    QStringList disabledProviders;
+    for (const auto &providerId : supportedProviders) {
+        if (!enabledProviders.contains(providerId)) {
+            disabledProviders.append(providerId);
+        }
+    }
+    qCInfo(lcDaemon).noquote() << QStringLiteral(
+        "started version=%1 providers=%2 disabled=%3 store=%4 logFile=%5 debug=%6 filterCredits=%7")
+        .arg(QStringLiteral(PLASMA_LYRICS_VERSION),
+             enabledProviders.join(QLatin1Char(',')),
+             disabledProviders.isEmpty() ? QStringLiteral("-")
+                                         : disabledProviders.join(QLatin1Char(',')),
+             quoted(store.path()),
+             mirroredLoggingInstalled ? quoted(configuredLog.fileName())
+                                      : QStringLiteral("none"),
+             lcDaemon().isDebugEnabled() ? QStringLiteral("true") : QStringLiteral("false"),
+             config.filterCredits() ? QStringLiteral("true") : QStringLiteral("false"));
+
     update(true);
     return application.exec();
 }

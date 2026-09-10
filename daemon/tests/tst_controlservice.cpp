@@ -19,6 +19,38 @@ using namespace PlasmaLyrics;
 
 namespace {
 
+QStringList *capturedMessages = nullptr;
+
+void captureMessages(QtMsgType type, const QMessageLogContext &, const QString &message)
+{
+    if (capturedMessages && (type == QtInfoMsg || type == QtWarningMsg)) {
+        capturedMessages->append(message);
+    }
+}
+
+// Mirrors tst_resolver.cpp's helper of the same name.
+class MessageCapture
+{
+public:
+    MessageCapture()
+        : m_previous(qInstallMessageHandler(captureMessages))
+    {
+        capturedMessages = &m_messages;
+    }
+
+    ~MessageCapture()
+    {
+        capturedMessages = nullptr;
+        qInstallMessageHandler(m_previous);
+    }
+
+    const QStringList &messages() const { return m_messages; }
+
+private:
+    QStringList m_messages;
+    QtMessageHandler m_previous;
+};
+
 class TestProvider final : public Provider
 {
 public:
@@ -277,7 +309,7 @@ private Q_SLOTS:
         Resolver resolver(store, {&amll});
         MprisState current;
         current.music = true;
-        current.fingerprint = QStringLiteral("mediaSrc:write-failure");
+        current.fingerprint = QStringLiteral("mediaSrc:write failure");
         current.title = QStringLiteral("song");
         int requests = 0;
         ControlService service(store, resolver, [&] { return std::optional<MprisState>(current); },
@@ -293,10 +325,20 @@ private Q_SLOTS:
                 "CREATE TRIGGER fail_preference BEFORE INSERT ON track_preference "
                 "BEGIN SELECT RAISE(FAIL, 'preference rejected'); END")));
 
+            MessageCapture capture;
             QCOMPARE(service.SetPreferredProvider(current.fingerprint, amll.id()),
                      QStringLiteral("preference-save-failed"));
             QCOMPARE(requests, 0);
             QVERIFY(!store.preferredProvider(current.fingerprint).has_value());
+            QVERIFY(std::any_of(capture.messages().cbegin(), capture.messages().cend(),
+                                [](const QString &message) {
+                return message.contains(QStringLiteral("control SetPreferredProvider"))
+                    && message.contains(QStringLiteral("result=preference-save-failed"));
+            }));
+            QVERIFY(std::any_of(capture.messages().cbegin(), capture.messages().cend(),
+                                [](const QString &message) {
+                return message.contains(QStringLiteral("fingerprint=\"mediaSrc:write failure\""));
+            }));
             database.close();
         }
         QSqlDatabase::removeDatabase(connectionName);

@@ -1,4 +1,5 @@
 #include "config.h"
+#include "logging.h"
 
 #include <QStandardPaths>
 #include <QDebug>
@@ -55,7 +56,7 @@ QStringList Config::providerOrder() const
     auto configured = m_settings.value(QStringLiteral("providers/order"),
                                        builtInProviderOrder()).toStringList();
     if (configured.isEmpty()) {
-        qWarning() << "providers/order is empty; using the built-in provider order";
+        qCWarning(lcDaemon) << "providers/order is empty; using the built-in provider order";
         configured = builtInProviderOrder();
     }
     // Existing configurations predate the local provider. Put the new,
@@ -92,7 +93,7 @@ QStringList Config::enabledProviderOrder() const
         if (enabled.contains(provider)) active.append(provider);
     }
     if (active.isEmpty()) {
-        qWarning() << "providers/enabled selects no ordered provider; using built-in defaults";
+        qCWarning(lcDaemon) << "providers/enabled selects no ordered provider; using built-in defaults";
         return builtInProviderOrder();
     }
     return active;
@@ -142,6 +143,11 @@ QString Config::logFilePath() const
         QStringLiteral("logging/filePath"),
         QString(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
             + QStringLiteral("/plasma-lyrics/plasma-lyricsd.log"))).toString();
+}
+
+bool Config::debugLoggingEnabled() const
+{
+    return m_settings.value(QStringLiteral("logging/debug"), false).toBool();
 }
 
 bool Config::filterCredits() const
