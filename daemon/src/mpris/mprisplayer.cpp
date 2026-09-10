@@ -217,9 +217,12 @@ void MprisPlayer::pollPosition()
         m_lastSamplePositionUs, m_lastSampleMonotonicNs, position, now,
         m_state.lengthUs, m_state.rate, m_state.playbackStatus);
     m_state.positionUs = position;
-    if (jump) {
-        m_state.anchorMonotonicNs = now;
-    }
+    // positionUs and anchorMonotonicNs are one sample.  Every snapshot
+    // consumer extrapolates from that pair, so refreshing Position without
+    // refreshing its anchor double-counts all playback since the old anchor.
+    // A jump still controls publication only; it does not control whether the
+    // cached sample remains internally coherent.
+    m_state.anchorMonotonicNs = now;
     m_lastSamplePositionUs = position;
     m_lastSampleMonotonicNs = now;
     if (jump) {

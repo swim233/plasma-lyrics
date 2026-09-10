@@ -315,6 +315,34 @@ private Q_SLOTS:
         QVERIFY(changes.first().at(1).toBool());
     }
 
+    void ordinaryPollKeepsPositionAndAnchorAsOneSample()
+    {
+        FakePlayer fake;
+        fake.setPosition(12000000);
+        QVERIFY(fake.announce());
+        qint64 now = 1000000000;
+        MprisPlayer player(QString::fromLatin1(fakeService), [&now] { return now; });
+        QSignalSpy changes(&player, &MprisPlayer::changed);
+
+        now = 3000000000;
+        fake.setPosition(14000000);
+        player.pollPosition();
+        now = 5000000000;
+        fake.setPosition(16000000);
+        player.pollPosition();
+
+        QCOMPARE(changes.size(), 0);
+        QCOMPARE(player.state().positionUs, 16000000);
+        QCOMPARE(player.state().anchorMonotonicNs, now);
+        // Any later publisher (manual source switch, offset adjustment, or an
+        // asynchronous resolve callback) reads this same cached pair. Its
+        // frontend extrapolation must add only time after the latest poll.
+        now = 6000000000;
+        const qint64 extrapolated = player.state().positionUs
+            + (now - player.state().anchorMonotonicNs) / 1000;
+        QCOMPARE(extrapolated, 17000000);
+    }
+
     void endToStartWrapEmitsExactlyOnePlaybackRound()
     {
         FakePlayer fake;

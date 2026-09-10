@@ -21,6 +21,9 @@ struct MprisState {
     QString platform;   // 由 MprisPolicy::platformFor 填充，未知为空
     QString playbackStatus = QStringLiteral("Stopped");
     qint64 positionUs = 0;
+    // This is the monotonic timestamp at which positionUs was sampled.
+    // MprisPlayer must update the pair together even when a poll does not
+    // represent a seek and therefore does not emit changed().
     qint64 anchorMonotonicNs = 0;
     double rate = 1.0;
     quint64 playingSerial = 0;
