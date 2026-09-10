@@ -7,11 +7,9 @@
 // decision 41). Shaped after BackendConfig: setters only mutate members and
 // mark the object unsaved, save() is what actually reaches storage. Unlike
 // BackendConfig, the values live in the LyricStore SQLite database rather
-// than a QSettings INI, because the effective offset has to update every
-// running widget within the same 2 s polling window LyricSource already
-// uses for the shared offset (decision 18) -- an INI page's "save, then
-// restart the daemon" contract would leave the change invisible until a
-// manual restart that has nothing to do with this value.
+// than a QSettings INI so save() can report storage errors synchronously.
+// After a successful write it sends the daemon a best-effort notification;
+// the daemon then republishes the effective value to all snapshot consumers.
 class GlobalConfig : public QObject
 {
     Q_OBJECT

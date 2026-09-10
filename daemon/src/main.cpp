@@ -262,8 +262,12 @@ int main(int argc, char **argv)
     ResolvedLyric resolved{QStringLiteral("filtered"), std::nullopt, {}};
     QString fingerprint;
 
-    const auto publish = [&snapshots](const std::optional<MprisState> &state,
-                                      const ResolvedLyric &lyric) {
+    const auto publish = [&snapshots, &store](const std::optional<MprisState> &state,
+                                             ResolvedLyric lyric) {
+        lyric.globalOffsetEnabled = store.globalOffsetEnabled();
+        lyric.document.offsetMs = lyric.globalOffsetEnabled
+            ? store.globalOffsetMs()
+            : lyric.ref ? store.offset(*lyric.ref) : 0;
         QString error;
         if (!snapshots.write(state, lyric, &error)) {
             qWarning().noquote() << "cannot write lyric snapshot:" << error;
@@ -350,8 +354,9 @@ int main(int argc, char **argv)
         publish(state, resolved);
         resolver.resolve(state, {.force = true, .existing = std::move(existing)});
     };
-    ControlService control(store, resolver, [&manager] { return manager.activeState(); },
-                           forceResolve);
+    ControlService control(
+        store, resolver, [&manager] { return manager.activeState(); }, forceResolve,
+        [&resolved] { return resolved.ref; }, [&update] { update(false); });
     auto bus = QDBusConnection::sessionBus();
     if (!bus.registerService(ControlService::serviceName())
         || !bus.registerObject(ControlService::objectPath(), &control,

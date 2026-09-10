@@ -25,6 +25,7 @@ install(TARGETS plasmalyricssource ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
 
 if(BUILD_TESTING)
     find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
+    find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session)
     add_executable(tst_backendconfig
         tests/tst_backendconfig.cpp
         backendconfig.cpp
@@ -33,13 +34,25 @@ if(BUILD_TESTING)
     target_link_libraries(tst_backendconfig PRIVATE Qt6::Core Qt6::Qml Qt6::Test)
     add_test(NAME tst_backendconfig COMMAND tst_backendconfig)
 
+    add_executable(tst_globalconfig
+        tests/tst_globalconfig.cpp
+        globalconfig.cpp
+    )
+    target_include_directories(tst_globalconfig PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(tst_globalconfig PRIVATE plasma_lyrics_core Qt6::DBus Qt6::Qml Qt6::Test)
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(NAME tst_globalconfig
+                 COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_globalconfig>)
+    else()
+        add_test(NAME tst_globalconfig COMMAND tst_globalconfig)
+    endif()
+
     add_executable(tst_lyricsource
         tests/tst_lyricsource.cpp
         lyricsource.cpp
     )
     target_include_directories(tst_lyricsource PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_lyricsource PRIVATE plasma_lyrics_core Qt6::Core Qt6::DBus Qt6::Qml Qt6::Sql Qt6::Test KF6::I18n)
-    find_program(DBUS_RUN_SESSION_EXECUTABLE dbus-run-session)
     if(DBUS_RUN_SESSION_EXECUTABLE)
         add_test(NAME tst_lyricsource
                  COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_lyricsource>)

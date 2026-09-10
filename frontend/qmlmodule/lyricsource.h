@@ -39,14 +39,9 @@ class LyricSource : public QObject
 
 public:
     explicit LyricSource(QObject *parent = nullptr);
-    // storePath is test-only: it redirects the LyricStore path so tests
-    // never touch the real ~/.local/share/plasma-lyrics/lyrics.db. Empty
-    // (the default) means "use LyricStore's own default path", which is
-    // what every production caller gets. It has to be a constructor
-    // parameter rather than a post-construction setter, because the global
-    // offset cache is read synchronously during construction (see the .cpp
-    // comment by that call) -- a setter would run too late to affect it.
-    explicit LyricSource(std::function<qint64()> clock, QString storePath = {}, QObject *parent = nullptr);
+    // The QString argument is retained as a source-compatible no-op for old
+    // tests/plugins. Widgets no longer open the SQLite store.
+    explicit LyricSource(std::function<qint64()> clock, QString = {}, QObject *parent = nullptr);
 
     QString snapshotPath() const;
     void setSnapshotPath(const QString &path);
@@ -109,8 +104,6 @@ private:
     void reloadImpl();
     void advance();
     bool hasTrackRef() const;
-    void refreshGlobalOffsetCache();
-    bool applyEffectiveOffset();
     bool sendControlCommand(const QString &method, const QVariantList &arguments);
 
     QFileSystemWatcher m_watcher;
@@ -119,7 +112,6 @@ private:
     QTimer m_healthTimer;
     std::function<qint64()> m_clock;
     QString m_snapshotPath;
-    QString m_storePath;
     bool m_serviceAvailable = false;
     bool m_stale = false;
     bool m_determined = false;
@@ -143,16 +135,8 @@ private:
     qint64 m_positionUs = 0;
     qint64 m_anchorMonotonicNs = 0;
     double m_rate = 1.0;
-    // m_trackOffsetMs is the raw per-track value out of the snapshot (or the
-    // per-track table, once the 2 s health poll refreshes it); m_offsetMs is
-    // the value advance() actually uses. They coincide unless the global
-    // offset is enabled, in which case m_offsetMs tracks the global value
-    // instead and m_trackOffsetMs is kept up to date in the background so it
-    // is ready the moment the global switch is turned back off.
-    int m_trackOffsetMs = 0;
     int m_offsetMs = 0;
     bool m_globalOffsetEnabled = false;
-    int m_globalOffsetMs = 0;
     int m_currentLine = -1;
     qint64 m_currentPositionMs = 0;
 };

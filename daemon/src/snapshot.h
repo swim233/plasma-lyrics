@@ -19,6 +19,9 @@ struct ResolvedLyric {
     QString effectivePreferredProvider;
     bool temporaryFallback = false;
     QStringList availableProviders;
+    // Snapshot consumers use this daemon-computed effective offset instead
+    // of opening the store. The flag is still needed for menu wording.
+    bool globalOffsetEnabled = false;
 };
 
 class SnapshotWriter

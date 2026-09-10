@@ -2,6 +2,8 @@
 
 #include "core/store/lyricstore.h"
 
+#include <QDBusConnection>
+#include <QDBusMessage>
 #include <algorithm>
 
 using namespace PlasmaLyrics;
@@ -78,6 +80,12 @@ bool GlobalConfig::save()
         m_unsavedChanges = false;
         Q_EMIT unsavedChangesChanged();
     }
+    const auto refresh = QDBusMessage::createMethodCall(
+        QStringLiteral("io.github.swim233.PlasmaLyrics"),
+        QStringLiteral("/io/github/swim233/PlasmaLyrics"),
+        QStringLiteral("io.github.swim233.PlasmaLyrics.Control"),
+        QStringLiteral("RefreshGlobalOffset"));
+    QDBusConnection::sessionBus().call(refresh, QDBus::NoBlock);
     Q_EMIT saved();
     return true;
 }

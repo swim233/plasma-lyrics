@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/store/lyricstore.h"
 #include "daemon/src/mpris/mpristypes.h"
 
 #include <QObject>
@@ -8,7 +9,6 @@
 
 namespace PlasmaLyrics {
 
-class LyricStore;
 class Resolver;
 
 class ControlService final : public QObject
@@ -19,9 +19,12 @@ class ControlService final : public QObject
 public:
     using CurrentState = std::function<std::optional<MprisState>()>;
     using ResolveCurrent = std::function<void(const MprisState &)>;
+    using CurrentRef = std::function<std::optional<TrackRef>()>;
+    using PublishCurrent = std::function<void()>;
 
     ControlService(LyricStore &store, Resolver &resolver, CurrentState currentState,
-                   ResolveCurrent resolveCurrent, QObject *parent = nullptr);
+                   ResolveCurrent resolveCurrent, CurrentRef currentRef = {},
+                   PublishCurrent publishCurrent = {}, QObject *parent = nullptr);
 
     static QString serviceName();
     static QString objectPath();
@@ -35,6 +38,9 @@ public Q_SLOTS:
                                  const QString &provider);
     QString ClearPreferredProvider(const QString &expectedFingerprint);
     QString Research(const QString &expectedFingerprint);
+    QString AdjustOffset(const QString &expectedFingerprint, int deltaMs);
+    QString ResetOffset(const QString &expectedFingerprint);
+    QString RefreshGlobalOffset();
 
 private:
     std::optional<MprisState> checkedState(const QString &expectedFingerprint,
@@ -44,6 +50,8 @@ private:
     Resolver &m_resolver;
     CurrentState m_currentState;
     ResolveCurrent m_resolveCurrent;
+    CurrentRef m_currentRef;
+    PublishCurrent m_publishCurrent;
 };
 
 } // namespace PlasmaLyrics

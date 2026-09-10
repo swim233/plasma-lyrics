@@ -7,12 +7,15 @@ namespace PlasmaLyrics {
 
 ControlService::ControlService(LyricStore &store, Resolver &resolver,
                                CurrentState currentState, ResolveCurrent resolveCurrent,
+                               CurrentRef currentRef, PublishCurrent publishCurrent,
                                QObject *parent)
     : QObject(parent)
     , m_store(store)
     , m_resolver(resolver)
     , m_currentState(std::move(currentState))
     , m_resolveCurrent(std::move(resolveCurrent))
+    , m_currentRef(std::move(currentRef))
+    , m_publishCurrent(std::move(publishCurrent))
 {
 }
 
@@ -69,6 +72,54 @@ QString ControlService::Research(const QString &expectedFingerprint)
     const auto state = checkedState(expectedFingerprint, &error);
     if (!state) return error;
     m_resolveCurrent(*state);
+    return {};
+}
+
+QString ControlService::AdjustOffset(const QString &expectedFingerprint, int deltaMs)
+{
+    QString error;
+    if (!checkedState(expectedFingerprint, &error)) return error;
+    if (m_store.globalOffsetEnabled()) {
+        if (!m_store.adjustGlobalOffset(deltaMs)) {
+            return QStringLiteral("offset-save-failed");
+        }
+    } else {
+        const auto ref = m_currentRef ? m_currentRef() : std::nullopt;
+        if (!ref) return QStringLiteral("no-track-ref");
+        if (!m_store.adjustOffset(*ref, deltaMs)) {
+            return QStringLiteral("offset-save-failed");
+        }
+    }
+    if (m_publishCurrent) m_publishCurrent();
+    return {};
+}
+
+QString ControlService::ResetOffset(const QString &expectedFingerprint)
+{
+    QString error;
+    if (!checkedState(expectedFingerprint, &error)) return error;
+    if (m_store.globalOffsetEnabled()) {
+        if (!m_store.setGlobalOffsetMs(0)) {
+            return QStringLiteral("offset-save-failed");
+        }
+    } else {
+        const auto ref = m_currentRef ? m_currentRef() : std::nullopt;
+        if (!ref) return QStringLiteral("no-track-ref");
+        if (!m_store.setOffset(*ref, 0)) {
+            return QStringLiteral("offset-save-failed");
+        }
+    }
+    if (m_publishCurrent) m_publishCurrent();
+    return {};
+}
+
+QString ControlService::RefreshGlobalOffset()
+{
+    // GlobalConfig deliberately writes SQLite itself so it can report a
+    // synchronous storage failure to the configuration page. Once that write
+    // succeeds, this best-effort notification makes the daemon republish the
+    // newly effective value to every snapshot consumer.
+    if (m_publishCurrent) m_publishCurrent();
     return {};
 }
 

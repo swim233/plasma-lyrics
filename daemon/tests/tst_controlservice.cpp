@@ -5,12 +5,15 @@
 
 #include <QDBusConnection>
 #include <QDBusInterface>
+#include <QDBusPendingCallWatcher>
+#include <QDBusPendingReply>
 #include <QDBusReply>
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUuid>
+#include <algorithm>
 
 using namespace PlasmaLyrics;
 
@@ -56,8 +59,12 @@ private Q_SLOTS:
         current.title = QStringLiteral("song");
         current.artists = {QStringLiteral("artist")};
         int requests = 0;
+        int publications = 0;
+        const TrackRef currentRef{QStringLiteral("netease"), QStringLiteral("id"), 1.0};
         ControlService service(store, resolver, [&] { return std::optional<MprisState>(current); },
-                               [&](const MprisState &) { ++requests; });
+                               [&](const MprisState &) { ++requests; },
+                               [&] { return std::optional<TrackRef>(currentRef); },
+                               [&] { ++publications; });
         auto bus = QDBusConnection::sessionBus();
         QVERIFY(bus.registerService(ControlService::serviceName()));
         QVERIFY(bus.registerObject(ControlService::objectPath(), &service,
@@ -99,6 +106,65 @@ private Q_SLOTS:
         QCOMPARE(clear.value(), QString());
         QVERIFY(!store.preferredProvider(current.fingerprint));
         QCOMPARE(requests, 3);
+
+        QDBusReply<QString> adjustOne = interface.call(
+            QStringLiteral("AdjustOffset"), current.fingerprint, 500);
+        QVERIFY(adjustOne.isValid());
+        QCOMPARE(adjustOne.value(), QString());
+        QDBusReply<QString> adjustTwo = interface.call(
+            QStringLiteral("AdjustOffset"), current.fingerprint, 500);
+        QCOMPARE(adjustTwo.value(), QString());
+        QCOMPARE(store.offset(currentRef), 1000);
+        QCOMPARE(publications, 2);
+
+        QDBusReply<QString> staleAdjust = interface.call(
+            QStringLiteral("AdjustOffset"), QStringLiteral("old"), 500);
+        QCOMPARE(staleAdjust.value(), QStringLiteral("song-changed"));
+        QCOMPARE(store.offset(currentRef), 1000);
+
+        QDBusReply<QString> reset = interface.call(
+            QStringLiteral("ResetOffset"), current.fingerprint);
+        QCOMPARE(reset.value(), QString());
+        QCOMPARE(store.offset(currentRef), 0);
+        QCOMPARE(publications, 3);
+
+        QDBusReply<QString> refresh = interface.call(QStringLiteral("RefreshGlobalOffset"));
+        QVERIFY(refresh.isValid());
+        QCOMPARE(refresh.value(), QString());
+        QCOMPARE(publications, 4);
+
+        QVERIFY(store.setGlobalOffsetEnabled(true));
+        QList<QDBusPendingCallWatcher *> pending;
+        for (int i = 0; i < 20; ++i) {
+            pending.append(new QDBusPendingCallWatcher(interface.asyncCall(
+                QStringLiteral("SetPreferredProvider"), current.fingerprint,
+                QStringLiteral("amll")), this));
+            pending.append(new QDBusPendingCallWatcher(interface.asyncCall(
+                QStringLiteral("ClearPreferredProvider"), current.fingerprint), this));
+            pending.append(new QDBusPendingCallWatcher(interface.asyncCall(
+                QStringLiteral("Research"), current.fingerprint), this));
+            pending.append(new QDBusPendingCallWatcher(interface.asyncCall(
+                QStringLiteral("AdjustOffset"), current.fingerprint, 1), this));
+            pending.append(new QDBusPendingCallWatcher(interface.asyncCall(
+                QStringLiteral("ResetOffset"), current.fingerprint), this));
+            pending.append(new QDBusPendingCallWatcher(interface.asyncCall(
+                QStringLiteral("RefreshGlobalOffset")), this));
+        }
+        const auto allFinished = [&pending] {
+            const auto finished = [](const auto *call) { return call->isFinished(); };
+            return std::all_of(pending.cbegin(), pending.cend(), finished);
+        };
+        QTRY_VERIFY_WITH_TIMEOUT(allFinished(), 5000);
+        for (auto *call : pending) {
+            const QDBusPendingReply<QString> reply = *call;
+            QVERIFY(reply.isValid());
+            QCOMPARE(reply.value(), QString());
+            call->deleteLater();
+        }
+        QVERIFY(!store.preferredProvider(current.fingerprint));
+        QCOMPARE(store.globalOffsetMs(), 0);
+        QCOMPARE(requests, 63);
+        QCOMPARE(publications, 64);
     }
 
     void preferenceWriteFailureIsReturnedWithoutStartingAResolve()

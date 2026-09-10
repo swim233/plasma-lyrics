@@ -2,7 +2,6 @@
 
 #include "core/lyric/lyricmodel.h"
 #include "core/lyric/timeline.h"
-#include "core/store/lyricstore.h"
 
 #include <QDir>
 #include <QDBusConnection>
@@ -62,6 +61,12 @@ QString localizedControlError(const QString &error)
     if (error == QStringLiteral("preference-clear-failed")) {
         return i18nd(domain, "Could not clear the song's preferred lyrics source.");
     }
+    if (error == QStringLiteral("no-track-ref")) {
+        return i18nd(domain, "There are no lyrics to adjust for the current song.");
+    }
+    if (error == QStringLiteral("offset-save-failed")) {
+        return i18nd(domain, "Could not save the lyric offset.");
+    }
     return error.isEmpty()
         ? QString()
         : i18nd(domain, "Lyrics source command failed: %1", error);
@@ -74,11 +79,10 @@ LyricSource::LyricSource(QObject *parent)
 {
 }
 
-LyricSource::LyricSource(std::function<qint64()> clock, QString storePath, QObject *parent)
+LyricSource::LyricSource(std::function<qint64()> clock, QString, QObject *parent)
     : QObject(parent)
     , m_clock(std::move(clock))
     , m_snapshotPath(defaultSnapshotPath())
-    , m_storePath(std::move(storePath))
 {
     m_retryTimer.setInterval(2000);
     // The frame timer is armed at the next line boundary rather than polling:
@@ -93,12 +97,6 @@ LyricSource::LyricSource(std::function<qint64()> clock, QString storePath, QObje
     connect(&m_frameTimer, &QTimer::timeout, this, &LyricSource::advance);
     connect(&m_healthTimer, &QTimer::timeout, this, &LyricSource::updateServiceHealth);
     m_healthTimer.start();
-    // Read the global offset cache synchronously, before the singleShot below
-    // fires. Both default-initialize m_offsetMs to 0, but if the global
-    // offset is already enabled and non-zero, doing this after the first
-    // reload() would render one frame at the per-track value and then jump
-    // to the global one.
-    refreshGlobalOffsetCache();
     QTimer::singleShot(0, this, &LyricSource::reload);
 }
 
@@ -142,7 +140,8 @@ QString LyricSource::providerDisplayName(const QString &provider) const
 
 bool LyricSource::canControlProvider() const
 {
-    return m_serviceAvailable && !m_stale && !m_fingerprint.isEmpty() && !m_controlInProgress;
+    return m_serviceAvailable && !m_stale && !m_fingerprint.isEmpty()
+        && !controlInProgress();
 }
 
 bool LyricSource::canAdjustOffset() const
@@ -153,7 +152,8 @@ bool LyricSource::canAdjustOffset() const
     // make the menu actions dead exactly when the global offset is most
     // useful. Per-track mode keeps the original gate: adjusting requires an
     // actual (provider, trackId) to key the per-track table on.
-    return m_globalOffsetEnabled ? m_serviceAvailable : hasTrackRef();
+    return m_serviceAvailable && !m_stale && !m_fingerprint.isEmpty()
+        && !controlInProgress() && (m_globalOffsetEnabled || hasTrackRef());
 }
 
 QString LyricSource::currentText() const
@@ -214,64 +214,11 @@ void LyricSource::setUnavailable(bool staleValue)
     }
 }
 
-void LyricSource::refreshGlobalOffsetCache()
-{
-    LyricStore store(m_storePath);
-    if (!store.open()) {
-        return;
-    }
-    const bool enabled = store.globalOffsetEnabled();
-    const int offsetMs = store.globalOffsetMs();
-    const bool enabledChanged = enabled != m_globalOffsetEnabled;
-    m_globalOffsetEnabled = enabled;
-    m_globalOffsetMs = offsetMs;
-    if (enabledChanged) {
-        Q_EMIT globalOffsetEnabledChanged();
-        // The mode switch itself changes what canAdjustOffset() depends on.
-        Q_EMIT canAdjustOffsetChanged();
-    }
-    if (applyEffectiveOffset()) {
-        advance();
-    }
-}
-
-bool LyricSource::applyEffectiveOffset()
-{
-    const int effective = m_globalOffsetEnabled ? m_globalOffsetMs : m_trackOffsetMs;
-    if (effective == m_offsetMs) {
-        return false;
-    }
-    m_offsetMs = effective;
-    Q_EMIT offsetChanged();
-    return true;
-}
-
 void LyricSource::updateServiceHealth()
 {
     if (m_pid > 0 && !processExists(m_pid)) {
         setUnavailable(true);
         return;
-    }
-    if (!m_serviceAvailable) {
-        return;
-    }
-    // Refreshed unconditionally on m_serviceAvailable alone: a track with no
-    // resolved provider/trackId (instrumental, or lyrics not found) must
-    // still pick up a global offset change made from another widget
-    // instance -- gating this on hasTrackRef() would leave those widgets
-    // stuck on a stale global value.
-    refreshGlobalOffsetCache();
-    if (hasTrackRef()) {
-        LyricStore store(m_storePath);
-        if (store.open()) {
-            const int sharedOffset = store.offset({m_provider, m_trackId, 0});
-            if (sharedOffset != m_trackOffsetMs) {
-                m_trackOffsetMs = sharedOffset;
-                if (applyEffectiveOffset()) {
-                    advance();
-                }
-            }
-        }
     }
 }
 
@@ -359,6 +306,8 @@ void LyricSource::reloadImpl()
     const auto oldActualProvider = m_actualProvider;
     const auto oldAvailableProviders = m_availableProviders;
     const bool oldTemporaryFallback = m_temporaryFallback;
+    const int oldOffsetMs = m_offsetMs;
+    const bool oldGlobalOffsetEnabled = m_globalOffsetEnabled;
 
     const auto track = root.value(QStringLiteral("track")).toObject();
     m_fingerprint = track.value(QStringLiteral("fingerprint")).toString();
@@ -379,12 +328,8 @@ void LyricSource::reloadImpl()
     m_actualProvider = lyric.value(QStringLiteral("actualProvider")).toString(m_provider);
     m_temporaryFallback = lyric.value(QStringLiteral("temporaryFallback")).toBool();
     m_availableProviders = lyric.value(QStringLiteral("availableProviders")).toVariant().toStringList();
-    // Per-track raw value only -- see DESIGN.md decision 41 and the
-    // m_trackOffsetMs/m_offsetMs comment in the header. This never opens
-    // SQLite: the global cache is refreshed solely by the 2 s health poll
-    // (and once synchronously at construction), so a snapshot reload stays
-    // pure file I/O.
-    m_trackOffsetMs = lyric.value(QStringLiteral("offsetMs")).toInt();
+    m_globalOffsetEnabled = lyric.value(QStringLiteral("globalOffsetEnabled")).toBool();
+    m_offsetMs = lyric.value(QStringLiteral("offsetMs")).toInt();
     m_lines.clear();
     for (const auto &value : lyric.value(QStringLiteral("lines")).toArray()) {
         if (const auto line = lineFromJson(value.toObject())) {
@@ -408,8 +353,12 @@ void LyricSource::reloadImpl()
         || oldAvailableProviders != m_availableProviders) {
         Q_EMIT providerStateChanged();
     }
+    if (oldGlobalOffsetEnabled != m_globalOffsetEnabled) {
+        Q_EMIT globalOffsetEnabledChanged();
+        Q_EMIT canAdjustOffsetChanged();
+    }
+    if (oldOffsetMs != m_offsetMs) Q_EMIT offsetChanged();
     if (oldFingerprint != m_fingerprint) Q_EMIT canControlProviderChanged();
-    applyEffectiveOffset();
     advance();
 }
 
@@ -456,27 +405,8 @@ bool LyricSource::adjustOffset(int deltaMs)
     if (!canAdjustOffset()) {
         return false;
     }
-    LyricStore store(m_storePath);
-    if (!store.open()) {
-        return false;
-    }
-    if (m_globalOffsetEnabled) {
-        const auto adjusted = store.adjustGlobalOffset(deltaMs);
-        if (!adjusted) {
-            return false;
-        }
-        m_globalOffsetMs = *adjusted;
-    } else {
-        const auto adjusted = store.adjustOffset({m_provider, m_trackId, 0}, deltaMs);
-        if (!adjusted) {
-            return false;
-        }
-        m_trackOffsetMs = *adjusted;
-    }
-    if (applyEffectiveOffset()) {
-        advance();
-    }
-    return true;
+    return sendControlCommand(QStringLiteral("AdjustOffset"),
+                              {m_fingerprint, deltaMs});
 }
 
 bool LyricSource::resetOffset()
@@ -484,25 +414,7 @@ bool LyricSource::resetOffset()
     if (!canAdjustOffset()) {
         return false;
     }
-    LyricStore store(m_storePath);
-    if (!store.open()) {
-        return false;
-    }
-    if (m_globalOffsetEnabled) {
-        if (!store.setGlobalOffsetMs(0)) {
-            return false;
-        }
-        m_globalOffsetMs = 0;
-    } else {
-        if (!store.setOffset({m_provider, m_trackId, 0}, 0)) {
-            return false;
-        }
-        m_trackOffsetMs = 0;
-    }
-    if (applyEffectiveOffset()) {
-        advance();
-    }
-    return true;
+    return sendControlCommand(QStringLiteral("ResetOffset"), {m_fingerprint});
 }
 
 bool LyricSource::sendControlCommand(const QString &method, const QVariantList &arguments)
@@ -515,6 +427,7 @@ bool LyricSource::sendControlCommand(const QString &method, const QVariantList &
     }
     Q_EMIT controlInProgressChanged();
     Q_EMIT canControlProviderChanged();
+    Q_EMIT canAdjustOffsetChanged();
 
     QDBusMessage message = QDBusMessage::createMethodCall(
         QStringLiteral("io.github.swim233.PlasmaLyrics"),
@@ -536,6 +449,7 @@ bool LyricSource::sendControlCommand(const QString &method, const QVariantList &
         m_controlInProgress = false;
         Q_EMIT controlInProgressChanged();
         Q_EMIT canControlProviderChanged();
+        Q_EMIT canAdjustOffsetChanged();
         if (!error.isEmpty()) {
             m_controlError = error;
             Q_EMIT controlErrorChanged();
