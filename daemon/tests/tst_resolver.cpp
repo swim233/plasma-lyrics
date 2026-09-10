@@ -242,6 +242,30 @@ private:
     int m_fetchCount = 0;
 };
 
+class VersionCountingProvider final : public Provider
+{
+public:
+    QString id() const override { return QStringLiteral("version-counting"); }
+    bool isConfigured() const override { return true; }
+    QString cacheVersion() const override
+    {
+        ++m_cacheVersionCalls;
+        return QStringLiteral("revision-1");
+    }
+    void search(const TrackQuery &, SearchCallback callback) override
+    {
+        callback({{}, {}, false, QStringLiteral("revision-1")});
+    }
+    void fetch(const QString &, FetchCallback callback) override
+    {
+        callback({std::nullopt, QStringLiteral("unexpected fetch"), false});
+    }
+    int cacheVersionCalls() const { return m_cacheVersionCalls; }
+
+private:
+    mutable int m_cacheVersionCalls = 0;
+};
+
 ResolvedLyric resolveSynchronously(Resolver &resolver, const MprisState &state,
                                    Resolver::ResolveOptions options = {})
 {
@@ -271,6 +295,22 @@ class ResolverTest : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void readsProviderVersionOncePerAttempt()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        VersionCountingProvider provider;
+        Resolver resolver(store, {&provider});
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:version-count");
+        state.title = QStringLiteral("missing");
+
+        QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("not-found"));
+        QCOMPARE(provider.cacheVersionCalls(), 1);
+    }
+
     void reproducesWaylyricsCacheKey()
     {
         MprisState state;
@@ -545,7 +585,7 @@ private Q_SLOTS:
         state.title = QStringLiteral("Song");
         state.artists = {QStringLiteral("Artist")};
 
-        QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("no-lyric"));
+        QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("not-found"));
         QVERIFY(!store.freshProviderMiss(state.fingerprint, local.id(), local.cacheVersion())
                      .has_value());
 
@@ -586,7 +626,7 @@ private Q_SLOTS:
         state.mediaSrc = QUrl::fromLocalFile(audioPath).toString();
         state.title = QStringLiteral("Song");
 
-        QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("no-lyric"));
+        QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("not-found"));
         QVERIFY(!store.freshProviderMiss(state.fingerprint, local.id(), local.cacheVersion())
                      .has_value());
 

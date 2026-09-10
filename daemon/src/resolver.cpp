@@ -114,8 +114,17 @@ ResolvedLyric Resolver::resolvedLyric(const std::shared_ptr<Request> &request,
 {
     const bool fallback = ref && !request->effectivePreference.isEmpty()
         && ref->provider != request->effectivePreference;
-    return {state, ref, std::move(document), request->manualPreference,
-            request->effectivePreference, fallback, availableProviders()};
+    return ResolvedLyric{
+        .state = state,
+        .ref = ref,
+        .document = std::move(document),
+        .preferredProvider = request->manualPreference,
+        .effectivePreferredProvider = request->effectivePreference,
+        .temporaryFallback = fallback,
+        .availableProviders = availableProviders(),
+        .globalOffsetEnabled = false,
+        .switchingProvider = {},
+    };
 }
 
 QStringList Resolver::legacyWaylyricsIds(const MprisState &state)
@@ -319,9 +328,11 @@ void Resolver::recordProviderFailure(const std::shared_ptr<Request> &request,
 
 bool Resolver::retryProviderIfIndexChanged(const std::shared_ptr<Request> &request,
                                            Provider *provider,
-                                           const QString &attemptedCacheVersion)
+                                           const QString &attemptedCacheVersion,
+                                           const std::optional<QString> &observedCacheVersion)
 {
-    const QString currentCacheVersion = provider->cacheVersion();
+    const QString currentCacheVersion = observedCacheVersion
+        ? *observedCacheVersion : provider->knownCacheVersion();
     const QString currentAttempt = provider->id() + QLatin1Char('\x1f') + currentCacheVersion;
     if (attemptedCacheVersion.isEmpty() || currentCacheVersion == attemptedCacheVersion
         || request->attemptedProviderVersions.contains(currentAttempt)) {
@@ -356,17 +367,20 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
         return;
     }
     Provider *provider = nullptr;
+    QString providerCacheVersion;
     while (request->providerIndex < request->providers.size()) {
         auto *candidate = request->providers[request->providerIndex++];
         if (!candidate || !candidate->isConfigured() || !candidate->supportsSearch()) {
             continue;
         }
-        const QString attempt = candidate->id() + QLatin1Char('\x1f') + candidate->cacheVersion();
+        const QString cacheVersion = candidate->cacheVersion();
+        const QString attempt = candidate->id() + QLatin1Char('\x1f') + cacheVersion;
         if (request->attemptedProviderVersions.contains(attempt)) {
             continue;
         }
         request->attemptedProviderVersions.insert(attempt);
         provider = candidate;
+        providerCacheVersion = cacheVersion;
         break;
     }
     if (!provider) {
@@ -400,7 +414,7 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
         // baseline.  A cache/index version mismatch makes the method return
         // empty and immediately re-enables this provider.
         if (const auto miss = m_store.freshProviderMiss(
-                request->state.fingerprint, provider->id(), provider->cacheVersion(), now,
+                request->state.fingerprint, provider->id(), providerCacheVersion, now,
                 noCandidateMissTtlSeconds)) {
             const qint64 ttl = miss->reason == QStringLiteral("network")
                 ? networkMissTtlSeconds : noCandidateMissTtlSeconds;
@@ -427,8 +441,8 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
     }
 
     const QPointer<Resolver> self(this);
-    const QString searchCacheVersion = provider->cacheVersion();
-    provider->search(request->query,
+    const QString searchCacheVersion = providerCacheVersion;
+    provider->searchPrepared(request->query, searchCacheVersion,
                      [self, request, provider, searchCacheVersion](ProviderSearchResult result) mutable {
         if (!self || request->generation != self->m_generation) {
             return;
@@ -445,7 +459,8 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
                                                                    : QStringLiteral("search-error"),
                                             resultCacheVersion);
             }
-            if (self->retryProviderIfIndexChanged(request, provider, resultCacheVersion)) return;
+            if (self->retryProviderIfIndexChanged(request, provider, searchCacheVersion,
+                                                  resultCacheVersion)) return;
             self->continueWithProvider(request);
             return;
         }
@@ -461,7 +476,8 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
                 self->recordProviderFailure(request, provider, QStringLiteral("no-candidate"),
                                             resultCacheVersion);
             }
-            if (self->retryProviderIfIndexChanged(request, provider, resultCacheVersion)) return;
+            if (self->retryProviderIfIndexChanged(request, provider, searchCacheVersion,
+                                                  resultCacheVersion)) return;
             self->continueWithProvider(request);
             return;
         }

@@ -7,6 +7,7 @@
 #include <QString>
 #include <functional>
 #include <optional>
+#include <utility>
 
 namespace PlasmaLyrics {
 
@@ -48,10 +49,23 @@ public:
     // Included in provider-scoped negative-cache rows.  Changing a source
     // endpoint or index revision makes older misses inapplicable.
     virtual QString cacheVersion() const { return id(); }
+    // Returns the version already held by the provider without refreshing an
+    // expensive local index. Resolver uses this only after an asynchronous
+    // fetch failure to detect a source revision that changed during the fetch.
+    virtual QString knownCacheVersion() const { return cacheVersion(); }
     // Network-backed providers must complete through these callbacks without
     // spinning a nested event loop; Resolver discards callbacks from requests
     // that are no longer current.
     virtual void search(const TrackQuery &query, SearchCallback callback) = 0;
+    // Resolver has already read cacheVersion() for negative-cache lookup. An
+    // indexed provider may reuse the snapshot prepared by that read instead
+    // of walking its source again. Other providers keep their normal search.
+    virtual void searchPrepared(const TrackQuery &query, const QString &cacheVersion,
+                                SearchCallback callback)
+    {
+        (void)cacheVersion;
+        search(query, std::move(callback));
+    }
     virtual void fetch(const QString &trackId, FetchCallback callback) = 0;
 };
 

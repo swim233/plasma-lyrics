@@ -50,7 +50,8 @@ private:
                                const QString &cacheVersion);
     bool retryProviderIfIndexChanged(const std::shared_ptr<Request> &request,
                                      Provider *provider,
-                                     const QString &attemptedCacheVersion);
+                                     const QString &attemptedCacheVersion,
+                                     const std::optional<QString> &observedCacheVersion = std::nullopt);
     void mapFingerprint(const QString &fingerprint, const TrackRef &ref);
     void clearProviderMiss(const QString &fingerprint, const QString &provider);
     void continueWithProvider(const std::shared_ptr<Request> &request);

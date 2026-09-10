@@ -5,10 +5,12 @@
 #include <QByteArrayView>
 #include <QCryptographicHash>
 #include <QDir>
+#include <QDirIterator>
 #include <QFile>
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QUrl>
+#include <algorithm>
 
 namespace PlasmaLyrics {
 
@@ -58,14 +60,13 @@ QString LocalProvider::sidecarPath(const QString &mediaSrc) const
     return QFileInfo::exists(appended) ? appended : QString();
 }
 
-Candidate LocalProvider::candidateForFile(const QString &path,
-                                          const TrackQuery *sidecarQuery) const
+std::optional<Candidate> LocalProvider::candidateForFile(
+    const QString &path, const TrackQuery *sidecarQuery) const
 {
     QFile file(path);
-    ParsedLrc parsed;
-    if (file.open(QIODevice::ReadOnly)) {
-        parsed = LrcParser::parse(QString::fromUtf8(file.readAll()));
-    }
+    if (!file.open(QIODevice::ReadOnly)) return std::nullopt;
+    const ParsedLrc parsed = LrcParser::parse(QString::fromUtf8(file.readAll()));
+    if (parsed.lines.isEmpty()) return std::nullopt;
     const QFileInfo info(path);
     QString fallbackTitle = info.completeBaseName();
     QStringList fallbackArtists;
@@ -96,25 +97,29 @@ Candidate LocalProvider::candidateForFile(const QString &path,
 
 void LocalProvider::search(const TrackQuery &query, SearchCallback callback)
 {
-    QList<Candidate> candidates;
+    searchPrepared(query, cacheVersion(), std::move(callback));
+}
+
+void LocalProvider::searchPrepared(const TrackQuery &query,
+                                   const QString &preparedCacheVersion,
+                                   SearchCallback callback)
+{
+    if (!m_indexLoaded || m_indexVersion != preparedCacheVersion) {
+        refreshIndex();
+    }
     const QString sidecar = sidecarPath(query.mediaSrc);
     if (!sidecar.isEmpty()) {
-        candidates.append(candidateForFile(sidecar, &query));
-        // The directory revision does not identify this adjacent file. Its
-        // contents can be repaired in place without changing cacheVersion().
-        callback({std::move(candidates), {}, false, cacheVersion(), false});
-        return;
+        if (const auto candidate = candidateForFile(sidecar, &query)) {
+            // The directory revision does not identify this adjacent file. Its
+            // contents can be repaired in place without changing cacheVersion().
+            callback({{*candidate}, {}, false, m_indexVersion, false});
+            return;
+        }
     }
-    const QDir directory(m_lyricsDirectory);
-    const auto files = directory.entryInfoList({QStringLiteral("*.lrc"), QStringLiteral("*.LRC")},
-                                               QDir::Files | QDir::Readable,
-                                               QDir::Name | QDir::IgnoreCase);
-    for (const auto &file : files) {
-        candidates.append(candidateForFile(file.absoluteFilePath()));
-    }
+    auto candidates = candidatesForQuery(query);
     // A local-file request without a sidecar cannot use a provider-wide miss:
-    // adding that sidecar later would not change the lyrics-directory version.
-    callback({std::move(candidates), {}, false, cacheVersion(), query.mediaSrc.isEmpty()
+    // adding or repairing that sidecar later would not change the lyrics-directory version.
+    callback({std::move(candidates), {}, false, m_indexVersion, query.mediaSrc.isEmpty()
                   || !QUrl(query.mediaSrc).isLocalFile()});
 }
 
@@ -133,17 +138,49 @@ void LocalProvider::fetch(const QString &contentId, FetchCallback callback)
 
 QString LocalProvider::cacheVersion() const
 {
+    refreshIndex();
+    return m_indexVersion;
+}
+
+QString LocalProvider::knownCacheVersion() const
+{
+    return m_indexLoaded ? m_indexVersion : cacheVersion();
+}
+
+QFileInfoList LocalProvider::lyricFiles() const
+{
+    QFileInfoList files;
+    QDirIterator iterator(m_lyricsDirectory,
+                          {QStringLiteral("*.lrc"), QStringLiteral("*.LRC")},
+                          QDir::Files | QDir::Readable,
+                          QDirIterator::Subdirectories);
+    while (iterator.hasNext()) {
+        iterator.next();
+        files.append(iterator.fileInfo());
+    }
+    const QDir root(m_lyricsDirectory);
+    std::sort(files.begin(), files.end(), [&root](const QFileInfo &left,
+                                                  const QFileInfo &right) {
+        const QString leftPath = root.relativeFilePath(left.absoluteFilePath());
+        const QString rightPath = root.relativeFilePath(right.absoluteFilePath());
+        const int folded = leftPath.compare(rightPath, Qt::CaseInsensitive);
+        return folded == 0 ? leftPath < rightPath : folded < 0;
+    });
+    return files;
+}
+
+QString LocalProvider::versionForFiles(const QFileInfoList &files) const
+{
     constexpr QByteArrayView separator("\0", 1);
     const QDir directory(m_lyricsDirectory);
-    const auto files = directory.entryInfoList({QStringLiteral("*.lrc"), QStringLiteral("*.LRC")},
-                                               QDir::Files, QDir::Name | QDir::IgnoreCase);
     QCryptographicHash hash(QCryptographicHash::Sha256);
     hash.addData(directory.absolutePath().toUtf8());
     hash.addData(separator);
     hash.addData(QByteArray::number(files.size()));
     hash.addData(separator);
     for (const auto &file : files) {
-        hash.addData(file.fileName().toUtf8());
+        hash.addData(QDir::fromNativeSeparators(
+                         directory.relativeFilePath(file.absoluteFilePath())).toUtf8());
         hash.addData(separator);
         hash.addData(QByteArray::number(file.size()));
         hash.addData(separator);
@@ -151,6 +188,37 @@ QString LocalProvider::cacheVersion() const
         hash.addData(separator);
     }
     return QStringLiteral("local:") + QString::fromLatin1(hash.result().toHex());
+}
+
+void LocalProvider::refreshIndex() const
+{
+    const QFileInfoList files = lyricFiles();
+    const QString version = versionForFiles(files);
+    if (m_indexLoaded && version == m_indexVersion) return;
+
+    QList<Candidate> candidates;
+    candidates.reserve(files.size());
+    for (const auto &file : files) {
+        if (auto candidate = candidateForFile(file.absoluteFilePath())) {
+            candidates.append(std::move(*candidate));
+        }
+    }
+    m_indexCandidates = std::move(candidates);
+    m_indexVersion = version;
+    m_indexLoaded = true;
+}
+
+QList<Candidate> LocalProvider::candidatesForQuery(const TrackQuery &query) const
+{
+    constexpr qsizetype maximumCandidates = 50;
+    const auto ranked = rankCandidates(query, m_indexCandidates);
+    QList<Candidate> result;
+    result.reserve(std::min(maximumCandidates, ranked.size()));
+    for (const auto &candidate : ranked) {
+        result.append(candidate.candidate);
+        if (result.size() == maximumCandidates) break;
+    }
+    return result;
 }
 
 } // namespace PlasmaLyrics

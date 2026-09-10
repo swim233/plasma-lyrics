@@ -4,6 +4,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
@@ -110,6 +111,127 @@ private Q_SLOTS:
         writeFile(QDir(provider.lyricsDirectory()).filePath(QStringLiteral("Song.lrc")),
                   "[00:01.000]line\n");
         QVERIFY(provider.cacheVersion() != before);
+    }
+
+    void recursivelyFindsLyricsInOrganizedDirectories()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        LocalProvider provider(directory.filePath(QStringLiteral("lyrics")));
+        const QString before = provider.cacheVersion();
+        const QString albumDirectory = directory.filePath(
+            QStringLiteral("lyrics/Artist/Album"));
+        QVERIFY(QDir().mkpath(albumDirectory));
+        writeFile(QDir(albumDirectory).filePath(QStringLiteral("Song.lrc")),
+                  "[ti:Song]\n[ar:Artist]\n[al:Album]\n[00:01.000]nested line\n");
+
+        QVERIFY(provider.cacheVersion() != before);
+        const TrackQuery query{QStringLiteral("Song"), {QStringLiteral("Artist")},
+                               QStringLiteral("Album"), 0};
+        const auto result = search(provider, query);
+        const auto chosen = chooseMatch(rankCandidates(query, result.candidates), false);
+
+        QVERIFY(chosen.has_value());
+        QVERIFY(chosen->candidate.contentId.endsWith(QStringLiteral("Artist/Album/Song.lrc")));
+    }
+
+    void unreadableFilesNeitherBecomeCandidatesNorChangeTheVersion()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString readable = directory.filePath(QStringLiteral("Readable.lrc"));
+        writeFile(readable, "[00:01.000]line\n");
+        LocalProvider provider(directory.path());
+        const QString before = provider.cacheVersion();
+
+        const QString unreadable = directory.filePath(QStringLiteral("Unreadable.lrc"));
+        writeFile(unreadable, "[00:01.000]hidden\n");
+        QVERIFY(QFile::setPermissions(unreadable, QFileDevice::WriteOwner));
+        const QString after = provider.cacheVersion();
+        const auto result = search(provider, TrackQuery{});
+
+        QCOMPARE(after, before);
+        QCOMPARE(result.candidates.size(), 1);
+        QVERIFY(QFile::setPermissions(unreadable,
+                                      QFileDevice::ReadOwner | QFileDevice::WriteOwner));
+    }
+
+    void brokenSidecarFallsBackToTheLyricsDirectory()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString audio = directory.filePath(QStringLiteral("song.flac"));
+        writeFile(audio, "audio");
+        writeFile(directory.filePath(QStringLiteral("song.lrc")),
+                  "[ti:Song]\n[ar:Artist]\nthis sidecar has no timed lines\n");
+        const QString lyricsDirectory = directory.filePath(QStringLiteral("lyrics/Artist"));
+        QVERIFY(QDir().mkpath(lyricsDirectory));
+        const QString goodLyrics = QDir(lyricsDirectory).filePath(QStringLiteral("Song.lrc"));
+        writeFile(goodLyrics,
+                  "[ti:Song]\n[ar:Artist]\n[00:01.000]directory line\n");
+        LocalProvider provider(directory.filePath(QStringLiteral("lyrics")));
+        TrackQuery query{QStringLiteral("Song"), {QStringLiteral("Artist")}, {}, 0};
+        query.mediaSrc = QUrl::fromLocalFile(audio).toString();
+
+        const auto result = search(provider, query);
+        const auto chosen = chooseMatch(rankCandidates(query, result.candidates), false);
+        QVERIFY(chosen.has_value());
+        QCOMPARE(chosen->candidate.contentId, goodLyrics);
+        QVERIFY(!result.cacheableMiss);
+
+        ProviderFetchResult fetched;
+        provider.fetch(chosen->candidate.contentId,
+                       [&](ProviderFetchResult value) { fetched = std::move(value); });
+        QVERIFY(fetched.document.has_value());
+        QCOMPARE(fetched.document->lines.first().text, QStringLiteral("directory line"));
+    }
+
+    void reusesParsedIndexWhileVersionIsUnchanged()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("song.lrc"));
+        const QByteArray original("[ti:Original]\n[ar:Artist]\n[00:01.000]line\n");
+        const QByteArray changed("[ti:Changed!]\n[ar:Artist]\n[00:01.000]line\n");
+        QCOMPARE(changed.size(), original.size());
+        writeFile(path, original);
+        const QDateTime originalModified = QFileInfo(path).lastModified();
+        LocalProvider provider(directory.path());
+        const TrackQuery query{QStringLiteral("Original"), {QStringLiteral("Artist")}, {}, 0};
+
+        const auto first = search(provider, query);
+        QCOMPARE(first.candidates.size(), 1);
+        QCOMPARE(first.candidates.first().title, QStringLiteral("Original"));
+
+        writeFile(path, changed);
+        QFile rewritten(path);
+        QVERIFY(rewritten.open(QIODevice::ReadWrite));
+        QVERIFY(rewritten.setFileTime(originalModified, QFileDevice::FileModificationTime));
+        rewritten.close();
+        QCOMPARE(provider.cacheVersion(), first.cacheVersion);
+
+        const auto second = search(provider, query);
+        QCOMPARE(second.candidates.size(), 1);
+        QCOMPARE(second.candidates.first().title, QStringLiteral("Original"));
+    }
+
+    void limitsCandidatesPassedToResolver()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        for (int index = 0; index < 64; ++index) {
+            writeFile(directory.filePath(QStringLiteral("Artist - Song %1.lrc").arg(index)),
+                      QByteArray("[ti:Song ") + QByteArray::number(index)
+                          + "]\n[ar:Artist]\n[00:01.000]line\n");
+        }
+        LocalProvider provider(directory.path());
+        const TrackQuery query{QStringLiteral("Song 63"), {QStringLiteral("Artist")}, {}, 0};
+
+        const auto result = search(provider, query);
+
+        QCOMPARE(result.candidates.size(), 50);
+        QVERIFY2(result.candidates.size() < 64,
+                 "Local search must not hand the whole directory to Resolver ranking");
     }
 };
 
