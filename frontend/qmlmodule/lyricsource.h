@@ -40,9 +40,7 @@ class LyricSource : public QObject
 
 public:
     explicit LyricSource(QObject *parent = nullptr);
-    // The QString argument is retained as a source-compatible no-op for old
-    // tests/plugins. Widgets no longer open the SQLite store.
-    explicit LyricSource(std::function<qint64()> clock, QString = {}, QObject *parent = nullptr);
+    explicit LyricSource(std::function<qint64()> clock, QObject *parent = nullptr);
 
     QString snapshotPath() const;
     void setSnapshotPath(const QString &path);

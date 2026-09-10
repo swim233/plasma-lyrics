@@ -80,7 +80,7 @@ private Q_SLOTS:
         const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
         qint64 now = 1000000000;
         writeSnapshot(path, 1, now, QStringLiteral("first"));
-        LyricSource source([&now] { return now; }, directory.filePath(QStringLiteral("lyrics.db")));
+        LyricSource source([&now] { return now; });
         source.setSnapshotPath(path);
         QCOMPARE(source.currentText(), QStringLiteral("first"));
         now += 500000000;
@@ -96,7 +96,7 @@ private Q_SLOTS:
         // The line ends 50 ms past the anchored position. Nothing polls any more,
         // so the source only clears it if it armed a timer on that boundary.
         writeSnapshot(path, 1, now, QStringLiteral("first"), QCoreApplication::applicationPid(), 1050);
-        LyricSource source([&now] { return now; }, directory.filePath(QStringLiteral("lyrics.db")));
+        LyricSource source([&now] { return now; });
         source.setSnapshotPath(path);
         QCOMPARE(source.currentText(), QStringLiteral("first"));
         now += 100000000;
@@ -108,7 +108,7 @@ private Q_SLOTS:
         QTemporaryDir directory;
         const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
         writeSnapshot(path, 1, 1000000000, QStringLiteral("first"));
-        LyricSource source([] { return 1000000000LL; }, directory.filePath(QStringLiteral("lyrics.db")));
+        LyricSource source([] { return 1000000000LL; });
         source.setSnapshotPath(path);
         QCOMPARE(source.currentText(), QStringLiteral("first"));
         writeSnapshot(path, 2, 1000000000, QStringLiteral("second"));
@@ -120,7 +120,7 @@ private Q_SLOTS:
         QTemporaryDir directory;
         const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
         writeSnapshot(path, 1, 1000000000, QStringLiteral("stale"), 999999999);
-        LyricSource source([] { return 1000000000LL; }, directory.filePath(QStringLiteral("lyrics.db")));
+        LyricSource source([] { return 1000000000LL; });
         source.setSnapshotPath(path);
         QVERIFY(!source.serviceAvailable());
         QVERIFY(source.stale());
@@ -136,8 +136,7 @@ private Q_SLOTS:
                       QStringLiteral("amll"), QStringLiteral("amll"),
                       QStringLiteral("netease"), true,
                       {QStringLiteral("netease"), QStringLiteral("amll")});
-        LyricSource source([] { return 1000000000LL; },
-                           directory.filePath(QStringLiteral("lyrics.db")));
+        LyricSource source([] { return 1000000000LL; });
 
         source.setSnapshotPath(path);
 
@@ -154,9 +153,7 @@ private Q_SLOTS:
 
     void providerDisplayNamesCoverImportedAndUnknownSources()
     {
-        QTemporaryDir directory;
-        LyricSource source([] { return 1000000000LL; },
-                           directory.filePath(QStringLiteral("lyrics.db")));
+        LyricSource source([] { return 1000000000LL; });
 
         QCOMPARE(source.providerDisplayName(QStringLiteral("waylyrics")),
                  QStringLiteral("Waylyrics import"));
@@ -172,8 +169,7 @@ private Q_SLOTS:
         QTemporaryDir directory;
         const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
         writeSnapshot(path, 1, 1000000000, QStringLiteral("line"));
-        LyricSource source([] { return 1000000000LL; },
-                           directory.filePath(QStringLiteral("lyrics.db")));
+        LyricSource source([] { return 1000000000LL; });
         source.setSnapshotPath(path);
         QSignalSpy failed(&source, &LyricSource::controlFailed);
 
@@ -271,6 +267,44 @@ private Q_SLOTS:
         QVERIFY(source.serviceAvailable());
         QVERIFY(!source.canAdjustOffset());
         QVERIFY(!source.adjustOffset(200));
+    }
+
+    void globalOffsetCanBeAdjustedWithoutACurrentTrack()
+    {
+        QTemporaryDir directory;
+        const QString snapshotPath = directory.filePath(QStringLiteral("runtime/state.json"));
+        QDir().mkpath(QFileInfo(snapshotPath).absolutePath());
+        const QJsonObject root{
+            {QStringLiteral("schema"), 1},
+            {QStringLiteral("seq"), 1},
+            {QStringLiteral("daemon"),
+             QJsonObject{{QStringLiteral("pid"), QCoreApplication::applicationPid()}}},
+            {QStringLiteral("track"),
+             QJsonObject{{QStringLiteral("fingerprint"), QString()},
+                         {QStringLiteral("title"), QString()},
+                         {QStringLiteral("artists"), QJsonArray{}}}},
+            {QStringLiteral("playback"),
+             QJsonObject{{QStringLiteral("status"), QStringLiteral("Stopped")},
+                         {QStringLiteral("positionUs"), 0},
+                         {QStringLiteral("anchorMonotonicNs"), 1000000000LL},
+                         {QStringLiteral("rate"), 1.0}}},
+            {QStringLiteral("lyric"),
+             QJsonObject{{QStringLiteral("state"), QStringLiteral("not-found")},
+                         {QStringLiteral("offsetMs"), 500},
+                         {QStringLiteral("globalOffsetEnabled"), true},
+                         {QStringLiteral("availableProviders"), QJsonArray{}},
+                         {QStringLiteral("lines"), QJsonArray{}}}}};
+        QSaveFile file(snapshotPath);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        QVERIFY(file.commit());
+
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(snapshotPath);
+
+        QVERIFY(source.serviceAvailable());
+        QVERIFY(source.globalOffsetEnabled());
+        QVERIFY(source.canAdjustOffset());
     }
 };
 

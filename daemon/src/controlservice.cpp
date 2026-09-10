@@ -42,6 +42,24 @@ std::optional<MprisState> ControlService::checkedState(const QString &expectedFi
     return state;
 }
 
+bool ControlService::checkedOffsetContext(const QString &expectedFingerprint,
+                                          QString *error) const
+{
+    const auto state = m_currentState ? m_currentState() : std::nullopt;
+    if (!state || state->fingerprint.isEmpty()) {
+        if (m_store.globalOffsetEnabled() && expectedFingerprint.isEmpty()) {
+            return true;
+        }
+        *error = QStringLiteral("no-current-song");
+        return false;
+    }
+    if (expectedFingerprint.isEmpty() || state->fingerprint != expectedFingerprint) {
+        *error = QStringLiteral("song-changed");
+        return false;
+    }
+    return true;
+}
+
 QString ControlService::SetPreferredProvider(const QString &expectedFingerprint,
                                              const QString &provider)
 {
@@ -82,7 +100,7 @@ QString ControlService::Research(const QString &expectedFingerprint)
 QString ControlService::AdjustOffset(const QString &expectedFingerprint, int deltaMs)
 {
     QString error;
-    if (!checkedState(expectedFingerprint, &error)) return error;
+    if (!checkedOffsetContext(expectedFingerprint, &error)) return error;
     if (m_store.globalOffsetEnabled()) {
         if (!m_store.adjustGlobalOffset(deltaMs)) {
             return QStringLiteral("offset-save-failed");
@@ -101,7 +119,7 @@ QString ControlService::AdjustOffset(const QString &expectedFingerprint, int del
 QString ControlService::ResetOffset(const QString &expectedFingerprint)
 {
     QString error;
-    if (!checkedState(expectedFingerprint, &error)) return error;
+    if (!checkedOffsetContext(expectedFingerprint, &error)) return error;
     if (m_store.globalOffsetEnabled()) {
         if (!m_store.setGlobalOffsetMs(0)) {
             return QStringLiteral("offset-save-failed");

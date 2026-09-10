@@ -75,11 +75,11 @@ QString localizedControlError(const QString &error)
 } // namespace
 
 LyricSource::LyricSource(QObject *parent)
-    : LyricSource(&LyricSource::monotonicNowNs, QString(), parent)
+    : LyricSource(&LyricSource::monotonicNowNs, parent)
 {
 }
 
-LyricSource::LyricSource(std::function<qint64()> clock, QString, QObject *parent)
+LyricSource::LyricSource(std::function<qint64()> clock, QObject *parent)
     : QObject(parent)
     , m_clock(std::move(clock))
     , m_snapshotPath(defaultSnapshotPath())
@@ -157,8 +157,8 @@ bool LyricSource::canAdjustOffset() const
     // make the menu actions dead exactly when the global offset is most
     // useful. Per-track mode keeps the original gate: adjusting requires an
     // actual (provider, trackId) to key the per-track table on.
-    return m_serviceAvailable && !m_stale && !m_fingerprint.isEmpty()
-        && !controlInProgress() && (m_globalOffsetEnabled || hasTrackRef());
+    return m_serviceAvailable && !m_stale && !controlInProgress()
+        && (m_globalOffsetEnabled || (!m_fingerprint.isEmpty() && hasTrackRef()));
 }
 
 QString LyricSource::currentText() const

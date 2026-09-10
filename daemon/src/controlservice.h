@@ -48,6 +48,7 @@ public Q_SLOTS:
 private:
     std::optional<MprisState> checkedState(const QString &expectedFingerprint,
                                            QString *error) const;
+    bool checkedOffsetContext(const QString &expectedFingerprint, QString *error) const;
 
     LyricStore &m_store;
     Resolver &m_resolver;

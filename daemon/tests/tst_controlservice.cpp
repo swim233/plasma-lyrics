@@ -45,6 +45,40 @@ class ControlServiceTest : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void cleanup()
+    {
+        auto bus = QDBusConnection::sessionBus();
+        bus.unregisterObject(ControlService::objectPath());
+        bus.unregisterService(ControlService::serviceName());
+    }
+
+    void globalOffsetCanBeAdjustedWithoutACurrentTrack()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        QVERIFY(store.setGlobalOffsetEnabled(true));
+        TestProvider provider(QStringLiteral("local"));
+        Resolver resolver(store, {&provider});
+        int publications = 0;
+        std::optional<MprisState> current;
+        ControlService service(store, resolver, [&] { return current; },
+                               [](const MprisState &) {}, {}, [&] { ++publications; });
+
+        QCOMPARE(service.AdjustOffset(QString(), 500), QString());
+        QCOMPARE(store.globalOffsetMs(), 500);
+        QCOMPARE(service.ResetOffset(QString()), QString());
+        QCOMPARE(store.globalOffsetMs(), 0);
+        QCOMPARE(publications, 2);
+
+        current = MprisState{};
+        current->fingerprint = QStringLiteral("mediaSrc:current");
+        QCOMPARE(service.AdjustOffset(QStringLiteral("mediaSrc:old"), 500),
+                 QStringLiteral("song-changed"));
+        QCOMPARE(store.globalOffsetMs(), 0);
+        QCOMPARE(publications, 2);
+    }
+
     void reportsBuildCapabilitiesOutsideTheEnabledResolverChain()
     {
         QTemporaryDir directory;
@@ -160,8 +194,36 @@ private Q_SLOTS:
         QVERIFY(refresh.isValid());
         QCOMPARE(refresh.value(), QString());
         QCOMPARE(publications, 4);
+    }
 
+    void allMethodsCompleteUnderConcurrentDbusLoad()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
         QVERIFY(store.setGlobalOffsetEnabled(true));
+        TestProvider netease(QStringLiteral("netease"));
+        TestProvider amll(QStringLiteral("amll"));
+        Resolver resolver(store, {&netease, &amll});
+        MprisState current;
+        current.music = true;
+        current.fingerprint = QStringLiteral("mediaSrc:stress");
+        current.title = QStringLiteral("song");
+        int requests = 0;
+        int publications = 0;
+        const TrackRef currentRef{QStringLiteral("netease"), QStringLiteral("id"), 1.0};
+        ControlService service(store, resolver, [&] { return std::optional<MprisState>(current); },
+                               [&](const MprisState &) { ++requests; },
+                               [&] { return std::optional<TrackRef>(currentRef); },
+                               [&] { ++publications; });
+        auto bus = QDBusConnection::sessionBus();
+        QVERIFY(bus.registerService(ControlService::serviceName()));
+        QVERIFY(bus.registerObject(ControlService::objectPath(), &service,
+                                   QDBusConnection::ExportAllSlots));
+        QDBusInterface interface(ControlService::serviceName(), ControlService::objectPath(),
+                                 ControlService::interfaceName(), bus);
+        QVERIFY(interface.isValid());
+
         QList<QDBusPendingCallWatcher *> pending;
         QList<QDBusPendingCallWatcher *> providerQueries;
         for (int i = 0; i < 20; ++i) {
@@ -202,8 +264,8 @@ private Q_SLOTS:
         }
         QVERIFY(!store.preferredProvider(current.fingerprint));
         QCOMPARE(store.globalOffsetMs(), 0);
-        QCOMPARE(requests, 63);
-        QCOMPARE(publications, 64);
+        QCOMPARE(requests, 60);
+        QCOMPARE(publications, 60);
     }
 
     void preferenceWriteFailureIsReturnedWithoutStartingAResolve()

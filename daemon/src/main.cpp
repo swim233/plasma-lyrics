@@ -266,7 +266,8 @@ int main(int argc, char **argv)
     Resolver resolver(store, providers, config.filterCredits());
     SnapshotWriter snapshots;
     MprisManager manager(config.policy());
-    ResolvedLyric resolved{QStringLiteral("filtered"), std::nullopt, {}};
+    ResolvedLyric resolved{.state = QStringLiteral("filtered"),
+                           .switchingProvider = {}};
     QString fingerprint;
 
     const auto publish = [&snapshots, &store](const std::optional<MprisState> &state,
@@ -286,15 +287,19 @@ int main(int argc, char **argv)
         if (!state) {
             resolver.cancel();
             fingerprint.clear();
-            resolved = {QStringLiteral("filtered"), std::nullopt, {}};
+            resolved = ResolvedLyric{.state = QStringLiteral("filtered"),
+                                     .switchingProvider = {}};
             publish(std::nullopt, resolved);
             return;
         }
         const bool newTrack = trackChanged || state->fingerprint != fingerprint;
         if (newTrack) {
             fingerprint = state->fingerprint;
-            ResolvedLyric searching{state->music ? QStringLiteral("searching") : QStringLiteral("filtered"),
-                                    std::nullopt, {}};
+            ResolvedLyric searching{
+                .state = state->music ? QStringLiteral("searching")
+                                      : QStringLiteral("filtered"),
+                .switchingProvider = {},
+            };
             searching.preferredProvider = store.preferredProvider(fingerprint).value_or(QString());
             searching.availableProviders = resolver.availableProviders();
             searching.effectivePreferredProvider = searching.preferredProvider.isEmpty()
@@ -362,9 +367,20 @@ int main(int argc, char **argv)
         publish(state, resolved);
         resolver.resolve(state, {.force = true, .existing = std::move(existing)});
     };
+    const auto republishCurrent = [&] {
+        const auto state = manager.activeState();
+        if (!state) {
+            if (fingerprint.isEmpty()) publish(std::nullopt, resolved);
+            return;
+        }
+        if (state->fingerprint != fingerprint) {
+            return;
+        }
+        publish(state, resolved);
+    };
     ControlService control(
         store, resolver, [&manager] { return manager.activeState(); }, forceResolve,
-        [&resolved] { return resolved.ref; }, [&update] { update(false); },
+        [&resolved] { return resolved.ref; }, republishCurrent,
         supportedProviders);
     auto bus = QDBusConnection::sessionBus();
     if (!bus.registerService(ControlService::serviceName())
