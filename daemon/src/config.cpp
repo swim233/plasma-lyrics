@@ -5,6 +5,16 @@
 #include <QUrl>
 
 namespace PlasmaLyrics {
+namespace {
+
+const QStringList &builtInProviderOrder()
+{
+    static const QStringList order{QStringLiteral("local"), QStringLiteral("netease"),
+                                   QStringLiteral("amll")};
+    return order;
+}
+
+} // namespace
 
 Config::Config()
     : m_settings(QSettings::IniFormat, QSettings::UserScope,
@@ -41,13 +51,12 @@ int Config::networkTimeoutMs() const
 
 QStringList Config::providerOrder() const
 {
-    const QStringList defaults{QStringLiteral("local"), QStringLiteral("netease"),
-                               QStringLiteral("amll")};
     QStringList result;
-    auto configured = m_settings.value(QStringLiteral("providers/order"), defaults).toStringList();
+    auto configured = m_settings.value(QStringLiteral("providers/order"),
+                                       builtInProviderOrder()).toStringList();
     if (configured.isEmpty()) {
         qWarning() << "providers/order is empty; using the built-in provider order";
-        configured = defaults;
+        configured = builtInProviderOrder();
     }
     // Existing configurations predate the local provider. Put the new,
     // failure-free source first once; the settings UI will persist the full
@@ -84,8 +93,7 @@ QStringList Config::enabledProviderOrder() const
     }
     if (active.isEmpty()) {
         qWarning() << "providers/enabled selects no ordered provider; using built-in defaults";
-        return {QStringLiteral("local"), QStringLiteral("netease"),
-                QStringLiteral("amll")};
+        return builtInProviderOrder();
     }
     return active;
 }

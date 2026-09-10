@@ -98,7 +98,9 @@ Kirigami.ScrollablePage {
                                     onToggled: {
                                         if (!backend.setProviderEnabled(sourceDelegate.modelData.id,
                                                                         checked)) {
-                                            checked = sourceDelegate.modelData.enabled;
+                                            checked = Qt.binding(function() {
+                                                return sourceDelegate.modelData.enabled;
+                                            });
                                         }
                                     }
                                 }
