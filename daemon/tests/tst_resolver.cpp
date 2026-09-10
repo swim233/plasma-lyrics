@@ -1,9 +1,12 @@
 #include "daemon/src/resolver.h"
 
 #include "core/store/lyricstore.h"
+#include "providers/local/localprovider.h"
 
 #include <QDateTime>
+#include <QDir>
 #include <QEventLoop>
+#include <QFile>
 #include <QHash>
 #include <QSignalSpy>
 #include <QSqlDatabase>
@@ -11,6 +14,7 @@
 #include <QTemporaryDir>
 #include <QTest>
 #include <QTimer>
+#include <QUrl>
 #include <QUuid>
 
 #include <algorithm>
@@ -40,14 +44,16 @@ public:
     {
         ++m_searchCount;
         if (!m_searchError.isEmpty()) {
-            callback({{}, m_searchError, m_searchTransportFailed});
+            callback({{}, m_searchError, m_searchTransportFailed, cacheVersion(),
+                      m_cacheableMiss});
             return;
         }
         if (m_noCandidates) {
-            callback({});
+            callback({{}, {}, false, cacheVersion(), m_cacheableMiss});
             return;
         }
-        callback({{{QStringLiteral("track"), query.title, query.artists, query.album, query.lengthMs}}, {}});
+        callback({{{QStringLiteral("track"), query.title, query.artists, query.album,
+                    query.lengthMs}}, {}, false, cacheVersion(), m_cacheableMiss});
     }
     void fetch(const QString &, FetchCallback callback) override
     {
@@ -69,6 +75,7 @@ public:
     void setNoCandidates(bool noCandidates = true) { m_noCandidates = noCandidates; }
     void setEmptyDocument(bool emptyDocument = true) { m_emptyDocument = emptyDocument; }
     void setCreditOnly(bool creditOnly = true) { m_creditOnly = creditOnly; }
+    void setCacheableMiss(bool cacheableMiss) { m_cacheableMiss = cacheableMiss; }
     int searchCount() const { return m_searchCount; }
     int fetchCount() const { return m_fetchCount; }
 
@@ -81,6 +88,7 @@ private:
     bool m_noCandidates = false;
     bool m_emptyDocument = false;
     bool m_creditOnly = false;
+    bool m_cacheableMiss = true;
     int m_searchCount = 0;
     int m_fetchCount = 0;
 };
@@ -330,6 +338,267 @@ private Q_SLOTS:
         QCOMPARE(result.ref->provider, QStringLiteral("amll"));
     }
 
+    void localHitDoesNotCallTheFollowingNetworkProvider()
+    {
+        QTemporaryDir directory;
+        const QString lyricsDirectory = directory.filePath(QStringLiteral("lyrics"));
+        QVERIFY(QDir().mkpath(lyricsDirectory));
+        QFile lyric(QDir(lyricsDirectory).filePath(QStringLiteral("library-entry.lrc")));
+        QVERIFY(lyric.open(QIODevice::WriteOnly));
+        QVERIFY(lyric.write("[ti:Song]\n[ar:Artist]\n[length:02:00]\n"
+                            "[00:01.000]local line\n") > 0);
+        lyric.close();
+
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        LocalProvider local(lyricsDirectory);
+        TestProvider network(QStringLiteral("network"));
+        Resolver resolver(store, {&local, &network});
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:local-first");
+        state.mediaSrc = QStringLiteral("https://example.test/song.flac");
+        state.title = QStringLiteral("Song");
+        state.artists = {QStringLiteral("Artist")};
+        state.lengthUs = 120000000;
+
+        const auto result = resolveSynchronously(resolver, state);
+
+        QCOMPARE(result.state, QStringLiteral("ok"));
+        QCOMPARE(result.ref->provider, QStringLiteral("local"));
+        QCOMPARE(result.document.lines.first().text, QStringLiteral("local line"));
+        QCOMPARE(network.searchCount(), 0);
+        QCOMPARE(network.fetchCount(), 0);
+    }
+
+    void standardMprisUrlFindsSidecarWithoutKdeMediaSrc()
+    {
+        QTemporaryDir directory;
+        const QString lyricsDirectory = directory.filePath(QStringLiteral("lyrics"));
+        QVERIFY(QDir().mkpath(lyricsDirectory));
+        const QString audioPath = directory.filePath(QStringLiteral("song.flac"));
+        QFile audio(audioPath);
+        QVERIFY(audio.open(QIODevice::WriteOnly));
+        QVERIFY(audio.write("audio") > 0);
+        audio.close();
+        QFile sidecar(directory.filePath(QStringLiteral("song.lrc")));
+        QVERIFY(sidecar.open(QIODevice::WriteOnly));
+        QVERIFY(sidecar.write("[00:01.000]standard url sidecar\n") > 0);
+        sidecar.close();
+
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        LocalProvider local(lyricsDirectory);
+        Resolver resolver(store, {&local});
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("meta:standard-url-sidecar");
+        state.url = QUrl::fromLocalFile(audioPath).toString();
+        state.title = QStringLiteral("Song");
+        QVERIFY(state.mediaSrc.isEmpty());
+
+        const auto result = resolveSynchronously(resolver, state);
+        QCOMPARE(result.state, QStringLiteral("ok"));
+        QCOMPARE(result.ref->provider, QStringLiteral("local"));
+        QCOMPARE(result.document.lines.first().text,
+                 QStringLiteral("standard url sidecar"));
+        QVERIFY(store.refForFingerprint(QStringLiteral("meta:standard-url-sidecar"))
+                    .has_value());
+        QCOMPARE(state.fingerprint, QStringLiteral("meta:standard-url-sidecar"));
+    }
+
+    void validKdeMediaSrcWinsButInvalidOneFallsBackToStandardUrl()
+    {
+        QTemporaryDir directory;
+        const QString lyricsDirectory = directory.filePath(QStringLiteral("lyrics"));
+        QVERIFY(QDir().mkpath(lyricsDirectory));
+        const QString standardAudioPath = directory.filePath(QStringLiteral("standard.flac"));
+        const QString kdeAudioPath = directory.filePath(QStringLiteral("kde.flac"));
+        for (const auto &audioPath : {standardAudioPath, kdeAudioPath}) {
+            QFile audio(audioPath);
+            QVERIFY(audio.open(QIODevice::WriteOnly));
+            QVERIFY(audio.write("audio") > 0);
+        }
+        QFile standardSidecar(directory.filePath(QStringLiteral("standard.lrc")));
+        QVERIFY(standardSidecar.open(QIODevice::WriteOnly));
+        QVERIFY(standardSidecar.write("[00:01.000]standard line\n") > 0);
+        standardSidecar.close();
+        QFile kdeSidecar(directory.filePath(QStringLiteral("kde.lrc")));
+        QVERIFY(kdeSidecar.open(QIODevice::WriteOnly));
+        QVERIFY(kdeSidecar.write("[00:01.000]kde line\n") > 0);
+        kdeSidecar.close();
+
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        LocalProvider local(lyricsDirectory);
+        Resolver resolver(store, {&local});
+        MprisState state;
+        state.music = true;
+        state.url = QUrl::fromLocalFile(standardAudioPath).toString();
+        state.mediaSrc = QUrl::fromLocalFile(kdeAudioPath).toString();
+        state.fingerprint = QStringLiteral("mediaSrc:kde-wins");
+        state.title = QStringLiteral("Song");
+
+        auto result = resolveSynchronously(resolver, state);
+        QCOMPARE(result.state, QStringLiteral("ok"));
+        QCOMPARE(result.document.lines.first().text, QStringLiteral("kde line"));
+
+        state.mediaSrc = QUrl::fromLocalFile(
+            directory.filePath(QStringLiteral("missing.flac"))).toString();
+        state.fingerprint = QStringLiteral("mediaSrc:invalid-kde-falls-back");
+        result = resolveSynchronously(resolver, state);
+        QCOMPARE(result.state, QStringLiteral("ok"));
+        QCOMPARE(result.document.lines.first().text, QStringLiteral("standard line"));
+    }
+
+    void localDirectoryChangeInvalidatesItsNegativeCache()
+    {
+        QTemporaryDir directory;
+        const QString lyricsDirectory = directory.filePath(QStringLiteral("lyrics"));
+        QVERIFY(QDir().mkpath(lyricsDirectory));
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        LocalProvider local(lyricsDirectory);
+        Resolver resolver(store, {&local});
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:local-version");
+        state.mediaSrc = QStringLiteral("https://example.test/song.flac");
+        state.title = QStringLiteral("Song");
+        state.artists = {QStringLiteral("Artist")};
+
+        QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("not-found"));
+        QVERIFY(store.freshProviderMiss(state.fingerprint, local.id(), local.cacheVersion(),
+                                        QDateTime::currentSecsSinceEpoch(), 86400));
+
+        QFile lyric(QDir(lyricsDirectory).filePath(QStringLiteral("Song.lrc")));
+        QVERIFY(lyric.open(QIODevice::WriteOnly));
+        QVERIFY(lyric.write("[ar:Artist]\n[00:01.000]new local line\n") > 0);
+        lyric.close();
+
+        const auto result = resolveSynchronously(resolver, state);
+        QCOMPARE(result.state, QStringLiteral("ok"));
+        QCOMPARE(result.ref->provider, QStringLiteral("local"));
+        QCOMPARE(result.document.lines.first().text, QStringLiteral("new local line"));
+    }
+
+    void standardMprisUrlMissCannotHideALaterSidecar()
+    {
+        QTemporaryDir directory;
+        const QString lyricsDirectory = directory.filePath(QStringLiteral("lyrics"));
+        QVERIFY(QDir().mkpath(lyricsDirectory));
+        const QString audioPath = directory.filePath(QStringLiteral("song.flac"));
+        QFile audio(audioPath);
+        QVERIFY(audio.open(QIODevice::WriteOnly));
+        QVERIFY(audio.write("audio") > 0);
+        audio.close();
+
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        LocalProvider local(lyricsDirectory);
+        Resolver resolver(store, {&local});
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("meta:standard-url-sidecar-version");
+        state.url = QUrl::fromLocalFile(audioPath).toString();
+        state.title = QStringLiteral("Song");
+        QVERIFY(state.mediaSrc.isEmpty());
+
+        QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("not-found"));
+        QVERIFY(!store.freshProviderMiss(state.fingerprint, local.id(), local.cacheVersion(),
+                                         QDateTime::currentSecsSinceEpoch(), 86400));
+
+        QFile sidecar(directory.filePath(QStringLiteral("song.lrc")));
+        QVERIFY(sidecar.open(QIODevice::WriteOnly));
+        QVERIFY(sidecar.write("[00:01.000]new sidecar line\n") > 0);
+        sidecar.close();
+
+        const auto result = resolveSynchronously(resolver, state);
+        QCOMPARE(result.state, QStringLiteral("ok"));
+        QCOMPARE(result.ref->provider, QStringLiteral("local"));
+        QCOMPARE(result.document.lines.first().text, QStringLiteral("new sidecar line"));
+    }
+
+    void invalidDirectoryCandidateCannotHideALaterSidecar()
+    {
+        QTemporaryDir directory;
+        const QString lyricsDirectory = directory.filePath(QStringLiteral("lyrics"));
+        QVERIFY(QDir().mkpath(lyricsDirectory));
+        const QString audioPath = directory.filePath(QStringLiteral("song.flac"));
+        QFile audio(audioPath);
+        QVERIFY(audio.open(QIODevice::WriteOnly));
+        QVERIFY(audio.write("audio") > 0);
+        audio.close();
+        QFile invalid(QDir(lyricsDirectory).filePath(QStringLiteral("library-entry.lrc")));
+        QVERIFY(invalid.open(QIODevice::WriteOnly));
+        QVERIFY(invalid.write("[ti:Song]\n[ar:Artist]\nnot a timed lyric\n") > 0);
+        invalid.close();
+
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        LocalProvider local(lyricsDirectory);
+        Resolver resolver(store, {&local});
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:invalid-directory-sidecar");
+        state.mediaSrc = QUrl::fromLocalFile(audioPath).toString();
+        state.title = QStringLiteral("Song");
+        state.artists = {QStringLiteral("Artist")};
+
+        QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("no-lyric"));
+        QVERIFY(!store.freshProviderMiss(state.fingerprint, local.id(), local.cacheVersion())
+                     .has_value());
+
+        QFile sidecar(directory.filePath(QStringLiteral("song.lrc")));
+        QVERIFY(sidecar.open(QIODevice::WriteOnly));
+        QVERIFY(sidecar.write("[00:01.000]recovered from sidecar\n") > 0);
+        sidecar.close();
+
+        const auto result = resolveSynchronously(resolver, state);
+        QCOMPARE(result.state, QStringLiteral("ok"));
+        QCOMPARE(result.document.lines.first().text,
+                 QStringLiteral("recovered from sidecar"));
+    }
+
+    void repairedSidecarIsNotSuppressedByItsEarlierInvalidContents()
+    {
+        QTemporaryDir directory;
+        const QString lyricsDirectory = directory.filePath(QStringLiteral("lyrics"));
+        QVERIFY(QDir().mkpath(lyricsDirectory));
+        const QString audioPath = directory.filePath(QStringLiteral("song.flac"));
+        QFile audio(audioPath);
+        QVERIFY(audio.open(QIODevice::WriteOnly));
+        QVERIFY(audio.write("audio") > 0);
+        audio.close();
+        const QString sidecarPath = directory.filePath(QStringLiteral("song.lrc"));
+        QFile sidecar(sidecarPath);
+        QVERIFY(sidecar.open(QIODevice::WriteOnly));
+        QVERIFY(sidecar.write("[ti:Wrong metadata]\ninvalid contents\n") > 0);
+        sidecar.close();
+
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        LocalProvider local(lyricsDirectory);
+        Resolver resolver(store, {&local});
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:repaired-sidecar");
+        state.mediaSrc = QUrl::fromLocalFile(audioPath).toString();
+        state.title = QStringLiteral("Song");
+
+        QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("no-lyric"));
+        QVERIFY(!store.freshProviderMiss(state.fingerprint, local.id(), local.cacheVersion())
+                     .has_value());
+
+        QVERIFY(sidecar.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        QVERIFY(sidecar.write("[00:02.000]fixed sidecar\n") > 0);
+        sidecar.close();
+
+        const auto result = resolveSynchronously(resolver, state);
+        QCOMPARE(result.state, QStringLiteral("ok"));
+        QCOMPARE(result.document.lines.first().text, QStringLiteral("fixed sidecar"));
+    }
+
     void continuesToTheNextProviderAfterFetchFailure()
     {
         QTemporaryDir directory;
@@ -351,6 +620,39 @@ private Q_SLOTS:
         QCOMPARE(result.ref->provider, QStringLiteral("working"));
         QCOMPARE(failed.fetchCount(), 1);
         QCOMPARE(working.searchCount(), 1);
+    }
+
+    void nonCacheableSearchSuppressesEveryFailureMiss()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider searchFailure(QStringLiteral("search-failure"),
+                                   QStringLiteral("bad search payload"));
+        TestProvider fetchFailure(QStringLiteral("fetch-failure"), {}, false,
+                                  QStringLiteral("bad lyric payload"));
+        TestProvider empty(QStringLiteral("empty"));
+        empty.setEmptyDocument();
+        TestProvider filtered(QStringLiteral("filtered"));
+        filtered.setCreditOnly();
+        TestProvider working(QStringLiteral("working"));
+        const QList<TestProvider *> nonCacheable{
+            &searchFailure, &fetchFailure, &empty, &filtered};
+        for (auto *provider : nonCacheable) provider->setCacheableMiss(false);
+        Resolver resolver(store, {&searchFailure, &fetchFailure, &empty, &filtered, &working},
+                          true);
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:non-cacheable-failures");
+        state.title = QStringLiteral("song");
+
+        const auto result = resolveSynchronously(resolver, state);
+        QCOMPARE(result.state, QStringLiteral("ok"));
+        QCOMPARE(result.ref->provider, QStringLiteral("working"));
+        for (const auto *provider : nonCacheable) {
+            QVERIFY(!store.freshProviderMiss(state.fingerprint, provider->id(),
+                                             provider->cacheVersion()).has_value());
+        }
     }
 
     void networkFailureHasItsOwnStateAndShortNegativeCache()

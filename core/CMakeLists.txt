@@ -11,6 +11,8 @@ add_library(plasma_lyrics_core STATIC
     match/matcher.h
     store/lyricstore.cpp
     store/lyricstore.h
+    store/lyricoverridestore.cpp
+    store/lyricoverridestore.h
 )
 set_target_properties(plasma_lyrics_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(plasma_lyrics_core PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/..)

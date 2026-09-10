@@ -11,3 +11,4 @@ target_compile_definitions(tst_ttmlparser PRIVATE
 add_plasma_lyrics_test(tst_timeline)
 add_plasma_lyrics_test(tst_matcher)
 add_plasma_lyrics_test(tst_lyricstore)
+add_plasma_lyrics_test(tst_lyricoverridestore)

@@ -165,18 +165,30 @@ int main(int argc, char **argv)
     AmllProvider amll(config.amllIndexUrl(), config.amllContentBaseUrl(),
                       config.amllTimeoutMs(), {}, config.amllIndexMaxAgeSeconds());
 #endif
-    QList<Provider *> onlineProviders;
-    for (const auto &providerId : config.providerOrder()) {
+    LocalProvider local(config.localLyricsDirectory());
+    QList<Provider *> providers;
+    const QStringList providerOrder = config.providerOrder();
+    for (const auto &providerId : providerOrder) {
+        if (providerId == QStringLiteral("local") && local.isConfigured()) {
+            providers.append(&local);
+        }
 #ifdef PLASMA_LYRICS_HAVE_NETEASE
         if (providerId == QStringLiteral("netease") && netease.isConfigured()) {
-            onlineProviders.append(&netease);
+            providers.append(&netease);
         }
 #endif
 #ifdef PLASMA_LYRICS_HAVE_AMLL
         if (providerId == QStringLiteral("amll") && amll.isConfigured()) {
-            onlineProviders.append(&amll);
+            providers.append(&amll);
         }
 #endif
+    }
+    if (providers.isEmpty()) {
+        // Invalid URLs or a hand-edited order must not leave the resolver
+        // without a source. Local is always safe: it can still find an
+        // adjacent sidecar even when its search directory is empty.
+        qWarning() << "no configured provider can be assembled; using the local provider";
+        providers.append(&local);
     }
     if (parser.isSet(QStringLiteral("explain"))) {
         const auto arguments = parser.positionalArguments();
@@ -186,14 +198,17 @@ int main(int argc, char **argv)
         }
         const QString requestedProvider = parser.value(QStringLiteral("provider"));
         if (!requestedProvider.isEmpty()) {
-            onlineProviders.erase(std::remove_if(
-                onlineProviders.begin(), onlineProviders.end(),
+            providers.erase(std::remove_if(
+                providers.begin(), providers.end(),
                 [&requestedProvider](const Provider *provider) {
                     return provider->id() != requestedProvider;
-                }), onlineProviders.end());
-            if (onlineProviders.isEmpty()) {
+                }), providers.end());
+            if (providers.isEmpty()) {
                 QStringList available;
-                for (const auto &providerId : config.providerOrder()) {
+                for (const auto &providerId : providerOrder) {
+                    if (providerId == QStringLiteral("local") && local.isConfigured()) {
+                        available.append(providerId);
+                    }
 #ifdef PLASMA_LYRICS_HAVE_NETEASE
                     if (providerId == QStringLiteral("netease") && netease.isConfigured()) {
                         available.append(providerId);
@@ -214,14 +229,14 @@ int main(int argc, char **argv)
                 return 1;
             }
         }
-        if (onlineProviders.isEmpty()) {
+        if (providers.isEmpty()) {
             QTextStream(stderr) << "available providers: none" << Qt::endl;
             return 1;
         }
         QStringList artists;
         if (!arguments.value(1).isEmpty()) artists.append(arguments.value(1));
         const TrackQuery query{arguments.first(), artists, QString(), 0};
-        return explainProviders(application, query, onlineProviders,
+        return explainProviders(application, query, providers,
                                 parser.value(QStringLiteral("platform"))
                                     == QStringLiteral("apple"));
     }
@@ -241,9 +256,6 @@ int main(int argc, char **argv)
         qCritical().noquote() << "cannot open lyric store:" << error;
         return 3;
     }
-    LocalProvider local;
-    QList<Provider *> providers{&local};
-    providers.append(onlineProviders);
     Resolver resolver(store, providers, config.filterCredits());
     SnapshotWriter snapshots;
     MprisManager manager(config.policy());

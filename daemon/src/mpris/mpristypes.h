@@ -15,8 +15,8 @@ struct MprisState {
     QString album;
     qint64 lengthUs = 0;
     QString trackId;
-    QString url;
-    QString mediaSrc;
+    QString url;       // Standard xesam:url.
+    QString mediaSrc;  // KDE-private kde:mediaSrc.
     QString fingerprint;
     QString platform;   // 由 MprisPolicy::platformFor 填充，未知为空
     QString playbackStatus = QStringLiteral("Stopped");

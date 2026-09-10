@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/store/lyricoverridestore.h"
 #include "daemon/src/snapshot.h"
 #include "providers/provider.h"
 
@@ -26,7 +27,7 @@ public:
     };
 
     Resolver(LyricStore &store, QList<Provider *> providers, bool filterCredits = true,
-             QObject *parent = nullptr);
+             QObject *parent = nullptr, QString overrideDirectory = {});
     void resolve(const MprisState &state);
     void resolve(const MprisState &state, ResolveOptions options);
     void cancel();
@@ -56,6 +57,7 @@ private:
     void finish(const std::shared_ptr<Request> &request, ResolvedLyric lyric);
 
     LyricStore &m_store;
+    LyricOverrideStore m_overrides;
     QList<Provider *> m_providers;
     bool m_filterCredits;
     quint64 m_generation = 0;

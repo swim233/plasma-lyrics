@@ -7,18 +7,22 @@ namespace PlasmaLyrics {
 class LocalProvider final : public Provider
 {
 public:
-    explicit LocalProvider(QString overrideDirectory = {});
+    explicit LocalProvider(QString lyricsDirectory = {});
 
     QString id() const override;
     bool isConfigured() const override;
-    bool supportsSearch() const override;
+    QString cacheVersion() const override;
     void search(const TrackQuery &query, SearchCallback callback) override;
     void fetch(const QString &trackId, FetchCallback callback) override;
-    std::optional<LyricDocument> overrideFor(const QString &providerId,
-                                             const QString &trackId) override;
+
+    QString lyricsDirectory() const;
+    static QString defaultLyricsDirectory();
 
 private:
-    QString m_overrideDirectory;
+    Candidate candidateForFile(const QString &path, const TrackQuery *sidecarQuery = nullptr) const;
+    QString sidecarPath(const QString &mediaSrc) const;
+
+    QString m_lyricsDirectory;
 };
 
 } // namespace PlasmaLyrics

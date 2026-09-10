@@ -8,6 +8,7 @@
 #include <QSignalSpy>
 #include <QTest>
 #include <QTimer>
+#include <QUrl>
 
 using namespace PlasmaLyrics;
 
@@ -54,6 +55,7 @@ public:
 
     void setPosition(qlonglong position) { m_position = position; }
     void setRate(double rate) { m_rate = rate; }
+    void setUrl(const QString &url) { m_metadata.insert(QStringLiteral("xesam:url"), url); }
 
 private:
     qlonglong m_position = 12000000;
@@ -92,6 +94,7 @@ public:
     }
 
     void setPosition(qlonglong position) { m_player->setPosition(position); }
+    void setUrl(const QString &url) { m_player->setUrl(url); }
 
     bool announceRate(double rate)
     {
@@ -186,6 +189,19 @@ private Q_SLOTS:
     {
         QVERIFY2(QDBusConnection::sessionBus().isConnected(),
                  "this test needs a session bus; run it under dbus-run-session");
+    }
+
+    void standardUrlIsLoadedWithoutKdeMediaSrc()
+    {
+        FakePlayer fake;
+        const QString url = QUrl::fromLocalFile(
+            QStringLiteral("/tmp/plasma-lyrics-standard-mpris.flac")).toString();
+        fake.setUrl(url);
+        QVERIFY(fake.announce());
+
+        MprisPlayer player(QString::fromLatin1(fakeService));
+        QCOMPARE(player.state().url, url);
+        QVERIFY(player.state().mediaSrc.isEmpty());
     }
 
     // The reported crash: a player leaving the bus deletes MprisPlayer while

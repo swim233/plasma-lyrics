@@ -46,6 +46,30 @@ private Q_SLOTS:
         document.lines = filterLeadingCredits(document.lines);
         QVERIFY(document.lines.isEmpty());
     }
+
+    void exposesIdTagsForLocalMatching()
+    {
+        const auto parsed = LrcParser::parse(QStringLiteral(
+            "[ti:First title]\n[ti:Final title]\n"
+            "[ar:First artist]\n[ar:Second artist]\n[ar:First artist]\n"
+            "[al:Album]\n[length:03:30.5]\n[00:01.00]line"));
+        QCOMPARE(parsed.title, QStringLiteral("Final title"));
+        QCOMPARE(parsed.artists,
+                 QStringList({QStringLiteral("First artist"), QStringLiteral("Second artist")}));
+        QCOMPARE(parsed.album, QStringLiteral("Album"));
+        QCOMPARE(parsed.lengthMs, 210500);
+        QCOMPARE(parsed.lines.size(), 1);
+    }
+
+    void ignoresMissingAndInvalidIdTags()
+    {
+        const auto parsed = LrcParser::parse(QStringLiteral(
+            "[ti:]\n[ar:]\n[al:]\n[length:not-a-duration]\n[00:01.00]line"));
+        QVERIFY(parsed.title.isEmpty());
+        QVERIFY(parsed.artists.isEmpty());
+        QVERIFY(parsed.album.isEmpty());
+        QCOMPARE(parsed.lengthMs, 0);
+    }
 };
 
 QTEST_GUILESS_MAIN(LrcParserTest)

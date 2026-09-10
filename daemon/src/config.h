@@ -17,6 +17,7 @@ public:
     QUrl neteaseBaseUrl() const;
     int networkTimeoutMs() const;
     QStringList providerOrder() const;
+    QString localLyricsDirectory() const;
     QUrl amllIndexUrl() const;
     QUrl amllContentBaseUrl() const;
     int amllTimeoutMs() const;

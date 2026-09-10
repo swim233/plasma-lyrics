@@ -40,18 +40,35 @@ int Config::networkTimeoutMs() const
 
 QStringList Config::providerOrder() const
 {
+    const QStringList defaults{QStringLiteral("local"), QStringLiteral("netease"),
+                               QStringLiteral("amll")};
     QStringList result;
-    const auto configured = m_settings.value(
-        QStringLiteral("providers/order"),
-        QStringList{QStringLiteral("netease"), QStringLiteral("amll")}).toStringList();
+    auto configured = m_settings.value(QStringLiteral("providers/order"), defaults).toStringList();
+    // Existing configurations predate the local provider. Put the new,
+    // failure-free source first once; the settings UI will persist the full
+    // three-source order on its next save.
+    bool hasLocal = false;
+    for (const auto &provider : configured) {
+        hasLocal |= provider.trimmed().compare(QStringLiteral("local"), Qt::CaseInsensitive) == 0;
+    }
+    if (!hasLocal) configured.prepend(QStringLiteral("local"));
     for (const auto &provider : configured) {
         const QString id = provider.trimmed().toCaseFolded();
-        if ((id == QStringLiteral("netease") || id == QStringLiteral("amll"))
+        if ((id == QStringLiteral("local") || id == QStringLiteral("netease")
+             || id == QStringLiteral("amll"))
             && !result.contains(id)) {
             result.append(id);
         }
     }
     return result;
+}
+
+QString Config::localLyricsDirectory() const
+{
+    return m_settings.value(
+        QStringLiteral("providers/local/directory"),
+        QString(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+            + QStringLiteral("/plasma-lyrics/lyrics"))).toString();
 }
 
 QUrl Config::amllIndexUrl() const

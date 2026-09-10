@@ -20,6 +20,10 @@ struct ProviderSearchResult {
     // candidates. Resolver must use this value, not a later cacheVersion(),
     // when persisting a fetch miss after an asynchronous refresh.
     QString cacheVersion;
+    // False means no search/fetch/empty-result failure from this attempt may
+    // be persisted. A local-file sidecar can appear or be repaired without
+    // changing the provider-wide lyrics-directory version.
+    bool cacheableMiss = true;
 };
 
 struct ProviderFetchResult {
@@ -49,13 +53,6 @@ public:
     // that are no longer current.
     virtual void search(const TrackQuery &query, SearchCallback callback) = 0;
     virtual void fetch(const QString &trackId, FetchCallback callback) = 0;
-    virtual std::optional<LyricDocument> overrideFor(const QString &providerId,
-                                                     const QString &trackId)
-    {
-        Q_UNUSED(providerId)
-        Q_UNUSED(trackId)
-        return std::nullopt;
-    }
 };
 
 } // namespace PlasmaLyrics

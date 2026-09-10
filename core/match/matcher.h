@@ -15,6 +15,9 @@ struct TrackQuery {
     qint64 lengthMs = 0;
     // Music-service ids only.  mpris:trackid must never be put here.
     QHash<QString, QStringList> platformIds;
+    // Used only by local providers for an audio-file sidecar. Network
+    // providers deliberately ignore it.
+    QString mediaSrc;
 };
 
 struct Candidate {

@@ -22,6 +22,41 @@ qint64 fractionToMs(const QStringView fraction)
     return fraction.left(3).toInt();
 }
 
+qint64 parseLengthMs(QStringView value)
+{
+    const QString trimmed = value.trimmed().toString();
+    if (trimmed.isEmpty()) {
+        return 0;
+    }
+    const auto parts = trimmed.split(QLatin1Char(':'));
+    bool ok = false;
+    if (parts.size() == 1) {
+        const double seconds = parts.first().toDouble(&ok);
+        return ok && seconds >= 0 ? static_cast<qint64>(seconds * 1000.0) : 0;
+    }
+    if (parts.size() == 2) {
+        const qint64 minutes = parts.at(0).toLongLong(&ok);
+        if (!ok || minutes < 0) return 0;
+        bool secondsOk = false;
+        const double seconds = parts.at(1).toDouble(&secondsOk);
+        return secondsOk && seconds >= 0 && seconds < 60
+            ? static_cast<qint64>((minutes * 60 + seconds) * 1000.0) : 0;
+    }
+    if (parts.size() == 3) {
+        const qint64 hours = parts.at(0).toLongLong(&ok);
+        if (!ok || hours < 0) return 0;
+        bool minutesOk = false;
+        const qint64 minutes = parts.at(1).toLongLong(&minutesOk);
+        bool secondsOk = false;
+        const double seconds = parts.at(2).toDouble(&secondsOk);
+        return minutesOk && secondsOk && minutes >= 0 && minutes < 60
+                && seconds >= 0 && seconds < 60
+            ? static_cast<qint64>((hours * 3600 + minutes * 60 + seconds) * 1000.0)
+            : 0;
+    }
+    return 0;
+}
+
 std::optional<LyricLine> parseJsonCredit(const QString &rawLine)
 {
     QJsonParseError error;
@@ -54,7 +89,7 @@ ParsedLrc LrcParser::parse(QStringView source)
     static const QRegularExpression timestampExpression(
         QStringLiteral(R"(\[(\d{1,3}):(\d{2})(?:[\.:](\d{1,3}))?\])"));
     static const QRegularExpression metadataExpression(
-        QStringLiteral(R"(^\s*\[(ar|al|ti|by|re|ve|length)\s*:)") ,
+        QStringLiteral(R"(^\s*\[(ar|al|ti|by|re|ve|length)\s*:\s*(.*?)\]\s*$)"),
         QRegularExpression::CaseInsensitiveOption);
 
     ParsedLrc result;
@@ -68,7 +103,21 @@ ParsedLrc LrcParser::parse(QStringView source)
             result.embeddedOffsetMs = offsetMatch.capturedView(1).toInt();
             continue;
         }
-        if (metadataExpression.match(rawLine).hasMatch()) {
+        const auto metadataMatch = metadataExpression.match(rawLine);
+        if (metadataMatch.hasMatch()) {
+            const QString key = metadataMatch.captured(1).toCaseFolded();
+            const QString value = metadataMatch.captured(2).trimmed();
+            if (key == QStringLiteral("ti") && !value.isEmpty()) {
+                result.title = value;
+            } else if (key == QStringLiteral("ar") && !value.isEmpty()
+                       && !result.artists.contains(value)) {
+                result.artists.append(value);
+            } else if (key == QStringLiteral("al") && !value.isEmpty()) {
+                result.album = value;
+            } else if (key == QStringLiteral("length")) {
+                const qint64 lengthMs = parseLengthMs(value);
+                if (lengthMs > 0) result.lengthMs = lengthMs;
+            }
             continue;
         }
         if (rawLine.trimmed().startsWith(QLatin1Char('{'))) {

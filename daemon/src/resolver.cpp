@@ -8,8 +8,10 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDebug>
+#include <QFileInfo>
 #include <QPointer>
 #include <QSet>
+#include <QUrl>
 
 namespace PlasmaLyrics {
 
@@ -33,12 +35,25 @@ namespace {
 constexpr qint64 networkMissTtlSeconds = 5 * 60;
 constexpr qint64 noCandidateMissTtlSeconds = 7 * 24 * 60 * 60;
 
+QString localMediaSource(const QString &mediaSrc, const QString &url)
+{
+    const auto existingLocalFile = [](const QString &value) {
+        const QUrl candidate(value);
+        return candidate.isValid() && candidate.isLocalFile()
+            && QFileInfo(candidate.toLocalFile()).isFile();
+    };
+    if (existingLocalFile(mediaSrc)) return mediaSrc;
+    if (existingLocalFile(url)) return url;
+    return {};
+}
+
 } // namespace
 
 Resolver::Resolver(LyricStore &store, QList<Provider *> providers, bool filterCredits,
-                   QObject *parent)
+                   QObject *parent, QString overrideDirectory)
     : QObject(parent)
     , m_store(store)
+    , m_overrides(std::move(overrideDirectory))
     , m_providers(std::move(providers))
     , m_filterCredits(filterCredits)
 {
@@ -76,13 +91,8 @@ QList<Provider *> Resolver::searchChain(const QString &preferred) const
 
 std::optional<LyricDocument> Resolver::overridden(const TrackRef &ref) const
 {
-    for (auto *provider : m_providers) {
-        if (!provider || !provider->isConfigured()) {
-            continue;
-        }
-        if (auto document = provider->overrideFor(ref.provider, ref.trackId)) {
-            return forDisplay(std::move(*document), ref);
-        }
+    if (auto document = m_overrides.lyric(ref)) {
+        return forDisplay(std::move(*document), ref);
     }
     return std::nullopt;
 }
@@ -285,7 +295,12 @@ void Resolver::resolve(const MprisState &state, ResolveOptions options)
     }
     qInfo() << "cache miss";
 
-    request->query = {state.title, state.artists, state.album, state.lengthUs / 1000};
+    // kde:mediaSrc is more specific when present, but it is a KDE extension.
+    // Standard MPRIS players normally expose the same local file only through
+    // xesam:url. This affects sidecar discovery only; track identity continues
+    // to use the untouched MprisState and MprisPolicy fingerprint.
+    request->query = {state.title, state.artists, state.album, state.lengthUs / 1000,
+                      {}, localMediaSource(state.mediaSrc, state.url)};
     continueWithProvider(request);
 }
 
@@ -409,10 +424,12 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
             qInfo().noquote() << QStringLiteral("search failed: %1: %2")
                                      .arg(provider->id(), result.error);
             request->networkFailed |= result.transportFailed;
-            self->recordProviderFailure(request, provider,
-                                        result.transportFailed ? QStringLiteral("network")
-                                                               : QStringLiteral("search-error"),
-                                        resultCacheVersion);
+            if (result.cacheableMiss) {
+                self->recordProviderFailure(request, provider,
+                                            result.transportFailed ? QStringLiteral("network")
+                                                                   : QStringLiteral("search-error"),
+                                            resultCacheVersion);
+            }
             if (self->retryProviderIfIndexChanged(request, provider, resultCacheVersion)) return;
             self->continueWithProvider(request);
             return;
@@ -425,8 +442,10 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
         const auto chosen = chooseMatch(ranked,
                                         request->state.platform == QStringLiteral("apple"));
         if (!chosen) {
-            self->recordProviderFailure(request, provider, QStringLiteral("no-candidate"),
-                                        resultCacheVersion);
+            if (result.cacheableMiss) {
+                self->recordProviderFailure(request, provider, QStringLiteral("no-candidate"),
+                                            resultCacheVersion);
+            }
             if (self->retryProviderIfIndexChanged(request, provider, resultCacheVersion)) return;
             self->continueWithProvider(request);
             return;
@@ -434,9 +453,10 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
         const TrackRef ref{provider->id(), chosen->candidate.trackId, chosen->score.total};
         const QString contentId = chosen->candidate.contentId.isEmpty()
             ? chosen->candidate.trackId : chosen->candidate.contentId;
+        const bool cacheableMiss = result.cacheableMiss;
         provider->fetch(contentId,
                         [self, request, ref, provider,
-                         resultCacheVersion](ProviderFetchResult result) mutable {
+                         resultCacheVersion, cacheableMiss](ProviderFetchResult result) mutable {
             if (!self || request->generation != self->m_generation) {
                 return;
             }
@@ -446,10 +466,12 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
                                               result.error.isEmpty()
                                                   ? QStringLiteral("unknown error") : result.error);
                 request->networkFailed |= result.transportFailed;
-                self->recordProviderFailure(request, provider,
-                                            result.transportFailed ? QStringLiteral("network")
-                                                                   : QStringLiteral("fetch-error"),
-                                            resultCacheVersion);
+                if (cacheableMiss) {
+                    self->recordProviderFailure(request, provider,
+                                                result.transportFailed ? QStringLiteral("network")
+                                                                       : QStringLiteral("fetch-error"),
+                                                resultCacheVersion);
+                }
                 if (self->retryProviderIfIndexChanged(request, provider,
                                                       resultCacheVersion)) return;
                 self->continueWithProvider(request);
@@ -461,8 +483,10 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
                                               ? QStringLiteral("true") : QStringLiteral("false"));
             if (result.document->lines.isEmpty()) {
                 request->sawEmptyLyric = true;
-                self->recordProviderFailure(request, provider, QStringLiteral("empty"),
-                                            resultCacheVersion);
+                if (cacheableMiss) {
+                    self->recordProviderFailure(request, provider, QStringLiteral("empty"),
+                                                resultCacheVersion);
+                }
                 if (self->retryProviderIfIndexChanged(request, provider,
                                                       resultCacheVersion)) return;
                 self->continueWithProvider(request);
@@ -471,8 +495,10 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
             auto finalDocument = self->forDisplay(*result.document, ref);
             if (finalDocument.lines.isEmpty()) {
                 request->sawEmptyLyric = true;
-                self->recordProviderFailure(request, provider, QStringLiteral("empty"),
-                                            resultCacheVersion);
+                if (cacheableMiss) {
+                    self->recordProviderFailure(request, provider, QStringLiteral("empty"),
+                                                resultCacheVersion);
+                }
                 if (self->retryProviderIfIndexChanged(request, provider,
                                                       resultCacheVersion)) return;
                 self->continueWithProvider(request);

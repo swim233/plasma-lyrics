@@ -2,6 +2,7 @@
 
 #include "lyricmodel.h"
 
+#include <QStringList>
 #include <QStringView>
 
 namespace PlasmaLyrics {
@@ -9,6 +10,10 @@ namespace PlasmaLyrics {
 struct ParsedLrc {
     LyricLines lines;
     int embeddedOffsetMs = 0;
+    QString title;
+    QStringList artists;
+    QString album;
+    qint64 lengthMs = 0;
 };
 
 class LrcParser
@@ -19,4 +24,3 @@ public:
 };
 
 } // namespace PlasmaLyrics
-
