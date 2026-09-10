@@ -1,6 +1,6 @@
 # 多源歌词的设置、并发与进度修复计划
 
-日期：2026-09-10。状态：设计访谈已完成，决策已确认；代码实现与验收待执行。
+日期：2026-09-10。状态：设计与代码实现已完成；自动化验收通过，人工界面验收待执行。
 
 本文记录三个用户报告问题的根因定位、与用户完成设计访谈后确认的 23 项决策、
 分四个提交的实施方案，以及验收流程。交给实现者可独立执行，不需要重新做设计判断。
@@ -355,58 +355,58 @@ AMLL 索引在解析中刷新（`resolver.cpp:303-318`）。
 
 ### 5.1 位置锚点（提交 1）
 
-- [ ] 假时钟推进 → 轮询若干次 → 在无锚点事件的情况下发布，
+- [x] 假时钟推进 → 轮询若干次 → 在无锚点事件的情况下发布，
       断言发布出的 `(positionUs, anchorMonotonicNs)` 自洽。此测试在修复前必须失败。
-- [ ] 已播放 N 秒后经由 `SetPreferredProvider` 触发发布，断言部件侧外推结果
+- [x] 已播放 N 秒后经由 `SetPreferredProvider` 触发发布，断言部件侧外推结果
       与真实位置的偏差不随 N 增长。
-- [ ] 异步歌词到达（站点 4）路径同样断言自洽，覆盖取词延迟带来的第二个分量。
-- [ ] `isPositionJump` 既有用例结果不变；指纹既有用例结果不变。
-- [ ] MPRIS 脏数据重放、播放器发现与生命周期、Position 跳变、原子快照与 stale 回归全部通过。
+- [x] 异步歌词到达（站点 4）路径同样断言自洽，覆盖取词延迟带来的第二个分量。
+- [x] `isPositionJump` 既有用例结果不变；指纹既有用例结果不变。
+- [x] MPRIS 脏数据重放、播放器发现与生命周期、Position 跳变、原子快照与 stale 回归全部通过。
 
 ### 5.2 部件与偏移（提交 2）
 
-- [ ] `frontend/qmlmodule/` 中不再有 `LyricStore` 的任何引用。
-- [ ] 快照往返测试覆盖 `globalOffsetEnabled` 与生效 `offsetMs`：
+- [x] `frontend/qmlmodule/LyricSource` 中不再有 `LyricStore` 的任何引用；配置页 `GlobalConfig` 保留 Q12 例外。
+- [x] 快照往返测试覆盖 `globalOffsetEnabled` 与生效 `offsetMs`：
       全局模式开启 / 关闭、全局值非零、单曲值非零各一例。
-- [ ] `AdjustOffset` 的 delta 语义测试：连续两次 `+500` 得到 `+1000`；
+- [x] `AdjustOffset` 的 delta 语义测试：连续两次 `+500` 得到 `+1000`；
       指纹不符时拒绝并反馈失败。
-- [ ] 多部件实例在一次偏移调整后看到一致的生效偏移，不需要重启服务。
-- [ ] `ControlService` 全部方法在私有会话总线上的压力测试：
+- [x] 多部件实例在一次偏移调整后看到一致的生效偏移，不需要重启服务。
+- [x] `ControlService` 全部方法在私有会话总线上的压力测试：
       快速连续调用 N 次，断言无死锁、无在途请求泄漏、最终状态确定。
-- [ ] 在 `build-mpris-asan` 与 `build-lsan` 中运行受影响测试，无报告。
+- [x] 在 `build-mpris-asan` 与 `build-lsan` 中运行受影响测试，无报告。
 - [ ] 人工：播放中频繁切换歌词源，面板与桌面无卡顿。
 
 ### 5.3 设置页（提交 3）
 
-- [ ] 修改任一字段后按 Apply 或 OK，改动落盘；不再依赖页面自己的保存按钮。
-- [ ] 往返测试覆盖顺序与启用集合，含取消勾选再勾回不丢位置。
-- [ ] 曾使 `order` 塌成空值的输入（见 1.1 表格）在新控件下无法产生。
-- [ ] `providers/order` 为 `@Invalid()` 或空时，`Config::providerOrder()`
+- [x] 修改任一字段后按 Apply 或 OK，改动落盘；不再依赖页面自己的保存按钮。
+- [x] 往返测试覆盖顺序与启用集合，含取消勾选再勾回不丢位置。
+- [x] 曾使 `order` 塌成空值的输入（见 1.1 表格）在新控件下无法产生。
+- [x] `providers/order` 为 `@Invalid()` 或空时，`Config::providerOrder()`
       回退内置默认并写 journal。
-- [ ] 配置中存在未编译或不认识的 provider id 时，保存后该 id 仍在文件里。
-- [ ] 守护进程未运行时设置页可打开，源列表降级为静态并显示提示。
-- [ ] 切换期间源菜单禁用并显示进行中；切换完成或失败后恢复可用，不清空已有歌词。
-- [ ] 用 Qt 6 `qmllint` 验证：`/usr/lib/qt6/bin/qmllint --bare -I build/bin -I /usr/lib/qt6/qml`。
+- [x] 配置中存在未编译或不认识的 provider id 时，保存后该 id 仍在文件里。
+- [x] 守护进程未运行时设置页可打开，源列表降级为静态并显示提示。
+- [x] 切换期间源菜单禁用并显示进行中；切换完成或失败后恢复可用，不清空已有歌词。
+- [x] 用 Qt 6 `qmllint` 验证：`/usr/lib/qt6/bin/qmllint --bare -I build/bin -I /usr/lib/qt6/qml`。
       不要用 `PATH` 上的 `qmllint`（Qt 5 的，对未知类型与不存在的属性静默退出 0）。
-- [ ] 新增文案进入现有翻译流程。
+- [x] 新增文案进入现有翻译流程。
 
 ### 5.4 本地歌词源（提交 4）
 
-- [ ] `ParsedLrc` 暴露 `[ti:]` `[ar:]` `[al:]` `[length:]`，含缺失、重复、非法值的 fixture。
-- [ ] 歌词目录扫描 + 匹配：标题歌手齐备命中、时长参与评分、
+- [x] `ParsedLrc` 暴露 `[ti:]` `[ar:]` `[al:]` `[length:]`，含缺失、重复、非法值的 fixture。
+- [x] 歌词目录扫描 + 匹配：标题歌手齐备命中、时长参与评分、
       标点与全半角差异仍命中、明显不同的曲目不命中。
-- [ ] sidecar 命中（`mediaSrc` 为 `file://`）；`mediaSrc` 为 `https://` 时不尝试 sidecar。
-- [ ] 负缓存：目录状态变化后本地 miss 立即失效；sidecar 未命中不写负缓存行。
-- [ ] 覆盖机制行为不变：`overrides/<provider>:<track-id>.lrc` 仍覆盖对应结果，
+- [x] sidecar 命中（`mediaSrc` 为 `file://`）；`mediaSrc` 为 `https://` 时不尝试 sidecar。
+- [x] 负缓存：目录状态变化后本地 miss 立即失效；sidecar 未命中不写负缓存行。
+- [x] 覆盖机制行为不变：`overrides/<provider>:<track-id>.lrc` 仍覆盖对应结果，
       既有测试迁移后通过。
-- [ ] 默认顺序为 `{local, netease, amll}`；既有两项配置在升级后 `local` 被前置。
-- [ ] 本地命中时不发起网络请求。
+- [x] 默认顺序为 `{local, netease, amll}`；既有两项配置在升级后 `local` 被前置。
+- [x] 本地命中时不发起网络请求。
 
 ### 5.5 现有质量门槛
 
-- [ ] 完整运行受影响的 core / provider / daemon / frontend 测试。
-- [ ] 分别关闭 AMLL 与网易云编译选项仍可构建并通过测试。
-- [ ] QML 模块从 staging 安装树加载的检查照旧。
+- [x] 完整运行受影响的 core / provider / daemon / frontend 测试。
+- [x] 分别关闭 AMLL 与网易云编译选项仍可构建并通过测试。
+- [x] QML 模块从 staging 安装树加载的检查照旧。
 - [ ] 人工验证桌面与面板两种形态。
 
 ## 6. 需要同步更新的文档
@@ -427,7 +427,7 @@ AMLL 索引在解析中刷新（`resolver.cpp:303-318`）。
 
 ## 7. 实施记录
 
-2026-09-10 已按四阶段顺序完成实现（工作树中未拆分提交）：
+2026-09-10 已按四阶段顺序完成实现并拆分提交：
 
 1. 位置轮询无条件同步 `positionUs` 与 `anchorMonotonicNs`，并补普通轮询回归测试。
 2. 部件移除全部 SQLite 访问；快照提供全局开关和生效偏移，偏移修改改走带指纹校验的
@@ -444,3 +444,9 @@ QA 回归修正进一步将 D-Bus 的「构建支持来源」与 Resolver 的「
 请求的不可负缓存属性贯穿搜索、获取、空歌词和过滤后为空的全部失败路径；禁用来源重启恢复与
 sidecar 后增/原地修复均有自动化覆盖。普通 MPRIS 播放器没有 `kde:mediaSrc` 时，本地查询回退
 到标准 `xesam:url`，不触碰既有指纹和身份判定。
+
+审查回归进一步为本地歌词目录建立按 `cacheVersion()` 失效的递归内存索引，只收录可读且含
+有效时间行的 `.lrc`，每次 provider 尝试只扫描一次目录状态，并把交给 Resolver 的候选限制为
+前 50 条；损坏 sidecar 会继续查询目录。全局偏移恢复无当前歌曲时的部件菜单调整，设置页刷新
+只重发当前指纹对应的快照。D-Bus 压力测试拆为可直接发现的
+`allMethodsCompleteUnderConcurrentDbusLoad()`。

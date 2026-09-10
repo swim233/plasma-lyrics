@@ -52,9 +52,10 @@ shared offset for every song instead. Manual LRC replacements belong in
 `~/.local/share/plasma-lyrics/overrides/<provider>:<track-id>.lrc`.
 
 The searchable local source first checks for an `.lrc` sidecar beside a local
-audio file, then scans the configurable lyrics directory (default
+audio file, then recursively scans the configurable lyrics directory (default
 `~/.local/share/plasma-lyrics/lyrics/`). Files there are matched from their
-names and LRC `[ti:]`, `[ar:]`, `[al:]`, and `[length:]` tags. This directory is
+names and LRC `[ti:]`, `[ar:]`, `[al:]`, and `[length:]` tags; the parsed index
+is reused until the directory contents change. This directory is
 separate from the exact provider/track replacement directory above.
 
 The same context menu can prefer local files, NetEase, or AMLL for the current song, restore
