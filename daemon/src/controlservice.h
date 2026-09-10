@@ -19,7 +19,7 @@ class ControlService final : public QObject
 
 public:
     using CurrentState = std::function<std::optional<MprisState>()>;
-    using ResolveCurrent = std::function<void(const MprisState &)>;
+    using ResolveCurrent = std::function<void(const MprisState &, const QString &trigger)>;
     using CurrentRef = std::function<std::optional<TrackRef>()>;
     using PublishCurrent = std::function<void()>;
 

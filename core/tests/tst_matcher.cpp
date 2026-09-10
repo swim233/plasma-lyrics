@@ -589,6 +589,54 @@ private Q_SLOTS:
         QCOMPARE(score.title, 1.0);
         QVERIFY(score.titleViaAlternate);
     }
+
+    // candidateRejectionReason mirrors explainMatch's per-candidate listing
+    // classification (used by Resolver's "search ... rejected=" log field);
+    // these fixtures drive it directly through ScoreBreakdown rather than a
+    // full search so each threshold is isolated.
+    void rejectionReasonReportsVersionConflictFromScore()
+    {
+        RankedCandidate candidate;
+        candidate.score.rejectionReason = QStringLiteral("version-conflict");
+        candidate.score.title = 0.9;
+        candidate.score.total = 0.9;
+        QCOMPARE(candidateRejectionReason(candidate), QStringLiteral("version-conflict"));
+    }
+
+    void rejectionReasonReportsTitleThreshold()
+    {
+        RankedCandidate candidate;
+        candidate.score.title = 0.3;
+        candidate.score.total = 0.9;
+        QCOMPARE(candidateRejectionReason(candidate), QStringLiteral("title-threshold"));
+    }
+
+    void rejectionReasonReportsTotalThreshold()
+    {
+        RankedCandidate candidate;
+        candidate.score.title = 0.6;
+        candidate.score.total = 0.3;
+        QCOMPARE(candidateRejectionReason(candidate), QStringLiteral("total-threshold"));
+    }
+
+    void rejectionReasonReportsAliasArtistThreshold()
+    {
+        RankedCandidate candidate;
+        candidate.score.title = 0.6;
+        candidate.score.total = 0.6;
+        candidate.score.titleViaAlternate = true;
+        candidate.score.artists = 0.1;
+        QCOMPARE(candidateRejectionReason(candidate), QStringLiteral("alias-artist-threshold"));
+    }
+
+    void rejectionReasonIsEmptyForAnAcceptableCandidate()
+    {
+        RankedCandidate candidate;
+        candidate.score.title = 0.9;
+        candidate.score.total = 0.9;
+        candidate.score.artists = 1.0;
+        QVERIFY(candidateRejectionReason(candidate).isEmpty());
+    }
 };
 
 QTEST_GUILESS_MAIN(MatcherTest)

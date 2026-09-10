@@ -111,6 +111,7 @@ if(BUILD_TESTING)
     add_executable(tst_resolver
         tests/tst_resolver.cpp
         src/resolver.cpp
+        src/logging.cpp
     )
     target_include_directories(tst_resolver PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_resolver PRIVATE

@@ -1,5 +1,6 @@
 #include "daemon/src/resolver.h"
 
+#include "core/log/logformat.h"
 #include "core/store/lyricstore.h"
 #include "providers/local/localprovider.h"
 
@@ -8,6 +9,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QHash>
+#include <QLoggingCategory>
 #include <QSignalSpy>
 #include <QSqlDatabase>
 #include <QSqlQuery>
@@ -97,7 +99,8 @@ QStringList *capturedMessages = nullptr;
 
 void captureMessages(QtMsgType type, const QMessageLogContext &, const QString &message)
 {
-    if (capturedMessages && (type == QtInfoMsg || type == QtWarningMsg)) {
+    if (capturedMessages
+        && (type == QtInfoMsg || type == QtWarningMsg || type == QtDebugMsg)) {
         capturedMessages->append(message);
     }
 }
@@ -123,6 +126,24 @@ private:
     QStringList m_messages;
     QtMessageHandler m_previous;
 };
+
+// Debug-level Resolver lines are filtered out before they ever reach
+// MessageCapture unless plasmalyrics.resolver.debug is on (the same
+// mechanism Config::debugLoggingEnabled() drives in production). RAII so a
+// QVERIFY failure mid-test still restores the process-global default for
+// the tests that run after it.
+class DebugLoggingScope
+{
+public:
+    DebugLoggingScope() { QLoggingCategory::setFilterRules(QStringLiteral("plasmalyrics.*.debug=true")); }
+    ~DebugLoggingScope() { QLoggingCategory::setFilterRules(QString()); }
+};
+
+bool logged(const QStringList &messages, const QString &needle)
+{
+    return std::any_of(messages.cbegin(), messages.cend(),
+                       [&needle](const QString &message) { return message.contains(needle); });
+}
 
 // qa-1: every fixture above echoes the query back as a single exact-match
 // candidate, so isAcceptableMatch(ranked.first()) always wins on the primary
@@ -269,6 +290,9 @@ private:
 ResolvedLyric resolveSynchronously(Resolver &resolver, const MprisState &state,
                                    Resolver::ResolveOptions options = {})
 {
+    if (options.trigger.isEmpty()) {
+        options.trigger = QStringLiteral("track-changed");
+    }
     std::optional<ResolvedLyric> result;
     QEventLoop loop;
     const auto connection = QObject::connect(
@@ -880,7 +904,7 @@ private Q_SLOTS:
         connect(&resolver, &Resolver::resolved, this,
                 [&](const QString &, const ResolvedLyric &resolved) { result = resolved; });
         ResolvedLyric existing{QStringLiteral("ok"), oldRef, oldDocument};
-        resolver.resolve(state, {.force = true, .existing = existing});
+        resolver.resolve(state, {.force = true, .existing = existing, .trigger = QStringLiteral("research")});
 
         QVERIFY(result.has_value());
         QCOMPARE(result->state, QStringLiteral("ok"));
@@ -952,7 +976,7 @@ private Q_SLOTS:
         const ResolvedLyric existing{QStringLiteral("ok"), ref, document};
         QSignalSpy resolvedSpy(&resolver, &Resolver::resolved);
 
-        resolver.resolve(state, {.force = true, .existing = existing});
+        resolver.resolve(state, {.force = true, .existing = existing, .trigger = QStringLiteral("research")});
 
         QCOMPARE(provider.searchCount(), 1);
         QCOMPARE(resolvedSpy.size(), 1);
@@ -987,7 +1011,7 @@ private Q_SLOTS:
                     emissions.append(resolved);
                 });
 
-        resolver.resolve(state);
+        resolver.resolve(state, QStringLiteral("track-changed"));
 
         QCOMPARE(emissions.size(), 1);
         QCOMPARE(emissions.first().state, QStringLiteral("ok"));
@@ -998,9 +1022,195 @@ private Q_SLOTS:
         QCOMPARE(netease.searchCount(), 1);
         QCOMPARE(amll.searchCount(), 0);
 
-        resolver.resolve(state);
+        resolver.resolve(state, QStringLiteral("track-changed"));
         QCOMPARE(netease.searchCount(), 1);
         QCOMPARE(emissions.size(), 2);
+    }
+
+    // Same scenario as cachedFallbackStaysVisibleWhilePreferredProviderRetries
+    // (fallback content already sourced from a non-preferred provider, the
+    // preferred provider is retried and fails), asserting the log shape
+    // instead of the emitted ResolvedLyric: a "retained:" head line and no
+    // "cache miss" (§3.2 -- retained and cache miss are mutually exclusive).
+    void retainedRequestsLogRetainedLineAndSuppressCacheMiss()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider netease(QStringLiteral("netease"));
+        netease.setNoCandidates();
+        TestProvider amll(QStringLiteral("amll"));
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:retained-log");
+        state.title = QStringLiteral("song");
+        const TrackRef fallbackRef{amll.id(), QStringLiteral("cached"), 0.9};
+        const LyricDocument fallbackDocument{{{0, 1000, QStringLiteral("cached line"),
+                                               std::nullopt, std::nullopt}}, 0, false};
+        QVERIFY(store.setPreferredProvider(state.fingerprint, netease.id()));
+        QVERIFY(store.putLyric(fallbackRef, fallbackDocument));
+        QVERIFY(store.mapFingerprint(state.fingerprint, fallbackRef));
+        Resolver resolver(store, {&netease, &amll});
+
+        MessageCapture capture;
+        resolver.resolve(state, QStringLiteral("track-changed"));
+
+        QVERIFY(logged(capture.messages(), QStringLiteral("retained: source=amll/cached")));
+        QVERIFY(!logged(capture.messages(), QStringLiteral("cache miss")));
+    }
+
+    void resolveHeaderIncludesTriggerAndIdentity()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider provider(QStringLiteral("netease"));
+        Resolver resolver(store, {&provider});
+        MprisState state;
+        state.music = true;
+        state.identity = QStringLiteral("Spotify");
+        state.fingerprint = QStringLiteral("mediaSrc:header-fields");
+        state.title = QStringLiteral("song");
+        state.artists = {QStringLiteral("artist")};
+
+        MessageCapture capture;
+        resolveSynchronously(resolver, state, {.trigger = QStringLiteral("startup")});
+
+        QVERIFY(logged(capture.messages(), QStringLiteral("trigger=startup")));
+        QVERIFY(logged(capture.messages(), QStringLiteral("identity=\"Spotify\"")));
+        // Pins title= itself: resolveHeaderOmitsTitleAndArtistWhenNotMusic
+        // only proves the field is absent when music=false, not that it's
+        // present and correct when music=true.
+        QVERIFY(logged(capture.messages(), QStringLiteral("title=\"song\"")));
+    }
+
+    // A non-music source (browser tab playing video, say) must not put its
+    // title into the journal at info level by default (§5: MPRIS debug lines
+    // carry titles, info lines from a non-music source must not).
+    void resolveHeaderOmitsTitleAndArtistWhenNotMusic()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        Resolver resolver(store, {});
+        MprisState state;
+        state.music = false;
+        state.fingerprint = QStringLiteral("mediaSrc:non-music");
+        state.title = QStringLiteral("Some Video Title");
+        state.artists = {QStringLiteral("Some Channel")};
+
+        MessageCapture capture;
+        resolveSynchronously(resolver, state);
+
+        const auto match = std::find_if(capture.messages().cbegin(), capture.messages().cend(),
+                                        [](const QString &message) {
+            return message.contains(QStringLiteral("resolve: trigger="));
+        });
+        QVERIFY(match != capture.messages().cend());
+        QVERIFY(match->contains(QStringLiteral("music=false")));
+        QVERIFY(!match->contains(QStringLiteral("title=")));
+        QVERIFY(!match->contains(QStringLiteral("artist=")));
+    }
+
+    // Browser integrations commonly report a single empty-string artist
+    // ([""]) rather than an empty list; MprisPolicy::isMusic treats that the
+    // same as "no artist" and the log should too.
+    void resolveHeaderTreatsBlankFirstArtistAsDash()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider provider(QStringLiteral("netease"));
+        Resolver resolver(store, {&provider});
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:blank-artist");
+        state.title = QStringLiteral("song");
+        state.artists = {QString()};
+
+        MessageCapture capture;
+        resolveSynchronously(resolver, state);
+
+        QVERIFY(logged(capture.messages(), QStringLiteral("artist=\"-\"")));
+    }
+
+    void searchHeaderLineIncludesCandidatesAndElapsed()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider provider(QStringLiteral("netease"));
+        Resolver resolver(store, {&provider});
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:search-header");
+        state.title = QStringLiteral("song");
+        state.artists = {QStringLiteral("artist")};
+
+        MessageCapture capture;
+        const auto result = resolveSynchronously(resolver, state);
+        QCOMPARE(result.state, QStringLiteral("ok"));
+
+        const auto match = std::find_if(capture.messages().cbegin(), capture.messages().cend(),
+                                        [](const QString &message) {
+            return message.contains(QStringLiteral("search provider=netease"));
+        });
+        QVERIFY(match != capture.messages().cend());
+        QVERIFY(match->contains(QStringLiteral("candidates=1")));
+        QVERIFY(match->contains(QStringLiteral("elapsed=")));
+    }
+
+    void terminalStateLineAppearsExactlyOnceForSuccess()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider provider(QStringLiteral("netease"));
+        Resolver resolver(store, {&provider});
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:terminal-once-ok");
+        state.title = QStringLiteral("song");
+        state.artists = {QStringLiteral("artist")};
+
+        MessageCapture capture;
+        const auto result = resolveSynchronously(resolver, state);
+        QCOMPARE(result.state, QStringLiteral("ok"));
+
+        const auto stateLines = std::count_if(capture.messages().cbegin(), capture.messages().cend(),
+                                              [](const QString &message) {
+            return message.contains(QStringLiteral(" state="));
+        });
+        QCOMPARE(stateLines, 1);
+        QVERIFY(logged(capture.messages(), QStringLiteral("state=ok from=provider")));
+        QVERIFY(logged(capture.messages(), QStringLiteral("elapsed=")));
+    }
+
+    void terminalStateLineIncludesTriedOnFailure()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider netease(QStringLiteral("netease"));
+        netease.setNoCandidates();
+        TestProvider amll(QStringLiteral("amll"));
+        amll.setNoCandidates();
+        Resolver resolver(store, {&netease, &amll});
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:terminal-once-fail");
+        state.title = QStringLiteral("song");
+
+        MessageCapture capture;
+        const auto result = resolveSynchronously(resolver, state);
+        QCOMPARE(result.state, QStringLiteral("not-found"));
+
+        const auto stateLines = std::count_if(capture.messages().cbegin(), capture.messages().cend(),
+                                              [](const QString &message) {
+            return message.contains(QStringLiteral(" state="));
+        });
+        QCOMPARE(stateLines, 1);
+        QVERIFY(logged(capture.messages(), QStringLiteral("state=not-found tried=netease,amll")));
     }
 
     void localizedFallbackOnlyAppliesWhenPlatformIsApple()
@@ -1082,10 +1292,19 @@ private Q_SLOTS:
         state.fingerprint = QStringLiteral("mediaSrc:search-error-") + providerId;
         state.title = QStringLiteral("song");
 
+        // Debug on: otherwise the none_of(contains("selected:")) assertion
+        // below is vacuously true (that text never reaches the handler with
+        // debug off regardless of whether explainMatch actually ran).
+        DebugLoggingScope debugScope;
         MessageCapture capture;
         QCOMPARE(resolveSynchronously(resolver, state).state, expectedState);
-        QVERIFY(capture.messages().contains(
-            QStringLiteral("search failed: %1: %2").arg(providerId, error)));
+        const auto match = std::find_if(capture.messages().cbegin(), capture.messages().cend(),
+                                        [&](const QString &message) {
+            return message.contains(QStringLiteral("search failed: provider=%1").arg(providerId));
+        });
+        QVERIFY(match != capture.messages().cend());
+        QVERIFY(match->contains(QStringLiteral("elapsed=")));
+        QVERIFY(match->contains(QStringLiteral("error=%1").arg(quoted(error))));
         QVERIFY(std::none_of(capture.messages().cbegin(), capture.messages().cend(),
                              [](const QString &message) {
             return message.contains(QStringLiteral("selected:"));
@@ -1121,7 +1340,15 @@ private Q_SLOTS:
         state.fingerprint = QStringLiteral("mediaSrc:fetch-") + expectedState;
         state.title = QStringLiteral("song");
 
+        MessageCapture capture;
         QCOMPARE(resolveSynchronously(resolver, state).state, expectedState);
+        const auto match = std::find_if(capture.messages().cbegin(), capture.messages().cend(),
+                                        [](const QString &message) {
+            return message.contains(QStringLiteral("fetch failed: source=fetch-error/track"));
+        });
+        QVERIFY(match != capture.messages().cend());
+        QVERIFY(match->contains(QStringLiteral("elapsed=")));
+        QVERIFY(match->contains(QStringLiteral("error=%1").arg(quoted(error))));
     }
 
     void cacheMissKindsAreLoggedSeparately()
@@ -1141,13 +1368,17 @@ private Q_SLOTS:
         MprisState danglingState = missing;
         danglingState.fingerprint = QStringLiteral("mediaSrc:dangling");
 
+        // Both lines moved to debug (§3.3): enable it locally so this
+        // pre-existing distinction ("no mapping at all" vs. "mapping exists
+        // but its lyric body is gone") stays covered.
+        DebugLoggingScope debugScope;
         MessageCapture capture;
         QCOMPARE(resolveSynchronously(resolver, missing).state, QStringLiteral("not-found"));
         QCOMPARE(resolveSynchronously(resolver, danglingState).state, QStringLiteral("not-found"));
-        QVERIFY(capture.messages().contains(
-            QStringLiteral("cache mapping missing: mediaSrc:no-mapping")));
-        QVERIFY(capture.messages().contains(
-            QStringLiteral("cache lyric missing: test/missing-body")));
+        QVERIFY(logged(capture.messages(),
+                       QStringLiteral("cache mapping missing: fingerprint=\"mediaSrc:no-mapping\"")));
+        QVERIFY(logged(capture.messages(),
+                       QStringLiteral("cache lyric missing: test/missing-body")));
     }
 
     void cacheWriteFailuresAreLogged()
@@ -1179,10 +1410,10 @@ private Q_SLOTS:
 
             MessageCapture capture;
             QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("ok"));
-            QVERIFY(capture.messages().contains(
-                QStringLiteral("cache put failed: cache-test/track")));
-            QVERIFY(capture.messages().contains(
-                QStringLiteral("cache map failed: fingerprint=mediaSrc:write-failure ref=cache-test/track")));
+            QVERIFY(logged(capture.messages(),
+                           QStringLiteral("cache put failed: cache-test/track")));
+            QVERIFY(logged(capture.messages(),
+                           QStringLiteral("cache map failed: fingerprint=\"mediaSrc:write-failure\" ref=cache-test/track")));
             faultDatabase.close();
         }
         QSqlDatabase::removeDatabase(connectionName);
@@ -1222,9 +1453,9 @@ private Q_SLOTS:
             const auto result = resolveSynchronously(resolver, state);
             QCOMPARE(result.state, QStringLiteral("ok"));
             QCOMPARE(provider.searchCount(), 0);
-            QVERIFY(capture.messages().contains(
-                QStringLiteral("cache map failed: fingerprint=%1 ref=%2/%3")
-                    .arg(fingerprint, ref.provider, ref.trackId)));
+            QVERIFY(logged(capture.messages(),
+                           QStringLiteral("cache map failed: fingerprint=\"%1\" ref=%2/%3")
+                               .arg(fingerprint, ref.provider, ref.trackId)));
             faultDatabase.close();
         }
         QSqlDatabase::removeDatabase(connectionName);
@@ -1266,9 +1497,9 @@ private Q_SLOTS:
             QCOMPARE(result.state, QStringLiteral("ok"));
             QCOMPARE(result.ref->provider, ref.provider);
             QCOMPARE(cached.searchCount(), 0);
-            QVERIFY(capture.messages().contains(
-                QStringLiteral("cache map failed: fingerprint=%1 ref=%2/%3")
-                    .arg(fingerprint, ref.provider, ref.trackId)));
+            QVERIFY(logged(capture.messages(),
+                           QStringLiteral("cache map failed: fingerprint=\"%1\" ref=%2/%3")
+                               .arg(fingerprint, ref.provider, ref.trackId)));
             faultDatabase.close();
         }
         QSqlDatabase::removeDatabase(connectionName);
@@ -1304,9 +1535,9 @@ private Q_SLOTS:
             QCOMPARE(resolveSynchronously(resolver, state,
                                            {.force = true}).state,
                      QStringLiteral("ok"));
-            QVERIFY(capture.messages().contains(
-                QStringLiteral("provider miss clear failed: fingerprint=%1 provider=%2")
-                    .arg(fingerprint, provider.id())));
+            QVERIFY(logged(capture.messages(),
+                           QStringLiteral("provider miss clear failed: fingerprint=\"%1\" provider=%2")
+                               .arg(fingerprint, provider.id())));
             faultDatabase.close();
         }
         QSqlDatabase::removeDatabase(connectionName);
@@ -1336,7 +1567,7 @@ private Q_SLOTS:
         connect(&resolver, &Resolver::resolved, this,
                 [&](const QString &, const ResolvedLyric &value) { resolved = value; });
 
-        resolver.resolve(state);
+        resolver.resolve(state, QStringLiteral("track-changed"));
         QCOMPARE(provider.searchCount(), 1);
         QCOMPARE(provider.fetchCount(), 1);
         QVERIFY(!resolved.has_value());
@@ -1380,8 +1611,8 @@ private Q_SLOTS:
 
             MessageCapture capture;
             QCOMPARE(resolveSynchronously(resolver, state).state, QStringLiteral("not-found"));
-            QVERIFY(capture.messages().contains(
-                QStringLiteral("provider miss record failed: fingerprint=mediaSrc:miss-write-failure provider=failed reason=no-candidate")));
+            QVERIFY(logged(capture.messages(),
+                QStringLiteral("provider miss record failed: fingerprint=\"mediaSrc:miss-write-failure\" provider=failed reason=no-candidate")));
             QVERIFY(!store.freshProviderMiss(state.fingerprint, provider.id(),
                                              provider.cacheVersion()).has_value());
             faultDatabase.close();
@@ -1411,8 +1642,8 @@ private Q_SLOTS:
             return value;
         };
 
-        resolver.resolve(state(QStringLiteral("old")));
-        resolver.resolve(state(QStringLiteral("new")));
+        resolver.resolve(state(QStringLiteral("old")), QStringLiteral("track-changed"));
+        resolver.resolve(state(QStringLiteral("new")), QStringLiteral("track-changed"));
         provider.complete(QStringLiteral("old"));
         QVERIFY(emittedFingerprints.isEmpty());
         QVERIFY(!store.refForFingerprint(QStringLiteral("mediaSrc:old")).has_value());
@@ -1442,10 +1673,10 @@ private Q_SLOTS:
                     emissions.append(lyric);
                 });
 
-        resolver.resolve(state);
+        resolver.resolve(state, QStringLiteral("track-changed"));
         QCOMPARE(amll.searchCount(), 1);
         QVERIFY(store.setPreferredProvider(state.fingerprint, QStringLiteral("netease")));
-        resolver.resolve(state, {.force = true});
+        resolver.resolve(state, {.force = true, .trigger = QStringLiteral("research")});
         QCOMPARE(netease.searchCount(), 1);
 
         amll.complete(state.title);
@@ -1473,8 +1704,8 @@ private Q_SLOTS:
         connect(&resolver, &Resolver::resolved, this,
                 [&](const QString &, const ResolvedLyric &) { ++emissions; });
 
-        resolver.resolve(state, {.force = true});
-        resolver.resolve(state, {.force = true});
+        resolver.resolve(state, {.force = true, .trigger = QStringLiteral("research")});
+        resolver.resolve(state, {.force = true, .trigger = QStringLiteral("research")});
         QCOMPARE(provider.searchCount(), 2);
 
         provider.complete(state.title);
@@ -1499,7 +1730,7 @@ private Q_SLOTS:
             state.title = QStringLiteral("gone");
             state.artists = {QStringLiteral("artist")};
             state.lengthUs = 1000000;
-            resolver.resolve(state);
+            resolver.resolve(state, QStringLiteral("track-changed"));
         }
         provider.complete(QStringLiteral("gone"));
         QVERIFY(!store.refForFingerprint(QStringLiteral("mediaSrc:gone")).has_value());

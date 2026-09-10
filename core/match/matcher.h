@@ -80,5 +80,13 @@ std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked,
 QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates,
                      bool allowLocalizedFallback, bool platformKnown = true,
                      MatchPolicy policy = MatchPolicy::Default);
+// Same rejection classification explainMatch uses for one candidate's
+// listing line: the candidate's own rejectionReason if scoreCandidate set
+// one (e.g. version-conflict), otherwise the first threshold it misses
+// (title-threshold, total-threshold, alias-artist-threshold). Empty means
+// the candidate would actually be accepted. Callers that only need "why
+// didn't the top-ranked candidate win" (e.g. a resolver log line) can call
+// this on ranked.first() instead of formatting/parsing explainMatch's text.
+QString candidateRejectionReason(const RankedCandidate &candidate);
 
 } // namespace PlasmaLyrics

@@ -379,11 +379,20 @@ int main(int argc, char **argv)
         }
     };
 
+    // "startup" describes the daemon's first-ever resolve, not merely the
+    // first call to this lambda: if no player is active yet when update(true)
+    // runs first, nothing resolves, and the label should still land on
+    // whichever activeStateChanged eventually supplies the first track.
+    bool firstResolvePending = true;
+    QString lastActiveService;
     const auto update = [&] (bool trackChanged) {
         const auto state = manager.activeState();
         if (!state) {
             resolver.cancel();
             fingerprint.clear();
+            // A vanished player must not be mistaken for a still-active one
+            // when a (possibly different) player reappears next.
+            lastActiveService.clear();
             resolved = ResolvedLyric{.state = QStringLiteral("filtered"),
                                      .switchingProvider = {}};
             publish(std::nullopt, resolved);
@@ -403,7 +412,13 @@ int main(int argc, char **argv)
                 ? searching.availableProviders.value(0) : searching.preferredProvider;
             resolved = searching;
             publish(state, resolved);
-            resolver.resolve(*state);
+            const QString trigger = firstResolvePending
+                ? QStringLiteral("startup")
+                : (state->service != lastActiveService ? QStringLiteral("player-changed")
+                                                        : QStringLiteral("track-changed"));
+            firstResolvePending = false;
+            lastActiveService = state->service;
+            resolver.resolve(*state, trigger);
             return;
         }
         if (resolved.ref) {
@@ -434,10 +449,10 @@ int main(int argc, char **argv)
         // retries the preferred provider when its cooldown has expired. The
         // player emits this once for each detected end-to-start wrap, so
         // progress polls and ordinary seeks cannot create a retry loop.
-        resolver.resolve(*state);
+        resolver.resolve(*state, QStringLiteral("replay"));
     });
 
-    const auto forceResolve = [&](const MprisState &state) {
+    const auto forceResolve = [&](const MprisState &state, const QString &trigger) {
         std::optional<ResolvedLyric> existing;
         if (resolved.state == QStringLiteral("ok") && resolved.ref
             && !resolved.document.lines.isEmpty()) {
@@ -462,7 +477,7 @@ int main(int argc, char **argv)
         resolved.availableProviders = available;
         resolved.switchingProvider = resolved.effectivePreferredProvider;
         publish(state, resolved);
-        resolver.resolve(state, {.force = true, .existing = std::move(existing)});
+        resolver.resolve(state, {.force = true, .existing = std::move(existing), .trigger = trigger});
     };
     const auto republishCurrent = [&] {
         const auto state = manager.activeState();

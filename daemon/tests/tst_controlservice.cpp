@@ -8,6 +8,7 @@
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
 #include <QDBusReply>
+#include <QHash>
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QTemporaryDir>
@@ -95,7 +96,7 @@ private Q_SLOTS:
         int publications = 0;
         std::optional<MprisState> current;
         ControlService service(store, resolver, [&] { return current; },
-                               [](const MprisState &) {}, {}, [&] { ++publications; });
+                               [](const MprisState &, const QString &) {}, {}, [&] { ++publications; });
 
         QCOMPARE(service.AdjustOffset(QString(), 500), QString());
         QCOMPARE(store.globalOffsetMs(), 500);
@@ -124,7 +125,7 @@ private Q_SLOTS:
         current.title = QStringLiteral("song");
         ControlService service(
             store, resolver, [&] { return std::optional<MprisState>(current); },
-            [](const MprisState &) {}, {}, {},
+            [](const MprisState &, const QString &) {}, {}, {},
             {QStringLiteral("local"), QStringLiteral("netease"), QStringLiteral("amll")});
 
         QCOMPARE(service.AvailableProviders(),
@@ -149,9 +150,13 @@ private Q_SLOTS:
         current.artists = {QStringLiteral("artist")};
         int requests = 0;
         int publications = 0;
+        QStringList triggers;
         const TrackRef currentRef{QStringLiteral("netease"), QStringLiteral("id"), 1.0};
         ControlService service(store, resolver, [&] { return std::optional<MprisState>(current); },
-                               [&](const MprisState &) { ++requests; },
+                               [&](const MprisState &, const QString &trigger) {
+                                   ++requests;
+                                   triggers.append(trigger);
+                               },
                                [&] { return std::optional<TrackRef>(currentRef); },
                                [&] { ++publications; });
         auto bus = QDBusConnection::sessionBus();
@@ -181,6 +186,7 @@ private Q_SLOTS:
         QCOMPARE(store.preferredProvider(current.fingerprint),
                  std::optional<QString>(QStringLiteral("amll")));
         QCOMPARE(requests, 1);
+        QCOMPARE(triggers.last(), QStringLiteral("set-preferred"));
 
         QDBusReply<QString> unavailable = interface.call(
             QStringLiteral("SetPreferredProvider"), current.fingerprint, QStringLiteral("missing"));
@@ -193,6 +199,7 @@ private Q_SLOTS:
         QVERIFY(research.isValid());
         QCOMPARE(research.value(), QString());
         QCOMPARE(requests, 2);
+        QCOMPARE(triggers.last(), QStringLiteral("research"));
 
         QDBusReply<QString> clear = interface.call(
             QStringLiteral("ClearPreferredProvider"), current.fingerprint);
@@ -200,6 +207,7 @@ private Q_SLOTS:
         QCOMPARE(clear.value(), QString());
         QVERIFY(!store.preferredProvider(current.fingerprint));
         QCOMPARE(requests, 3);
+        QCOMPARE(triggers.last(), QStringLiteral("clear-preferred"));
 
         QDBusReply<QString> adjustOne = interface.call(
             QStringLiteral("AdjustOffset"), current.fingerprint, 500);
@@ -243,9 +251,13 @@ private Q_SLOTS:
         current.title = QStringLiteral("song");
         int requests = 0;
         int publications = 0;
+        QHash<QString, int> triggerCounts;
         const TrackRef currentRef{QStringLiteral("netease"), QStringLiteral("id"), 1.0};
         ControlService service(store, resolver, [&] { return std::optional<MprisState>(current); },
-                               [&](const MprisState &) { ++requests; },
+                               [&](const MprisState &, const QString &trigger) {
+                                   ++requests;
+                                   ++triggerCounts[trigger];
+                               },
                                [&] { return std::optional<TrackRef>(currentRef); },
                                [&] { ++publications; });
         auto bus = QDBusConnection::sessionBus();
@@ -298,6 +310,12 @@ private Q_SLOTS:
         QCOMPARE(store.globalOffsetMs(), 0);
         QCOMPARE(requests, 60);
         QCOMPARE(publications, 60);
+        // 20 iterations x {SetPreferredProvider, ClearPreferredProvider,
+        // Research}; order is not guaranteed under concurrent dispatch, so
+        // assert per-trigger counts instead of a sequence.
+        QCOMPARE(triggerCounts.value(QStringLiteral("set-preferred")), 20);
+        QCOMPARE(triggerCounts.value(QStringLiteral("clear-preferred")), 20);
+        QCOMPARE(triggerCounts.value(QStringLiteral("research")), 20);
     }
 
     void preferenceWriteFailureIsReturnedWithoutStartingAResolve()
@@ -313,7 +331,7 @@ private Q_SLOTS:
         current.title = QStringLiteral("song");
         int requests = 0;
         ControlService service(store, resolver, [&] { return std::optional<MprisState>(current); },
-                               [&](const MprisState &) { ++requests; });
+                               [&](const MprisState &, const QString &) { ++requests; });
         const QString connectionName = QStringLiteral("control-fault-%1")
             .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
         {

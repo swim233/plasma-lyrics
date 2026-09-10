@@ -411,6 +411,23 @@ std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked,
     return *best;
 }
 
+QString candidateRejectionReason(const RankedCandidate &candidate)
+{
+    if (!candidate.score.rejectionReason.isEmpty()) {
+        return candidate.score.rejectionReason;
+    }
+    if (candidate.score.title < 0.55) {
+        return QStringLiteral("title-threshold");
+    }
+    if (candidate.score.total < 0.58) {
+        return QStringLiteral("total-threshold");
+    }
+    if (!passesAliasArtistGate(candidate)) {
+        return QStringLiteral("alias-artist-threshold");
+    }
+    return QString();
+}
+
 QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates,
                      bool allowLocalizedFallback, bool platformKnown, MatchPolicy policy)
 {
@@ -438,14 +455,11 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
                        ? QStringLiteral("normal")
                        : item.score.versionTier == VersionTier::OneSided
                            ? QStringLiteral("one-sided") : QStringLiteral("conflict"));
-        if (!item.score.rejectionReason.isEmpty()) {
-            stream << " rejected=" << item.score.rejectionReason;
-        } else if (item.score.title < 0.55) {
-            stream << " rejected=title-threshold";
-        } else if (item.score.total < 0.58) {
-            stream << " rejected=total-threshold";
-        } else if (!passesAliasArtistGate(item)) {
-            stream << " rejected=alias-artist-threshold";
+        // Single source of truth for the classification, shared with
+        // Resolver's "search ... rejected=" log field -- keeps the two from
+        // drifting apart (see candidateRejectionReason()).
+        if (const QString rejectionReason = candidateRejectionReason(item); !rejectionReason.isEmpty()) {
+            stream << " rejected=" << rejectionReason;
         }
         stream << '\n';
     }

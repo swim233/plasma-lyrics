@@ -84,7 +84,7 @@ QString ControlService::SetPreferredProvider(const QString &expectedFingerprint,
         log(QStringLiteral("preference-save-failed"));
         return QStringLiteral("preference-save-failed");
     }
-    m_resolveCurrent(*state);
+    m_resolveCurrent(*state, QStringLiteral("set-preferred"));
     log(QStringLiteral("ok"));
     return {};
 }
@@ -106,7 +106,7 @@ QString ControlService::ClearPreferredProvider(const QString &expectedFingerprin
         log(QStringLiteral("preference-clear-failed"));
         return QStringLiteral("preference-clear-failed");
     }
-    m_resolveCurrent(*state);
+    m_resolveCurrent(*state, QStringLiteral("clear-preferred"));
     log(QStringLiteral("ok"));
     return {};
 }
@@ -124,7 +124,7 @@ QString ControlService::Research(const QString &expectedFingerprint)
         log(error);
         return error;
     }
-    m_resolveCurrent(*state);
+    m_resolveCurrent(*state, QStringLiteral("research"));
     log(QStringLiteral("ok"));
     return {};
 }

@@ -2,12 +2,15 @@
 
 #include "core/lyric/lrcparser.h"
 #include "core/lyric/timeline.h"
+#include "core/log/logformat.h"
 #include "core/match/matcher.h"
 #include "core/store/lyricstore.h"
+#include "logging.h"
 
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QPointer>
 #include <QSet>
@@ -29,6 +32,22 @@ struct Resolver::Request {
     QString manualPreference;
     QString effectivePreference;
     QSet<QString> attemptedProviderVersions;
+    QString trigger;
+    QElapsedTimer timer;
+    // Provider ids whose search() this request actually invoked, in order.
+    // Populated only at the searchPrepared() call site -- a provider skipped
+    // via the fresh-miss cooldown or an already-mapped cache hit never runs
+    // its search and so never appears here.
+    QStringList tried;
+    // Set whenever this request starts showing already-known content while
+    // it (re)tries a provider in the background (see logRetainedStart()).
+    // Used only to build the exhaustion trailer for the paths that publish
+    // that content via a direct finish() rather than through `existing`
+    // (which is reserved for the forceResolve keepExisting contract, where
+    // the retry's final outcome -- success or exhaustion -- is the request's
+    // only publish).
+    std::optional<TrackRef> retainedRef;
+    int retainedLines = 0;
 };
 
 namespace {
@@ -46,6 +65,11 @@ QString localMediaSource(const QString &mediaSrc, const QString &url)
     if (existingLocalFile(mediaSrc)) return mediaSrc;
     if (existingLocalFile(url)) return url;
     return {};
+}
+
+QString joinOrDash(const QStringList &values)
+{
+    return values.isEmpty() ? QStringLiteral("-") : values.join(QLatin1Char(','));
 }
 
 } // namespace
@@ -174,9 +198,64 @@ QStringList Resolver::legacyWaylyricsIds(const MprisState &state)
 
 void Resolver::finish(const std::shared_ptr<Request> &request, ResolvedLyric lyric)
 {
-    if (request->generation == m_generation) {
-        Q_EMIT resolved(request->state.fingerprint, lyric);
+    if (request->generation != m_generation) {
+        qCDebug(lcResolver).noquote() << QStringLiteral("#%1 superseded").arg(request->generation);
+        return;
     }
+    Q_EMIT resolved(request->state.fingerprint, lyric);
+}
+
+QString Resolver::terminalLine(const std::shared_ptr<Request> &request, const QString &state,
+                               const std::optional<TrackRef> &ref, int lines,
+                               const QString &from) const
+{
+    QString line = QStringLiteral("#%1 state=%2").arg(request->generation).arg(state);
+    if (state == QStringLiteral("filtered")) {
+        return line + QStringLiteral(" elapsed=%1ms").arg(request->timer.elapsed());
+    }
+    if (!from.isEmpty()) {
+        line += QStringLiteral(" from=%1").arg(from);
+        if (ref) {
+            line += QStringLiteral(" source=%1/%2").arg(ref->provider, ref->trackId);
+        }
+        line += QStringLiteral(" lines=%1").arg(lines);
+    }
+    // The provider that actually produced a successful source is excluded
+    // from tried -- it was searched too, but "tried" here means "searched
+    // and did not end up as the source". Every other outcome (cache/
+    // override/legacy/retained/failure) shows the full invoked list as-is:
+    // none of those providers contributed the result.
+    QStringList tried = request->tried;
+    if (from == QStringLiteral("provider") && ref) {
+        tried.removeAll(ref->provider);
+    }
+    const bool alwaysShowTried = state == QStringLiteral("not-found")
+        || state == QStringLiteral("network-error") || state == QStringLiteral("no-lyric");
+    if (!tried.isEmpty()) {
+        line += QStringLiteral(" tried=%1").arg(tried.join(QLatin1Char(',')));
+    } else if (alwaysShowTried) {
+        line += QStringLiteral(" tried=-");
+    }
+    line += QStringLiteral(" elapsed=%1ms").arg(request->timer.elapsed());
+    return line;
+}
+
+void Resolver::finishTerminal(const std::shared_ptr<Request> &request, ResolvedLyric lyric,
+                              const QString &from)
+{
+    qCInfo(lcResolver).noquote() << terminalLine(request, lyric.state, lyric.ref,
+                                                 lyric.document.lines.size(), from);
+    finish(request, std::move(lyric));
+}
+
+void Resolver::logRetainedStart(const std::shared_ptr<Request> &request, const TrackRef &ref, int lines)
+{
+    QStringList retrying;
+    for (auto *provider : request->providers) {
+        if (provider) retrying.append(provider->id());
+    }
+    qCInfo(lcResolver).noquote() << QStringLiteral("#%1 retained: source=%2/%3 lines=%4 retrying=%5")
+        .arg(request->generation).arg(ref.provider, ref.trackId).arg(lines).arg(joinOrDash(retrying));
 }
 
 void Resolver::cancel()
@@ -184,17 +263,19 @@ void Resolver::cancel()
     ++m_generation;
 }
 
-void Resolver::resolve(const MprisState &state)
+void Resolver::resolve(const MprisState &state, QString trigger)
 {
-    resolve(state, ResolveOptions{});
+    resolve(state, ResolveOptions{.force = false, .existing = std::nullopt, .trigger = std::move(trigger)});
 }
 
 void Resolver::resolve(const MprisState &state, ResolveOptions options)
 {
     const auto request = std::make_shared<Request>();
+    request->timer.start();
     request->generation = ++m_generation;
     request->state = state;
     request->force = options.force;
+    request->trigger = options.trigger;
     request->keepExisting = options.existing
         && options.existing->state == QStringLiteral("ok")
         && options.existing->ref.has_value()
@@ -205,13 +286,27 @@ void Resolver::resolve(const MprisState &state, ResolveOptions options)
     if (!request->providers.isEmpty()) {
         request->effectivePreference = request->providers.first()->id();
     }
-    qInfo().noquote() << QStringLiteral("resolve: fingerprint=%1 platform=%2 music=%3")
-                             .arg(state.fingerprint,
-                                  state.platform.isEmpty() ? QStringLiteral("unknown") : state.platform,
-                                  state.music ? QStringLiteral("true") : QStringLiteral("false"));
+    const QString identity = state.identity.isEmpty() ? QStringLiteral("unknown") : state.identity;
+    const QString platform = state.platform.isEmpty() ? QStringLiteral("unknown") : state.platform;
+    QString headerLine = QStringLiteral(
+        "#%1 resolve: trigger=%2 identity=%3 service=%4 fingerprint=%5 platform=%6 music=%7")
+            .arg(request->generation)
+            .arg(request->trigger, quoted(identity), state.service, quoted(state.fingerprint),
+                 platform, state.music ? QStringLiteral("true") : QStringLiteral("false"));
+    if (state.music) {
+        // A non-music source (e.g. a browser tab playing video) must not put
+        // its title into the journal at info level by default -- only the
+        // music path names the track here. Browser integrations commonly
+        // report a single empty-string artist ([""]) rather than an empty
+        // list; MprisPolicy::isMusic treats that the same as "no artist".
+        const QString firstArtist = state.artists.value(0);
+        const QString artist = firstArtist.isEmpty() ? QStringLiteral("-") : firstArtist;
+        headerLine += QStringLiteral(" title=%1 artist=%2").arg(quoted(state.title), quoted(artist));
+    }
+    qCInfo(lcResolver).noquote() << headerLine;
     if (!state.music) {
-        qInfo() << "state=filtered";
-        finish(request, resolvedLyric(request, QStringLiteral("filtered"), std::nullopt));
+        finishTerminal(request, resolvedLyric(request, QStringLiteral("filtered"), std::nullopt),
+                      QString());
         return;
     }
     if (!request->force) {
@@ -220,19 +315,27 @@ void Resolver::resolve(const MprisState &state, ResolveOptions options)
             : std::nullopt;
         if (preferredMapped) {
             if (const auto override = overridden(*preferredMapped)) {
+                qCDebug(lcResolver).noquote() << QStringLiteral("#%1 override hit: %2/%3 lines=%4")
+                    .arg(request->generation).arg(preferredMapped->provider, preferredMapped->trackId)
+                    .arg(override->lines.size());
                 if (!override->lines.isEmpty()) {
-                    mapFingerprint(state.fingerprint, *preferredMapped);
-                    finish(request, resolvedLyric(request, QStringLiteral("ok"),
-                                                  *preferredMapped, *override));
+                    mapFingerprint(request->generation, state.fingerprint, *preferredMapped);
+                    finishTerminal(request, resolvedLyric(request, QStringLiteral("ok"),
+                                                          *preferredMapped, *override),
+                                  QStringLiteral("override"));
                     return;
                 }
             }
             if (const auto cached = m_store.lyric(*preferredMapped)) {
                 auto display = forDisplay(*cached, *preferredMapped);
+                qCDebug(lcResolver).noquote() << QStringLiteral("#%1 cache hit: %2/%3 lines=%4")
+                    .arg(request->generation).arg(preferredMapped->provider, preferredMapped->trackId)
+                    .arg(display.lines.size());
                 if (!display.lines.isEmpty()) {
-                    mapFingerprint(state.fingerprint, *preferredMapped);
-                    finish(request, resolvedLyric(request, QStringLiteral("ok"),
-                                                  *preferredMapped, std::move(display)));
+                    mapFingerprint(request->generation, state.fingerprint, *preferredMapped);
+                    finishTerminal(request, resolvedLyric(request, QStringLiteral("ok"),
+                                                          *preferredMapped, std::move(display)),
+                                  QStringLiteral("cache"));
                     return;
                 }
             }
@@ -244,15 +347,21 @@ void Resolver::resolve(const MprisState &state, ResolveOptions options)
             if (const auto override = overridden(*mapped)) {
                 const QString resultState = override->lines.isEmpty()
                     ? QStringLiteral("no-lyric") : QStringLiteral("ok");
-                qInfo().noquote() << QStringLiteral("override hit: %1/%2 lines=%3")
-                                         .arg(mapped->provider, mapped->trackId)
-                                         .arg(override->lines.size());
-                qInfo().noquote() << QStringLiteral("state=") + resultState;
+                qCDebug(lcResolver).noquote() << QStringLiteral("#%1 override hit: %2/%3 lines=%4")
+                    .arg(request->generation).arg(mapped->provider, mapped->trackId)
+                    .arg(override->lines.size());
                 if (!override->lines.isEmpty()) {
-                    finish(request, resolvedLyric(request, resultState, *mapped, *override));
-                    if (mapped->provider == request->effectivePreference) return;
+                    if (mapped->provider == request->effectivePreference) {
+                        finishTerminal(request, resolvedLyric(request, resultState, *mapped, *override),
+                                      QStringLiteral("override"));
+                        return;
+                    }
                     request->keepExisting = true;
                     request->providers = searchChain(request->effectivePreference).mid(0, 1);
+                    request->retainedRef = *mapped;
+                    request->retainedLines = override->lines.size();
+                    logRetainedStart(request, *mapped, request->retainedLines);
+                    finish(request, resolvedLyric(request, resultState, *mapped, *override));
                     publishedExisting = true;
                 }
             }
@@ -261,25 +370,32 @@ void Resolver::resolve(const MprisState &state, ResolveOptions options)
                     auto display = forDisplay(*cached, *mapped);
                     const QString resultState = display.lines.isEmpty()
                         ? QStringLiteral("no-lyric") : QStringLiteral("ok");
-                    qInfo().noquote() << QStringLiteral("cache hit: %1/%2 lines=%3")
-                                             .arg(mapped->provider, mapped->trackId)
-                                             .arg(display.lines.size());
-                    qInfo().noquote() << QStringLiteral("state=") + resultState;
+                    qCDebug(lcResolver).noquote() << QStringLiteral("#%1 cache hit: %2/%3 lines=%4")
+                        .arg(request->generation).arg(mapped->provider, mapped->trackId)
+                        .arg(display.lines.size());
                     if (!display.lines.isEmpty()) {
-                        finish(request, resolvedLyric(request, resultState, *mapped, display));
-                        if (mapped->provider == request->effectivePreference) return;
+                        if (mapped->provider == request->effectivePreference) {
+                            finishTerminal(request, resolvedLyric(request, resultState, *mapped, display),
+                                          QStringLiteral("cache"));
+                            return;
+                        }
                         request->keepExisting = true;
                         request->providers = searchChain(request->effectivePreference).mid(0, 1);
+                        request->retainedRef = *mapped;
+                        request->retainedLines = display.lines.size();
+                        logRetainedStart(request, *mapped, request->retainedLines);
+                        finish(request, resolvedLyric(request, resultState, *mapped, display));
                         publishedExisting = true;
                     }
                 }
             }
             if (!publishedExisting) {
-                qInfo().noquote() << QStringLiteral("cache lyric missing: %1/%2")
-                                         .arg(mapped->provider, mapped->trackId);
+                qCDebug(lcResolver).noquote() << QStringLiteral("#%1 cache lyric missing: %2/%3")
+                    .arg(request->generation).arg(mapped->provider, mapped->trackId);
             }
         } else {
-            qInfo().noquote() << QStringLiteral("cache mapping missing: ") + state.fingerprint;
+            qCDebug(lcResolver).noquote() << QStringLiteral("#%1 cache mapping missing: fingerprint=%2")
+                .arg(request->generation).arg(quoted(state.fingerprint));
         }
     }
 
@@ -287,24 +403,38 @@ void Resolver::resolve(const MprisState &state, ResolveOptions options)
         for (const auto &legacyId : legacyWaylyricsIds(state)) {
             const TrackRef legacy{QStringLiteral("waylyrics"), legacyId, 1.0};
             if (const auto imported = m_store.lyric(legacy)) {
-                mapFingerprint(state.fingerprint, legacy);
+                mapFingerprint(request->generation, state.fingerprint, legacy);
                 auto display = forDisplay(*imported, legacy);
                 const QString resultState = display.lines.isEmpty()
                     ? QStringLiteral("no-lyric") : QStringLiteral("ok");
-                qInfo().noquote() << QStringLiteral("cache hit: %1/%2 lines=%3")
-                                         .arg(legacy.provider, legacy.trackId)
-                                         .arg(display.lines.size());
-                qInfo().noquote() << QStringLiteral("state=") + resultState;
+                qCDebug(lcResolver).noquote() << QStringLiteral("#%1 cache hit: %2/%3 lines=%4")
+                    .arg(request->generation).arg(legacy.provider, legacy.trackId)
+                    .arg(display.lines.size());
                 if (!display.lines.isEmpty()) {
-                    finish(request, resolvedLyric(request, resultState, legacy, display));
                     request->keepExisting = true;
                     request->providers = searchChain(request->effectivePreference).mid(0, 1);
+                    request->retainedRef = legacy;
+                    request->retainedLines = display.lines.size();
+                    logRetainedStart(request, legacy, request->retainedLines);
+                    finish(request, resolvedLyric(request, resultState, legacy, display));
                 }
                 break;
             }
         }
     }
-    qInfo() << "cache miss";
+
+    // A forced request that is keeping an already-displayed lyric (a manual
+    // "research"/preference change) never runs the cache/override lookups
+    // above, so it announces its own retained content here instead.
+    if (request->force && request->keepExisting && request->existing && request->existing->ref) {
+        request->retainedRef = request->existing->ref;
+        request->retainedLines = request->existing->document.lines.size();
+        logRetainedStart(request, *request->retainedRef, request->retainedLines);
+    }
+
+    if (!request->keepExisting) {
+        qCInfo(lcResolver).noquote() << QStringLiteral("#%1 cache miss").arg(request->generation);
+    }
 
     // kde:mediaSrc is more specific when present, but it is a KDE extension.
     // Standard MPRIS players normally expose the same local file only through
@@ -321,8 +451,9 @@ void Resolver::recordProviderFailure(const std::shared_ptr<Request> &request,
 {
     if (!m_store.recordProviderMiss(request->state.fingerprint, provider->id(), reason,
                                     cacheVersion)) {
-        qWarning().noquote() << QStringLiteral("provider miss record failed: fingerprint=%1 provider=%2 reason=%3")
-                                    .arg(request->state.fingerprint, provider->id(), reason);
+        qCWarning(lcResolver).noquote() << QStringLiteral(
+            "#%1 provider miss record failed: fingerprint=%2 provider=%3 reason=%4")
+                .arg(request->generation).arg(quoted(request->state.fingerprint), provider->id(), reason);
     }
 }
 
@@ -338,32 +469,34 @@ bool Resolver::retryProviderIfIndexChanged(const std::shared_ptr<Request> &reque
         || request->attemptedProviderVersions.contains(currentAttempt)) {
         return false;
     }
-    qInfo().noquote() << QStringLiteral("provider index changed during resolve: provider=%1 old=%2 new=%3; retrying")
-                             .arg(provider->id(), attemptedCacheVersion, currentCacheVersion);
+    qCDebug(lcResolver).noquote() << QStringLiteral(
+        "#%1 provider index changed during resolve: provider=%2 old=%3 new=%4; retrying")
+            .arg(request->generation).arg(provider->id(), attemptedCacheVersion, currentCacheVersion);
     request->providers.insert(request->providerIndex, provider);
     continueWithProvider(request);
     return true;
 }
 
-void Resolver::mapFingerprint(const QString &fingerprint, const TrackRef &ref)
+void Resolver::mapFingerprint(quint64 generation, const QString &fingerprint, const TrackRef &ref)
 {
     if (!m_store.mapFingerprint(fingerprint, ref)) {
-        qWarning().noquote() << QStringLiteral("cache map failed: fingerprint=%1 ref=%2/%3")
-                                    .arg(fingerprint, ref.provider, ref.trackId);
+        qCWarning(lcResolver).noquote() << QStringLiteral("#%1 cache map failed: fingerprint=%2 ref=%3/%4")
+                                    .arg(generation).arg(quoted(fingerprint), ref.provider, ref.trackId);
     }
 }
 
-void Resolver::clearProviderMiss(const QString &fingerprint, const QString &provider)
+void Resolver::clearProviderMiss(quint64 generation, const QString &fingerprint, const QString &provider)
 {
     if (!m_store.clearProviderMiss(fingerprint, provider)) {
-        qWarning().noquote() << QStringLiteral("provider miss clear failed: fingerprint=%1 provider=%2")
-                                    .arg(fingerprint, provider);
+        qCWarning(lcResolver).noquote() << QStringLiteral("#%1 provider miss clear failed: fingerprint=%2 provider=%3")
+                                    .arg(generation).arg(quoted(fingerprint), provider);
     }
 }
 
 void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
 {
     if (request->generation != m_generation) {
+        qCDebug(lcResolver).noquote() << QStringLiteral("#%1 superseded").arg(request->generation);
         return;
     }
     Provider *provider = nullptr;
@@ -394,7 +527,15 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
                     && retained.ref->provider != request->effectivePreference;
                 retained.availableProviders = availableProviders();
                 retained.switchingProvider.clear();
-                finish(request, std::move(retained));
+                finishTerminal(request, std::move(retained), QStringLiteral("retained"));
+            } else if (request->retainedRef) {
+                // Already published via the mid-flight finish() above (or by
+                // main.cpp for the forced case): log the trailer only, do not
+                // re-emit identical content.
+                qCInfo(lcResolver).noquote() << terminalLine(request, QStringLiteral("ok"),
+                                                              request->retainedRef,
+                                                              request->retainedLines,
+                                                              QStringLiteral("retained"));
             }
             return;
         }
@@ -402,8 +543,7 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
             ? QStringLiteral("network-error")
             : request->sawEmptyLyric ? QStringLiteral("no-lyric")
                                      : QStringLiteral("not-found");
-        qInfo().noquote() << QStringLiteral("state=") + resultState;
-        finish(request, resolvedLyric(request, resultState, std::nullopt));
+        finishTerminal(request, resolvedLyric(request, resultState, std::nullopt), QString());
         return;
     }
 
@@ -419,8 +559,9 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
             const qint64 ttl = miss->reason == QStringLiteral("network")
                 ? networkMissTtlSeconds : noCandidateMissTtlSeconds;
             if (now - miss->triedAt < ttl) {
-                qInfo().noquote() << QStringLiteral("fresh provider miss: provider=%1 reason=%2")
-                                         .arg(provider->id(), miss->reason);
+                qCInfo(lcResolver).noquote() << QStringLiteral(
+                    "#%1 fresh provider miss: provider=%2 reason=%3")
+                        .arg(request->generation).arg(provider->id(), miss->reason);
                 request->networkFailed |= miss->reason == QStringLiteral("network");
                 request->sawEmptyLyric |= miss->reason == QStringLiteral("empty");
                 continueWithProvider(request);
@@ -431,9 +572,12 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
             if (const auto cached = m_store.lyric(*mapped)) {
                 auto display = forDisplay(*cached, *mapped);
                 if (!display.lines.isEmpty()) {
-                    mapFingerprint(request->state.fingerprint, *mapped);
-                    finish(request, resolvedLyric(request, QStringLiteral("ok"), *mapped,
-                                                  std::move(display)));
+                    mapFingerprint(request->generation, request->state.fingerprint, *mapped);
+                    qCDebug(lcResolver).noquote() << QStringLiteral("#%1 cache hit: %2/%3 lines=%4")
+                        .arg(request->generation).arg(mapped->provider, mapped->trackId)
+                        .arg(display.lines.size());
+                    finishTerminal(request, resolvedLyric(request, QStringLiteral("ok"), *mapped,
+                                                          std::move(display)), QStringLiteral("cache"));
                     return;
                 }
             }
@@ -442,16 +586,23 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
 
     const QPointer<Resolver> self(this);
     const QString searchCacheVersion = providerCacheVersion;
+    request->tried.append(provider->id());
+    QElapsedTimer searchTimer;
+    searchTimer.start();
     provider->searchPrepared(request->query, searchCacheVersion,
-                     [self, request, provider, searchCacheVersion](ProviderSearchResult result) mutable {
+                     [self, request, provider, searchCacheVersion, searchTimer](ProviderSearchResult result) mutable {
         if (!self || request->generation != self->m_generation) {
+            qCDebug(lcResolver).noquote() << QStringLiteral("#%1 superseded").arg(request->generation);
             return;
         }
+        const qint64 searchElapsed = searchTimer.elapsed();
         const QString resultCacheVersion = result.cacheVersion.isEmpty()
             ? searchCacheVersion : result.cacheVersion;
         if (!result.error.isEmpty()) {
-            qInfo().noquote() << QStringLiteral("search failed: %1: %2")
-                                     .arg(provider->id(), result.error);
+            qCInfo(lcResolver).noquote() << QStringLiteral(
+                "#%1 search failed: provider=%2 elapsed=%3ms error=%4")
+                    .arg(request->generation).arg(provider->id())
+                    .arg(searchElapsed).arg(quoted(result.error));
             request->networkFailed |= result.transportFailed;
             if (result.cacheableMiss) {
                 self->recordProviderFailure(request, provider,
@@ -464,14 +615,31 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
             self->continueWithProvider(request);
             return;
         }
-        qInfo().noquote() << explainMatch(request->query, result.candidates,
-                                           request->state.platform == QStringLiteral("apple"), true,
-                                           provider->matchPolicy());
+        if (lcResolver().isDebugEnabled()) {
+            const QString explanation = explainMatch(request->query, result.candidates,
+                                               request->state.platform == QStringLiteral("apple"), true,
+                                               provider->matchPolicy());
+            const auto explanationLines = explanation.split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+            for (const auto &explanationLine : explanationLines) {
+                qCDebug(lcResolver).noquote() << QStringLiteral("#%1 %2")
+                    .arg(request->generation).arg(explanationLine);
+            }
+        }
         const auto ranked = rankCandidates(request->query, result.candidates,
                                            provider->matchPolicy());
         const auto chosen = chooseMatch(ranked,
                                         request->state.platform == QStringLiteral("apple"));
         if (!chosen) {
+            QString searchLine = QStringLiteral("#%1 search provider=%2 candidates=%3 selected=none")
+                .arg(request->generation).arg(provider->id()).arg(result.candidates.size());
+            if (!ranked.isEmpty()) {
+                const QString reason = candidateRejectionReason(ranked.first());
+                searchLine += QStringLiteral(" best=%1 rejected=%2")
+                    .arg(ranked.first().candidate.trackId,
+                         reason.isEmpty() ? QStringLiteral("unknown") : reason);
+            }
+            searchLine += QStringLiteral(" elapsed=%1ms").arg(searchElapsed);
+            qCInfo(lcResolver).noquote() << searchLine;
             if (result.cacheableMiss) {
                 self->recordProviderFailure(request, provider, QStringLiteral("no-candidate"),
                                             resultCacheVersion);
@@ -481,21 +649,32 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
             self->continueWithProvider(request);
             return;
         }
+        qCInfo(lcResolver).noquote() << QStringLiteral(
+            "#%1 search provider=%2 candidates=%3 selected=%4 score=%5 elapsed=%6ms")
+                .arg(request->generation).arg(provider->id()).arg(result.candidates.size())
+                .arg(chosen->candidate.trackId, QString::number(chosen->score.total, 'f', 3))
+                .arg(searchElapsed);
         const TrackRef ref{provider->id(), chosen->candidate.trackId, chosen->score.total};
         const QString contentId = chosen->candidate.contentId.isEmpty()
             ? chosen->candidate.trackId : chosen->candidate.contentId;
         const bool cacheableMiss = result.cacheableMiss;
+        QElapsedTimer fetchTimer;
+        fetchTimer.start();
         provider->fetch(contentId,
                         [self, request, ref, provider,
-                         resultCacheVersion, cacheableMiss](ProviderFetchResult result) mutable {
+                         resultCacheVersion, cacheableMiss, fetchTimer](ProviderFetchResult result) mutable {
             if (!self || request->generation != self->m_generation) {
+                qCDebug(lcResolver).noquote() << QStringLiteral("#%1 superseded").arg(request->generation);
                 return;
             }
+            const qint64 fetchElapsed = fetchTimer.elapsed();
             if (!result.document) {
-                qInfo().noquote() << QStringLiteral("fetch failed: %1/%2: %3")
-                                         .arg(ref.provider, ref.trackId,
-                                              result.error.isEmpty()
-                                                  ? QStringLiteral("unknown error") : result.error);
+                qCInfo(lcResolver).noquote() << QStringLiteral(
+                    "#%1 fetch failed: source=%2/%3 elapsed=%4ms error=%5")
+                        .arg(request->generation).arg(ref.provider, ref.trackId)
+                        .arg(fetchElapsed)
+                        .arg(quoted(result.error.isEmpty()
+                                        ? QStringLiteral("unknown error") : result.error));
                 request->networkFailed |= result.transportFailed;
                 if (cacheableMiss) {
                     self->recordProviderFailure(request, provider,
@@ -508,10 +687,13 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
                 self->continueWithProvider(request);
                 return;
             }
-            qInfo().noquote() << QStringLiteral("fetched: lines=%1 hasWords=%2")
-                                     .arg(result.document->lines.size())
-                                     .arg(result.document->hasWords
-                                              ? QStringLiteral("true") : QStringLiteral("false"));
+            qCInfo(lcResolver).noquote() << QStringLiteral(
+                "#%1 fetched: %2/%3 lines=%4 hasWords=%5 elapsed=%6ms")
+                    .arg(request->generation).arg(ref.provider, ref.trackId)
+                    .arg(result.document->lines.size())
+                    .arg(result.document->hasWords
+                             ? QStringLiteral("true") : QStringLiteral("false"))
+                    .arg(fetchElapsed);
             if (result.document->lines.isEmpty()) {
                 request->sawEmptyLyric = true;
                 if (cacheableMiss) {
@@ -536,17 +718,16 @@ void Resolver::continueWithProvider(const std::shared_ptr<Request> &request)
                 return;
             }
             if (!self->m_store.putLyric(ref, *result.document)) {
-                qWarning().noquote() << QStringLiteral("cache put failed: %1/%2")
-                                            .arg(ref.provider, ref.trackId);
+                qCWarning(lcResolver).noquote() << QStringLiteral("#%1 cache put failed: %2/%3")
+                                            .arg(request->generation).arg(ref.provider, ref.trackId);
             }
-            self->mapFingerprint(request->state.fingerprint, ref);
-            self->clearProviderMiss(request->state.fingerprint, ref.provider);
-            qInfo().noquote() << QStringLiteral("after filterLeadingCredits: lines=%1")
-                                     .arg(finalDocument.lines.size());
-            const QString resultState = QStringLiteral("ok");
-            qInfo().noquote() << QStringLiteral("state=") + resultState;
-            self->finish(request, self->resolvedLyric(request, resultState, ref,
-                                                      std::move(finalDocument)));
+            self->mapFingerprint(request->generation, request->state.fingerprint, ref);
+            self->clearProviderMiss(request->generation, request->state.fingerprint, ref.provider);
+            qCDebug(lcResolver).noquote() << QStringLiteral("#%1 after filterLeadingCredits: lines=%2")
+                                     .arg(request->generation).arg(finalDocument.lines.size());
+            self->finishTerminal(request, self->resolvedLyric(request, QStringLiteral("ok"), ref,
+                                                              std::move(finalDocument)),
+                                QStringLiteral("provider"));
         });
     });
 }
