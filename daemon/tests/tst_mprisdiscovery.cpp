@@ -283,6 +283,59 @@ private Q_SLOTS:
         QCOMPARE(roundSpy.size(), 0);
     }
 
+    void takeoverLogsPreviousActiveService()
+    {
+        // Regression test for removeService() blanking m_activeService before
+        // calling selectActive(): a handover triggered by the active player
+        // vanishing used to log "from=none" instead of the real previous
+        // service. A genuine second player would need its own D-Bus
+        // connection (registerObject allows only one handler per object path
+        // per connection, and every MPRIS player exports at the same fixed
+        // "/org/mpris/MediaPlayer2" path) -- but opening a second connection
+        // from within this same process deadlocks: a blocking call issued
+        // from the default connection (MprisPlayer::getAll()) can stall the
+        // thread that dispatches the second connection's incoming calls, and
+        // vice versa. Sidestepping that: this fixture registers a *second
+        // service name* on the *same* sessionBus() connection as the first
+        // FakePlayer's, without exporting a second object at the path. Since
+        // QDBusConnection dispatches by (connection, path) and not by which
+        // of the process's own names a message was addressed to, both names
+        // are answered by the same FakePlayer object -- so nameB reports
+        // identical metadata to fakeService and this fixture cannot tell two
+        // real players apart by content. It is only good for what this test
+        // needs: two distinct *service names* that MprisManager tracks as
+        // separate players, to exercise the active-player handover log.
+        MessageCapture capture;
+        MprisManager manager(PolicyConfig{});
+        QSignalSpy activeSpy(&manager, &MprisManager::activeStateChanged);
+        FakePlayer player;
+        QVERIFY(player.announce());
+        QVERIFY(activeSpy.wait());
+
+        // Both being Playing, nameB wins the newest-serial tiebreak in
+        // choosePlayer() and becomes the new active player.
+        const QString nameB = QStringLiteral("org.mpris.MediaPlayer2.tstfakeb");
+        QVERIFY(QDBusConnection::sessionBus().registerService(nameB));
+        QTRY_VERIFY_WITH_TIMEOUT(manager.activeState().has_value()
+                                     && manager.activeState()->service == nameB,
+                                 5000);
+
+        // nameB (the active player) now vanishes; the original fakeService
+        // player is the only one left and must take over.
+        QDBusConnection::sessionBus().unregisterService(nameB);
+        QTRY_VERIFY_WITH_TIMEOUT(manager.activeState().has_value()
+                                     && manager.activeState()->service == QString::fromLatin1(fakeService),
+                                 5000);
+
+        const QString expectedPrefix = QStringLiteral("active player changed from=%1 to=%2")
+                                            .arg(nameB, QString::fromLatin1(fakeService));
+        const auto &messages = capture.messages();
+        const auto hits = std::count_if(messages.cbegin(), messages.cend(), [&expectedPrefix](const QString &m) {
+            return m.startsWith(expectedPrefix);
+        });
+        QCOMPARE(static_cast<int>(hits), 1);
+    }
+
     void filteredLineIsLoggedOncePerServiceFingerprint()
     {
         // Blacklisting the fake service gives a deterministic, always-non-music

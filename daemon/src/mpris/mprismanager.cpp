@@ -44,7 +44,7 @@ MprisManager::MprisManager(PolicyConfig config, QObject *parent)
         }
     });
     m_pollTimer.start();
-    selectActive();
+    selectActive(false, m_activeService);
 }
 
 void MprisManager::onNameOwnerChanged(const QString &service, const QString &oldOwner, const QString &newOwner)
@@ -71,8 +71,10 @@ void MprisManager::addService(const QString &service)
     }
     auto *player = new MprisPlayer(service, this);
     const auto initialState = player->state();
+    const QString identity = initialState.identity.isEmpty()
+        ? QStringLiteral("unknown") : initialState.identity;
     qCInfo(lcMpris).noquote() << QStringLiteral("player appeared service=%1 identity=%2")
-        .arg(service, quoted(initialState.identity));
+        .arg(service, quoted(identity));
     if (initialState.playbackStatus == QStringLiteral("Playing")) {
         m_playingSerials.insert(service, ++m_serial);
     }
@@ -86,7 +88,7 @@ void MprisManager::addService(const QString &service)
         }
     });
     m_players.insert(service, player);
-    selectActive(true);
+    selectActive(true, m_activeService);
 }
 
 void MprisManager::removeService(const QString &service)
@@ -98,10 +100,16 @@ void MprisManager::removeService(const QString &service)
     m_playingSerials.remove(service);
     m_lastFilteredFingerprint.remove(service);
     const bool wasActive = service == m_activeService;
+    // Captured before the clear below so selectActive() can log the real
+    // previous active service (e.g. "from=B") instead of the blanked value
+    // ("from=none") that m_activeService is about to take on. The clear
+    // itself still happens first, unchanged, because choosePlayer() reads
+    // m_activeService directly and its selection logic is not touched here.
+    const QString previous = m_activeService;
     if (wasActive) {
         m_activeService.clear();
     }
-    selectActive(wasActive);
+    selectActive(wasActive, previous);
 }
 
 void MprisManager::onPlayerChanged(const QString &service, bool metadataChanged, bool anchorChanged, bool becamePlaying)
@@ -111,13 +119,13 @@ void MprisManager::onPlayerChanged(const QString &service, bool metadataChanged,
         m_playingSerials.insert(service, ++m_serial);
     }
     const QString previous = m_activeService;
-    selectActive(metadataChanged);
+    selectActive(metadataChanged, previous);
     if (service == m_activeService && previous == m_activeService && (metadataChanged || anchorChanged)) {
         Q_EMIT activeStateChanged(metadataChanged);
     }
 }
 
-void MprisManager::selectActive(bool hintedTrackChange)
+void MprisManager::selectActive(bool hintedTrackChange, const QString previousActiveService)
 {
     QList<MprisState> states;
     states.reserve(m_players.size());
@@ -128,14 +136,20 @@ void MprisManager::selectActive(bool hintedTrackChange)
         const QString reason = MprisPolicy::musicRejectReason(state, m_config);
         if (!reason.isEmpty()) {
             logFilteredOnce(state, reason);
+        } else {
+            // A service judged music again must re-log if it is later
+            // filtered once more, even with the same fingerprint as before.
+            m_lastFilteredFingerprint.remove(state.service);
         }
     }
     const QString selected = MprisPolicy::choosePlayer(states, m_activeService, m_config);
-    if (selected != m_activeService) {
+    if (selected != previousActiveService) {
         qCInfo(lcMpris).noquote() << QStringLiteral("active player changed from=%1 to=%2 players=%3")
-            .arg(m_activeService.isEmpty() ? QStringLiteral("none") : m_activeService,
+            .arg(previousActiveService.isEmpty() ? QStringLiteral("none") : previousActiveService,
                  selected.isEmpty() ? QStringLiteral("none") : selected)
             .arg(m_players.size());
+    }
+    if (selected != m_activeService) {
         m_activeService = selected;
         Q_EMIT activeStateChanged(true);
     } else if (hintedTrackChange && selected.isEmpty()) {
