@@ -99,35 +99,41 @@ bool MprisPolicy::isBlacklisted(const QString &service, const PolicyConfig &conf
 
 bool MprisPolicy::isMusic(const MprisState &state, const PolicyConfig &config)
 {
+    return musicRejectReason(state, config).isEmpty();
+}
+
+QString MprisPolicy::musicRejectReason(const MprisState &state, const PolicyConfig &config)
+{
     if (isBlacklisted(state.service, config)) {
-        return false;
+        return QStringLiteral("blacklist");
     }
     const QString platform = platformFor(state);
     if (!platform.isEmpty()) {
         // A known platform is decided entirely by whether it's checked in
         // settings; an unlisted platform (D-2) falls through to the untouched
         // heuristics below rather than becoming unreachable.
-        return config.enabledPlatforms.contains(platform);
+        return config.enabledPlatforms.contains(platform) ? QString() : QStringLiteral("platform-disabled");
     }
     if (!state.url.isEmpty()) {
         for (const auto &prefix : config.musicUrlPrefixes) {
             if (state.url.startsWith(prefix, Qt::CaseInsensitive)) {
-                return true;
+                return QString();
             }
         }
         if (state.service.contains(QStringLiteral("plasma-browser-integration"))) {
-            return false;
+            return QStringLiteral("browser-non-music");
         }
     }
     if (!config.useMetadataHeuristic) {
-        return true;
+        return QString();
     }
     const auto artists = cleanArtists(state.artists);
-    return !normalizeSearchText(state.title).isEmpty()
+    const bool looksLikeMusic = !normalizeSearchText(state.title).isEmpty()
         && normalizeSearchText(state.title) != QStringLiteral("网易云音乐")
         && !artists.isEmpty()
         && !(artists.size() == 1 && artists.first().isEmpty())
         && state.lengthUs > 0;
+    return looksLikeMusic ? QString() : QStringLiteral("metadata-heuristic");
 }
 
 QString MprisPolicy::choosePlayer(const QList<MprisState> &players,
@@ -196,6 +202,15 @@ QString MprisPolicy::choosePlayer(const QList<MprisState> &players,
     return current != eligible.cend() ? current->service : QString();
 }
 
+qint64 MprisPolicy::expectedPositionUs(qint64 previousPositionUs,
+                                       qint64 previousMonotonicNs,
+                                       qint64 monotonicNs,
+                                       double rate)
+{
+    return previousPositionUs
+        + static_cast<qint64>((monotonicNs - previousMonotonicNs) / 1000.0 * rate);
+}
+
 bool MprisPolicy::isPositionJump(qint64 previousPositionUs,
                                  qint64 previousMonotonicNs,
                                  qint64 positionUs,
@@ -206,8 +221,7 @@ bool MprisPolicy::isPositionJump(qint64 previousPositionUs,
     if (previousMonotonicNs <= 0 || status != QStringLiteral("Playing")) {
         return false;
     }
-    const qint64 expected = previousPositionUs
-        + static_cast<qint64>((monotonicNs - previousMonotonicNs) / 1000.0 * rate);
+    const qint64 expected = expectedPositionUs(previousPositionUs, previousMonotonicNs, monotonicNs, rate);
     const qint64 deviation = positionUs - expected;
     return positionUs < previousPositionUs - 3000000 || qAbs(deviation) > 2000000;
 }

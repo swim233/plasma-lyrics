@@ -6,12 +6,49 @@
 #include <QSignalSpy>
 #include <QTest>
 
+#include <algorithm>
+
 using namespace PlasmaLyrics;
 
 namespace {
 
 constexpr auto fakeService = "org.mpris.MediaPlayer2.tstfake";
 constexpr auto fakePath = "/org/mpris/MediaPlayer2";
+
+// Mirrors tst_resolver.cpp's MessageCapture: qInstallMessageHandler receives
+// the raw, unformatted message text (the pattern from qSetMessagePattern is
+// only applied by the default handler), so this captures exactly what each
+// qCInfo/qCWarning call streamed, with no category prefix or timestamp.
+QStringList *capturedMessages = nullptr;
+
+void captureMessages(QtMsgType type, const QMessageLogContext &, const QString &message)
+{
+    if (capturedMessages && (type == QtInfoMsg || type == QtWarningMsg)) {
+        capturedMessages->append(message);
+    }
+}
+
+class MessageCapture
+{
+public:
+    MessageCapture()
+        : m_previous(qInstallMessageHandler(captureMessages))
+    {
+        capturedMessages = &m_messages;
+    }
+
+    ~MessageCapture()
+    {
+        capturedMessages = nullptr;
+        qInstallMessageHandler(m_previous);
+    }
+
+    const QStringList &messages() const { return m_messages; }
+
+private:
+    QStringList m_messages;
+    QtMessageHandler m_previous;
+};
 
 class RootAdaptor : public QDBusAbstractAdaptor
 {
@@ -244,6 +281,50 @@ private Q_SLOTS:
         QVERIFY2(after->positionUs < 13500000,
                  "Rate update must not replay the interval already consumed by polling");
         QCOMPARE(roundSpy.size(), 0);
+    }
+
+    void filteredLineIsLoggedOncePerServiceFingerprint()
+    {
+        // Blacklisting the fake service gives a deterministic, always-non-music
+        // verdict without depending on the metadata heuristic, so every
+        // selectActive() pass re-evaluates the same (service, fingerprint) pair.
+        PolicyConfig config{{QString::fromLatin1(fakeService)}, {}, true};
+        MessageCapture capture;
+        MprisManager manager(config);
+        QSignalSpy activeSpy(&manager, &MprisManager::activeStateChanged);
+        FakePlayer player;
+        QVERIFY(player.announce());
+        // addService() -> selectActive(true) is the first pass that observes
+        // the blacklisted state and must log "filtered" for it. A blacklisted
+        // player is never eligible, so selected stays empty; that is still an
+        // activeStateChanged edge (selectActive's hintedTrackChange branch),
+        // which is what proves this first pass actually ran.
+        QVERIFY(activeSpy.wait());
+
+        // A Rate-only change re-triggers onPlayerChanged() -> selectActive()
+        // without touching the fingerprint; the dedup key must still hold.
+        QVERIFY(player.announceRate(1.5));
+        // Poll instead of a fixed sleep, so CI load can't turn this into a
+        // flake; it also proves the second selectActive() pass actually
+        // observed the new rate (i.e. apply() -> onPlayerChanged() really
+        // ran) rather than the assertions below passing because nothing did.
+        QTRY_VERIFY_WITH_TIMEOUT(manager.activeState().has_value()
+                                     && manager.activeState()->rate == 1.5,
+                                 2500);
+        const auto stateAfterRateChange = manager.activeState();
+        QVERIFY(stateAfterRateChange.has_value());
+
+        const QString expectedPrefix = QStringLiteral("filtered service=%1 reason=blacklist")
+                                            .arg(QString::fromLatin1(fakeService));
+        const auto &messages = capture.messages();
+        const auto filteredCount = std::count_if(messages.cbegin(), messages.cend(), [&expectedPrefix](const QString &message) {
+            return message.startsWith(expectedPrefix);
+        });
+        QCOMPARE(static_cast<int>(filteredCount), 1);
+        // A currently-playing non-music source still surfaces through
+        // activeState() (marked music=false) so the widget shows an empty
+        // state instead of the stale previous track; it just never searches.
+        QVERIFY(!stateAfterRateChange->music);
     }
 };
 

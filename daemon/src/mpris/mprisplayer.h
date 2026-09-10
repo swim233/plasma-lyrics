@@ -39,11 +39,14 @@ private:
     static QStringList variantStringList(const QVariant &value);
     QVariantMap getAll(const QString &interface) const;
     void apply(const QVariantMap &properties, bool initial = false);
+    void logPlaybackRound() const;
 
     MprisState m_state;
     qint64 m_lastSamplePositionUs = -1;
     qint64 m_lastSampleMonotonicNs = 0;
     std::function<qint64()> m_clock;
+    // Latches "position unsupported" to a single log line per player instance.
+    bool m_positionUnsupportedLogged = false;
 };
 
 } // namespace PlasmaLyrics

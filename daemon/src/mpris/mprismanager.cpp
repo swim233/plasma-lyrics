@@ -2,6 +2,9 @@
 
 #include "mprisplayer.h"
 
+#include "core/log/logformat.h"
+#include "daemon/src/logging.h"
+
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QDBusReply>
@@ -67,7 +70,10 @@ void MprisManager::addService(const QString &service)
         return;
     }
     auto *player = new MprisPlayer(service, this);
-    if (player->state().playbackStatus == QStringLiteral("Playing")) {
+    const auto initialState = player->state();
+    qCInfo(lcMpris).noquote() << QStringLiteral("player appeared service=%1 identity=%2")
+        .arg(service, quoted(initialState.identity));
+    if (initialState.playbackStatus == QStringLiteral("Playing")) {
         m_playingSerials.insert(service, ++m_serial);
     }
     connect(player, &MprisPlayer::changed, this,
@@ -86,9 +92,11 @@ void MprisManager::addService(const QString &service)
 void MprisManager::removeService(const QString &service)
 {
     if (auto *player = m_players.take(service)) {
+        qCInfo(lcMpris).noquote() << QStringLiteral("player vanished service=%1").arg(service);
         player->deleteLater();
     }
     m_playingSerials.remove(service);
+    m_lastFilteredFingerprint.remove(service);
     const bool wasActive = service == m_activeService;
     if (wasActive) {
         m_activeService.clear();
@@ -117,14 +125,37 @@ void MprisManager::selectActive(bool hintedTrackChange)
         auto state = player->state();
         state.playingSerial = m_playingSerials.value(state.service);
         states.append(state);
+        const QString reason = MprisPolicy::musicRejectReason(state, m_config);
+        if (!reason.isEmpty()) {
+            logFilteredOnce(state, reason);
+        }
     }
     const QString selected = MprisPolicy::choosePlayer(states, m_activeService, m_config);
     if (selected != m_activeService) {
+        qCInfo(lcMpris).noquote() << QStringLiteral("active player changed from=%1 to=%2 players=%3")
+            .arg(m_activeService.isEmpty() ? QStringLiteral("none") : m_activeService,
+                 selected.isEmpty() ? QStringLiteral("none") : selected)
+            .arg(m_players.size());
         m_activeService = selected;
         Q_EMIT activeStateChanged(true);
     } else if (hintedTrackChange && selected.isEmpty()) {
         Q_EMIT activeStateChanged(true);
     }
+}
+
+void MprisManager::logFilteredOnce(const MprisState &state, const QString &reason)
+{
+    const auto it = m_lastFilteredFingerprint.find(state.service);
+    if (it != m_lastFilteredFingerprint.end()) {
+        if (it.value() == state.fingerprint) {
+            return;
+        }
+        it.value() = state.fingerprint;
+    } else {
+        m_lastFilteredFingerprint.insert(state.service, state.fingerprint);
+    }
+    qCInfo(lcMpris).noquote() << QStringLiteral("filtered service=%1 reason=%2 fingerprint=%3")
+        .arg(state.service, reason, quoted(state.fingerprint));
 }
 
 std::optional<MprisState> MprisManager::activeState() const

@@ -2,6 +2,9 @@
 
 #include "mprispolicy.h"
 
+#include "core/log/logformat.h"
+#include "daemon/src/logging.h"
+
 #include <QDBusArgument>
 #include <QDBusConnection>
 #include <QDBusInterface>
@@ -157,6 +160,15 @@ void MprisPlayer::apply(const QVariantMap &properties, bool initial)
         m_state.fingerprint = MprisPolicy::fingerprint(m_state);
     }
     const bool metadataChanged = oldFingerprint != m_state.fingerprint;
+    if (hasMetadata) {
+        if (metadataChanged) {
+            qCDebug(lcMpris).noquote() << QStringLiteral("metadata changed service=%1 from=%2 to=%3 title=%4")
+                .arg(m_state.service, quoted(oldFingerprint), quoted(m_state.fingerprint), quoted(m_state.title));
+        } else {
+            qCDebug(lcMpris).noquote() << QStringLiteral("metadata changed service=%1 fingerprint=unchanged title=%2")
+                .arg(m_state.service, quoted(m_state.title));
+        }
+    }
     const bool playbackRound = !initial && !metadataChanged
         && oldStatus == QStringLiteral("Playing")
         && hasPosition
@@ -175,6 +187,14 @@ void MprisPlayer::apply(const QVariantMap &properties, bool initial)
         const bool anchorChanged = hasPosition || statusChanged || rateChanged;
         const bool becamePlaying = oldStatus != QStringLiteral("Playing")
             && m_state.playbackStatus == QStringLiteral("Playing");
+        if (statusChanged) {
+            qCDebug(lcMpris).noquote() << QStringLiteral("status changed service=%1 from=%2 to=%3")
+                .arg(m_state.service, oldStatus, m_state.playbackStatus);
+        }
+        if (rateChanged) {
+            qCDebug(lcMpris).noquote() << QStringLiteral("rate changed service=%1 rate=%2")
+                .arg(m_state.service).arg(m_state.rate);
+        }
         // A resume re-anchors against the last known position, which is stale if
         // the user seeked while paused. Neither browser integration nor several
         // native players emit Seeked, so read Position back explicitly whenever
@@ -188,6 +208,7 @@ void MprisPlayer::apply(const QVariantMap &properties, bool initial)
             return;
         }
         if (playbackRound) {
+            logPlaybackRound();
             Q_EMIT playbackRoundStarted();
             if (!self) {
                 return;
@@ -207,6 +228,12 @@ void MprisPlayer::pollPosition()
                                                             QString::fromLatin1(playerInterface),
                                                             QStringLiteral("Position"));
     if (!reply.isValid()) {
+        // Gated on isDebugEnabled() too: this is a one-shot latch, and it
+        // must not burn its single log line while debug output is off.
+        if (!m_positionUnsupportedLogged && lcMpris().isDebugEnabled()) {
+            m_positionUnsupportedLogged = true;
+            qCDebug(lcMpris).noquote() << QStringLiteral("position unsupported service=%1").arg(m_state.service);
+        }
         return;
     }
     const qint64 now = m_clock();
@@ -216,6 +243,13 @@ void MprisPlayer::pollPosition()
     const bool playbackRound = MprisPolicy::isPlaybackRound(
         m_lastSamplePositionUs, m_lastSampleMonotonicNs, position, now,
         m_state.lengthUs, m_state.rate, m_state.playbackStatus);
+    // Only a flagged discontinuity is logged here; the poll itself stays silent.
+    if (jump) {
+        const qint64 expectedUs = MprisPolicy::expectedPositionUs(
+            m_lastSamplePositionUs, m_lastSampleMonotonicNs, now, m_state.rate);
+        qCDebug(lcMpris).noquote() << QStringLiteral("position jump service=%1 expected=%2ms actual=%3ms deviation=%4ms")
+            .arg(m_state.service).arg(expectedUs / 1000).arg(position / 1000).arg((position - expectedUs) / 1000);
+    }
     m_state.positionUs = position;
     // positionUs and anchorMonotonicNs are one sample.  Every snapshot
     // consumer extrapolates from that pair, so refreshing Position without
@@ -232,6 +266,7 @@ void MprisPlayer::pollPosition()
             return;
         }
         if (playbackRound) {
+            logPlaybackRound();
             Q_EMIT playbackRoundStarted();
         }
     }
@@ -247,6 +282,8 @@ void MprisPlayer::onSeeked(qlonglong position)
     const bool playbackRound = MprisPolicy::isPlaybackRound(
         m_lastSamplePositionUs, m_lastSampleMonotonicNs, position, now,
         m_state.lengthUs, m_state.rate, m_state.playbackStatus);
+    qCDebug(lcMpris).noquote() << QStringLiteral("seeked service=%1 position=%2ms")
+        .arg(m_state.service).arg(position / 1000);
     m_state.positionUs = position;
     m_state.anchorMonotonicNs = now;
     m_lastSamplePositionUs = position;
@@ -254,8 +291,14 @@ void MprisPlayer::onSeeked(qlonglong position)
     const QPointer<MprisPlayer> self(this);
     Q_EMIT changed(false, true, false);
     if (self && playbackRound) {
+        logPlaybackRound();
         Q_EMIT playbackRoundStarted();
     }
+}
+
+void MprisPlayer::logPlaybackRound() const
+{
+    qCDebug(lcMpris).noquote() << QStringLiteral("playback round service=%1").arg(m_state.service);
 }
 
 void MprisPlayer::onPropertiesChanged(const QString &interface,

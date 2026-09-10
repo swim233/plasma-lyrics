@@ -286,6 +286,64 @@ private Q_SLOTS:
         QVERIFY(MprisPolicy::isMusic(state, config));
     }
 
+    void musicRejectReasonReportsAllFourCauses()
+    {
+        // blacklist
+        {
+            const PolicyConfig config{{QStringLiteral("org.mpris.MediaPlayer2.blocked.*")}, {}, true};
+            MprisState state;
+            state.service = QStringLiteral("org.mpris.MediaPlayer2.blocked.instance1");
+            QCOMPARE(MprisPolicy::musicRejectReason(state, config), QStringLiteral("blacklist"));
+        }
+        // platform-disabled: Sidra is a recognized "apple" service, but the
+        // platform is unchecked in settings.
+        {
+            PolicyConfig config;
+            config.enabledPlatforms = {QStringLiteral("netease")};
+            MprisState state;
+            state.service = QStringLiteral("org.mpris.MediaPlayer2.sidra");
+            state.url = QStringLiteral("https://music.apple.com/cn/album/foo/123?i=456");
+            QCOMPARE(MprisPolicy::musicRejectReason(state, config), QStringLiteral("platform-disabled"));
+        }
+        // browser-non-music: plasma-browser-integration on a non-music URL.
+        {
+            const PolicyConfig config;
+            MprisState state;
+            state.service = QStringLiteral("org.mpris.MediaPlayer2.plasma-browser-integration");
+            state.url = QStringLiteral("https://www.bilibili.com/video/BV1mkg36zEfX/");
+            QCOMPARE(MprisPolicy::musicRejectReason(state, config), QStringLiteral("browser-non-music"));
+        }
+        // metadata-heuristic: no platform, no URL, and metadata that fails
+        // the heuristic (no title/artist/length).
+        {
+            const PolicyConfig config;
+            MprisState state;
+            state.service = QStringLiteral("org.mpris.MediaPlayer2.mpv");
+            QCOMPARE(MprisPolicy::musicRejectReason(state, config), QStringLiteral("metadata-heuristic"));
+        }
+        // Real music reports no reason, and isMusic agrees.
+        {
+            const PolicyConfig config;
+            MprisState state;
+            state.service = QStringLiteral("org.mpris.MediaPlayer2.mpv");
+            state.title = QStringLiteral("Some Song");
+            state.artists = {QStringLiteral("Some Artist")};
+            state.lengthUs = 200000000;
+            QVERIFY(MprisPolicy::musicRejectReason(state, config).isEmpty());
+            QVERIFY(MprisPolicy::isMusic(state, config));
+        }
+        // useMetadataHeuristic == false skips the heuristic entirely: no
+        // platform, no URL, and no metadata at all still counts as music.
+        {
+            PolicyConfig config;
+            config.useMetadataHeuristic = false;
+            MprisState state;
+            state.service = QStringLiteral("org.mpris.MediaPlayer2.mpv");
+            QVERIFY(MprisPolicy::musicRejectReason(state, config).isEmpty());
+            QVERIFY(MprisPolicy::isMusic(state, config));
+        }
+    }
+
     void replaysSidraFixtures_data()
     {
         QTest::addColumn<QString>("fixtureName");

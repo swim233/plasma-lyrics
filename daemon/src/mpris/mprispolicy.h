@@ -24,6 +24,11 @@ class MprisPolicy
 public:
     static QString fingerprint(const MprisState &state);
     static bool isMusic(const MprisState &state, const PolicyConfig &config);
+    // Same verdict as isMusic, but exposes why: empty string means it is
+    // music, otherwise one of "blacklist" / "platform-disabled" /
+    // "browser-non-music" / "metadata-heuristic". Callers that only need the
+    // yes/no answer should keep using isMusic.
+    static QString musicRejectReason(const MprisState &state, const PolicyConfig &config);
     static bool isBlacklisted(const QString &service, const PolicyConfig &config);
     // 返回平台 id（"netease" / "apple"），无法判定时返回空字符串。
     static QString platformFor(const MprisState &state);
@@ -36,6 +41,13 @@ public:
                                qint64 monotonicNs,
                                double rate,
                                const QString &status);
+    // The position isPositionJump would predict from the previous sample,
+    // shared with it so a caller can log the deviation without duplicating
+    // the extrapolation formula.
+    static qint64 expectedPositionUs(qint64 previousPositionUs,
+                                     qint64 previousMonotonicNs,
+                                     qint64 monotonicNs,
+                                     double rate);
     static bool isPlaybackRound(qint64 previousPositionUs,
                                 qint64 previousMonotonicNs,
                                 qint64 positionUs,

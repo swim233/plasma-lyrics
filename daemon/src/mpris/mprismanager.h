@@ -30,10 +30,18 @@ private Q_SLOTS:
 
 private:
     void onPlayerChanged(const QString &service, bool metadataChanged, bool anchorChanged, bool becamePlaying);
+    // Logs "filtered ..." for a service only when its fingerprint differs
+    // from the last one logged for that service; a run of unchanged
+    // fingerprints logs once, but a fingerprint that reappears after a
+    // different one intervened logs again (only the last value is
+    // remembered, not the full history). Forgotten when that service
+    // vanishes.
+    void logFilteredOnce(const MprisState &state, const QString &reason);
 
     PolicyConfig m_config;
     QHash<QString, MprisPlayer *> m_players;
     QHash<QString, quint64> m_playingSerials;
+    QHash<QString, QString> m_lastFilteredFingerprint;
     QString m_activeService;
     QTimer m_pollTimer;
     quint64 m_serial = 0;

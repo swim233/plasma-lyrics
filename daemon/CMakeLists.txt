@@ -76,6 +76,7 @@ if(BUILD_TESTING)
     if(DBUS_RUN_SESSION_EXECUTABLE)
         add_executable(tst_mprisdiscovery
             tests/tst_mprisdiscovery.cpp
+            src/logging.cpp
             src/mpris/mprismanager.cpp
             src/mpris/mprisplayer.cpp
             src/mpris/mprispolicy.cpp
@@ -87,6 +88,7 @@ if(BUILD_TESTING)
 
         add_executable(tst_mprisplayer_lifecycle
             tests/tst_mprisplayer_lifecycle.cpp
+            src/logging.cpp
             src/mpris/mprisplayer.cpp
             src/mpris/mprispolicy.cpp
         )
