@@ -147,6 +147,16 @@ private Q_SLOTS:
         const QString unreadable = directory.filePath(QStringLiteral("Unreadable.lrc"));
         writeFile(unreadable, "[00:01.000]hidden\n");
         QVERIFY(QFile::setPermissions(unreadable, QFileDevice::WriteOwner));
+        // uid 0 -- what the containerised CI jobs run as -- and anything else
+        // holding CAP_DAC_OVERRIDE reads the file regardless of its mode bits,
+        // leaving nothing to assert. Probe the file, not the uid.
+        QFile probe(unreadable);
+        if (probe.open(QIODevice::ReadOnly)) {
+            probe.close();
+            QVERIFY(QFile::setPermissions(unreadable,
+                                          QFileDevice::ReadOwner | QFileDevice::WriteOwner));
+            QSKIP("this process reads files whose owner read bit is cleared");
+        }
         const QString after = provider.cacheVersion();
         const auto result = search(provider, TrackQuery{});
 
