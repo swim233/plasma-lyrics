@@ -5,6 +5,8 @@ target_link_libraries(plasma_lyrics_providers PUBLIC plasma_lyrics_core Qt6::Cor
 target_sources(plasma_lyrics_providers PRIVATE
     local/localprovider.cpp
     local/localprovider.h
+    logging.cpp
+    logging.h
 )
 
 if(ENABLE_PROVIDER_NETEASE OR ENABLE_PROVIDER_AMLL)

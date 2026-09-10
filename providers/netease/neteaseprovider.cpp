@@ -1,8 +1,11 @@
 #include "neteaseprovider.h"
 
+#include "core/log/logformat.h"
 #include "core/lyric/lrcparser.h"
 #include "core/lyric/timeline.h"
+#include "providers/logging.h"
 
+#include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QDebug>
@@ -66,6 +69,8 @@ void NeteaseProvider::getAttempt(const QUrl &url, int attempt, GetCallback callb
     request.setRawHeader("Referer", "https://music.163.com/");
     auto *reply = m_network.get(request);
     m_replies.insert(reply);
+    QElapsedTimer timer;
+    timer.start();
     auto *timeout = new QTimer(reply);
     timeout->setSingleShot(true);
     const auto timedOut = std::make_shared<bool>(false);
@@ -74,7 +79,7 @@ void NeteaseProvider::getAttempt(const QUrl &url, int attempt, GetCallback callb
         reply->abort();
     });
     QObject::connect(reply, &QNetworkReply::finished, reply,
-                     [this, url, attempt, callback = std::move(callback), reply, timeout, timedOut]() mutable {
+                     [this, url, attempt, callback = std::move(callback), reply, timeout, timedOut, timer]() mutable {
         timeout->stop();
         const auto error = reply->error();
         const auto payload = reply->readAll();
@@ -82,9 +87,22 @@ void NeteaseProvider::getAttempt(const QUrl &url, int attempt, GetCallback callb
         const int httpStatusCode = httpStatus.toInt();
         const bool transportFailed = !httpStatus.isValid()
             || (httpStatusCode >= 200 && httpStatusCode < 300);
+        const qint64 elapsedMs = timer.elapsed();
+        const QString statusText = httpStatus.isValid() ? QString::number(httpStatusCode)
+                                                          : QStringLiteral("-");
         const QString errorText = *timedOut
             ? QStringLiteral("request timed out after %1 ms").arg(timeoutForAttempt(m_timeoutMs, attempt))
             : reply->errorString();
+        if (error == QNetworkReply::NoError) {
+            qCDebug(lcNetease).noquote()
+                << QStringLiteral("http GET %1 status=%2 bytes=%3 elapsed=%4ms attempt=%5/3")
+                       .arg(url.toString(QUrl::EncodeSpaces)).arg(statusText).arg(payload.size()).arg(elapsedMs).arg(attempt);
+        } else {
+            qCDebug(lcNetease).noquote()
+                << QStringLiteral("http GET %1 status=%2 bytes=%3 elapsed=%4ms attempt=%5/3 error=%6")
+                       .arg(url.toString(QUrl::EncodeSpaces)).arg(statusText).arg(payload.size()).arg(elapsedMs).arg(attempt)
+                       .arg(quoted(errorText));
+        }
         m_replies.remove(reply);
         reply->deleteLater();
         if (error == QNetworkReply::NoError) {
@@ -98,7 +116,9 @@ void NeteaseProvider::getAttempt(const QUrl &url, int attempt, GetCallback callb
         // NetworkError values; those are server answers, not transient
         // transport failures.
         if (transportFailed && attempt < 3) {
-            qInfo().noquote() << QStringLiteral("retry %1/3 after %2").arg(attempt + 1).arg(errorText);
+            qCInfo(lcNetease).noquote()
+                << QStringLiteral("retry %1/3 status=%2 elapsed=%3ms error=%4")
+                       .arg(attempt + 1).arg(statusText).arg(elapsedMs).arg(quoted(errorText));
             getAttempt(url, attempt + 1, std::move(callback));
             return;
         }

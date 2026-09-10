@@ -1,11 +1,14 @@
 #include "localprovider.h"
 
+#include "core/log/logformat.h"
 #include "core/lyric/lrcparser.h"
+#include "providers/logging.h"
 
 #include <QByteArrayView>
 #include <QCryptographicHash>
 #include <QDir>
 #include <QDirIterator>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QStandardPaths>
@@ -192,6 +195,11 @@ QString LocalProvider::versionForFiles(const QFileInfoList &files) const
 
 void LocalProvider::refreshIndex() const
 {
+    // Started before the directory walk and version hash below so a slow
+    // scan (the usual complaint when "the local source is slow") shows up
+    // in elapsed, not just the candidate-building loop.
+    QElapsedTimer timer;
+    timer.start();
     const QFileInfoList files = lyricFiles();
     const QString version = versionForFiles(files);
     if (m_indexLoaded && version == m_indexVersion) return;
@@ -206,6 +214,8 @@ void LocalProvider::refreshIndex() const
     m_indexCandidates = std::move(candidates);
     m_indexVersion = version;
     m_indexLoaded = true;
+    qCDebug(lcLocal).noquote() << QStringLiteral("index rebuilt files=%1 elapsed=%2ms dir=%3")
+        .arg(files.size()).arg(timer.elapsed()).arg(quoted(m_lyricsDirectory));
 }
 
 QList<Candidate> LocalProvider::candidatesForQuery(const TrackQuery &query) const

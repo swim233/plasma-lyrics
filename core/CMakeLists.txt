@@ -1,4 +1,5 @@
 add_library(plasma_lyrics_core STATIC
+    log/logformat.h
     lyric/lyricmodel.cpp
     lyric/lyricmodel.h
     lyric/lrcparser.cpp

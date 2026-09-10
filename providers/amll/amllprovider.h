@@ -2,6 +2,7 @@
 
 #include "providers/provider.h"
 
+#include <QElapsedTimer>
 #include <QNetworkAccessManager>
 #include <QSet>
 #include <QUrl>
@@ -65,6 +66,7 @@ private:
     bool m_cacheAttempted = false;
     bool m_indexLoaded = false;
     bool m_refreshing = false;
+    QElapsedTimer m_refreshTimer;
     qint64 m_fetchedAt = 0;
     QByteArray m_etag;
     QByteArray m_lastModified;

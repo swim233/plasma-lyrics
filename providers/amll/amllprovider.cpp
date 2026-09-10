@@ -1,7 +1,9 @@
 #include "amllprovider.h"
 
+#include "core/log/logformat.h"
 #include "core/lyric/ttmlparser.h"
 #include "core/match/matcher.h"
+#include "providers/logging.h"
 
 #include <QCryptographicHash>
 #include <QDateTime>
@@ -426,7 +428,7 @@ void AmllProvider::loadCacheMetadata()
         && object.value(QStringLiteral("sourceContentBaseUrl")).toString()
             == m_normalizedContentBaseUrl;
     if (!compatibleSource) {
-        qInfo().noquote() << "AMLL cache source changed; validators discarded";
+        qCInfo(lcAmll).noquote() << "AMLL cache source changed; validators discarded";
         return;
     }
     m_fetchedAt = object.value(QStringLiteral("fetchedAt")).toInteger();
@@ -471,7 +473,7 @@ bool AmllProvider::loadCachedIndex()
     QString error;
     auto candidates = parseIndex(payload, &error);
     if (candidates.isEmpty()) {
-        qWarning().noquote() << QStringLiteral("AMLL cached index rejected: ") + error;
+        qCWarning(lcAmll).noquote() << QStringLiteral("AMLL cached index rejected: ") + error;
         return false;
     }
     loadCacheMetadata();
@@ -480,6 +482,7 @@ bool AmllProvider::loadCachedIndex()
     // Preserve the persisted freshness time; setIndex records "now" for a
     // freshly downloaded payload, not for an old file merely read at startup.
     m_fetchedAt = persistedFetchedAt;
+    qCInfo(lcAmll).noquote() << QStringLiteral("index loaded source=cache entries=%1").arg(m_candidates.size());
     return true;
 }
 
@@ -547,6 +550,7 @@ void AmllProvider::refreshIndex()
 {
     if (m_refreshing) return;
     m_refreshing = true;
+    m_refreshTimer.start();
     get(m_indexUrl, m_indexLoaded, maximumIndexBytes, [this](Download download) {
         finishRefresh(std::move(download));
     });
@@ -562,7 +566,7 @@ void AmllProvider::finishRefresh(Download download)
         return;
     }
     if (!download.payload) {
-        qWarning().noquote() << QStringLiteral("AMLL index refresh failed: ") + download.error;
+        qCWarning(lcAmll).noquote() << QStringLiteral("AMLL index refresh failed: ") + download.error;
         completePending(download.error, download.transportFailed);
         return;
     }
@@ -573,7 +577,7 @@ void AmllProvider::finishRefresh(Download download)
     QString parseError;
     auto candidates = parseIndex(*download.payload, &parseError);
     if (candidates.isEmpty()) {
-        qWarning().noquote() << QStringLiteral("AMLL index refresh rejected: ") + parseError;
+        qCWarning(lcAmll).noquote() << QStringLiteral("AMLL index refresh rejected: ") + parseError;
         completePending(parseError, false);
         return;
     }
@@ -584,11 +588,15 @@ void AmllProvider::finishRefresh(Download download)
             && file.write(*download.payload) == download.payload->size() && file.commit()) {
             // The cache has been atomically replaced only after full parsing.
         } else {
-            qWarning().noquote() << QStringLiteral("cannot atomically save AMLL index cache: ")
-                                      + file.errorString();
+            qCWarning(lcAmll).noquote() << QStringLiteral("cannot atomically save AMLL index cache: ")
+                                             + file.errorString();
         }
     }
+    const qint64 downloadedBytes = download.payload->size();
     setIndex(std::move(candidates), *download.payload, download.etag, download.lastModified);
+    qCInfo(lcAmll).noquote()
+        << QStringLiteral("index refreshed source=network entries=%1 bytes=%2 elapsed=%3ms")
+               .arg(m_candidates.size()).arg(downloadedBytes).arg(m_refreshTimer.elapsed());
     saveCacheMetadata();
     completePending();
 }
@@ -651,6 +659,8 @@ void AmllProvider::getAttempt(const QUrl &url, bool conditional, qint64 maximumB
     if (conditional && !m_lastModified.isEmpty()) request.setRawHeader("If-Modified-Since", m_lastModified);
     auto *reply = m_network.get(request);
     m_replies.insert(reply);
+    QElapsedTimer timer;
+    timer.start();
     auto *timeout = new QTimer(reply);
     timeout->setSingleShot(true);
     const auto timedOut = std::make_shared<bool>(false);
@@ -669,7 +679,7 @@ void AmllProvider::getAttempt(const QUrl &url, bool conditional, qint64 maximumB
     QObject::connect(reply, &QNetworkReply::finished, reply,
                      [this, url, conditional, maximumBytes, attempt,
                       callback = std::move(callback), reply, timeout, timedOut,
-                      sizeExceeded]() mutable {
+                      sizeExceeded, timer]() mutable {
         timeout->stop();
         const auto replyError = reply->error();
         const QByteArray payload = reply->readAll();
@@ -681,6 +691,23 @@ void AmllProvider::getAttempt(const QUrl &url, bool conditional, qint64 maximumB
             ? QStringLiteral("response exceeds size limit")
             : *timedOut ? QStringLiteral("request timed out after %1 ms").arg(m_timeoutMs)
                         : reply->errorString();
+        // statusText/elapsed are only used by this debug line, so they stay
+        // inside the streamed expression: qCDebug's macro already skips
+        // evaluating it when the category's debug level is disabled.
+        if (replyError == QNetworkReply::NoError) {
+            qCDebug(lcAmll).noquote()
+                << QStringLiteral("http GET %1 status=%2 bytes=%3 elapsed=%4ms attempt=%5/3")
+                       .arg(url.toString(QUrl::EncodeSpaces))
+                       .arg(statusValue.isValid() ? QString::number(status) : QStringLiteral("-"))
+                       .arg(payload.size()).arg(timer.elapsed()).arg(attempt);
+        } else {
+            qCDebug(lcAmll).noquote()
+                << QStringLiteral("http GET %1 status=%2 bytes=%3 elapsed=%4ms attempt=%5/3 error=%6")
+                       .arg(url.toString(QUrl::EncodeSpaces))
+                       .arg(statusValue.isValid() ? QString::number(status) : QStringLiteral("-"))
+                       .arg(payload.size()).arg(timer.elapsed()).arg(attempt)
+                       .arg(quoted(errorText));
+        }
         const QByteArray etag = reply->rawHeader("ETag");
         const QByteArray lastModified = reply->rawHeader("Last-Modified");
         m_replies.remove(reply);
