@@ -22,22 +22,38 @@ VersionEvidence versionEvidence(const QString &title)
     const QString normalized = title.normalized(QString::NormalizationForm_KC).toCaseFolded();
     struct MarkerPattern {
         const char *marker;
-        const char *pattern;
+        QRegularExpression pattern;
     };
+    // The QRegularExpression objects themselves are now built once (magic
+    // static, thread-safe per C++11 -- the same guarantee cleanTitle's own
+    // static const QRegularExpression already relies on), not reconstructed
+    // on every call: this function runs once per candidate title under
+    // MatchPolicy::PreserveVersions (via classifyCandidateVersions) and,
+    // since splitTrailingGloss started calling it too, once per query
+    // under MatchPolicy::Default as well -- compiling 8 patterns here plus
+    // 6 more below on every one of those calls measurably slowed both
+    // paths. The pattern text itself is untouched, character for character.
     static const MarkerPattern patterns[]{
-        {"live", R"(\blive\b|现场|演唱会|ライブ)"},
-        {"remix", R"(\bremix(?:ed)?\b|混音|リミックス)"},
-        {"cover", R"(\bcover\b|翻唱|カバー)"},
-        {"remaster", R"(\bremaster(?:ed)?\b|重制|リマスター)"},
-        {"instrumental", R"(\binstrumental\b|\boff[ -]?vocal\b|伴奏|纯音乐|純音樂|インスト)"},
-        {"acoustic", R"(\bacoustic\b|不插电|不插電|アコースティック)"},
-        {"edit", R"(\bradio edit\b|\bsingle edit\b|\bedit\b)"},
-        {"edition", R"(\bedition\b|\bdeluxe\b|\bexpanded\b|\blimited\b|\bcollector'?s?\b|\banniversary\b|特别版|特別版|豪华版|豪華版|扩展版|擴展版|限定版|珍藏版|周年(?:纪念|紀念|記念)?版|エディション)"},
+        {"live", QRegularExpression(QStringLiteral(R"(\blive\b|现场|演唱会|ライブ)"),
+                                    QRegularExpression::CaseInsensitiveOption)},
+        {"remix", QRegularExpression(QStringLiteral(R"(\bremix(?:ed)?\b|混音|リミックス)"),
+                                     QRegularExpression::CaseInsensitiveOption)},
+        {"cover", QRegularExpression(QStringLiteral(R"(\bcover\b|翻唱|カバー)"),
+                                     QRegularExpression::CaseInsensitiveOption)},
+        {"remaster", QRegularExpression(QStringLiteral(R"(\bremaster(?:ed)?\b|重制|リマスター)"),
+                                        QRegularExpression::CaseInsensitiveOption)},
+        {"instrumental", QRegularExpression(QStringLiteral(R"(\binstrumental\b|\boff[ -]?vocal\b|伴奏|纯音乐|純音樂|インスト)"),
+                                            QRegularExpression::CaseInsensitiveOption)},
+        {"acoustic", QRegularExpression(QStringLiteral(R"(\bacoustic\b|不插电|不插電|アコースティック)"),
+                                        QRegularExpression::CaseInsensitiveOption)},
+        {"edit", QRegularExpression(QStringLiteral(R"(\bradio edit\b|\bsingle edit\b|\bedit\b)"),
+                                    QRegularExpression::CaseInsensitiveOption)},
+        {"edition", QRegularExpression(QStringLiteral(R"(\bedition\b|\bdeluxe\b|\bexpanded\b|\blimited\b|\bcollector'?s?\b|\banniversary\b|特别版|特別版|豪华版|豪華版|扩展版|擴展版|限定版|珍藏版|周年(?:纪念|紀念|記念)?版|エディション)"),
+                                       QRegularExpression::CaseInsensitiveOption)},
     };
     VersionEvidence result;
     for (const auto &item : patterns) {
-        if (normalized.contains(QRegularExpression(QString::fromUtf8(item.pattern),
-                                                   QRegularExpression::CaseInsensitiveOption))) {
+        if (normalized.contains(item.pattern)) {
             result.markers.insert(QString::fromLatin1(item.marker));
         }
     }
@@ -56,19 +72,24 @@ VersionEvidence versionEvidence(const QString &title)
     }
     struct EditionPattern {
         const char *edition;
-        const char *pattern;
+        QRegularExpression pattern;
     };
     static const EditionPattern editionPatterns[]{
-        {"deluxe", R"(\bdeluxe(?: edition)?\b|豪华版|豪華版|デラックス(?:・)?エディション)"},
-        {"special", R"(\bspecial(?: edition)?\b|特别版|特別版|スペシャル(?:・)?エディション)"},
-        {"expanded", R"(\bexpanded(?: edition)?\b|扩展版|擴展版)"},
-        {"limited", R"(\blimited(?: edition)?\b|限定版|リミテッド(?:・)?エディション)"},
-        {"collector", R"(\bcollector'?s?(?: edition)?\b|珍藏版|コレクターズ(?:・)?エディション)"},
-        {"anniversary", R"(\b(?:\d+(?:st|nd|rd|th)\s+)?anniversary(?: edition)?\b|周年(?:纪念|紀念|記念)?版)"},
+        {"deluxe", QRegularExpression(QStringLiteral(R"(\bdeluxe(?: edition)?\b|豪华版|豪華版|デラックス(?:・)?エディション)"),
+                                      QRegularExpression::CaseInsensitiveOption)},
+        {"special", QRegularExpression(QStringLiteral(R"(\bspecial(?: edition)?\b|特别版|特別版|スペシャル(?:・)?エディション)"),
+                                       QRegularExpression::CaseInsensitiveOption)},
+        {"expanded", QRegularExpression(QStringLiteral(R"(\bexpanded(?: edition)?\b|扩展版|擴展版)"),
+                                        QRegularExpression::CaseInsensitiveOption)},
+        {"limited", QRegularExpression(QStringLiteral(R"(\blimited(?: edition)?\b|限定版|リミテッド(?:・)?エディション)"),
+                                       QRegularExpression::CaseInsensitiveOption)},
+        {"collector", QRegularExpression(QStringLiteral(R"(\bcollector'?s?(?: edition)?\b|珍藏版|コレクターズ(?:・)?エディション)"),
+                                         QRegularExpression::CaseInsensitiveOption)},
+        {"anniversary", QRegularExpression(QStringLiteral(R"(\b(?:\d+(?:st|nd|rd|th)\s+)?anniversary(?: edition)?\b|周年(?:纪念|紀念|記念)?版)"),
+                                           QRegularExpression::CaseInsensitiveOption)},
     };
     for (const auto &item : editionPatterns) {
-        if (normalized.contains(QRegularExpression(QString::fromUtf8(item.pattern),
-                                                   QRegularExpression::CaseInsensitiveOption))) {
+        if (normalized.contains(item.pattern)) {
             result.editions.insert(QString::fromLatin1(item.edition));
         }
     }
@@ -266,8 +287,8 @@ struct QueryTitleVariant {
 // candidate's title doesn't, so title matching also tries the query with
 // that gloss removed and keeps whichever variant scores highest against a
 // given candidate title -- but only counts a gloss-stripped variant on an
-// *exact* match (see considerTitle in scoreCandidate): a short stripped
-// title is far likelier than the full query to land inside some unrelated
+// *exact* match (see considerTitle in scoreCandidateWithVariants): a short
+// stripped title is far likelier than the full query to land inside some unrelated
 // candidate's title via textSimilarity's containment fast-path (min/max of
 // sizes), which is exactly how qa-2-match's counterexample slipped through
 // before this restriction ("心跳吧" scored 0.667 against the stripped
@@ -286,6 +307,83 @@ QList<QueryTitleVariant> queryTitleVariants(const QString &title, MatchPolicy po
         variants.append({titleForPolicy(main, policy), true});
     }
     return variants;
+}
+
+// queryTitleVariants (and, through splitTrailingGloss, versionEvidence)
+// depends only on query.title and policy, never on a specific candidate --
+// so this must be computed once per query, not once per candidate. It used
+// to live inside scoreCandidate itself, which made it re-run per candidate
+// from rankCandidates' loop; for a title with a trailing bracket, that
+// pulled versionEvidence's per-call QRegularExpression construction into
+// every single candidate comparison, including under MatchPolicy::Default,
+// which previously never called versionEvidence at all (measured 4.5x
+// slower end to end on a 3275-entry local index).
+QList<QueryTitleVariant> normalizedQueryTitleVariants(const QString &title, MatchPolicy policy)
+{
+    QList<QueryTitleVariant> normalized;
+    for (const auto &variant : queryTitleVariants(title, policy)) {
+        normalized.append({normalizeSearchText(variant.text), variant.isGlossStripped});
+    }
+    return normalized;
+}
+
+// The actual per-candidate scoring body, taking the query-side variants
+// already normalized by the caller (see normalizedQueryTitleVariants)
+// instead of recomputing them -- rankCandidates computes them exactly
+// once and passes the same list to every candidate. scoreCandidate (the
+// exported, single-candidate convenience entry point used directly by
+// tests and one-off callers) computes them itself and forwards here.
+ScoreBreakdown scoreCandidateWithVariants(const TrackQuery &query, const Candidate &candidate, MatchPolicy policy,
+                                         const QList<QueryTitleVariant> &normalizedQueryVariants)
+{
+    ScoreBreakdown score;
+    score.versionPolicyApplied = policy == MatchPolicy::PreserveVersions;
+    QStringList candidateTitles{candidate.title};
+    candidateTitles.append(candidate.alternateTitles);
+    score.versionTier = policy == MatchPolicy::PreserveVersions
+        ? classifyCandidateVersions(query.title, candidateTitles)
+        : VersionTier::Normal;
+    auto considerTitle = [&](const QString &title, bool alternate) {
+        const QString normalizedCandidateTitle = normalizeSearchText(titleForPolicy(title, policy));
+        for (const auto &queryVariant : normalizedQueryVariants) {
+            const double titleScore = textSimilarity(queryVariant.text, normalizedCandidateTitle);
+            // A gloss-stripped variant only participates on an exact
+            // match -- see the note on queryTitleVariants for why a
+            // partial match here is unsafe to let through at all, not
+            // just unsafe to rank first.
+            if (queryVariant.isGlossStripped && titleScore < 1.0) {
+                continue;
+            }
+            if (titleScore > score.title) {
+                score.title = titleScore;
+                score.titleViaAlternate = alternate;
+                score.titleViaGlossVariant = queryVariant.isGlossStripped;
+            }
+        }
+    };
+    considerTitle(candidate.title, false);
+    // Alternate titles (e.g. netease transNames) are extra evidence, not a
+    // lowered bar: they can only raise score.title, by the same textSimilarity
+    // used for the primary title, and only the best of all of them counts.
+    for (const auto &alternate : candidate.alternateTitles) {
+        considerTitle(alternate, true);
+    }
+    score.artists = artistSimilarity(cleanArtists(query.artists), cleanArtists(candidate.artists));
+    score.album = textSimilarity(normalizeSearchText(query.album), normalizeSearchText(candidate.album));
+    score.durationComparable = query.lengthMs > 0 && candidate.lengthMs > 0;
+    score.durationDifferenceMs = score.durationComparable ? qAbs(query.lengthMs - candidate.lengthMs) : 0;
+    if (query.lengthMs <= 0 || candidate.lengthMs <= 0) {
+        score.duration = 0.5;
+    } else if (score.durationDifferenceMs <= 2000) {
+        score.duration = 1.0 - static_cast<double>(score.durationDifferenceMs) / 20000.0;
+    } else {
+        score.duration = std::max(0.0, 0.9 - static_cast<double>(score.durationDifferenceMs - 2000) / 15000.0);
+    }
+    score.total = score.title * 0.5 + score.artists * 0.2 + score.album * 0.1 + score.duration * 0.2;
+    if (score.versionTier == VersionTier::Conflict) {
+        score.rejectionReason = QStringLiteral("version-conflict");
+    }
+    return score;
 }
 
 } // namespace
@@ -403,67 +501,20 @@ QString searchKeywords(const TrackQuery &query)
 ScoreBreakdown scoreCandidate(const TrackQuery &query, const Candidate &candidate,
                               MatchPolicy policy)
 {
-    ScoreBreakdown score;
-    score.versionPolicyApplied = policy == MatchPolicy::PreserveVersions;
-    QList<QueryTitleVariant> normalizedQueryVariants;
-    for (const auto &variant : queryTitleVariants(query.title, policy)) {
-        normalizedQueryVariants.append({normalizeSearchText(variant.text), variant.isGlossStripped});
-    }
-    QStringList candidateTitles{candidate.title};
-    candidateTitles.append(candidate.alternateTitles);
-    score.versionTier = policy == MatchPolicy::PreserveVersions
-        ? classifyCandidateVersions(query.title, candidateTitles)
-        : VersionTier::Normal;
-    auto considerTitle = [&](const QString &title, bool alternate) {
-        const QString normalizedCandidateTitle = normalizeSearchText(titleForPolicy(title, policy));
-        for (const auto &queryVariant : normalizedQueryVariants) {
-            const double titleScore = textSimilarity(queryVariant.text, normalizedCandidateTitle);
-            // A gloss-stripped variant only participates on an exact
-            // match -- see the note on queryTitleVariants for why a
-            // partial match here is unsafe to let through at all, not
-            // just unsafe to rank first.
-            if (queryVariant.isGlossStripped && titleScore < 1.0) {
-                continue;
-            }
-            if (titleScore > score.title) {
-                score.title = titleScore;
-                score.titleViaAlternate = alternate;
-                score.titleViaGlossVariant = queryVariant.isGlossStripped;
-            }
-        }
-    };
-    considerTitle(candidate.title, false);
-    // Alternate titles (e.g. netease transNames) are extra evidence, not a
-    // lowered bar: they can only raise score.title, by the same textSimilarity
-    // used for the primary title, and only the best of all of them counts.
-    for (const auto &alternate : candidate.alternateTitles) {
-        considerTitle(alternate, true);
-    }
-    score.artists = artistSimilarity(cleanArtists(query.artists), cleanArtists(candidate.artists));
-    score.album = textSimilarity(normalizeSearchText(query.album), normalizeSearchText(candidate.album));
-    score.durationComparable = query.lengthMs > 0 && candidate.lengthMs > 0;
-    score.durationDifferenceMs = score.durationComparable ? qAbs(query.lengthMs - candidate.lengthMs) : 0;
-    if (query.lengthMs <= 0 || candidate.lengthMs <= 0) {
-        score.duration = 0.5;
-    } else if (score.durationDifferenceMs <= 2000) {
-        score.duration = 1.0 - static_cast<double>(score.durationDifferenceMs) / 20000.0;
-    } else {
-        score.duration = std::max(0.0, 0.9 - static_cast<double>(score.durationDifferenceMs - 2000) / 15000.0);
-    }
-    score.total = score.title * 0.5 + score.artists * 0.2 + score.album * 0.1 + score.duration * 0.2;
-    if (score.versionTier == VersionTier::Conflict) {
-        score.rejectionReason = QStringLiteral("version-conflict");
-    }
-    return score;
+    return scoreCandidateWithVariants(query, candidate, policy,
+                                      normalizedQueryTitleVariants(query.title, policy));
 }
 
 QList<RankedCandidate> rankCandidates(const TrackQuery &query, const QList<Candidate> &candidates,
                                       MatchPolicy policy)
 {
+    // Computed once for the whole candidate pool, not once per candidate
+    // via scoreCandidate -- see normalizedQueryTitleVariants.
+    const auto normalizedQueryVariants = normalizedQueryTitleVariants(query.title, policy);
     QList<RankedCandidate> ranked;
     ranked.reserve(candidates.size());
     for (const auto &candidate : candidates) {
-        ranked.append({candidate, scoreCandidate(query, candidate, policy)});
+        ranked.append({candidate, scoreCandidateWithVariants(query, candidate, policy, normalizedQueryVariants)});
     }
     std::stable_sort(ranked.begin(), ranked.end(), [](const auto &left, const auto &right) {
         if (left.score.versionTier != right.score.versionTier) {
