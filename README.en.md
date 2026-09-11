@@ -114,6 +114,16 @@ names and LRC `[ti:]`, `[ar:]`, `[al:]`, and `[length:]` tags; the parsed index
 is reused until the directory contents change. This directory is
 separate from the exact provider/track replacement directory above.
 
+When the player reports a title carrying a translated parenthetical (for example
+`青さは止んだ (青春已逝)`), matching retries with the parenthetical stripped. A
+match that only succeeds that way is accepted only if both durations are known and
+within 2 seconds of each other, so it cannot latch onto an unrelated track of the
+same name. An `.lrc` in the local lyrics directory without a `[length:mm:ss]` tag
+has no duration to compare, so such titles will not match until the tag is added
+(a sidecar beside the audio file is unaffected — it inherits the duration the
+player reports). The AMLL index carries no duration, so such titles never match
+through that source.
+
 Both directories support bilingual `.lrc`: when two adjacent lines share the
 same timestamp, the first is the original and the second its translation;
 only the first two lines at a shared timestamp are used, any further line is
