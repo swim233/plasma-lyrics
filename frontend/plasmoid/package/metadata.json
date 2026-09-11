@@ -14,7 +14,7 @@
         "License": "GPL-2.0-only",
         "Name": "Desktop Lyrics",
         "Name[zh_CN]": "桌面歌词",
-        "Version": "0.3.1",
+        "Version": "0.3.2",
         "Website": "https://github.com/swim233/plasma-lyrics"
     },
     "X-Plasma-API-Minimum-Version": "6.0"
