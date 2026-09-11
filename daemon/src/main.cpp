@@ -1,6 +1,7 @@
 #include "config.h"
 #include "controlservice.h"
 #include "logging.h"
+#include "logmirrorformat.h"
 #include "resolver.h"
 #include "snapshot.h"
 #include "core/config/proxyspec.h"
@@ -44,13 +45,6 @@ using namespace PlasmaLyrics;
 
 namespace {
 
-// Governs how mirrorMessage renders the line it writes to stderr. The
-// mirrored copy in the log file always uses the plain format (or
-// QT_MESSAGE_PATTERN's rendering, when that is set) regardless of this,
-// since journald metadata and terminal escape codes have no meaning once
-// the bytes land in a regular file.
-enum class StderrSink { Tty, Journald, Plain };
-
 QFile *logFile = nullptr;
 QMutex logMutex;
 StderrSink stderrSink = StderrSink::Plain;
@@ -79,68 +73,6 @@ StderrSink detectStderrSink()
     return journalStream == actual ? StderrSink::Journald : StderrSink::Plain;
 }
 
-// The real QLoggingCategory name (e.g. "plasmalyrics.resolver") is what
-// QT_LOGGING_RULES, plasma-lyricsd.categories and any hand-written
-// qtlogging.ini rule match against, so it must never change -- only what a
-// human reads on a terminal or in the journal is shortened here.
-QString displayCategory(const char *category)
-{
-    QString name = QString::fromUtf8(category);
-    static const QString prefix = QStringLiteral("plasmalyrics.");
-    if (name.startsWith(prefix)) {
-        name.remove(0, prefix.size());
-    }
-    return name;
-}
-
-QLatin1String typeName(QtMsgType type)
-{
-    switch (type) {
-    case QtDebugMsg: return QLatin1String("debug");
-    case QtInfoMsg: return QLatin1String("info");
-    case QtWarningMsg: return QLatin1String("warning");
-    case QtCriticalMsg: return QLatin1String("critical");
-    case QtFatalMsg: return QLatin1String("fatal");
-    }
-    return QLatin1String("info");
-}
-
-// journald's own syslog priority field is shown natively (colored,
-// filterable via `journalctl -p`) once a line carries a "<N>" prefix -- see
-// sd-daemon(3), "Log Levels and Priorities for Stream-Based Logging".
-int syslogPriority(QtMsgType type)
-{
-    switch (type) {
-    case QtDebugMsg: return 7;
-    case QtInfoMsg: return 6;
-    case QtWarningMsg: return 4;
-    case QtCriticalMsg: return 3;
-    case QtFatalMsg: return 2;
-    }
-    return 6;
-}
-
-QLatin1String ansiColor(QtMsgType type)
-{
-    switch (type) {
-    case QtDebugMsg: return QLatin1String("\x1b[2m");
-    case QtInfoMsg: return QLatin1String("");
-    case QtWarningMsg: return QLatin1String("\x1b[33m");
-    case QtCriticalMsg: return QLatin1String("\x1b[31m");
-    case QtFatalMsg: return QLatin1String("\x1b[1;31m");
-    }
-    return QLatin1String("");
-}
-
-// The one format shared by the log file and by stderr whenever it is
-// neither a terminal nor journald: timestamp and level are spelled out
-// because nothing else -- no journal metadata, no human at a terminal --
-// carries them there.
-QString plainLine(const QString &timestamp, QtMsgType type, const QString &category, const QString &message)
-{
-    return QStringLiteral("[%1] %2 %3 %4").arg(timestamp, typeName(type), category, message);
-}
-
 void mirrorMessage(QtMsgType type, const QMessageLogContext &context, const QString &message)
 {
     const QString category = displayCategory(context.category);
@@ -149,45 +81,24 @@ void mirrorMessage(QtMsgType type, const QMessageLogContext &context, const QStr
     // QT_MESSAGE_PATTERN is Qt's own escape hatch for the exact rendered
     // text: when set, it wins inside qFormatLogMessage() over the
     // qSetMessagePattern() call in main() (Qt's documented precedence), so
-    // once it is set its rendering replaces every hand-rolled body below
-    // verbatim -- category stripping included, since %{category} there
-    // means the real QLoggingCategory name, same as it always has. The
-    // journald "<N>" prefix is still layered on separately in that case:
-    // journald cannot parse pattern text, only that leading marker.
+    // once it is set its rendering replaces every hand-rolled body
+    // renderMirroredLine() would otherwise build, verbatim -- category
+    // stripping included, since %{category} there means the real
+    // QLoggingCategory name, same as it always has. The journald "<N>"
+    // prefix is still layered on separately in that case: journald cannot
+    // parse pattern text, only that leading marker.
     const bool honorEnvPattern = !qEnvironmentVariableIsEmpty("QT_MESSAGE_PATTERN");
     const QString patternedBody = honorEnvPattern ? qFormatLogMessage(type, context, message) : QString();
 
-    QString stderrLine;
-    switch (stderrSink) {
-    case StderrSink::Journald: {
-        // No timestamp, no level word: journald already stores both per
-        // entry, and repeating them here is exactly the duplication this
-        // mode exists to remove. Milliseconds are deliberately not added
-        // either -- journald keeps microsecond precision on its own,
-        // available via `journalctl -o short-precise` when it is needed.
-        const QString body = honorEnvPattern
-            ? patternedBody
-            : QStringLiteral("%1 %2").arg(category, message);
-        stderrLine = QStringLiteral("<%1>%2").arg(QString::number(syslogPriority(type)), body);
-        break;
-    }
-    case StderrSink::Tty: {
-        const QString line = honorEnvPattern ? patternedBody : plainLine(timestamp, type, category, message);
-        const QLatin1String color = ansiColor(type);
-        stderrLine = color.isEmpty() ? line : color + line + QLatin1String("\x1b[0m");
-        break;
-    }
-    case StderrSink::Plain:
-        stderrLine = honorEnvPattern ? patternedBody : plainLine(timestamp, type, category, message);
-        break;
-    }
-
+    const QString stderrLine = renderMirroredLine(stderrSink, type, category, message, timestamp,
+                                                   honorEnvPattern, patternedBody);
     const QByteArray formattedStderr = stderrLine.toLocal8Bit() + '\n';
     QMutexLocker locker(&logMutex);
     std::fwrite(formattedStderr.constData(), 1, static_cast<size_t>(formattedStderr.size()), stderr);
     std::fflush(stderr);
     if (logFile && logFile->isOpen()) {
-        const QString fileLine = honorEnvPattern ? patternedBody : plainLine(timestamp, type, category, message);
+        const QString fileLine = renderMirroredLine(StderrSink::Plain, type, category, message, timestamp,
+                                                     honorEnvPattern, patternedBody);
         logFile->write(fileLine.toLocal8Bit() + '\n');
         logFile->flush();
     }

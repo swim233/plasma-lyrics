@@ -7,6 +7,8 @@ add_executable(plasma-lyricsd
     src/controlservice.h
     src/logging.cpp
     src/logging.h
+    src/logmirrorformat.cpp
+    src/logmirrorformat.h
     src/main.cpp
     src/resolver.cpp
     src/resolver.h
@@ -44,6 +46,14 @@ endif()
 
 if(BUILD_TESTING)
     find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
+    add_executable(tst_logmirrorformat
+        tests/tst_logmirrorformat.cpp
+        src/logmirrorformat.cpp
+    )
+    target_include_directories(tst_logmirrorformat PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(tst_logmirrorformat PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME tst_logmirrorformat COMMAND tst_logmirrorformat)
+
     add_executable(tst_config
         tests/tst_config.cpp
         src/config.cpp
