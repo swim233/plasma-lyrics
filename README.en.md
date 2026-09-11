@@ -79,7 +79,7 @@ in `kdebugsettings` and can be toggled individually there, but only while "Recor
 debug details" is off — that checkbox takes precedence over kdebugsettings and
 overrides its per-category debug toggle while it's on.
 
-Each line is formatted as `[time] level category message`. Every resolve is tagged
+The line format depends on where the log goes. Under the systemd journal each line is `category message` — journald records the timestamp and level itself, so `journalctl` colours entries by level and `journalctl --user -u plasma-lyricsd -p 4` shows warnings and above. Run in a terminal the format is `[time] level category message`, coloured by level; redirected to a file or pipe it is the same text without colour. In all three forms, and in the log file, category names drop the `plasmalyrics.` prefix (`plasmalyrics.mpris` from the table above appears as `mpris`), but `QT_LOGGING_RULES` and `kdebugsettings` still need the full name. Every resolve is tagged
 with a `#number` prefix shared by all its log lines; gaps in the numbering are
 normal — a cancellation also consumes a number whenever the daemon finds nothing
 playable to resolve: no player at startup, the last player exiting, or every

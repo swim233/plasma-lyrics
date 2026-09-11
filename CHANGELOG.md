@@ -4,6 +4,12 @@
 
 ## 未发布
 
+### Changed
+- 更改服务日志的输出形态：在 systemd journal 下不再重复打印时间戳与级别，改为按消息级别设置 syslog 优先级，`journalctl` 因此原生按级别着色，`journalctl -p 4` 一类的优先级筛选也开始生效；在终端直接运行时按级别输出 ANSI 彩色并保留时间戳与级别；重定向到文件或管道时保持原有的纯文本格式。
+- 更改日志中的分类显示名：三种输出形态与日志文件都省略 `plasmalyrics.` 前缀，`plasmalyrics.resolver` 显示为 `resolver`。`QT_LOGGING_RULES` 与 `kdebugsettings` 仍须使用完整分类名。
+- 更改默认配置（未开启 `logging/fileEnabled`）下的日志写入方式：此前由 Qt 直接写入 journald 并附带结构化字段 `QT_CATEGORY`，现在统一由服务自身格式化，该字段不再出现，分类名改为出现在消息文本中。
+- 更改「另一个实例已在运行」的日志级别为 warning，不再出现在 `journalctl -p 3` 一类只看错误的结果中。退出码不变。
+
 ## v0.3.1 - 2026-09-11
 
 ### Added
