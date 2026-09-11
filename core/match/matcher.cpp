@@ -354,7 +354,19 @@ ScoreBreakdown scoreCandidateWithVariants(const TrackQuery &query, const Candida
             if (queryVariant.isGlossStripped && titleScore < 1.0) {
                 continue;
             }
-            if (titleScore > score.title) {
+            // On a tie, prefer evidence that doesn't depend on the gloss
+            // strip: passesGlossVariantGate's premise is "this match only
+            // holds because a bracket got stripped", which stops being
+            // true the moment an equally-good, non-gloss path exists (a
+            // primary title matching the stripped variant, tied by an
+            // alternateTitle matching the query's own un-stripped title).
+            // Without this, the gate could fire on a candidate that also
+            // carries the strongest possible non-gloss evidence, simply
+            // because considerTitle visits candidate.title before
+            // alternateTitles and only overwrites on a strict ">".
+            const bool prefersNonGlossOnTie = titleScore == score.title
+                && score.titleViaGlossVariant && !queryVariant.isGlossStripped;
+            if (titleScore > score.title || prefersNonGlossOnTie) {
                 score.title = titleScore;
                 score.titleViaAlternate = alternate;
                 score.titleViaGlossVariant = queryVariant.isGlossStripped;
@@ -550,15 +562,35 @@ std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked,
             }
         }
     } else {
-        // A gate here disqualifies a candidate; it doesn't mean "lower
-        // quality". A disqualified candidate ranked first must not go on
-        // blocking a qualifying one further down -- looking only at
-        // ranked.first() would do exactly that, and disagreed with the
-        // MatchPolicy::PreserveVersions branch above, which already loops.
+        // A gate here (passesAliasArtistGate, passesGlossVariantGate)
+        // disqualifies a candidate; it doesn't mean "lower quality" --
+        // skip past it and keep looking, the same as the
+        // MatchPolicy::PreserveVersions branch above already does. A
+        // failed *threshold* (isAcceptableMatch) is a different signal:
+        // decision 8 has always applied it to the first gate-passing
+        // candidate alone, and a failure there must still mean "the
+        // primary path stops here" -- not "keep looking for a
+        // lower-ranked candidate that happens to pass" (ranking is by
+        // total, and score.title isn't part of that key, so a
+        // first-gate-passing candidate can have the highest total while
+        // still failing the title-threshold on its own; qa-2-match
+        // measured a same-artist neighbor 20s off getting picked this
+        // way, on an ordinary input with no gloss variant or alias
+        // involved at all -- exactly the "wrong lyrics" shape decision 45
+        // exists to prevent) -- but it must still fall through to the
+        // allowLocalizedFallback path below exactly as it always did,
+        // hence break rather than returning nullopt directly: an early
+        // return here would skip that fallback path entirely, which is
+        // its own, independently-gated way of finding a match (D-8) and
+        // has nothing to do with this loop's gates.
         for (const auto &candidate : ranked) {
-            if (isAcceptableMatch(candidate) && passesAliasArtistGate(candidate)) {
+            if (!passesAliasArtistGate(candidate) || !passesGlossVariantGate(candidate)) {
+                continue;
+            }
+            if (isAcceptableMatch(candidate)) {
                 return candidate;
             }
+            break;
         }
     }
     if (!allowLocalizedFallback) {

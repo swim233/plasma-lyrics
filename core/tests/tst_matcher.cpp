@@ -711,6 +711,79 @@ private Q_SLOTS:
         QCOMPARE(chosen->candidate.trackId, QStringLiteral("real-song"));
     }
 
+    void defaultPolicyStopsAtATopRankThatFailsThresholdsEvenWithNoGatesInvolved()
+    {
+        // qa-2-match's counterexample to the first cut of the fix above:
+        // no gloss variant and no alternateTitles are involved here at
+        // all -- ranking is by total, and score.title isn't part of that
+        // key, so a top-ranked candidate can have the highest total while
+        // still failing the plain 0.55 title-threshold on its own. The
+        // fix above must not treat that the same as a gate
+        // disqualification and fall through to a lower-ranked, fully
+        // acceptable candidate -- that would turn "not-found" into
+        // confidently returning a same-artist neighbor 20 seconds off,
+        // exactly the "wrong lyrics" shape decision 45 exists to prevent,
+        // and on an ordinary input, not a bilingual-title one.
+        // "top" (title=0.5 via the containment fast-path, "AAAA" is an
+        // exact prefix of the query) has a perfect artist/album/duration
+        // match, giving total=0.5*0.5+0.2+0.1+0.2=0.75; "second" (an
+        // exact title match, so acceptable on its own) has no album match
+        // and a 20s duration gap (duration score collapses to 0 past the
+        // 2000ms/15000ms falloff), giving total=0.5+0.2+0+0=0.7 -- lower
+        // than "top", so "top" ranks first despite failing the
+        // title-threshold, and neither gate (no alias, no gloss variant)
+        // is involved at all.
+        const TrackQuery query{QStringLiteral("AAAABBBB"), {QStringLiteral("Artist")},
+                               QStringLiteral("Album"), 200000};
+        const Candidate topLowTitle{QStringLiteral("top-lowtitle"), QStringLiteral("AAAA"),
+                                    {QStringLiteral("Artist")}, QStringLiteral("Album"), 200000};
+        const Candidate secondOk{QStringLiteral("second-ok"), QStringLiteral("AAAABBBB"),
+                                 {QStringLiteral("Artist")}, QString(), 220000};
+
+        const auto ranked = rankCandidates(query, {topLowTitle, secondOk});
+
+        QCOMPARE(ranked.first().candidate.trackId, QStringLiteral("top-lowtitle"));
+        QCOMPARE(ranked.first().score.title, 0.5);
+        QCOMPARE(ranked.first().score.total, 0.75);
+        QVERIFY(!isAcceptableMatch(ranked.first()));
+        // Neither gate disqualifies "top" -- it has no alternateTitles
+        // (so titleViaAlternate is false) and the query has no bracket at
+        // all (so titleViaGlossVariant is false) -- only the plain
+        // threshold does.
+        QVERIFY(!ranked.first().score.titleViaAlternate);
+        QVERIFY(!ranked.first().score.titleViaGlossVariant);
+        QVERIFY(isAcceptableMatch(ranked.last()));
+
+        QVERIFY(!chooseMatch(ranked, false).has_value());
+    }
+
+    void considerTitlePrefersNonGlossVariantOnATie()
+    {
+        // qa-2-match's non-blocking nit: considerTitle only overwrites on
+        // a strict ">", and a candidate's primary title is tried before
+        // its alternateTitles. So when the primary title matches only via
+        // the gloss-stripped query variant (an exact tie against a
+        // *non*-gloss alternateTitle match against the query's own
+        // un-stripped title), the earlier gloss evidence would otherwise
+        // "win" the tie by default and leave titleViaGlossVariant set --
+        // triggering passesGlossVariantGate on a candidate that also
+        // carries the strongest possible non-gloss evidence. Ties must
+        // prefer the non-gloss variant: passesGlossVariantGate's premise
+        // is "this match only holds because a bracket got stripped",
+        // which stops being true the moment an equally-good, non-gloss
+        // path exists.
+        const TrackQuery query{QStringLiteral("Song (Alt Title)"), {QStringLiteral("Artist")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("id"), QStringLiteral("Song"),
+                                  {QStringLiteral("Artist")}, QString(), 0,
+                                  {QStringLiteral("Song (Alt Title)")}};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(!score.titleViaGlossVariant);
+        QVERIFY(score.titleViaAlternate);
+    }
+
     void preserveVersionsRanksEveryNormalCandidateBeforeOneSidedCandidates()
     {
         const TrackQuery query{QStringLiteral("Example Song (Live)"),
