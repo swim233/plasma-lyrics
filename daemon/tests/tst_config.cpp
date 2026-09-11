@@ -113,6 +113,43 @@ private Q_SLOTS:
         settings.sync();
         QCOMPARE(Config().debugLoggingEnabled(), true);
     }
+
+    void proxyModeDefaultsToNone()
+    {
+        QCOMPARE(Config().proxyMode(), QStringLiteral("none"));
+    }
+
+    void proxyModeReadsBackWrittenValue()
+    {
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                           QStringLiteral("plasma-lyrics"), QStringLiteral("plasma-lyricsd"));
+        settings.setValue(QStringLiteral("network/proxyMode"), QStringLiteral("manual"));
+        settings.sync();
+        QCOMPARE(Config().proxyMode(), QStringLiteral("manual"));
+    }
+
+    void proxyModeFallsBackToNoneForUnknownValue()
+    {
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                           QStringLiteral("plasma-lyrics"), QStringLiteral("plasma-lyricsd"));
+        settings.setValue(QStringLiteral("network/proxyMode"), QStringLiteral("bogus"));
+        settings.sync();
+        QCOMPARE(Config().proxyMode(), QStringLiteral("none"));
+    }
+
+    void proxyUrlDefaultsToEmpty()
+    {
+        QCOMPARE(Config().proxyUrl(), QString());
+    }
+
+    void proxyUrlReadsBackWrittenValue()
+    {
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                           QStringLiteral("plasma-lyrics"), QStringLiteral("plasma-lyricsd"));
+        settings.setValue(QStringLiteral("network/proxyUrl"), QStringLiteral("socks5://127.0.0.1:1080"));
+        settings.sync();
+        QCOMPARE(Config().proxyUrl(), QStringLiteral("socks5://127.0.0.1:1080"));
+    }
 };
 
 QTEST_GUILESS_MAIN(ConfigTest)

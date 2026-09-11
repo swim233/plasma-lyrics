@@ -3,6 +3,7 @@
 #include "logging.h"
 #include "resolver.h"
 #include "snapshot.h"
+#include "core/config/proxyspec.h"
 #include "core/log/logformat.h"
 #include "core/match/matcher.h"
 #include "core/store/lyricstore.h"
@@ -24,6 +25,8 @@
 #include <QLockFile>
 #include <QLoggingCategory>
 #include <QMutex>
+#include <QNetworkProxy>
+#include <QNetworkProxyFactory>
 #include <QScopeGuard>
 #include <QSocketNotifier>
 #include <QTextStream>
@@ -59,6 +62,19 @@ void stopMirroredLogging()
     qInstallMessageHandler(nullptr);
     QMutexLocker locker(&logMutex);
     logFile = nullptr;
+}
+
+QString proxyErrorName(ProxySpec::Error error)
+{
+    switch (error) {
+    case ProxySpec::Error::None: return QStringLiteral("None");
+    case ProxySpec::Error::InvalidUrl: return QStringLiteral("InvalidUrl");
+    case ProxySpec::Error::UnsupportedScheme: return QStringLiteral("UnsupportedScheme");
+    case ProxySpec::Error::MissingHost: return QStringLiteral("MissingHost");
+    case ProxySpec::Error::MissingPort: return QStringLiteral("MissingPort");
+    case ProxySpec::Error::UnexpectedPath: return QStringLiteral("UnexpectedPath");
+    }
+    return QStringLiteral("Unknown");
 }
 
 // Classic self-pipe trick: the signal handler only writes one byte (the only
@@ -247,6 +263,54 @@ int main(int argc, char **argv)
             stopMirroredLogging();
         }
     });
+
+    // Proxy is applied before any provider is constructed and before the
+    // --explain branch, so every network request either source makes --
+    // command line included -- goes through it. There is deliberately no
+    // loopback exemption (DESIGN.md decision 63).
+    const QString proxyMode = config.proxyMode();
+    QString proxySummary;
+    bool proxyBlocksNetworkProviders = false;
+    if (proxyMode == QStringLiteral("system")) {
+        QNetworkProxyFactory::setUseSystemConfiguration(true);
+        proxySummary = QStringLiteral("system");
+    } else if (proxyMode == QStringLiteral("manual")) {
+        ProxySpec::Error proxyError = ProxySpec::Error::None;
+        const auto proxySpec = ProxySpec::parse(config.proxyUrl(), &proxyError);
+        if (proxySpec) {
+            QNetworkProxy::setApplicationProxy(QNetworkProxy(
+                proxySpec->type() == ProxySpec::Type::Socks5 ? QNetworkProxy::Socks5Proxy
+                                                              : QNetworkProxy::HttpProxy,
+                proxySpec->host(), proxySpec->port(), proxySpec->user(), proxySpec->password()));
+            proxySummary = proxySpec->display();
+        } else {
+            // Fail-closed: an unusable manual address must not silently fall
+            // back to a direct connection for the network providers.
+            proxyBlocksNetworkProviders = true;
+            proxySummary = QStringLiteral("invalid");
+            // redactedForLog() only ever rebuilds scheme/host/port from what
+            // QUrl recognized as the authority; it never copies the input's
+            // path, query, fragment or userinfo, so nothing else in the
+            // configured string -- credentials included, wherever they
+            // ended up -- can reach this log line. An empty result means it
+            // could not find a safe-enough authority to show at all (most
+            // commonly a missing "//"), so only the length is logged then.
+            const QString redacted = ProxySpec::redactedForLog(config.proxyUrl());
+            if (redacted.isEmpty()) {
+                qCWarning(lcDaemon).noquote() << QStringLiteral(
+                    "proxy configuration rejected: error=%1 length=%2")
+                    .arg(proxyErrorName(proxyError))
+                    .arg(config.proxyUrl().trimmed().length());
+            } else {
+                qCWarning(lcDaemon).noquote() << QStringLiteral(
+                    "proxy configuration rejected: error=%1 url=%2")
+                    .arg(proxyErrorName(proxyError), quoted(redacted));
+            }
+        }
+    } else {
+        proxySummary = QStringLiteral("none");
+    }
+
 #ifdef PLASMA_LYRICS_HAVE_NETEASE
     NeteaseProvider netease(config.neteaseBaseUrl(), config.networkTimeoutMs());
 #endif
@@ -263,7 +327,13 @@ int main(int argc, char **argv)
     supportedProviders.append(amll.id());
 #endif
     QList<Provider *> providers;
-    const QStringList enabledProviderOrder = config.enabledProviderOrder();
+    QStringList enabledProviderOrder = config.enabledProviderOrder();
+    if (proxyBlocksNetworkProviders) {
+        // Equivalent to the user having left netease/amll unchecked in
+        // providers/enabled: the local provider is never affected.
+        enabledProviderOrder.removeAll(QStringLiteral("netease"));
+        enabledProviderOrder.removeAll(QStringLiteral("amll"));
+    }
     for (const auto &providerId : enabledProviderOrder) {
         if (providerId == QStringLiteral("local") && local.isConfigured()) {
             providers.append(&local);
@@ -511,7 +581,7 @@ int main(int argc, char **argv)
         }
     }
     qCInfo(lcDaemon).noquote() << QStringLiteral(
-        "started version=%1 providers=%2 disabled=%3 store=%4 logFile=%5 debug=%6 filterCredits=%7")
+        "started version=%1 providers=%2 disabled=%3 store=%4 logFile=%5 debug=%6 filterCredits=%7 proxy=%8")
         .arg(QStringLiteral(PLASMA_LYRICS_VERSION),
              enabledProviders.join(QLatin1Char(',')),
              disabledProviders.isEmpty() ? QStringLiteral("-")
@@ -520,7 +590,8 @@ int main(int argc, char **argv)
              mirroredLoggingInstalled ? quoted(configuredLog.fileName())
                                       : QStringLiteral("none"),
              lcDaemon().isDebugEnabled() ? QStringLiteral("true") : QStringLiteral("false"),
-             config.filterCredits() ? QStringLiteral("true") : QStringLiteral("false"));
+             config.filterCredits() ? QStringLiteral("true") : QStringLiteral("false"),
+             proxySummary);
 
     update(true);
     return application.exec();

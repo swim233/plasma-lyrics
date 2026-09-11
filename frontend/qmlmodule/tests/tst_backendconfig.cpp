@@ -110,6 +110,73 @@ private Q_SLOTS:
         QCOMPARE(restored.debugLoggingEnabled(), true);
     }
 
+    void proxyModeDefaultsToNone()
+    {
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        QCOMPARE(config.proxyMode(), QStringLiteral("none"));
+        QCOMPARE(config.proxyUrl(), QString());
+    }
+
+    void proxyModeAndUrlReadBackWrittenValues()
+    {
+        {
+            auto config = shellConfig(QStringLiteral("exit 0"));
+            config.setProxyMode(QStringLiteral("manual"));
+            config.setProxyUrl(QStringLiteral("socks5://127.0.0.1:1080"));
+            QVERIFY(config.dirty());
+            QVERIFY(config.save());
+        }
+        auto restored = shellConfig(QStringLiteral("exit 0"));
+        QCOMPARE(restored.proxyMode(), QStringLiteral("manual"));
+        QCOMPARE(restored.proxyUrl(), QStringLiteral("socks5://127.0.0.1:1080"));
+    }
+
+    void proxyUrlErrorIsEmptyForAValidAddress()
+    {
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        QVERIFY(config.proxyUrlError(QStringLiteral("socks5://127.0.0.1:1080")).isEmpty());
+        QVERIFY(config.proxyUrlError(QStringLiteral("http://proxy.example.test:8080")).isEmpty());
+    }
+
+    void proxyUrlErrorIsNonEmptyForInvalidAddresses()
+    {
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        QVERIFY(!config.proxyUrlError(QStringLiteral("https://host:443")).isEmpty());
+        QVERIFY(!config.proxyUrlError(QStringLiteral("http://host")).isEmpty());
+        QVERIFY(!config.proxyUrlError(QStringLiteral("http://:80")).isEmpty());
+        QVERIFY(!config.proxyUrlError(QStringLiteral("http://host:80/path")).isEmpty());
+        QVERIFY(!config.proxyUrlError(QString()).isEmpty());
+    }
+
+    void saveRejectsAnInvalidManualAddressAndPersistsNothing()
+    {
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                           QStringLiteral("plasma-lyrics"),
+                           QStringLiteral("plasma-lyricsd"));
+        settings.clear();
+        settings.sync();
+
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        config.setProxyMode(QStringLiteral("manual"));
+        config.setProxyUrl(QStringLiteral("not a url"));
+        config.setLocalLyricsDirectory(QStringLiteral("/tmp/should-not-be-saved"));
+        QVERIFY(!config.save());
+        QVERIFY(config.dirty());
+        QVERIFY(!settings.contains(QStringLiteral("network/proxyMode")));
+        QVERIFY(!settings.contains(QStringLiteral("providers/local/directory")));
+    }
+
+    void invalidAddressDoesNotBlockSaveOutsideManualMode()
+    {
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        config.setProxyUrl(QStringLiteral("not a url"));
+        QCOMPARE(config.proxyMode(), QStringLiteral("none"));
+        QVERIFY(config.save());
+
+        config.setProxyMode(QStringLiteral("system"));
+        QVERIFY(config.save());
+    }
+
     void discoversAvailableProvidersFromDaemon()
     {
         auto bus = QDBusConnection::sessionBus();

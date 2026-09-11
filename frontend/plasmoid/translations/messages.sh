@@ -16,7 +16,8 @@ xgettext --from-code=UTF-8 --language=JavaScript --keyword=i18n --keyword=i18nc:
     frontend/plasmoid/package/contents/ui/config/*.qml
 xgettext --join-existing --from-code=UTF-8 --language=C++ --keyword=i18nd:2 \
     --output="$podir/$catalog.pot" \
-    frontend/qmlmodule/lyricsource.cpp
+    frontend/qmlmodule/lyricsource.cpp \
+    frontend/qmlmodule/backendconfig.cpp
 
 # xgettext writes a deliberately invalid Plural-Forms placeholder into POT
 # headers.  It is useful to translators but makes strict msgfmt validation

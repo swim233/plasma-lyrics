@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-11 00:51+0800\n"
+"POT-Creation-Date: 2026-09-11 10:31+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -294,169 +294,191 @@ msgstr ""
 msgid "Truncate"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:14
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:16
 #: frontend/qmlmodule/lyricsource.cpp:140
 msgid "Local files"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:15
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:17
 #: frontend/qmlmodule/lyricsource.cpp:139
 msgid "NetEase"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:16
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:18
 #: frontend/qmlmodule/lyricsource.cpp:138
 msgid "AMLL"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:30
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:32
 msgid ""
 "These service settings affect every Desktop Lyrics widget. Restart plasma-"
 "lyricsd after saving."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:37
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:39
 msgid ""
 "The lyrics service is not running. Showing the built-in source list; "
 "unavailable sources will be preserved when saving."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:44
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:46
 msgid "Could not save the lyrics service settings."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:58
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:60
 msgid "Lyrics source priority:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:92
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:94
 msgid "Drag to reorder"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:110
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:112
 msgid "Move source up"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:117
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:119
 msgid "Move source down"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:147
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:149
 msgid "Local lyrics directory:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:152
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:154
 msgid "NetEase API URL:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:157
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:159
 msgid "Initial network timeout:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:162
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:181
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:164
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:183
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:138
 #: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:76
 msgid "%1 ms"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:166
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:168
 msgid "AMLL index URL:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:171
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:173
 msgid "AMLL content base URL:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:176
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:178
 msgid "AMLL network timeout:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:185
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:187
 msgid "AMLL index refresh interval:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:189
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:191
 msgid "%1 hour"
 msgid_plural "%1 hours"
 msgstr[0] ""
 msgstr[1] ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:193
-msgid "Music detection:"
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:195
+msgid "Network proxy:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:194
-msgid "Use metadata heuristic"
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:196
+msgid "Direct connection"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:199
-msgid "Lyrics cleanup:"
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:196
+msgid "System proxy"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:200
-msgid "Hide leading production credits"
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:196
+msgid "Custom address"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:205
-msgid "Enable lyrics for these platforms:"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:206
-msgid "NetEase Cloud Music (music.163.com)"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:211
-msgid "Apple Music (music.apple.com, Cider, Sidra)"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:216
-msgid "Custom URL prefixes:"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:218
-msgid "One prefix per line"
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:210
+msgid ""
+"Formats: socks5://host:port or http://host:port. Credentials may be given as "
+"user:password@host:port and are stored in plain text in plasma-lyricsd.ini."
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:222
-msgid "Player blacklist:"
+msgid "Music detection:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:224
-msgid "One D-Bus service wildcard per line"
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:223
+msgid "Use metadata heuristic"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:228
-msgid "Diagnostics:"
+msgid "Lyrics cleanup:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:229
-msgid "Also write a log file"
+msgid "Hide leading production credits"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:234
+msgid "Enable lyrics for these platforms:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:235
+msgid "NetEase Cloud Music (music.163.com)"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:240
+msgid "Apple Music (music.apple.com, Cider, Sidra)"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:245
+msgid "Custom URL prefixes:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:247
+msgid "One prefix per line"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:251
+msgid "Player blacklist:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:253
+msgid "One D-Bus service wildcard per line"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:257
+msgid "Diagnostics:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:258
+msgid "Also write a log file"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:263
 msgid "Record debug details"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:241
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:270
 msgid ""
 "Adds request URLs, match scoring and player events to the log. Takes effect "
 "after the service restarts."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:247
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:276
 msgid "Log file:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:257
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:286
 msgid "Reload"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:265
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:294
 msgid "Save service settings"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:272
+#: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:301
 msgid "Save and restart service"
 msgstr ""
 
@@ -610,4 +632,24 @@ msgstr ""
 
 #: frontend/qmlmodule/lyricsource.cpp:143
 msgid "Other lyrics source (%1)"
+msgstr ""
+
+#: frontend/qmlmodule/backendconfig.cpp:217
+msgid "Could not parse the address."
+msgstr ""
+
+#: frontend/qmlmodule/backendconfig.cpp:219
+msgid "Unsupported protocol. Only socks5 and http are supported."
+msgstr ""
+
+#: frontend/qmlmodule/backendconfig.cpp:221
+msgid "The address is missing a host."
+msgstr ""
+
+#: frontend/qmlmodule/backendconfig.cpp:223
+msgid "The address is missing a port."
+msgstr ""
+
+#: frontend/qmlmodule/backendconfig.cpp:225
+msgid "The address must not include a path or query."
 msgstr ""

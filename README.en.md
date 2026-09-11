@@ -130,6 +130,13 @@ AMLL TTML DB is a CC0 community database; rights in lyrics and other third-party
 works remain with their respective owners. See the
 [AMLL TTML DB project](https://github.com/amll-dev/amll-ttml-db) and its contributors.
 
+The "Lyrics Service" configuration page also has a network proxy setting: direct
+connection, system proxy, or a custom `socks5://host:port` or `http://host:port`
+address, optionally with a `user:password` stored in plain text. It applies to
+NetEase and AMLL, with no exemption for loopback addresses. An invalid custom
+address is rejected on save; one already on disk leaves both sources unavailable
+after the next service restart, falling back to local files only.
+
 To import an existing waylyrics JSON cache:
 
 ```sh

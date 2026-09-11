@@ -32,6 +32,8 @@ class BackendConfig : public QObject
     Q_PROPERTY(bool fileLoggingEnabled READ fileLoggingEnabled WRITE setFileLoggingEnabled NOTIFY changed)
     Q_PROPERTY(QString logFilePath READ logFilePath WRITE setLogFilePath NOTIFY changed)
     Q_PROPERTY(bool debugLoggingEnabled READ debugLoggingEnabled WRITE setDebugLoggingEnabled NOTIFY changed)
+    Q_PROPERTY(QString proxyMode READ proxyMode WRITE setProxyMode NOTIFY changed)
+    Q_PROPERTY(QString proxyUrl READ proxyUrl WRITE setProxyUrl NOTIFY changed)
     Q_PROPERTY(bool dirty READ dirty NOTIFY dirtyChanged)
     Q_PROPERTY(RestartState restartState READ restartState NOTIFY restartStateChanged)
     Q_PROPERTY(bool restartInProgress READ restartInProgress NOTIFY restartInProgressChanged)
@@ -70,6 +72,8 @@ public:
     bool fileLoggingEnabled() const;
     QString logFilePath() const;
     bool debugLoggingEnabled() const;
+    QString proxyMode() const;
+    QString proxyUrl() const;
     bool dirty() const;
     RestartState restartState() const;
     bool restartInProgress() const;
@@ -93,12 +97,18 @@ public:
     void setFileLoggingEnabled(bool value);
     void setLogFilePath(const QString &value);
     void setDebugLoggingEnabled(bool value);
+    void setProxyMode(const QString &value);
+    void setProxyUrl(const QString &value);
 
     Q_INVOKABLE void load();
     Q_INVOKABLE bool save();
     Q_INVOKABLE bool restartService();
     Q_INVOKABLE bool moveProvider(int from, int to);
     Q_INVOKABLE bool setProviderEnabled(const QString &provider, bool enabled);
+    // Empty when url parses as a valid manual proxy address; otherwise a
+    // user-facing description of what is wrong with it. Only meaningful
+    // when proxyMode is "manual" -- callers are responsible for that check.
+    Q_INVOKABLE QString proxyUrlError(const QString &url) const;
 
 Q_SIGNALS:
     void changed();
@@ -135,6 +145,8 @@ private:
     bool m_fileLoggingEnabled = false;
     QString m_logFilePath;
     bool m_debugLoggingEnabled = false;
+    QString m_proxyMode = QStringLiteral("none");
+    QString m_proxyUrl;
     bool m_dirty = false;
     QString m_restartProgram;
     QStringList m_restartArguments;

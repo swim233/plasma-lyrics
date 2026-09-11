@@ -29,6 +29,10 @@ public:
     QString logFilePath() const;
     bool debugLoggingEnabled() const;
     bool filterCredits() const;
+    // "none", "system" or "manual"; an unknown stored value reads back as
+    // "none" (a qCWarning is logged when that happens).
+    QString proxyMode() const;
+    QString proxyUrl() const;
 
 private:
     mutable QSettings m_settings;

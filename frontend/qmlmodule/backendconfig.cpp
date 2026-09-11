@@ -1,5 +1,8 @@
 #include "backendconfig.h"
 
+#include "core/config/proxyspec.h"
+
+#include <KLocalizedString>
 #include <QDBusConnection>
 #include <QDBusInterface>
 #include <QDBusReply>
@@ -7,7 +10,14 @@
 #include <QSettings>
 #include <QStandardPaths>
 
+using PlasmaLyrics::ProxySpec;
+
 namespace {
+
+// Bare i18n() would resolve against whatever domain happens to be active in
+// the process that loaded this QML plugin, which is not necessarily this
+// applet's -- lyricsource.cpp hits the same problem and uses the same fix.
+constexpr auto i18nDomain = "plasma_applet_io.github.swim233.plasma-lyrics";
 
 QSettings settings()
 {
@@ -121,6 +131,8 @@ GETTER(int, amllIndexRefreshHours, m_amllIndexRefreshHours)
 GETTER(bool, fileLoggingEnabled, m_fileLoggingEnabled)
 GETTER(QString, logFilePath, m_logFilePath)
 GETTER(bool, debugLoggingEnabled, m_debugLoggingEnabled)
+GETTER(QString, proxyMode, m_proxyMode)
+GETTER(QString, proxyUrl, m_proxyUrl)
 GETTER(bool, dirty, m_dirty)
 GETTER(BackendConfig::RestartState, restartState, m_restartState)
 GETTER(bool, restartInProgress, m_restartInProgress)
@@ -189,8 +201,33 @@ SETTER(int, setAmllIndexRefreshHours, m_amllIndexRefreshHours)
 SETTER(bool, setFileLoggingEnabled, m_fileLoggingEnabled)
 SETTER(const QString &, setLogFilePath, m_logFilePath)
 SETTER(bool, setDebugLoggingEnabled, m_debugLoggingEnabled)
+SETTER(const QString &, setProxyMode, m_proxyMode)
+SETTER(const QString &, setProxyUrl, m_proxyUrl)
 SETTER(const QString &, setLocalLyricsDirectory, m_localLyricsDirectory)
 #undef SETTER
+
+QString BackendConfig::proxyUrlError(const QString &url) const
+{
+    ProxySpec::Error error = ProxySpec::Error::None;
+    if (ProxySpec::parse(url, &error)) {
+        return QString();
+    }
+    switch (error) {
+    case ProxySpec::Error::InvalidUrl:
+        return i18nd(i18nDomain, "Could not parse the address.");
+    case ProxySpec::Error::UnsupportedScheme:
+        return i18nd(i18nDomain, "Unsupported protocol. Only socks5 and http are supported.");
+    case ProxySpec::Error::MissingHost:
+        return i18nd(i18nDomain, "The address is missing a host.");
+    case ProxySpec::Error::MissingPort:
+        return i18nd(i18nDomain, "The address is missing a port.");
+    case ProxySpec::Error::UnexpectedPath:
+        return i18nd(i18nDomain, "The address must not include a path or query.");
+    case ProxySpec::Error::None:
+        break;
+    }
+    return QString();
+}
 
 void BackendConfig::setProviderOrder(const QStringList &value)
 {
@@ -287,6 +324,12 @@ void BackendConfig::load()
         QString(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
             + QStringLiteral("/plasma-lyrics/plasma-lyricsd.log"))).toString();
     m_debugLoggingEnabled = config.value(QStringLiteral("logging/debug"), false).toBool();
+    m_proxyMode = config.value(QStringLiteral("network/proxyMode"), QStringLiteral("none")).toString();
+    if (m_proxyMode != QStringLiteral("none") && m_proxyMode != QStringLiteral("system")
+        && m_proxyMode != QStringLiteral("manual")) {
+        m_proxyMode = QStringLiteral("none");
+    }
+    m_proxyUrl = config.value(QStringLiteral("network/proxyUrl"), QString()).toString();
     const bool wasDirty = m_dirty;
     m_dirty = false;
     Q_EMIT changed();
@@ -297,6 +340,12 @@ void BackendConfig::load()
 
 bool BackendConfig::save()
 {
+    // Checked before anything is written: an invalid manual address must
+    // leave every other pending change unsaved too, not just the proxy
+    // fields, so a retry after fixing the address has nothing left stale.
+    if (m_proxyMode == QStringLiteral("manual") && !proxyUrlError(m_proxyUrl).isEmpty()) {
+        return false;
+    }
     auto config = settings();
     config.setValue(QStringLiteral("players/blacklist"), list(m_serviceBlacklist));
     config.setValue(QStringLiteral("filter/musicUrlPrefixes"), list(m_musicUrlPrefixes));
@@ -322,6 +371,8 @@ bool BackendConfig::save()
     config.setValue(QStringLiteral("logging/fileEnabled"), m_fileLoggingEnabled);
     config.setValue(QStringLiteral("logging/filePath"), m_logFilePath);
     config.setValue(QStringLiteral("logging/debug"), m_debugLoggingEnabled);
+    config.setValue(QStringLiteral("network/proxyMode"), m_proxyMode);
+    config.setValue(QStringLiteral("network/proxyUrl"), m_proxyUrl);
     config.sync();
     if (config.status() != QSettings::NoError) {
         return false;

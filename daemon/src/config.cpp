@@ -155,4 +155,21 @@ bool Config::filterCredits() const
     return m_settings.value(QStringLiteral("lyrics/filterLeadingCredits"), true).toBool();
 }
 
+QString Config::proxyMode() const
+{
+    const QString mode = m_settings.value(QStringLiteral("network/proxyMode"),
+                                          QStringLiteral("none")).toString();
+    if (mode == QStringLiteral("none") || mode == QStringLiteral("system")
+        || mode == QStringLiteral("manual")) {
+        return mode;
+    }
+    qCWarning(lcDaemon) << "network/proxyMode has an unknown value; treating it as none:" << mode;
+    return QStringLiteral("none");
+}
+
+QString Config::proxyUrl() const
+{
+    return m_settings.value(QStringLiteral("network/proxyUrl"), QString()).toString();
+}
+
 } // namespace PlasmaLyrics

@@ -9,6 +9,15 @@ Kirigami.ScrollablePage {
 
     property bool unsavedChanges: backend.dirty
     property bool saveFailed: false
+    // save() itself refuses an empty manual address just as much as a
+    // malformed one, so the buttons stay disabled either way -- but an
+    // empty field is what every "Custom address" selection starts from, not
+    // a mistake the user made yet, so the error banner waits for actual
+    // input before judging it.
+    readonly property bool proxySaveBlocked: backend.proxyMode === "manual"
+        && backend.proxyUrlError(backend.proxyUrl) !== ""
+    readonly property string proxyError: (backend.proxyMode === "manual" && backend.proxyUrl.length > 0)
+        ? backend.proxyUrlError(backend.proxyUrl) : ""
     function saveConfig() { page.saveFailed = !backend.save(); }
     function providerName(provider) {
         if (provider === "local") return i18n("Local files");
@@ -189,6 +198,33 @@ Kirigami.ScrollablePage {
                 textFromValue: (value, locale) => i18np("%1 hour", "%1 hours", value)
                 onValueModified: backend.amllIndexRefreshHours = value
             }
+            QQC2.ComboBox {
+                Kirigami.FormData.label: i18n("Network proxy:")
+                model: [i18n("Direct connection"), i18n("System proxy"), i18n("Custom address")]
+                currentIndex: ["none", "system", "manual"].indexOf(backend.proxyMode)
+                onActivated: backend.proxyMode = ["none", "system", "manual"][currentIndex]
+            }
+            QQC2.TextField {
+                visible: backend.proxyMode === "manual"
+                placeholderText: "socks5://127.0.0.1:1080"
+                text: backend.proxyUrl
+                onTextEdited: backend.proxyUrl = text
+            }
+            QQC2.Label {
+                visible: backend.proxyMode === "manual"
+                Layout.fillWidth: true
+                Layout.maximumWidth: Kirigami.Units.gridUnit * 20
+                text: i18n("Formats: socks5://host:port or http://host:port. Credentials may be given as user:password@host:port and are stored in plain text in plasma-lyricsd.ini.")
+                wrapMode: Text.WordWrap
+                color: Kirigami.Theme.disabledTextColor
+                font: Kirigami.Theme.smallFont
+            }
+            Kirigami.InlineMessage {
+                Layout.fillWidth: true
+                visible: page.proxyError !== ""
+                type: Kirigami.MessageType.Error
+                text: page.proxyError
+            }
             QQC2.CheckBox {
                 Kirigami.FormData.label: i18n("Music detection:")
                 text: i18n("Use metadata heuristic")
@@ -264,14 +300,14 @@ Kirigami.ScrollablePage {
             QQC2.Button {
                 text: i18n("Save service settings")
                 icon.name: "document-save"
-                enabled: backend.dirty
+                enabled: backend.dirty && !page.proxySaveBlocked
                 onClicked: page.saveConfig()
             }
             QQC2.Button {
                 objectName: "restartServiceButton"
                 text: i18n("Save and restart service")
                 icon.name: "system-reboot"
-                enabled: !backend.restartInProgress
+                enabled: !backend.restartInProgress && !page.proxySaveBlocked
                 onClicked: {
                     if (backend.dirty) page.saveConfig();
                     if (!page.saveFailed) backend.restartService();

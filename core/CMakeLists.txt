@@ -1,4 +1,6 @@
 add_library(plasma_lyrics_core STATIC
+    config/proxyspec.cpp
+    config/proxyspec.h
     log/logformat.h
     lyric/lyricmodel.cpp
     lyric/lyricmodel.h
