@@ -209,10 +209,14 @@ private Q_SLOTS:
 
     void bilingualGlossParentheticalRescuesCorrectCandidate()
     {
-        // Regression for the actual bug report, reproduced field for field
-        // (artists/album/duration are already a perfect match on both
-        // candidates -- only score.title decides, exactly as in the user's
-        // log):
+        // Regression for the actual bug report. The fixture is a
+        // constructed scenario with matching lengthMs/album on both sides
+        // -- not the real API response verbatim (qa-2-match measured
+        // candidate 1's real dt as 198000ms, not this fixture's 213233;
+        // the fixture's own two sides just need to agree with each other,
+        // which they do, giving deltaMs=0 either way) -- built to isolate
+        // score.title as the only thing that differs between the two
+        // candidates, matching the user's original log:
         //   1. [3363002263] 青さは止んだ — ナナツカゼ total=0.773 title=0.545
         //      artists=1.000 album=1.000 duration=1.000 deltaMs=0
         //   2. [3363001374] 青さは止んだ (Instrumental) — ナナツカゼ total=0.684
@@ -266,7 +270,16 @@ private Q_SLOTS:
         QVERIFY(instrumental != ranked.cend());
         QCOMPARE(instrumental->score.title, 7.0 / 19.0);
         QCOMPARE(instrumental->score.total, 0.5 * (7.0 / 19.0) + 0.2 + 0.1 + 0.2);
+        // Pin the mechanism, not just the score: considerTitle only takes a
+        // new leader on a strict ">", so the gloss-stripped variant's 6/19
+        // = 0.316 can never beat the original variant's 7/19 = 0.368 for
+        // this candidate -- titleViaGlossVariant must stay false, and with
+        // qa-2-match's real-API total (0.584) also already >= 0.58, the
+        // only thing still blocking this candidate, in the fixture and for
+        // real, is the 0.55 title-threshold.
+        QVERIFY(!instrumental->score.titleViaGlossVariant);
         QVERIFY(!isAcceptableMatch(*instrumental));
+        QCOMPARE(candidateRejectionReason(*instrumental), QStringLiteral("title-threshold"));
     }
 
     void preserveVersionsGlossStrippingNeverAppliesToVersionMarkers()
@@ -398,6 +411,31 @@ private Q_SLOTS:
         QVERIFY(score.titleViaGlossVariant);
         QVERIFY(!isAcceptableMatch({candidate, score}));
         QCOMPARE(candidateRejectionReason({candidate, score}), QStringLiteral("gloss-duration-threshold"));
+    }
+
+    void glossVariantMustMatchExactlyToCount()
+    {
+        // qa-2-match's second counterexample, distinct from the one above:
+        // "心跳" (the stripped variant of "心跳 (跳动的心)") is a strict
+        // prefix of "心跳吧", a same-artist but genuinely different song,
+        // so it would score 2/3 = 0.667 via textSimilarity's containment
+        // fast-path -- comfortably over the 0.55 title-threshold, and
+        // higher than the 0.286 the un-stripped query correctly gets via
+        // Levenshtein (baseline behavior, unaffected by this fix). A
+        // gloss-stripped variant now only participates in scoreCandidate
+        // on an exact match, so this candidate is scored on the
+        // un-stripped variant alone and stays rejected, matching the
+        // pre-fix (baseline) outcome exactly.
+        const TrackQuery query{QStringLiteral("心跳 (跳动的心)"), {QStringLiteral("歌手A")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("wrong"), QStringLiteral("心跳吧"),
+                                  {QStringLiteral("歌手A")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QVERIFY(!score.titleViaGlossVariant);
+        QCOMPARE(score.title, 2.0 / 7.0);
+        QVERIFY(!isAcceptableMatch({candidate, score}));
+        QCOMPARE(candidateRejectionReason({candidate, score}), QStringLiteral("title-threshold"));
     }
 
     void glossVariantDurationGateBoundaryIsInclusiveOf2000ms()
@@ -635,6 +673,42 @@ private Q_SLOTS:
         const auto chosen = chooseMatch(ranked, false);
         QVERIFY(chosen.has_value());
         QCOMPARE(chosen->candidate.trackId, QStringLiteral("2034742057"));
+    }
+
+    void defaultPolicyChooseMatchSkipsADisqualifiedTopRankToTheNextAcceptable()
+    {
+        // A gate disqualifies a candidate; it does not mean "lower
+        // quality" -- so a candidate a gate disqualifies must not go on
+        // blocking an acceptable one further down, under MatchPolicy::
+        // Default just as much as under PreserveVersions (which already
+        // looped over every candidate in a tier, not just the first).
+        // "top" here alias-gate-fails (wrong artist via an alternate
+        // title) but still ranks first by total (0.8, from an exact
+        // album/duration match); "second" is the real song, correctly
+        // artist-matched, but ranks below "top" on total (0.773, from a
+        // looser duration match) alone.
+        const TrackQuery query{QStringLiteral("Song"), {QStringLiteral("Real Artist")},
+                               QStringLiteral("Album"), 200000};
+        const Candidate top{QStringLiteral("wrong-artist-cover"), QStringLiteral("Other Title"),
+                            {QStringLiteral("Nobody")}, QStringLiteral("Album"), 200000,
+                            {QStringLiteral("Song")}};
+        const Candidate second{QStringLiteral("real-song"), QStringLiteral("Song"),
+                               {QStringLiteral("Real Artist")}, QString(), 210000};
+
+        const auto ranked = rankCandidates(query, {top, second});
+
+        QCOMPARE(ranked.first().candidate.trackId, QStringLiteral("wrong-artist-cover"));
+        QVERIFY(isAcceptableMatch(ranked.first()));
+        // passesAliasArtistGate's own condition (D-11), spelled out since
+        // the gate itself isn't exported: titleViaAlternate is true and
+        // artists is well under 0.5, so it fails.
+        QVERIFY(ranked.first().score.titleViaAlternate);
+        QVERIFY(ranked.first().score.artists < 0.5);
+        QVERIFY(isAcceptableMatch(ranked.last()));
+
+        const auto chosen = chooseMatch(ranked, false);
+        QVERIFY(chosen.has_value());
+        QCOMPARE(chosen->candidate.trackId, QStringLiteral("real-song"));
     }
 
     void preserveVersionsRanksEveryNormalCandidateBeforeOneSidedCandidates()

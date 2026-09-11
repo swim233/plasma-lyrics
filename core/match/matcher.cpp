@@ -265,9 +265,19 @@ struct QueryTitleVariant {
 // The query side may carry a bracketed localized gloss that the provider
 // candidate's title doesn't, so title matching also tries the query with
 // that gloss removed and keeps whichever variant scores highest against a
-// given candidate title. This can only raise score.title, never lower it
-// -- same reasoning as alternateTitles on the candidate side (D-11) -- so
-// no previously-accepted match is put at risk by adding this variant.
+// given candidate title -- but only counts a gloss-stripped variant on an
+// *exact* match (see considerTitle in scoreCandidate): a short stripped
+// title is far likelier than the full query to land inside some unrelated
+// candidate's title via textSimilarity's containment fast-path (min/max of
+// sizes), which is exactly how qa-2-match's counterexample slipped through
+// before this restriction ("心跳吧" scored 0.667 against the stripped
+// "心跳" via containment, beating the correct 0.286 the un-stripped query
+// gets via Levenshtein). Even with that restriction, a title win via this
+// variant still flips on passesGlossVariantGate, a hard rejection a
+// plain-title win never triggers -- but chooseMatch's MatchPolicy::Default
+// branch now skips a disqualified top rank rather than stopping at it (see
+// chooseMatch), so a gate rejection here no longer buries a legitimate
+// second place the way it once could.
 QList<QueryTitleVariant> queryTitleVariants(const QString &title, MatchPolicy policy)
 {
     QList<QueryTitleVariant> variants{{titleForPolicy(title, policy), false}};
@@ -408,6 +418,13 @@ ScoreBreakdown scoreCandidate(const TrackQuery &query, const Candidate &candidat
         const QString normalizedCandidateTitle = normalizeSearchText(titleForPolicy(title, policy));
         for (const auto &queryVariant : normalizedQueryVariants) {
             const double titleScore = textSimilarity(queryVariant.text, normalizedCandidateTitle);
+            // A gloss-stripped variant only participates on an exact
+            // match -- see the note on queryTitleVariants for why a
+            // partial match here is unsafe to let through at all, not
+            // just unsafe to rank first.
+            if (queryVariant.isGlossStripped && titleScore < 1.0) {
+                continue;
+            }
             if (titleScore > score.title) {
                 score.title = titleScore;
                 score.titleViaAlternate = alternate;
@@ -481,8 +498,17 @@ std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked,
                 }
             }
         }
-    } else if (isAcceptableMatch(ranked.first()) && passesAliasArtistGate(ranked.first())) {
-        return ranked.first();
+    } else {
+        // A gate here disqualifies a candidate; it doesn't mean "lower
+        // quality". A disqualified candidate ranked first must not go on
+        // blocking a qualifying one further down -- looking only at
+        // ranked.first() would do exactly that, and disagreed with the
+        // MatchPolicy::PreserveVersions branch above, which already loops.
+        for (const auto &candidate : ranked) {
+            if (isAcceptableMatch(candidate) && passesAliasArtistGate(candidate)) {
+                return candidate;
+            }
+        }
     }
     if (!allowLocalizedFallback) {
         return std::nullopt;
