@@ -64,6 +64,19 @@ jobs:
           cmake --build build-no-amll
           ctest --test-dir build-no-amll --output-on-failure
 
+      # Neither of the two matrices above ever disables both network
+      # providers at once, so explain-provider-selection's "both off" branch
+      # (available providers: local) went unexercised by CI.
+      - name: Build without any network provider
+        run: |
+          cmake -S . -B build-no-providers -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_PROVIDER_NETEASE=OFF \
+            -DENABLE_PROVIDER_AMLL=OFF \
+            -DBUILD_TESTING=ON
+          cmake --build build-no-providers
+          ctest --test-dir build-no-providers --output-on-failure
+
       # config.qml references the Plasmoid attached object, main.qml is a
       # PlasmoidItem, and the config pages talk to real QSettings/SQLite paths
       # (DESIGN.md decisions 18/41), so none of them can be safely instantiated

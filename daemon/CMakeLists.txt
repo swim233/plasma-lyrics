@@ -150,7 +150,10 @@ if(BUILD_TESTING)
     elseif(ENABLE_PROVIDER_NETEASE)
         set(_explain_expected_provider netease)
     else()
-        set(_explain_expected_provider none)
+        # LocalProvider::isConfigured() is unconditional and
+        # Config::providerOrder() always prepends "local", so "available
+        # providers" is never empty even with both network sources disabled.
+        set(_explain_expected_provider local)
     endif()
     add_test(NAME explain-provider-selection
         COMMAND ${CMAKE_COMMAND}
