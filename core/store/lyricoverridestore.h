@@ -15,7 +15,7 @@ class LyricOverrideStore
 public:
     explicit LyricOverrideStore(QString directory = {});
 
-    std::optional<LyricDocument> lyric(const TrackRef &ref) const;
+    std::optional<LyricDocument> lyric(const TrackRef &ref, int *droppedLines = nullptr) const;
     QString directory() const;
     static QString defaultDirectory();
 

@@ -31,6 +31,28 @@ private Q_SLOTS:
         QCOMPARE(ref.provider, QStringLiteral("netease"));
         QCOMPARE(ref.trackId, QStringLiteral("42"));
     }
+
+    void loadsBilingualOverrideWithTranslation()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        LyricOverrideStore overrides(directory.path());
+        const TrackRef ref{QStringLiteral("netease"), QStringLiteral("99"), 1.0};
+
+        QFile file(directory.filePath(QStringLiteral("netease:99.lrc")));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QVERIFY(file.write("[00:01.000]你好\n[00:01.000]Hello\n") > 0);
+        file.close();
+
+        int dropped = -1;
+        const auto document = overrides.lyric(ref, &dropped);
+        QVERIFY(document.has_value());
+        QCOMPARE(document->lines.size(), 1);
+        QCOMPARE(document->lines.first().text, QStringLiteral("你好"));
+        QVERIFY(document->lines.first().translation.has_value());
+        QCOMPARE(*document->lines.first().translation, QStringLiteral("Hello"));
+        QCOMPARE(dropped, 1);
+    }
 };
 
 QTEST_GUILESS_MAIN(LyricOverrideStoreTest)

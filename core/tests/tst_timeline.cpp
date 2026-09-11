@@ -88,6 +88,20 @@ private Q_SLOTS:
         QCOMPARE(filtered.size(), 1);
         QCOMPARE(filtered.first().text, QStringLiteral("若能再相见"));
     }
+
+    void looksLikeCreditMatchesShapeOrProviderFlag()
+    {
+        QVERIFY(looksLikeCredit({0, 0, QStringLiteral("作词：想边"), std::nullopt, std::nullopt}));
+        QVERIFY(looksLikeCredit({0, 0, QStringLiteral("作词 : 爆音常安"), std::nullopt, std::nullopt}));
+        QVERIFY(looksLikeCredit({0, 0, QStringLiteral("Mix&Mastering by Foo Bar"),
+                                 std::nullopt, std::nullopt, true}));
+    }
+
+    void looksLikeCreditRejectsOrdinaryLyricLines()
+    {
+        QVERIFY(!looksLikeCredit({0, 0, QStringLiteral("若能再相见"), std::nullopt, std::nullopt}));
+        QVERIFY(!looksLikeCredit({0, 0, QStringLiteral("蝴蝶轻吻花瓣而颤动"), std::nullopt, std::nullopt}));
+    }
 };
 
 QTEST_GUILESS_MAIN(TimelineTest)

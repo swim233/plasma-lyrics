@@ -114,9 +114,15 @@ QList<Provider *> Resolver::searchChain(const QString &preferred) const
     return result;
 }
 
-std::optional<LyricDocument> Resolver::overridden(const TrackRef &ref) const
+std::optional<LyricDocument> Resolver::overridden(quint64 generation, const TrackRef &ref) const
 {
-    if (auto document = m_overrides.lyric(ref)) {
+    int droppedLines = 0;
+    if (auto document = m_overrides.lyric(ref, &droppedLines)) {
+        if (droppedLines > 0) {
+            qCDebug(lcResolver).noquote() << QStringLiteral(
+                "#%1 override bilingual pairing: %2/%3 dropped=%4")
+                .arg(generation).arg(ref.provider, ref.trackId).arg(droppedLines);
+        }
         return forDisplay(std::move(*document), ref);
     }
     return std::nullopt;
@@ -314,7 +320,7 @@ void Resolver::resolve(const MprisState &state, ResolveOptions options)
             ? m_store.refForProvider(state.fingerprint, request->effectivePreference)
             : std::nullopt;
         if (preferredMapped) {
-            if (const auto override = overridden(*preferredMapped)) {
+            if (const auto override = overridden(request->generation, *preferredMapped)) {
                 qCDebug(lcResolver).noquote() << QStringLiteral("#%1 override hit: %2/%3 lines=%4")
                     .arg(request->generation).arg(preferredMapped->provider, preferredMapped->trackId)
                     .arg(override->lines.size());
@@ -344,7 +350,7 @@ void Resolver::resolve(const MprisState &state, ResolveOptions options)
     if (!request->force) {
         if (const auto mapped = m_store.refForFingerprint(state.fingerprint)) {
             bool publishedExisting = false;
-            if (const auto override = overridden(*mapped)) {
+            if (const auto override = overridden(request->generation, *mapped)) {
                 const QString resultState = override->lines.isEmpty()
                     ? QStringLiteral("no-lyric") : QStringLiteral("ok");
                 qCDebug(lcResolver).noquote() << QStringLiteral("#%1 override hit: %2/%3 lines=%4")

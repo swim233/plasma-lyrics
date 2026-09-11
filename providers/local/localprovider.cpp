@@ -133,7 +133,12 @@ void LocalProvider::fetch(const QString &contentId, FetchCallback callback)
         callback({std::nullopt, file.errorString(), false});
         return;
     }
-    auto document = LrcParser::merge(QString::fromUtf8(file.readAll()), QString());
+    int droppedLines = 0;
+    auto document = LrcParser::parseBilingual(QString::fromUtf8(file.readAll()), &droppedLines);
+    if (droppedLines > 0) {
+        qCDebug(lcLocal).noquote() << QStringLiteral("bilingual pairing: path=%1 dropped=%2")
+            .arg(quoted(contentId)).arg(droppedLines);
+    }
     document.metadata.insert(QStringLiteral("source"), QStringLiteral("local"));
     document.metadata.insert(QStringLiteral("path"), QFileInfo(contentId).absoluteFilePath());
     callback({std::move(document), {}, false});

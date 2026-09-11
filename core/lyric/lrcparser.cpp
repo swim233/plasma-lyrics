@@ -179,4 +179,50 @@ LyricDocument LrcParser::merge(QStringView origin, QStringView translation)
     return {parsedOrigin.lines, 0, false};
 }
 
+LyricDocument LrcParser::parseBilingual(QStringView source, int *droppedLines)
+{
+    const auto parsed = parse(source);
+    LyricLines result;
+    result.reserve(parsed.lines.size());
+    int dropped = 0;
+
+    qsizetype index = 0;
+    while (index < parsed.lines.size()) {
+        qsizetype runEnd = index + 1;
+        while (runEnd < parsed.lines.size()
+               && parsed.lines[runEnd].startMs == parsed.lines[index].startMs) {
+            ++runEnd;
+        }
+        const qsizetype runLength = runEnd - index;
+        if (runLength == 1) {
+            result.append(parsed.lines[index]);
+        } else {
+            const auto &first = parsed.lines[index];
+            const auto &second = parsed.lines[index + 1];
+            if (first.credit || second.credit || looksLikeCredit(first) || looksLikeCredit(second)) {
+                for (qsizetype offset = 0; offset < runLength; ++offset) {
+                    result.append(parsed.lines[index + offset]);
+                }
+            } else {
+                auto line = first;
+                if (second.text != first.text) {
+                    line.translation = second.text;
+                }
+                result.append(std::move(line));
+                // second is always dropped; anything past it in the run is
+                // discarded too (guarded runs above are returned whole).
+                dropped += static_cast<int>(runLength - 1);
+            }
+        }
+        index = runEnd;
+    }
+
+    if (droppedLines) {
+        *droppedLines = dropped;
+    }
+    // Same reservation as merge(): offsetMs stays with the user's per-track
+    // adjustment, not anything embedded in the file.
+    return {result, 0, false};
+}
+
 } // namespace PlasmaLyrics

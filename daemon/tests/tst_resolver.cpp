@@ -381,6 +381,39 @@ private Q_SLOTS:
         QCOMPARE(cached->lines.first().text, QStringLiteral("作词：Example"));
     }
 
+    void bilingualOverrideLogsDroppedLineCount()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        QTemporaryDir overridesDirectory;
+        QVERIFY(overridesDirectory.isValid());
+
+        const TrackRef ref{QStringLiteral("test"), QStringLiteral("track-1"), 1.0};
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:bilingual-override-test");
+        state.title = QStringLiteral("Song");
+        QVERIFY(store.mapFingerprint(state.fingerprint, ref));
+
+        QFile file(overridesDirectory.filePath(QStringLiteral("test:track-1.lrc")));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QVERIFY(file.write("[00:01.000]你好\n[00:01.000]Hello\n") > 0);
+        file.close();
+
+        Resolver resolver(store, {}, true, nullptr, overridesDirectory.path());
+        DebugLoggingScope debugScope;
+        MessageCapture capture;
+        const auto result = resolveSynchronously(resolver, state);
+        QCOMPARE(result.state, QStringLiteral("ok"));
+        QCOMPARE(result.document.lines.size(), 1);
+        QVERIFY(result.document.lines.first().translation.has_value());
+        QCOMPARE(*result.document.lines.first().translation, QStringLiteral("Hello"));
+        QVERIFY(logged(capture.messages(),
+                       QStringLiteral("#1 override bilingual pairing: test/track-1 dropped=1")));
+    }
+
     void continuesToTheNextProviderAfterNetworkFailure()
     {
         QTemporaryDir directory;

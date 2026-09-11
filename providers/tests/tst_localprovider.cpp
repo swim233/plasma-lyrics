@@ -5,9 +5,12 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QLoggingCategory>
 #include <QTemporaryDir>
 #include <QTest>
 #include <QUrl>
+
+#include <algorithm>
 
 using namespace PlasmaLyrics;
 
@@ -25,6 +28,53 @@ ProviderSearchResult search(LocalProvider &provider, const TrackQuery &query)
     ProviderSearchResult result;
     provider.search(query, [&](ProviderSearchResult value) { result = std::move(value); });
     return result;
+}
+
+QStringList *capturedMessages = nullptr;
+
+void captureMessages(QtMsgType type, const QMessageLogContext &, const QString &message)
+{
+    if (capturedMessages && type == QtDebugMsg) {
+        capturedMessages->append(message);
+    }
+}
+
+// Mirrors daemon/tests/tst_resolver.cpp's MessageCapture/DebugLoggingScope so
+// the lcLocal side of the bilingual-pairing log line gets the same kind of
+// exact-text assertion the lcResolver side already has.
+class MessageCapture
+{
+public:
+    MessageCapture()
+        : m_previous(qInstallMessageHandler(captureMessages))
+    {
+        capturedMessages = &m_messages;
+    }
+
+    ~MessageCapture()
+    {
+        capturedMessages = nullptr;
+        qInstallMessageHandler(m_previous);
+    }
+
+    const QStringList &messages() const { return m_messages; }
+
+private:
+    QStringList m_messages;
+    QtMessageHandler m_previous;
+};
+
+class DebugLoggingScope
+{
+public:
+    DebugLoggingScope() { QLoggingCategory::setFilterRules(QStringLiteral("plasmalyrics.*.debug=true")); }
+    ~DebugLoggingScope() { QLoggingCategory::setFilterRules(QString()); }
+};
+
+bool logged(const QStringList &messages, const QString &needle)
+{
+    return std::any_of(messages.cbegin(), messages.cend(),
+                       [&needle](const QString &message) { return message.contains(needle); });
 }
 
 } // namespace
@@ -223,6 +273,27 @@ private Q_SLOTS:
         const auto second = search(provider, query);
         QCOMPARE(second.candidates.size(), 1);
         QCOMPARE(second.candidates.first().title, QStringLiteral("Original"));
+    }
+
+    void fetchPairsBilingualLocalFile()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("song.lrc"));
+        writeFile(path, "[00:01.000]你好\n[00:01.000]Hello\n");
+        LocalProvider provider(directory.path());
+
+        DebugLoggingScope debugScope;
+        MessageCapture capture;
+        ProviderFetchResult fetched;
+        provider.fetch(path, [&](ProviderFetchResult value) { fetched = std::move(value); });
+        QVERIFY(fetched.document.has_value());
+        QCOMPARE(fetched.document->lines.size(), 1);
+        QCOMPARE(fetched.document->lines.first().text, QStringLiteral("你好"));
+        QVERIFY(fetched.document->lines.first().translation.has_value());
+        QCOMPARE(*fetched.document->lines.first().translation, QStringLiteral("Hello"));
+        QVERIFY(logged(capture.messages(),
+                       QStringLiteral("bilingual pairing: path=\"%1\" dropped=1").arg(path)));
     }
 
     void limitsCandidatesPassedToResolver()

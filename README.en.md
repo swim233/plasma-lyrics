@@ -114,6 +114,12 @@ names and LRC `[ti:]`, `[ar:]`, `[al:]`, and `[length:]` tags; the parsed index
 is reused until the directory contents change. This directory is
 separate from the exact provider/track replacement directory above.
 
+Both directories support bilingual `.lrc`: when two adjacent lines share the
+same timestamp, the first is the original and the second its translation;
+only the first two lines at a shared timestamp are used, any further line is
+ignored. A pair where either line looks like a production credit (for example
+`Lyricist:`) is left as-is.
+
 The same context menu can prefer local files, NetEase, or AMLL for the current song, restore
 automatic ordering, or force a fresh search. A temporary fallback never
 overwrites the saved per-song preference. AMLL word timing and provenance are

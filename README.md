@@ -113,7 +113,7 @@ systemctl --user enable --now plasma-lyricsd.service
 | 选择当前曲歌词源    | 右键部件 → 选择自动、首选本地文件、网易云或 AMLL；临时回退不会覆盖该选择          |
 | 立即重新搜索        | 右键部件 →「重新搜索歌词」，绕过已有命中和负缓存                                  |
 | 修改外观            | 右键部件 →「配置」，桌面与面板形态的配置各自独立                                  |
-| 替换某首歌的歌词    | 将 `.lrc` 放入 `~/.local/share/plasma-lyrics/overrides/<provider>:<track-id>.lrc` |
+| 替换某首歌的歌词    | 将 `.lrc` 放入 `~/.local/share/plasma-lyrics/overrides/<provider>:<track-id>.lrc`（支持双语，见「歌词源」） |
 | 迁移 waylyrics 缓存 | `plasma-lyrics-import-waylyrics --source ~/.cache/waylyrics`                      |
 
 ## 🎵 支持的播放源
@@ -137,6 +137,8 @@ systemctl --user enable --now plasma-lyricsd.service
 可在部件的「歌词服务」设置页拖拽调整全局顺序、勾选启用来源、选择本地歌词目录，
 以及调整网络地址、超时和 AMLL 索引刷新间隔。歌词目录及其子目录中的 `.lrc` 会建立可复用的搜索索引；
 它不同于下面按 provider 与 track id 精确替换已有结果的覆盖目录。
+本地目录与覆盖目录中的 `.lrc` 都支持双语：相邻两行时间戳相同时，第一行为原文、第二行为译文，
+同一时间戳只取前两行，第三行起忽略；任一行像制作人员信息（如「作词：」）时两行原样保留。
 AMLL 数据库以 CC0 提供；歌词原作及第三方内容权利仍由相应权利人持有。项目与贡献者信息见
 [AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db)。
 
@@ -146,7 +148,7 @@ AMLL 数据库以 CC0 提供；歌词原作及第三方内容权利仍由相应�
 | ------------------------------------------------- | ------------------------------------ |
 | `~/.config/plasma-lyrics/plasma-lyricsd.ini`      | 守护进程配置（INI）                  |
 | `~/.local/share/plasma-lyrics/lyrics/`            | 默认可搜索本地歌词目录               |
-| `~/.local/share/plasma-lyrics/overrides/`         | 手工 `.lrc` 覆盖目录                 |
+| `~/.local/share/plasma-lyrics/overrides/`         | 手工 `.lrc` 覆盖目录（支持双语，见「歌词源」） |
 | `~/.local/share/plasma-lyrics/plasma-lyricsd.log` | 可选日志文件（默认关闭）             |
 | `~/.cache/plasma-lyrics/amll-index.jsonl`          | AMLL 元数据索引缓存                   |
 | `$XDG_RUNTIME_DIR/plasma-lyricsd/state.json`      | 整曲歌词原子快照（前端唯一数据来源） |

@@ -54,7 +54,7 @@ std::optional<qint64> nextBoundaryMs(const LyricLines &lines, qint64 positionMs,
     return *boundary + offsetMs;
 }
 
-LyricLines filterLeadingCredits(const LyricLines &lines, qint64 introLimitMs)
+bool looksLikeCredit(const LyricLine &line)
 {
     // Credits reach us in two shapes. NetEase's structured entries are flagged
     // during parsing, which is authoritative. Plain timestamped lines such as
@@ -64,18 +64,23 @@ LyricLines filterLeadingCredits(const LyricLines &lines, qint64 introLimitMs)
     // See DESIGN.md 6.1 for the verified formats and the known gaps.
     static const QRegularExpression creditExpression(QStringLiteral(R"(^[^\s：:]{1,12}[：:]\s*.+$)"));
     static const QRegularExpression colonPadding(QStringLiteral(R"(\s*([：:])\s*)"));
+    if (line.credit) {
+        return true;
+    }
+    const QString collapsed = QString(line.text).replace(colonPadding, QStringLiteral("\\1"));
+    return creditExpression.match(collapsed).hasMatch();
+}
+
+LyricLines filterLeadingCredits(const LyricLines &lines, qint64 introLimitMs)
+{
     qsizetype firstLyric = 0;
     while (firstLyric < lines.size()) {
         const auto &line = lines[firstLyric];
         if (line.startMs > introLimitMs) {
             break;
         }
-        if (!line.credit) {
-            const QString collapsed =
-                QString(line.text).replace(colonPadding, QStringLiteral("\\1"));
-            if (!creditExpression.match(collapsed).hasMatch()) {
-                break;
-            }
+        if (!looksLikeCredit(line)) {
+            break;
         }
         ++firstLyric;
     }

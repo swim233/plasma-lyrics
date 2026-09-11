@@ -44,7 +44,7 @@ Q_SIGNALS:
 
 private:
     struct Request;
-    std::optional<LyricDocument> overridden(const TrackRef &ref) const;
+    std::optional<LyricDocument> overridden(quint64 generation, const TrackRef &ref) const;
     LyricDocument forDisplay(LyricDocument document, const TrackRef &ref) const;
     ResolvedLyric resolvedLyric(const std::shared_ptr<Request> &request,
                                 const QString &state, const std::optional<TrackRef> &ref,
