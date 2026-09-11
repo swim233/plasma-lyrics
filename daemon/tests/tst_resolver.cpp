@@ -411,7 +411,7 @@ private Q_SLOTS:
         QVERIFY(result.document.lines.first().translation.has_value());
         QCOMPARE(*result.document.lines.first().translation, QStringLiteral("Hello"));
         QVERIFY(logged(capture.messages(),
-                       QStringLiteral("#1 override bilingual pairing: test/track-1 dropped=1")));
+                       QStringLiteral("#1 override bilingual pairing: test/track-1 collapsed=1")));
     }
 
     void continuesToTheNextProviderAfterNetworkFailure()

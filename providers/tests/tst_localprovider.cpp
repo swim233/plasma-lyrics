@@ -293,7 +293,7 @@ private Q_SLOTS:
         QVERIFY(fetched.document->lines.first().translation.has_value());
         QCOMPARE(*fetched.document->lines.first().translation, QStringLiteral("Hello"));
         QVERIFY(logged(capture.messages(),
-                       QStringLiteral("bilingual pairing: path=\"%1\" dropped=1").arg(path)));
+                       QStringLiteral("bilingual pairing: path=\"%1\" collapsed=1").arg(path)));
     }
 
     void limitsCandidatesPassedToResolver()

@@ -136,7 +136,7 @@ void LocalProvider::fetch(const QString &contentId, FetchCallback callback)
     int droppedLines = 0;
     auto document = LrcParser::parseBilingual(QString::fromUtf8(file.readAll()), &droppedLines);
     if (droppedLines > 0) {
-        qCDebug(lcLocal).noquote() << QStringLiteral("bilingual pairing: path=%1 dropped=%2")
+        qCDebug(lcLocal).noquote() << QStringLiteral("bilingual pairing: path=%1 collapsed=%2")
             .arg(quoted(contentId)).arg(droppedLines);
     }
     document.metadata.insert(QStringLiteral("source"), QStringLiteral("local"));

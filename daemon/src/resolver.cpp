@@ -120,7 +120,7 @@ std::optional<LyricDocument> Resolver::overridden(quint64 generation, const Trac
     if (auto document = m_overrides.lyric(ref, &droppedLines)) {
         if (droppedLines > 0) {
             qCDebug(lcResolver).noquote() << QStringLiteral(
-                "#%1 override bilingual pairing: %2/%3 dropped=%4")
+                "#%1 override bilingual pairing: %2/%3 collapsed=%4")
                 .arg(generation).arg(ref.provider, ref.trackId).arg(droppedLines);
         }
         return forDisplay(std::move(*document), ref);
