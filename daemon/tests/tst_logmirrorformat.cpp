@@ -1,5 +1,6 @@
 #include "daemon/src/logmirrorformat.h"
 
+#include <QStringList>
 #include <QTest>
 
 using namespace PlasmaLyrics;
@@ -32,17 +33,19 @@ private Q_SLOTS:
         QCOMPARE(typeName(QtFatalMsg), QLatin1String("fatal"));
     }
 
-    // All five QtMsgType values, including debug=7 and fatal=2, which
-    // manual/journalctl verification during review never triggered (no
-    // debug logging and no crash on demand) -- only warning=4/critical=3/
-    // info=6 had been seen live in a journal.
+    // Matches Qt's own mapping (debug=7/info=6/warning=4/critical=2/
+    // fatal=1), not an independently chosen scale: early log lines, before
+    // main() installs mirrorMessage, go through Qt's native journald sink
+    // and already use these values, so a different mapping here would put
+    // the same severity at two different priorities depending on which
+    // handler happened to log it.
     void mapsSyslogPriorities()
     {
         QCOMPARE(syslogPriority(QtDebugMsg), 7);
         QCOMPARE(syslogPriority(QtInfoMsg), 6);
         QCOMPARE(syslogPriority(QtWarningMsg), 4);
-        QCOMPARE(syslogPriority(QtCriticalMsg), 3);
-        QCOMPARE(syslogPriority(QtFatalMsg), 2);
+        QCOMPARE(syslogPriority(QtCriticalMsg), 2);
+        QCOMPARE(syslogPriority(QtFatalMsg), 1);
     }
 
     void mapsAnsiColors()
@@ -127,10 +130,10 @@ private Q_SLOTS:
                  QStringLiteral("<4>daemon proxy configuration rejected"));
         QCOMPARE(renderMirroredLine(StderrSink::Journald, QtCriticalMsg, QStringLiteral("daemon"),
                                      QStringLiteral("plasma-lyricsd is already running"), kTimestamp, false, QString()),
-                 QStringLiteral("<3>daemon plasma-lyricsd is already running"));
+                 QStringLiteral("<2>daemon plasma-lyricsd is already running"));
         QCOMPARE(renderMirroredLine(StderrSink::Journald, QtFatalMsg, QStringLiteral("daemon"),
                                      QStringLiteral("assertion failed"), kTimestamp, false, QString()),
-                 QStringLiteral("<2>daemon assertion failed"));
+                 QStringLiteral("<1>daemon assertion failed"));
         QCOMPARE(renderMirroredLine(StderrSink::Journald, QtDebugMsg, QStringLiteral("resolver"),
                                      QStringLiteral("cache mapping missing"), kTimestamp, false, QString()),
                  QStringLiteral("<7>resolver cache mapping missing"));
@@ -145,6 +148,44 @@ private Q_SLOTS:
         QCOMPARE(renderMirroredLine(StderrSink::Journald, QtInfoMsg, QStringLiteral("daemon"),
                                      QStringLiteral("started"), kTimestamp, true, patterned),
                  QStringLiteral("<6>") + patterned);
+    }
+
+    // journald splits stdout/stderr on newlines and treats each physical
+    // line as its own entry -- a prefix on only the first line would leave
+    // every continuation line at journald's default priority instead of
+    // the message's real one (this is exactly what the multi-line Qt
+    // locale warning showed under manual review: the first line carried
+    // the right PRIORITY, the next two did not). Every line must carry
+    // its own "<N>" prefix, in both the default body and the
+    // QT_MESSAGE_PATTERN-rendered body.
+    void rendersJournaldSinkMultiLineMessage()
+    {
+        const QString message = QStringLiteral(
+            "Detected locale \"C\" with character encoding \"ANSI_X3.4-1968\", which is not UTF-8.\n"
+            "Qt depends on a UTF-8 locale, and has switched to \"C.UTF-8\" instead.\n"
+            "If this causes problems, reconfigure your locale. See the locale(1) manual\n"
+            "for more information.");
+        const QString rendered = renderMirroredLine(StderrSink::Journald, QtWarningMsg,
+                                                     QStringLiteral("default"), message, kTimestamp,
+                                                     false, QString());
+        const QStringList renderedLines = rendered.split(QLatin1Char('\n'));
+        QCOMPARE(renderedLines.size(), 4);
+        QCOMPARE(renderedLines.at(0), QStringLiteral("<4>default Detected locale \"C\" with character "
+                                                       "encoding \"ANSI_X3.4-1968\", which is not UTF-8."));
+        QCOMPARE(renderedLines.at(1), QStringLiteral("<4>Qt depends on a UTF-8 locale, and has switched "
+                                                       "to \"C.UTF-8\" instead."));
+        QCOMPARE(renderedLines.at(2), QStringLiteral("<4>If this causes problems, reconfigure your locale. "
+                                                       "See the locale(1) manual"));
+        QCOMPARE(renderedLines.at(3), QStringLiteral("<4>for more information."));
+    }
+
+    void rendersJournaldSinkMultiLineEnvPattern()
+    {
+        const QString patterned = QStringLiteral("ENVTEST|warning|default|line one\nline two\nline three");
+        const QString rendered = renderMirroredLine(StderrSink::Journald, QtWarningMsg,
+                                                     QStringLiteral("default"), QStringLiteral("unused"),
+                                                     kTimestamp, true, patterned);
+        QCOMPARE(rendered, QStringLiteral("<4>ENVTEST|warning|default|line one\n<4>line two\n<4>line three"));
     }
 };
 

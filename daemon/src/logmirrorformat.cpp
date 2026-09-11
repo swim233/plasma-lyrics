@@ -1,5 +1,7 @@
 #include "logmirrorformat.h"
 
+#include <QStringList>
+
 namespace PlasmaLyrics {
 
 QString displayCategory(const char *category)
@@ -24,14 +26,21 @@ QLatin1String typeName(QtMsgType type)
     return QLatin1String("info");
 }
 
+// Matches Qt's own QtMsgType -> syslog priority mapping (see qlogging.cpp's
+// journald backend), not an independent choice: early log lines -- before
+// main() installs mirrorMessage -- go through Qt's native journald sink
+// and already use these values. A different mapping here would put the
+// same severity at two different priorities within one journal depending
+// on which handler happened to log it, which breaks `journalctl -p crit`
+// (or any other priority filter) across that boundary.
 int syslogPriority(QtMsgType type)
 {
     switch (type) {
     case QtDebugMsg: return 7;
     case QtInfoMsg: return 6;
     case QtWarningMsg: return 4;
-    case QtCriticalMsg: return 3;
-    case QtFatalMsg: return 2;
+    case QtCriticalMsg: return 2;
+    case QtFatalMsg: return 1;
     }
     return 6;
 }
@@ -67,7 +76,21 @@ QString renderMirroredLine(StderrSink sink, QtMsgType type, const QString &categ
         const QString body = honorEnvPattern
             ? patternedBody
             : QStringLiteral("%1 %2").arg(category, message);
-        return QStringLiteral("<%1>%2").arg(QString::number(syslogPriority(type)), body);
+        // journald splits stdout/stderr on newlines and treats each
+        // physical line as its own entry, so a prefix on only the first
+        // line leaves every continuation line at journald's default
+        // priority instead of this message's real one. This project's own
+        // log lines never contain embedded newlines (quoted(), used for
+        // every free-form field, escapes them -- see core/log/logformat.h
+        // and DESIGN.md decision 61), but Qt's own multi-line warnings do.
+        const QString prefix = QStringLiteral("<%1>").arg(syslogPriority(type));
+        const QStringList lines = body.split(QLatin1Char('\n'));
+        QStringList prefixedLines;
+        prefixedLines.reserve(lines.size());
+        for (const QString &line : lines) {
+            prefixedLines.append(prefix + line);
+        }
+        return prefixedLines.join(QLatin1Char('\n'));
     }
     case StderrSink::Tty: {
         const QString line = honorEnvPattern ? patternedBody : plainLine(timestamp, type, category, message);
@@ -77,7 +100,11 @@ QString renderMirroredLine(StderrSink sink, QtMsgType type, const QString &categ
     case StderrSink::Plain:
         return honorEnvPattern ? patternedBody : plainLine(timestamp, type, category, message);
     }
-    return honorEnvPattern ? patternedBody : plainLine(timestamp, type, category, message);
+    // All three enumerators return above; an out-of-range StderrSink value
+    // here is undefined behavior. Q_UNREACHABLE() rather than a fallback
+    // line: a fabricated plain line could pass for correct output instead
+    // of surfacing the bug.
+    Q_UNREACHABLE();
 }
 
 } // namespace PlasmaLyrics

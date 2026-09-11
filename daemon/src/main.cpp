@@ -79,9 +79,10 @@ void mirrorMessage(QtMsgType type, const QMessageLogContext &context, const QStr
     const QString timestamp = QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd hh:mm:ss.zzz"));
 
     // QT_MESSAGE_PATTERN is Qt's own escape hatch for the exact rendered
-    // text: when set, it wins inside qFormatLogMessage() over the
-    // qSetMessagePattern() call in main() (Qt's documented precedence), so
-    // once it is set its rendering replaces every hand-rolled body
+    // text: Qt reads it once, and when it is set, the qSetMessagePattern()
+    // call in main() becomes a no-op -- qFormatLogMessage() below already
+    // renders with the env-supplied pattern regardless of that call. Once
+    // set, its rendering replaces every hand-rolled body
     // renderMirroredLine() would otherwise build, verbatim -- category
     // stripping included, since %{category} there means the real
     // QLoggingCategory name, same as it always has. The journald "<N>"
@@ -285,11 +286,19 @@ int main(int argc, char **argv)
     // Set unconditionally, and before the single-instance lock check below
     // (DESIGN.md #49's ordering). mirrorMessage is installed unconditionally
     // too and does its own per-sink formatting on the normal path, so this
-    // pattern now serves two narrower jobs: it is what the default Qt
-    // handler falls back to once loggingGuard uninstalls mirrorMessage
-    // during shutdown, and it is the pattern QT_MESSAGE_PATTERN (when set)
-    // overrides inside qFormatLogMessage() for mirrorMessage's own
-    // env-pattern path below.
+    // pattern no longer drives normal output. What still reads it: Qt's
+    // default handler when stderr is a tty, and on Qt builds without a
+    // journald-aware default handler -- on this project's own Arch build,
+    // Qt links libsystemd and its default handler calls sd_journal_send()
+    // directly when stderr is not a tty (unless QT_FORCE_STDERR_LOGGING or
+    // QT_LOGGING_TO_CONSOLE forces the stderr path instead), bypassing this
+    // pattern entirely. So in the daemon's actual deployment (journald,
+    // non-tty, neither of those set), this call only matters for the
+    // narrow shutdown window after loggingGuard
+    // uninstalls mirrorMessage -- and even then it is inert whenever
+    // QT_MESSAGE_PATTERN is set: Qt reads that env var once and from then
+    // on treats qSetMessagePattern() as a no-op, not something the env var
+    // "overrides" after the fact.
     qSetMessagePattern(QStringLiteral(
         "[%{time yyyy-MM-dd hh:mm:ss.zzz}] %{type} %{category} %{message}"));
     stderrSink = detectStderrSink();
