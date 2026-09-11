@@ -12,6 +12,9 @@ if(BUILD_TESTING)
     add_test(NAME import-waylyrics-fixture
              COMMAND import-waylyrics --dry-run
                      --source ${CMAKE_CURRENT_SOURCE_DIR}/tests/fixture.json)
+    # See core/tests/CMakeLists.txt: LC_ALL stops Qt's startup locale
+    # warning from reaching the real journal via sd_journal_send().
     set_tests_properties(import-waylyrics-fixture PROPERTIES
-        PASS_REGULAR_EXPRESSION "imported=1 skipped=0 failed=0")
+        PASS_REGULAR_EXPRESSION "imported=1 skipped=0 failed=0"
+        ENVIRONMENT "LC_ALL=C.UTF-8")
 endif()

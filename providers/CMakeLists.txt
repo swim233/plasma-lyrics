@@ -42,6 +42,9 @@ if(BUILD_TESTING AND ENABLE_PROVIDER_NETEASE)
     target_compile_definitions(tst_neteaseprovider PRIVATE
         PLASMA_LYRICS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
     add_test(NAME tst_neteaseprovider COMMAND tst_neteaseprovider)
+    # See core/tests/CMakeLists.txt: stops Qt's startup locale warning from
+    # reaching the real journal via sd_journal_send().
+    set_tests_properties(tst_neteaseprovider PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 endif()
 
 if(BUILD_TESTING)
@@ -49,6 +52,7 @@ if(BUILD_TESTING)
     add_executable(tst_localprovider tests/tst_localprovider.cpp)
     target_link_libraries(tst_localprovider PRIVATE plasma_lyrics_providers Qt6::Test)
     add_test(NAME tst_localprovider COMMAND tst_localprovider)
+    set_tests_properties(tst_localprovider PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 endif()
 
 if(BUILD_TESTING AND ENABLE_PROVIDER_AMLL)
@@ -56,4 +60,5 @@ if(BUILD_TESTING AND ENABLE_PROVIDER_AMLL)
     add_executable(tst_amllprovider tests/tst_amllprovider.cpp)
     target_link_libraries(tst_amllprovider PRIVATE plasma_lyrics_providers Qt6::Test)
     add_test(NAME tst_amllprovider COMMAND tst_amllprovider)
+    set_tests_properties(tst_amllprovider PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 endif()

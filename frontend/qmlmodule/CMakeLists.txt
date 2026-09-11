@@ -39,7 +39,9 @@ if(BUILD_TESTING)
     else()
         add_test(NAME tst_backendconfig COMMAND tst_backendconfig)
     endif()
-    set_tests_properties(tst_backendconfig PROPERTIES RESOURCE_LOCK plasma_lyrics_config)
+    set_tests_properties(tst_backendconfig PROPERTIES
+        RESOURCE_LOCK plasma_lyrics_config
+        ENVIRONMENT "LC_ALL=C.UTF-8")
 
     add_executable(tst_globalconfig
         tests/tst_globalconfig.cpp
@@ -53,6 +55,7 @@ if(BUILD_TESTING)
     else()
         add_test(NAME tst_globalconfig COMMAND tst_globalconfig)
     endif()
+    set_tests_properties(tst_globalconfig PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
     add_executable(tst_lyricsource
         tests/tst_lyricsource.cpp
@@ -66,6 +69,7 @@ if(BUILD_TESTING)
     else()
         add_test(NAME tst_lyricsource COMMAND tst_lyricsource)
     endif()
+    set_tests_properties(tst_lyricsource PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
     add_executable(tst_visibilitypolicy
         tests/tst_visibilitypolicy.cpp
@@ -74,4 +78,5 @@ if(BUILD_TESTING)
     target_include_directories(tst_visibilitypolicy PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_visibilitypolicy PRIVATE Qt6::Core Qt6::Qml Qt6::Test)
     add_test(NAME tst_visibilitypolicy COMMAND tst_visibilitypolicy)
+    set_tests_properties(tst_visibilitypolicy PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 endif()

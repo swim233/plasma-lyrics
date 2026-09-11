@@ -24,6 +24,9 @@ if(BUILD_TESTING)
     target_compile_definitions(tst_appearance PRIVATE
         QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/autotests")
     add_test(NAME tst_appearance COMMAND tst_appearance)
+    # LC_ALL=C.UTF-8 stops Qt's own startup locale warning from reaching
+    # the real journal via sd_journal_send() (see
+    # core/tests/CMakeLists.txt for the full explanation).
     set_tests_properties(tst_appearance PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;LC_ALL=C.UTF-8")
 endif()

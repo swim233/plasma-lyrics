@@ -46,6 +46,12 @@ endif()
 
 if(BUILD_TESTING)
     find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
+    # Every test binary below links Qt and so can print Qt's one-time
+    # non-UTF8-locale warning at startup; under a systemd-journal-connected
+    # environment that warning's default Qt handler reaches the real
+    # journal via sd_journal_send() regardless of how ctest captures this
+    # process's own stdout/stderr (see core/tests/CMakeLists.txt for the
+    # full explanation). LC_ALL=C.UTF-8 removes the warning at the source.
     add_executable(tst_logmirrorformat
         tests/tst_logmirrorformat.cpp
         src/logmirrorformat.cpp
@@ -53,6 +59,7 @@ if(BUILD_TESTING)
     target_include_directories(tst_logmirrorformat PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_logmirrorformat PRIVATE Qt6::Core Qt6::Test)
     add_test(NAME tst_logmirrorformat COMMAND tst_logmirrorformat)
+    set_tests_properties(tst_logmirrorformat PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
     add_executable(tst_config
         tests/tst_config.cpp
@@ -62,7 +69,9 @@ if(BUILD_TESTING)
     target_include_directories(tst_config PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_config PRIVATE plasma_lyrics_core plasma_lyrics_providers Qt6::Test)
     add_test(NAME tst_config COMMAND tst_config)
-    set_tests_properties(tst_config PROPERTIES RESOURCE_LOCK plasma_lyrics_config)
+    set_tests_properties(tst_config PROPERTIES
+        RESOURCE_LOCK plasma_lyrics_config
+        ENVIRONMENT "LC_ALL=C.UTF-8")
 
     add_executable(tst_mprispolicy
         tests/tst_mprispolicy.cpp
@@ -78,6 +87,7 @@ if(BUILD_TESTING)
     target_compile_definitions(tst_mprispolicy PRIVATE
         PLASMA_LYRICS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
     add_test(NAME tst_mprispolicy COMMAND tst_mprispolicy)
+    set_tests_properties(tst_mprispolicy PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
     # The bug this covers lives in the D-Bus wiring itself, so the test needs a
     # real bus. dbus-run-session gives it a private one, which also keeps the
@@ -95,6 +105,7 @@ if(BUILD_TESTING)
         target_link_libraries(tst_mprisdiscovery PRIVATE plasma_lyrics_core Qt6::DBus Qt6::Test)
         add_test(NAME tst_mprisdiscovery
                  COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_mprisdiscovery>)
+        set_tests_properties(tst_mprisdiscovery PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
         add_executable(tst_mprisplayer_lifecycle
             tests/tst_mprisplayer_lifecycle.cpp
@@ -106,6 +117,7 @@ if(BUILD_TESTING)
         target_link_libraries(tst_mprisplayer_lifecycle PRIVATE plasma_lyrics_core Qt6::DBus Qt6::Test)
         add_test(NAME tst_mprisplayer_lifecycle
                  COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_mprisplayer_lifecycle>)
+        set_tests_properties(tst_mprisplayer_lifecycle PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
     else()
         message(STATUS "dbus-run-session not found -- skipping MPRIS D-Bus tests")
     endif()
@@ -117,6 +129,7 @@ if(BUILD_TESTING)
     target_include_directories(tst_snapshot PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_snapshot PRIVATE plasma_lyrics_core Qt6::Test)
     add_test(NAME tst_snapshot COMMAND tst_snapshot)
+    set_tests_properties(tst_snapshot PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
     add_executable(tst_resolver
         tests/tst_resolver.cpp
@@ -130,6 +143,7 @@ if(BUILD_TESTING)
         Qt6::Test
     )
     add_test(NAME tst_resolver COMMAND tst_resolver)
+    set_tests_properties(tst_resolver PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
     if(ENABLE_PROVIDER_AMLL)
         set(_explain_expected_provider amll)
@@ -145,6 +159,10 @@ if(BUILD_TESTING)
             -DCONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/explain-test-config
             -DCACHE_HOME=${CMAKE_CURRENT_BINARY_DIR}/explain-test-cache
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_explain_provider.cmake)
+    # This test's own process is `cmake -P`, not the daemon, but
+    # execute_process() inside that script inherits ctest's environment
+    # for the real plasma-lyricsd invocation -- LC_ALL set here reaches it.
+    set_tests_properties(explain-provider-selection PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
     if(DBUS_RUN_SESSION_EXECUTABLE)
         add_executable(tst_controlservice
@@ -159,5 +177,6 @@ if(BUILD_TESTING)
             plasma_lyrics_core plasma_lyrics_providers Qt6::DBus Qt6::Test)
         add_test(NAME tst_controlservice
                  COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_controlservice>)
+        set_tests_properties(tst_controlservice PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
     endif()
 endif()

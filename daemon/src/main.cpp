@@ -470,7 +470,12 @@ int main(int argc, char **argv)
     QLockFile lock(lockDirectory + QStringLiteral("/daemon.lock"));
     lock.setStaleLockTime(10000);
     if (!lock.tryLock(100)) {
-        qCCritical(lcDaemon, "plasma-lyricsd is already running");
+        // Another instance already holding the lock is a benign startup
+        // race, not a fault -- warning, not critical, so it doesn't show up
+        // in `journalctl -p 3` alongside real problems. The exit code (2)
+        // is unrelated and unchanged: systemd's Restart=on-failure keys off
+        // that, not the log priority.
+        qCWarning(lcDaemon, "plasma-lyricsd is already running");
         return 2;
     }
 
