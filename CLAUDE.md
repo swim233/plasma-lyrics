@@ -28,6 +28,18 @@ On a machine that also has the `plasma-lyrics-git` AUR package installed
 QtQuick/Kirigami, which `--bare` also drops) to get a result that matches
 CI, which never has that package installed.
 
+Every `add_test` must carry `ENVIRONMENT "LC_ALL=C.UTF-8"` (merge it into an
+existing `ENVIRONMENT` list rather than adding a second `set_tests_properties`,
+which would clobber the first). Without it each test binary emits Qt's
+"Detected locale ... not UTF-8" warning, and because ctest collects output
+through a pipe -- so stderr is not a tty -- Qt's default handler routes that
+warning through `sd_journal_send()` into the developer's real journal. That call
+looks at neither `DBUS_SESSION_BUS_ADDRESS` nor the XDG directories, so no
+process-level isolation can intercept it; a full `ctest` run used to leave ~25
+entries behind. The same applies when running a test binary directly instead of
+through ctest -- set the variable yourself. Rationale also recorded in
+`core/tests/CMakeLists.txt`.
+
 Commit messages are in Chinese with an English Conventional Commits prefix:
 `type(scope): 中文主题`, where type is one of feat / fix / perf / docs /
 chore / merge. The subject states what was implemented or fixed and the new
