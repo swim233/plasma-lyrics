@@ -207,6 +207,261 @@ private Q_SLOTS:
         QCOMPARE(chosen->candidate.trackId, QStringLiteral("2034742057"));
     }
 
+    void bilingualGlossParentheticalRescuesCorrectCandidate()
+    {
+        // Regression for the actual bug report, reproduced field for field
+        // (artists/album/duration are already a perfect match on both
+        // candidates -- only score.title decides, exactly as in the user's
+        // log):
+        //   1. [3363002263] 青さは止んだ — ナナツカゼ total=0.773 title=0.545
+        //      artists=1.000 album=1.000 duration=1.000 deltaMs=0
+        //   2. [3363001374] 青さは止んだ (Instrumental) — ナナツカゼ total=0.684
+        //      title=0.368 artists=1.000 album=1.000 duration=1.000 deltaMs=0
+        // Before this fix, candidate 1's score.title landed at 6/11 = 0.545
+        // -- just under the 0.55 title-threshold -- so it was rejected
+        // purely on the title gate despite everything else lining up. The
+        // query-side variant that strips the untranslated bracket now
+        // scores candidate 1 an exact title match (verified against the
+        // pre-fix code: this fixture reproduces 0.545/0.773 exactly).
+        // Candidate 2 (Instrumental) must stay rejected at exactly its old
+        // score. Verified by instrumenting textSimilarity's two branches
+        // (not by derivation -- the two candidates' normalized titles are
+        // "青さは止んだ 青春已逝" (11, original variant) and "青さは止んだ"
+        // (6, stripped variant) against candidate 2's normalized
+        // "青さは止んだ instrumental" (19): the *stripped* variant is a
+        // prefix of candidate 2's title and takes the containment
+        // fast-path, scoring only 6/19 = 0.316; the *original,
+        // un-stripped* variant shares no such containment and takes the
+        // full Levenshtein path, scoring 7/19 = 0.368 (matching the old,
+        // pre-fix score exactly, since that path is untouched by this fix).
+        // The max of the two stays at the Levenshtein score, unchanged.
+        const TrackQuery query{QStringLiteral("青さは止んだ (青春已逝)"),
+                               {QStringLiteral("ナナツカゼ")}, QStringLiteral("青さは止んだ"), 213233};
+        const QList<Candidate> candidates{
+            {QStringLiteral("3363002263"), QStringLiteral("青さは止んだ"),
+             {QStringLiteral("ナナツカゼ")}, QStringLiteral("青さは止んだ"), 213233},
+            {QStringLiteral("3363001374"), QStringLiteral("青さは止んだ (Instrumental)"),
+             {QStringLiteral("ナナツカゼ")}, QStringLiteral("青さは止んだ"), 213233}};
+
+        const auto ranked = rankCandidates(query, candidates);
+
+        QCOMPARE(ranked.first().candidate.trackId, QStringLiteral("3363002263"));
+        QCOMPARE(ranked.first().score.title, 1.0);
+        QCOMPARE(ranked.first().score.artists, 1.0);
+        QCOMPARE(ranked.first().score.album, 1.0);
+        QCOMPARE(ranked.first().score.duration, 1.0);
+        QCOMPARE(ranked.first().score.total, 1.0);
+        // Candidate 1's winning title comparison came through the
+        // gloss-stripped query variant (see the mechanism note above), so
+        // this is exactly the case passesGlossVariantGate must let
+        // through: it does, because deltaMs=0 here, same as the real bug
+        // report -- glossVariantDurationGateRejectsATooShortSameArtistTrack
+        // is the same shape with a large deltaMs instead, and must reject.
+        QVERIFY(ranked.first().score.titleViaGlossVariant);
+        QVERIFY(isAcceptableMatch(ranked.first()));
+
+        const auto instrumental = std::find_if(ranked.cbegin(), ranked.cend(), [](const auto &item) {
+            return item.candidate.trackId == QStringLiteral("3363001374");
+        });
+        QVERIFY(instrumental != ranked.cend());
+        QCOMPARE(instrumental->score.title, 7.0 / 19.0);
+        QCOMPARE(instrumental->score.total, 0.5 * (7.0 / 19.0) + 0.2 + 0.1 + 0.2);
+        QVERIFY(!isAcceptableMatch(*instrumental));
+    }
+
+    void preserveVersionsGlossStrippingNeverAppliesToVersionMarkers()
+    {
+        // Counter-example a: a trailing bracket that carries a version
+        // marker ("Live") must never be treated as a strippable gloss --
+        // otherwise "Example Song (Live)" would gain a bare "Example Song"
+        // query variant that scores an *exact* title match (1.0) against
+        // the studio candidate, letting an unrelated recording get chosen
+        // as if it were the requested live performance (DESIGN.md decision
+        // 54). Left unstripped, the two titles' own similarity is a fixed
+        // 12/17 = 0.706 via their shared "Example Song" prefix -- this
+        // exact value must be identical before and after this fix; any
+        // change (up to and including hitting 1.0) means the bracket
+        // started getting stripped.
+        const TrackQuery query{QStringLiteral("Example Song (Live)"),
+                               {QStringLiteral("Singer")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("studio"), QStringLiteral("Example Song"),
+                                  {QStringLiteral("Singer")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate, MatchPolicy::PreserveVersions);
+
+        QCOMPARE(score.versionTier, VersionTier::OneSided);
+        QCOMPARE(score.title, 12.0 / 17.0);
+    }
+
+    void preserveVersionsGlossStrippingNeverAppliesToCleanTitleOnlyMarkers()
+    {
+        // Counter-example c: regression for the union-guard rework. "版"
+        // and "ver" are markers cleanTitle's own regex recognizes but
+        // versionEvidence()'s table does not carry on their own (only
+        // compound forms like 特别版/周年...版) -- before the guard became
+        // the union of both tables, "歌名 (2024版)" and "Song (Ver. 2)"
+        // would have been read as harmless localized aliases and
+        // stripped, letting a query for one version exact-match a
+        // candidate of a different, unversioned recording.
+        // Both values pinned exactly (same rigor as counter-example a's
+        // 12/17): "歌名 (2024版)" normalizes to "歌名 2024版" (8 chars)
+        // which contains the unstripped candidate "歌名" (2 chars) ->
+        // 2/8 = 0.25. "Song (Ver. 2)" normalizes to "song ver 2" (10
+        // chars) containing "song" (4 chars) -> 4/10 = 0.4. Neither is
+        // 1.0, so the bracket was not stripped.
+        const TrackQuery queryVer{QStringLiteral("歌名 (2024版)"), {QStringLiteral("Singer")}, QString(), 0};
+        const Candidate candidateVer{QStringLiteral("plain-ver"), QStringLiteral("歌名"),
+                                     {QStringLiteral("Singer")}, QString(), 0};
+        const auto scoreVer = scoreCandidate(queryVer, candidateVer, MatchPolicy::PreserveVersions);
+        QCOMPARE(scoreVer.title, 2.0 / 8.0);
+
+        const TrackQuery queryEn{QStringLiteral("Song (Ver. 2)"), {QStringLiteral("Singer")}, QString(), 0};
+        const Candidate candidateEn{QStringLiteral("plain-en"), QStringLiteral("Song"),
+                                    {QStringLiteral("Singer")}, QString(), 0};
+        const auto scoreEn = scoreCandidate(queryEn, candidateEn, MatchPolicy::PreserveVersions);
+        QCOMPARE(scoreEn.title, 4.0 / 10.0);
+    }
+
+    void splitTrailingGlossStripsAHarmlessLocalizedAlias()
+    {
+        QString main;
+        QVERIFY(splitTrailingGloss(QStringLiteral("青さは止んだ (青春已逝)"), &main));
+        QCOMPARE(main, QStringLiteral("青さは止んだ"));
+    }
+
+    void splitTrailingGlossNeverStripsVersionEvidenceMarkers()
+    {
+        QString main;
+        QVERIFY(!splitTrailingGloss(QStringLiteral("Example Song (Live)"), &main));
+        QVERIFY(!splitTrailingGloss(QStringLiteral("青さは止んだ (Instrumental)"), &main));
+    }
+
+    void splitTrailingGlossNeverStripsCleanTitleOnlyMarkers()
+    {
+        // "版" and "ver" are markers cleanTitle's own regex recognizes but
+        // versionEvidence()'s table does not carry on their own. The guard
+        // must be the union of both tables, not just versionEvidence's.
+        QString main;
+        QVERIFY(!splitTrailingGloss(QStringLiteral("歌名 (2024版)"), &main));
+        QVERIFY(!splitTrailingGloss(QStringLiteral("Song (Ver. 2)"), &main));
+    }
+
+    void splitTrailingGlossHasNothingToStripWithoutATrailingBracket()
+    {
+        QString main;
+        QVERIFY(!splitTrailingGloss(QStringLiteral("Plain Title"), &main));
+    }
+
+    void unrelatedBracketedAsideCannotDragAWrongSongOverThreshold()
+    {
+        // Counter-example b: splitTrailingGloss only requires the bracket
+        // to carry no version marker before stripping it, so a completely
+        // unrelated aside in parentheses also produces an extra query
+        // variant (the title with it removed). That variant shares no
+        // more than incidental punctuation (e.g. the word-separating
+        // space) with an unrelated candidate, so it may not drag its
+        // score anywhere near the 0.55 acceptance threshold.
+        const TrackQuery query{QStringLiteral("真正的歌 (完全无关的备注文字)"),
+                               {QStringLiteral("对的人")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("wrong"), QStringLiteral("Unrelated English Title"),
+                                  {QStringLiteral("Nobody")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QVERIFY(score.title < 0.55);
+        QVERIFY(!isAcceptableMatch({candidate, score}));
+    }
+
+    void glossVariantDurationGateRejectsATooShortSameArtistTrack()
+    {
+        // qa-match's counterexample: this is the entire reason
+        // passesGlossVariantGate exists. "心跳 (跳动的心)" strips to "心跳",
+        // which exact-matches a same-artist candidate that is actually a
+        // different, much shorter recording (200s query vs. 15s
+        // candidate) -- not a translation at all, just an album track
+        // that happens to share the stripped title. Before this gate,
+        // artists=1.0 and title=1.0 alone cleared both thresholds
+        // (total=0.7) despite score.duration having already collapsed to
+        // 0.0 -- duration's 0.2 weight isn't enough on its own to block
+        // an exact title+artist match (DESIGN.md decision 45: no lyrics
+        // rather than wrong lyrics).
+        const TrackQuery query{QStringLiteral("心跳 (跳动的心)"), {QStringLiteral("歌手A")}, QString(), 200000};
+        const Candidate candidate{QStringLiteral("wrong"), QStringLiteral("心跳"),
+                                  {QStringLiteral("歌手A")}, QString(), 15000};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QCOMPARE(score.title, 1.0);
+        QCOMPARE(score.artists, 1.0);
+        QCOMPARE(score.duration, 0.0);
+        QCOMPARE(score.total, 0.7);
+        QVERIFY(score.titleViaGlossVariant);
+        QVERIFY(!isAcceptableMatch({candidate, score}));
+        QCOMPARE(candidateRejectionReason({candidate, score}), QStringLiteral("gloss-duration-threshold"));
+    }
+
+    void glossVariantDurationGateBoundaryIsInclusiveOf2000ms()
+    {
+        // The gate's window matches scoreCandidate's own duration curve
+        // breakpoint (2000ms, decision 12) exactly, including at the
+        // boundary: <=2000ms passes, one millisecond more does not.
+        const TrackQuery query{QStringLiteral("Song (Alt Title)"),
+                               {QStringLiteral("Artist")}, QString(), 200000};
+        const Candidate atBoundary{QStringLiteral("at-boundary"), QStringLiteral("Song"),
+                                  {QStringLiteral("Artist")}, QString(), 202000};
+        const Candidate overBoundary{QStringLiteral("over-boundary"), QStringLiteral("Song"),
+                                     {QStringLiteral("Artist")}, QString(), 202001};
+
+        const auto atScore = scoreCandidate(query, atBoundary);
+        QVERIFY(atScore.titleViaGlossVariant);
+        QCOMPARE(atScore.durationDifferenceMs, qint64(2000));
+        QVERIFY(isAcceptableMatch({atBoundary, atScore}));
+
+        const auto overScore = scoreCandidate(query, overBoundary);
+        QVERIFY(overScore.titleViaGlossVariant);
+        QCOMPARE(overScore.durationDifferenceMs, qint64(2001));
+        QVERIFY(!isAcceptableMatch({overBoundary, overScore}));
+        QCOMPARE(candidateRejectionReason({overBoundary, overScore}), QStringLiteral("gloss-duration-threshold"));
+    }
+
+    void glossVariantDurationGateRejectsWhenEitherSideDurationIsUnknown()
+    {
+        // Conservative direction (DESIGN.md decision 45): an unknown
+        // duration cannot pass this gate, unlike passesAliasArtistGate's
+        // artist bar, which only asks for a similarity score, known or
+        // not. Erring toward rejection here only ever regresses to
+        // today's not-found, never to a wrong match. But this is a
+        // *different* reason than a known duration outside the window
+        // (see glossVariantDurationGateRejectsATooShortSameArtistTrack):
+        // there's an actionable fix here (add a length), so it gets its
+        // own rejection reason (qa-match: a local directory search
+        // candidate from a .lrc with no [length:] tag is exactly this
+        // shape -- candidate.lengthMs=0 even though the query has a real
+        // duration). The reverse -- the query side missing a duration --
+        // hits the same path and isn't local-source-specific.
+        const TrackQuery queryWithDuration{QStringLiteral("Song (Alt Title)"),
+                                           {QStringLiteral("Artist")}, QString(), 200000};
+        const Candidate candidateNoDuration{QStringLiteral("no-duration"), QStringLiteral("Song"),
+                                            {QStringLiteral("Artist")}, QString(), 0};
+        const auto candidateSideScore = scoreCandidate(queryWithDuration, candidateNoDuration);
+        QVERIFY(candidateSideScore.titleViaGlossVariant);
+        QVERIFY(!candidateSideScore.durationComparable);
+        QVERIFY(!isAcceptableMatch({candidateNoDuration, candidateSideScore}));
+        QCOMPARE(candidateRejectionReason({candidateNoDuration, candidateSideScore}),
+                 QStringLiteral("gloss-duration-unknown"));
+
+        const TrackQuery queryNoDuration{QStringLiteral("Song (Alt Title)"),
+                                         {QStringLiteral("Artist")}, QString(), 0};
+        const Candidate candidateWithDuration{QStringLiteral("with-duration"), QStringLiteral("Song"),
+                                              {QStringLiteral("Artist")}, QString(), 200000};
+        const auto querySideScore = scoreCandidate(queryNoDuration, candidateWithDuration);
+        QVERIFY(querySideScore.titleViaGlossVariant);
+        QVERIFY(!querySideScore.durationComparable);
+        QVERIFY(!isAcceptableMatch({candidateWithDuration, querySideScore}));
+        QCOMPARE(candidateRejectionReason({candidateWithDuration, querySideScore}),
+                 QStringLiteral("gloss-duration-unknown"));
+    }
+
     void dedupeGuardTreatsSameSongUnderDifferentIdsAsOne()
     {
         // netease commonly lists the same song under several track ids
@@ -571,6 +826,23 @@ private Q_SLOTS:
         QVERIFY(explanation.contains(QStringLiteral("versionTier=normal")));
         QVERIFY(explanation.contains(QStringLiteral("rejected=title-threshold")));
         QVERIFY(explanation.contains(QStringLiteral("selected: none")));
+    }
+
+    void explainListsEveryQueryTitleVariantActuallyScored()
+    {
+        // Regression: this diagnostic must show what scoreCandidate really
+        // tried, not just cleanTitle's output -- a query with a strippable
+        // localized gloss is scored against *two* query-side title
+        // variants (see queryTitleVariants), and both must be visible here.
+        const TrackQuery query{QStringLiteral("青さは止んだ (青春已逝)"),
+                               {QStringLiteral("ナナツカゼ")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("3363002263"), QStringLiteral("青さは止んだ"),
+                                  {QStringLiteral("ナナツカゼ")}, QString(), 0};
+
+        const QString explanation = explainMatch(query, {candidate}, false, true);
+
+        QVERIFY(explanation.contains(QStringLiteral("title variants: 青さは止んだ (青春已逝) | 青さは止んだ")));
+        QVERIFY(!explanation.contains(QStringLiteral("clean title:")));
     }
 
     void preserveVersionsUsesAliasesWithoutStrippingTheirSuffixes()

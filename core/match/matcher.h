@@ -53,6 +53,13 @@ struct ScoreBreakdown {
     double total = 0;
     qint64 durationDifferenceMs = 0;
     bool titleViaAlternate = false;   // true when an alternateTitles entry beat the primary title
+    // true when the winning query-side title was a gloss-stripped variant
+    // (see splitTrailingGloss), not the original query title. Unlike
+    // titleViaAlternate, this is evidence the candidate-side title matches
+    // a *shortened* form of the query, which a same-artist, differently
+    // durationed track (an Intro/Interlude/Outro) can also do -- see
+    // passesGlossVariantGate.
+    bool titleViaGlossVariant = false;
     bool durationComparable = false;  // true when both sides had a known length (query and candidate)
     VersionTier versionTier = VersionTier::Normal;
     bool versionPolicyApplied = false;
@@ -66,6 +73,14 @@ struct RankedCandidate {
 
 QString normalizeSearchText(QString text);
 QString cleanTitle(QString title);
+// Exposed for direct unit testing of the version-marker guard (see
+// matcher.cpp) -- not a general-purpose title-parsing utility for callers
+// outside this module. Returns true and sets *main to title with a
+// trailing, no-version-marker bracketed gloss removed (e.g. a localized
+// alias like "Song (歌名译名)" -> "Song"); returns false when there is no
+// trailing bracket, or its contents carry a version marker and must not be
+// treated as a translation/alias.
+bool splitTrailingGloss(const QString &title, QString *main);
 QStringList cleanArtists(const QStringList &artists);
 QString searchKeywords(const TrackQuery &query);
 ScoreBreakdown scoreCandidate(const TrackQuery &query, const Candidate &candidate,

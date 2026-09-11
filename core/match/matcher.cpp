@@ -197,6 +197,31 @@ bool passesAliasArtistGate(const RankedCandidate &candidate)
     return !candidate.score.titleViaAlternate || candidate.score.artists >= 0.5;
 }
 
+// The 2000ms window scoreCandidate's own duration curve already treats as
+// "best tier" (decision 12; see the first branch of score.duration below)
+// -- reused here, rather than a new number, so this gate and that curve
+// agree on what "close enough" means.
+constexpr qint64 kGlossVariantDurationWindowMs = 2000;
+
+// A gloss-stripped query variant (see splitTrailingGloss) can make the
+// candidate-side title match a *shortened* form of the query just as
+// easily as it rescues a genuinely translated title: "Song (Intro)" and a
+// same-artist "Intro" track (a different, much shorter recording) score
+// identically well through the stripped variant "Song". Duration is the
+// only independent evidence left to tell the two apart, so a title win
+// that came through a gloss variant is only accepted within this window.
+// Unlike passesAliasArtistGate's artist bar (D-11), an unknown/missing
+// duration cannot pass here: DESIGN.md decision 45's user preference is
+// "no lyrics rather than wrong lyrics", and an Intro/Interlude/Outro/Skit
+// collision is common enough (frequent album-track names) that erring
+// toward rejection is the safer default.
+bool passesGlossVariantGate(const RankedCandidate &candidate)
+{
+    return !candidate.score.titleViaGlossVariant
+        || (candidate.score.durationComparable
+            && candidate.score.durationDifferenceMs <= kGlossVariantDurationWindowMs);
+}
+
 double artistSimilarity(const QStringList &left, const QStringList &right)
 {
     if (left.isEmpty() || right.isEmpty()) {
@@ -213,6 +238,46 @@ double artistSimilarity(const QStringList &left, const QStringList &right)
     return sum / static_cast<double>(left.size());
 }
 
+// The marker words cleanTitle's own trailing-bracket regex looks for. A
+// bare "版" or "ver"/"ver." is common enough on Chinese- and
+// English-market titles that cleanTitle already treats it as a version
+// marker, but versionEvidence()'s own, richer table does not carry either
+// one on its own (only compound forms like "特别版", "周年...版"). Shared
+// as a fragment, rather than copied, so cleanTitle and splitTrailingGloss's
+// guard below can never quietly drift onto two different definitions of
+// "version marker".
+QString cleanTitleVersionMarkerPattern()
+{
+    return QStringLiteral(R"(伴奏|纯音乐|live|版|ver\.?|cover|remix)");
+}
+
+// Whether a query title variant is the original, un-stripped title or a
+// gloss-stripped one travels with the string itself here, rather than
+// being inferred from its position in a list: a caller that reordered or
+// filtered that list would otherwise silently make passesGlossVariantGate
+// misclassify a gloss-stripped match as the original title (and vice
+// versa), quietly reopening the exact hole that gate exists to close.
+struct QueryTitleVariant {
+    QString text;
+    bool isGlossStripped = false;
+};
+
+// The query side may carry a bracketed localized gloss that the provider
+// candidate's title doesn't, so title matching also tries the query with
+// that gloss removed and keeps whichever variant scores highest against a
+// given candidate title. This can only raise score.title, never lower it
+// -- same reasoning as alternateTitles on the candidate side (D-11) -- so
+// no previously-accepted match is put at risk by adding this variant.
+QList<QueryTitleVariant> queryTitleVariants(const QString &title, MatchPolicy policy)
+{
+    QList<QueryTitleVariant> variants{{titleForPolicy(title, policy), false}};
+    QString main;
+    if (splitTrailingGloss(title, &main) && !main.isEmpty()) {
+        variants.append({titleForPolicy(main, policy), true});
+    }
+    return variants;
+}
+
 } // namespace
 
 QString normalizeSearchText(QString text)
@@ -225,10 +290,44 @@ QString normalizeSearchText(QString text)
 QString cleanTitle(QString title)
 {
     static const QRegularExpression versionSuffix(
-        QStringLiteral(R"(\s*[\(（\[【].{0,30}(伴奏|纯音乐|live|版|ver\.?|cover|remix).{0,20}[\)）\]】]\s*$)"),
+        QStringLiteral(R"(\s*[\(（\[【].{0,30}()") + cleanTitleVersionMarkerPattern()
+            + QStringLiteral(R"().{0,20}[\)）\]】]\s*$)"),
         QRegularExpression::CaseInsensitiveOption);
     title.remove(versionSuffix);
     return title.simplified();
+}
+
+// A trailing parenthetical whose contents carry no known version marker is
+// read as a same-song localized alias/gloss (e.g. the literal title
+// "青さは止んだ (青春已逝)", where the parenthesized text is just the
+// Mandarin storefront's translation of the Japanese title before it), not
+// evidence of a different recording. A trailing parenthetical that DOES
+// carry a version marker is left alone here: cleanTitle already strips
+// those under MatchPolicy::Default (versions collapse together there by
+// design), and MatchPolicy::PreserveVersions must keep them intact --
+// decision 54's version distinction depends on it. "Version marker" here
+// is deliberately the union of versionEvidence()'s table and cleanTitle's
+// own ("版"/"ver" are not in versionEvidence()'s table -- see above): a
+// word missing from one but not the other must never be misread as safe
+// to strip. Erring toward not stripping only ever regresses to today's
+// not-found; erring toward stripping can select the wrong version, so the
+// guard is deliberately the more conservative of the two directions.
+bool splitTrailingGloss(const QString &title, QString *main)
+{
+    static const QRegularExpression pattern(
+        QStringLiteral(R"(^(.*?)\s*[\(（\[【]([^()（）\[\]【】]{1,60})[\)）\]】]\s*$)"));
+    static const QRegularExpression cleanTitleMarker(cleanTitleVersionMarkerPattern(),
+                                                     QRegularExpression::CaseInsensitiveOption);
+    const auto match = pattern.match(title);
+    if (!match.hasMatch()) {
+        return false;
+    }
+    const QString bracketContent = match.captured(2);
+    if (versionEvidence(bracketContent).isExplicit() || bracketContent.contains(cleanTitleMarker)) {
+        return false;
+    }
+    if (main) *main = match.captured(1).trimmed();
+    return true;
 }
 
 QStringList cleanArtists(const QStringList &artists)
@@ -265,9 +364,27 @@ QStringList cleanArtists(const QStringList &artists)
 
 QString searchKeywords(const TrackQuery &query)
 {
-    QStringList parts{cleanTitle(query.title)};
+    // A bracketed localized gloss (see splitTrailingGloss) is query-side
+    // noise for a provider search: it isn't part of the recording's own
+    // title, so leaving it in the "s=" search string can drag in unrelated
+    // results. This is a secondary cleanup, not what rescues the bilingual
+    // title match itself -- the provider already returns the right
+    // candidate either way; scoreCandidate's own query variants are what
+    // let it be recognized as such.
+    QString main;
+    QString title = query.title;
+    if (splitTrailingGloss(query.title, &main) && !main.isEmpty()) {
+        title = main;
+    }
+    const QString cleanedTitle = cleanTitle(title);
+    QStringList parts{cleanedTitle};
     parts.append(query.artists);
-    if (!query.album.trimmed().isEmpty() && normalizeSearchText(query.album) != normalizeSearchText(query.title)) {
+    // Compare against cleanedTitle -- the title actually placed in parts
+    // above -- not the raw query.title: an album equal to the *stripped*
+    // title (as in the bug report's own "青さは止んだ" album tag) must not
+    // be added a second time just because it differs from the raw,
+    // gloss-still-attached query.title.
+    if (!query.album.trimmed().isEmpty() && normalizeSearchText(query.album) != normalizeSearchText(cleanedTitle)) {
         parts.append(query.album);
     }
     return parts.join(QLatin1Char(' ')).simplified();
@@ -278,18 +395,24 @@ ScoreBreakdown scoreCandidate(const TrackQuery &query, const Candidate &candidat
 {
     ScoreBreakdown score;
     score.versionPolicyApplied = policy == MatchPolicy::PreserveVersions;
-    const QString normalizedQuery = normalizeSearchText(titleForPolicy(query.title, policy));
+    QList<QueryTitleVariant> normalizedQueryVariants;
+    for (const auto &variant : queryTitleVariants(query.title, policy)) {
+        normalizedQueryVariants.append({normalizeSearchText(variant.text), variant.isGlossStripped});
+    }
     QStringList candidateTitles{candidate.title};
     candidateTitles.append(candidate.alternateTitles);
     score.versionTier = policy == MatchPolicy::PreserveVersions
         ? classifyCandidateVersions(query.title, candidateTitles)
         : VersionTier::Normal;
     auto considerTitle = [&](const QString &title, bool alternate) {
-        const double titleScore = textSimilarity(normalizedQuery,
-                                                 normalizeSearchText(titleForPolicy(title, policy)));
-        if (titleScore > score.title) {
-            score.title = titleScore;
-            score.titleViaAlternate = alternate;
+        const QString normalizedCandidateTitle = normalizeSearchText(titleForPolicy(title, policy));
+        for (const auto &queryVariant : normalizedQueryVariants) {
+            const double titleScore = textSimilarity(queryVariant.text, normalizedCandidateTitle);
+            if (titleScore > score.title) {
+                score.title = titleScore;
+                score.titleViaAlternate = alternate;
+                score.titleViaGlossVariant = queryVariant.isGlossStripped;
+            }
         }
     };
     considerTitle(candidate.title, false);
@@ -340,7 +463,8 @@ QList<RankedCandidate> rankCandidates(const TrackQuery &query, const QList<Candi
 bool isAcceptableMatch(const RankedCandidate &candidate)
 {
     return candidate.score.versionTier != VersionTier::Conflict
-        && candidate.score.title >= 0.55 && candidate.score.total >= 0.58;
+        && candidate.score.title >= 0.55 && candidate.score.total >= 0.58
+        && passesGlossVariantGate(candidate);
 }
 
 std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked, bool allowLocalizedFallback)
@@ -425,6 +549,18 @@ QString candidateRejectionReason(const RankedCandidate &candidate)
     if (!passesAliasArtistGate(candidate)) {
         return QStringLiteral("alias-artist-threshold");
     }
+    if (!passesGlossVariantGate(candidate)) {
+        // Two different situations, two different reasons (DESIGN.md
+        // decision 33: diagnostics must point at an actionable next step).
+        // A known duration outside the window is very likely a different,
+        // unrelated recording -- no action fixes that. An unknown duration
+        // (a local .lrc with no [length:] tag, or any other provider that
+        // can't supply one) is something the user could resolve by adding
+        // one, so it gets its own, more hopeful reason string.
+        return candidate.score.durationComparable
+            ? QStringLiteral("gloss-duration-threshold")
+            : QStringLiteral("gloss-duration-unknown");
+    }
     return QString();
 }
 
@@ -433,11 +569,39 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
 {
     QString explanation;
     QTextStream stream(&explanation);
+    // Every query-side title actually tried against candidates (see
+    // queryTitleVariants) -- not just cleanTitle's output, which is only
+    // one of them under MatchPolicy::Default and not even that under
+    // PreserveVersions. A diagnostic that showed cleanTitle unconditionally
+    // here would silently disagree with what scoreCandidate actually
+    // scored, which is exactly the failure mode this line exists to rule
+    // out (DESIGN.md decision 46).
+    QStringList titleVariantTexts;
+    for (const auto &variant : queryTitleVariants(query.title, policy)) {
+        titleVariantTexts.append(variant.text);
+    }
     stream << "raw title: " << query.title << '\n'
            << "raw artists: " << query.artists.join(QStringLiteral(" / ")) << '\n'
-           << "clean title: " << cleanTitle(query.title) << '\n'
+           << "title variants: " << titleVariantTexts.join(QStringLiteral(" | ")) << '\n'
            << "clean artists: " << cleanArtists(query.artists).join(QStringLiteral(" / ")) << '\n'
            << "keywords: " << searchKeywords(query) << '\n';
+    // titleViaAlternate and titleViaGlossVariant are independent (one is
+    // about which candidate-side title won, the other which query-side
+    // variant won) and can both be true at once -- a gloss-stripped query
+    // variant beating an alternateTitle -- so this must be able to show
+    // either, neither, or both, unambiguously.
+    auto titleViaLabel = [](const ScoreBreakdown &score) {
+        if (score.titleViaAlternate && score.titleViaGlossVariant) {
+            return QStringLiteral("alias+gloss");
+        }
+        if (score.titleViaGlossVariant) {
+            return QStringLiteral("gloss");
+        }
+        if (score.titleViaAlternate) {
+            return QStringLiteral("alias");
+        }
+        return QStringLiteral("title");
+    };
     const auto ranked = rankCandidates(query, candidates, policy);
     for (qsizetype index = 0; index < ranked.size(); ++index) {
         const auto &item = ranked[index];
@@ -449,7 +613,7 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
                << " album=" << QString::number(item.score.album, 'f', 3)
                << " duration=" << QString::number(item.score.duration, 'f', 3)
                << " deltaMs=" << item.score.durationDifferenceMs
-               << " titleVia=" << (item.score.titleViaAlternate ? QStringLiteral("alias") : QStringLiteral("title"))
+               << " titleVia=" << titleViaLabel(item.score)
                << " versionTier="
                << (item.score.versionTier == VersionTier::Normal
                        ? QStringLiteral("normal")
