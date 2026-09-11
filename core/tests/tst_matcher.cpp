@@ -908,6 +908,13 @@ private Q_SLOTS:
         // tried, not just cleanTitle's output -- a query with a strippable
         // localized gloss is scored against *two* query-side title
         // variants (see queryTitleVariants), and both must be visible here.
+        // Both sides have lengthMs=0 deliberately: this is also the
+        // in-repo mirror of the --length-ms gap qa-2-match found in
+        // daemon/src/main.cpp's --explain (before that CLI option existed,
+        // this exact shape -- a gloss-variant title win with an unknown
+        // duration -- was unreachable from --explain and so untested
+        // end-to-end; asserting the rejection reason and the hint here
+        // pins that this diagnostic surfaces it correctly).
         const TrackQuery query{QStringLiteral("青さは止んだ (青春已逝)"),
                                {QStringLiteral("ナナツカゼ")}, QString(), 0};
         const Candidate candidate{QStringLiteral("3363002263"), QStringLiteral("青さは止んだ"),
@@ -917,6 +924,10 @@ private Q_SLOTS:
 
         QVERIFY(explanation.contains(QStringLiteral("title variants: 青さは止んだ (青春已逝) | 青さは止んだ")));
         QVERIFY(!explanation.contains(QStringLiteral("clean title:")));
+        QVERIFY(explanation.contains(QStringLiteral("query length: unknown")));
+        QVERIFY(explanation.contains(QStringLiteral("rejected=gloss-duration-unknown")));
+        QVERIFY(explanation.contains(QStringLiteral("note:")));
+        QVERIFY(explanation.contains(QStringLiteral("--length-ms")));
     }
 
     void preserveVersionsUsesAliasesWithoutStrippingTheirSuffixes()

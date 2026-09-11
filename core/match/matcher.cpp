@@ -659,6 +659,8 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
     }
     stream << "raw title: " << query.title << '\n'
            << "raw artists: " << query.artists.join(QStringLiteral(" / ")) << '\n'
+           << "query length: " << (query.lengthMs > 0 ? QString::number(query.lengthMs) : QStringLiteral("unknown"))
+           << '\n'
            << "title variants: " << titleVariantTexts.join(QStringLiteral(" | ")) << '\n'
            << "clean artists: " << cleanArtists(query.artists).join(QStringLiteral(" / ")) << '\n'
            << "keywords: " << searchKeywords(query) << '\n';
@@ -680,6 +682,7 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
         return QStringLiteral("title");
     };
     const auto ranked = rankCandidates(query, candidates, policy);
+    bool anyGlossDurationUnknown = false;
     for (qsizetype index = 0; index < ranked.size(); ++index) {
         const auto &item = ranked[index];
         stream << index + 1 << ". [" << item.candidate.trackId << "] " << item.candidate.title
@@ -699,10 +702,25 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
         // Single source of truth for the classification, shared with
         // Resolver's "search ... rejected=" log field -- keeps the two from
         // drifting apart (see candidateRejectionReason()).
-        if (const QString rejectionReason = candidateRejectionReason(item); !rejectionReason.isEmpty()) {
+        const QString rejectionReason = candidateRejectionReason(item);
+        if (!rejectionReason.isEmpty()) {
             stream << " rejected=" << rejectionReason;
         }
+        if (rejectionReason == QStringLiteral("gloss-duration-unknown")) {
+            anyGlossDurationUnknown = true;
+        }
         stream << '\n';
+    }
+    // --explain has no MPRIS state to read a length from, unlike the
+    // daemon itself, so "query length: unknown" above is common here and
+    // not a sign of anything wrong -- but it does mean any
+    // gloss-duration-unknown rejection right below it may not reflect
+    // what the daemon would actually decide at runtime, so say so.
+    if (anyGlossDurationUnknown && query.lengthMs <= 0) {
+        stream << "note: no query length was provided (see \"query length: unknown\" above); "
+                  "pass --length-ms to check whether a known length would change a "
+                  "gloss-duration-unknown result above. The daemon itself always has one, "
+                  "read from MPRIS." << '\n';
     }
     const auto fallbackChoice = chooseMatch(ranked, true);
     if (platformKnown) {

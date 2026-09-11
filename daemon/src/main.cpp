@@ -278,6 +278,19 @@ int main(int argc, char **argv)
     parser.addOption({QStringLiteral("platform"),
                       QStringLiteral("Playback platform used by --explain (for example apple)."),
                       QStringLiteral("platform")});
+    // Named, not a third positional: ARTIST is already optional, so a third
+    // positional would be ambiguous about which argument was omitted.
+    // Without this, --explain always had TrackQuery::lengthMs == 0
+    // (durationComparable permanently false, unlike a real MPRIS-driven
+    // resolve), so it could not reproduce a duration-dependent decision --
+    // the gloss-variant gate under MatchPolicy::Default, or decision 8's
+    // localized fallback (which requires deltaMs <= 250) under
+    // MatchPolicy::PreserveVersions -- either of which --explain otherwise
+    // always disagrees with the daemon about.
+    parser.addOption({QStringLiteral("length-ms"),
+                      QStringLiteral("Track length in milliseconds used with --explain, "
+                                    "for duration-dependent scoring decisions."),
+                      QStringLiteral("length-ms")});
     parser.addPositionalArgument(QStringLiteral("TITLE"), QStringLiteral("Song title used with --explain."));
     parser.addPositionalArgument(QStringLiteral("ARTIST"), QStringLiteral("Artist used with --explain."), QStringLiteral("[ARTIST]"));
     parser.process(application);
@@ -459,7 +472,18 @@ int main(int argc, char **argv)
         }
         QStringList artists;
         if (!arguments.value(1).isEmpty()) artists.append(arguments.value(1));
-        const TrackQuery query{arguments.first(), artists, QString(), 0};
+        qint64 explainLengthMs = 0;
+        if (parser.isSet(QStringLiteral("length-ms"))) {
+            bool lengthOk = false;
+            const qint64 parsedLength = parser.value(QStringLiteral("length-ms")).toLongLong(&lengthOk);
+            if (!lengthOk || parsedLength <= 0) {
+                QTextStream(stderr) << "invalid --length-ms value: "
+                                    << parser.value(QStringLiteral("length-ms")) << Qt::endl;
+                return 1;
+            }
+            explainLengthMs = parsedLength;
+        }
+        const TrackQuery query{arguments.first(), artists, QString(), explainLengthMs};
         return explainProviders(application, query, providers,
                                 parser.value(QStringLiteral("platform"))
                                     == QStringLiteral("apple"));
