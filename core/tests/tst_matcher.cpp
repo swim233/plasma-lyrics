@@ -1067,6 +1067,527 @@ private Q_SLOTS:
         candidate.score.artists = 1.0;
         QVERIFY(candidateRejectionReason(candidate).isEmpty());
     }
+
+    // B.2/B.3: a provider concatenates the artist name onto the title
+    // field ("浴火者 被遗忘者的哀伤" for a track titled "浴火者" by "北山薇",
+    // with the candidate's own artists field carrying both "被遗忘者的哀伤"
+    // and "北山薇" -- --explain reproduction, verbatim from the bug report).
+    // Driven through rankCandidates/chooseMatch/explainMatch end to end,
+    // not scoreCandidate alone, since B.2 requires this to work through the
+    // real scoring path a resolver would use.
+    void artistAppendedToTitleIsStrippedAndAccepted()
+    {
+        const TrackQuery query{QStringLiteral("浴火者 被遗忘者的哀伤"), {QStringLiteral("北山薇")}, QString(), 200000};
+        const Candidate candidate{QStringLiteral("real"), QStringLiteral("浴火者"),
+                                  {QStringLiteral("被遗忘者的哀伤"), QStringLiteral("北山薇")}, QString(), 200500};
+
+        const auto score = scoreCandidate(query, candidate);
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(score.titleViaArtistStrip);
+        QVERIFY(!score.titleViaGlossVariant);
+        QCOMPARE(score.artists, 1.0);
+
+        const auto ranked = rankCandidates(query, {candidate});
+        QVERIFY(isAcceptableMatch(ranked.first()));
+        const auto chosen = chooseMatch(ranked, false);
+        QVERIFY(chosen.has_value());
+        QCOMPARE(chosen->candidate.trackId, QStringLiteral("real"));
+
+        const QString explanation = explainMatch(query, {candidate}, false, true);
+        QVERIFY(explanation.contains(QStringLiteral("titleVia=artist-strip")));
+        QVERIFY(explanation.contains(QStringLiteral("selected: real")));
+    }
+
+    void artistAppendedToTitleRejectedWhenDurationUnknown()
+    {
+        // Same pair, but neither side has a known length -- B.2 §5 requires
+        // independent duration evidence for a candidate that only matches
+        // through this strip; an unknown duration must not pass.
+        const TrackQuery query{QStringLiteral("浴火者 被遗忘者的哀伤"), {QStringLiteral("北山薇")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("real"), QStringLiteral("浴火者"),
+                                  {QStringLiteral("被遗忘者的哀伤"), QStringLiteral("北山薇")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate);
+        QVERIFY(score.titleViaArtistStrip);
+        QVERIFY(!score.durationComparable);
+        const RankedCandidate ranked{candidate, score};
+        QVERIFY(!isAcceptableMatch(ranked));
+        QCOMPARE(candidateRejectionReason(ranked), QStringLiteral("artist-strip-duration-unknown"));
+
+        const QString explanation = explainMatch(query, {candidate}, false, true);
+        QVERIFY(explanation.contains(QStringLiteral("rejected=artist-strip-duration-unknown")));
+        QVERIFY(explanation.contains(QStringLiteral("selected: none")));
+        QVERIFY(explanation.contains(QStringLiteral("--length-ms")));
+    }
+
+    void artistAppendedToTitleRejectedWhenDurationTooDifferent()
+    {
+        const TrackQuery query{QStringLiteral("浴火者 被遗忘者的哀伤"), {QStringLiteral("北山薇")}, QString(), 200000};
+        const Candidate candidate{QStringLiteral("real"), QStringLiteral("浴火者"),
+                                  {QStringLiteral("被遗忘者的哀伤"), QStringLiteral("北山薇")}, QString(), 100000};
+
+        const auto score = scoreCandidate(query, candidate);
+        QVERIFY(score.titleViaArtistStrip);
+        QVERIFY(score.durationComparable);
+        QVERIFY(score.durationDifferenceMs > 2000);
+        const RankedCandidate ranked{candidate, score};
+        QVERIFY(!isAcceptableMatch(ranked));
+        QCOMPARE(candidateRejectionReason(ranked), QStringLiteral("artist-strip-duration-threshold"));
+    }
+
+    void artistAppendedToTitleGateBoundaryIsInclusiveOf2000ms()
+    {
+        const TrackQuery query{QStringLiteral("Song Artist Name"), {QStringLiteral("Someone Else")}, QString(), 200000};
+        const Candidate atBoundary{QStringLiteral("at-boundary"), QStringLiteral("Song"),
+                                   {QStringLiteral("Artist Name")}, QString(), 202000};
+        const Candidate overBoundary{QStringLiteral("over-boundary"), QStringLiteral("Song"),
+                                     {QStringLiteral("Artist Name")}, QString(), 202001};
+
+        const auto atScore = scoreCandidate(query, atBoundary);
+        QVERIFY(atScore.titleViaArtistStrip);
+        QVERIFY(isAcceptableMatch({atBoundary, atScore}));
+
+        const auto overScore = scoreCandidate(query, overBoundary);
+        QVERIFY(overScore.titleViaArtistStrip);
+        QVERIFY(!isAcceptableMatch({overBoundary, overScore}));
+        QCOMPARE(candidateRejectionReason({overBoundary, overScore}), QStringLiteral("artist-strip-duration-threshold"));
+    }
+
+    void artistStripCounterexampleSameArtistUnrelatedTitleNotAccepted()
+    {
+        // B.3 counter-example: same artist in the candidate's artist list,
+        // but the candidate's own title has nothing to do with the query
+        // once the tail is stripped -- "Intro" is exactly the short,
+        // common album-track name decision 65/66 both worry about.
+        const TrackQuery query{QStringLiteral("浴火者 被遗忘者的哀伤"), {QStringLiteral("北山薇")}, QString(), 200000};
+        const Candidate candidate{QStringLiteral("wrong"), QStringLiteral("Intro"),
+                                  {QStringLiteral("被遗忘者的哀伤"), QStringLiteral("北山薇")}, QString(), 200000};
+
+        const auto score = scoreCandidate(query, candidate);
+        QVERIFY(!score.titleViaArtistStrip);
+        QVERIFY(score.title < 0.55);
+        QVERIFY(!isAcceptableMatch({candidate, score}));
+    }
+
+    void artistStripCounterexamplePartialArtistOverlapNotAccepted()
+    {
+        // B.3 counter-example: the trailing token "浴火" only partially
+        // overlaps the candidate's artist "浴火者乐队" -- B.2 §3 requires a
+        // full match after normalizeSearchText, not containment.
+        const TrackQuery query{QStringLiteral("Song 浴火"), {QStringLiteral("Someone")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("wrong"), QStringLiteral("Song"),
+                                  {QStringLiteral("浴火者乐队")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate);
+        QVERIFY(!score.titleViaArtistStrip);
+    }
+
+    void artistStripHandlesAMultiTokenTrailingArtistName()
+    {
+        // B.3: the trailing artist name itself spans multiple
+        // whitespace-separated tokens.
+        const TrackQuery query{QStringLiteral("Song Full Artist Name"), {QStringLiteral("Someone Else")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("real"), QStringLiteral("Song"),
+                                  {QStringLiteral("Full Artist Name")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate);
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(score.titleViaArtistStrip);
+    }
+
+    void artistStripDiscardsAnEmptyRemainder()
+    {
+        // B.2 §4: the query title is nothing but the artist name itself --
+        // stripping it would leave an empty title, so the variant must be
+        // discarded rather than produced. The plain path still fails on
+        // its own (title bears no resemblance to the candidate's).
+        const TrackQuery query{QStringLiteral("被遗忘者的哀伤"), {QStringLiteral("北山薇")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("wrong"), QStringLiteral("浴火者"),
+                                  {QStringLiteral("被遗忘者的哀伤"), QStringLiteral("北山薇")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate);
+        QVERIFY(!score.titleViaArtistStrip);
+    }
+
+    void artistStripDoesNotTriggerWhenQueryTitleAlreadyEqualsCandidateTitle()
+    {
+        // B.3: the query title already equals the candidate's title
+        // outright (a plain, unmodified match) -- even though the query's
+        // trailing token happens to also name one of the candidate's own
+        // artists, the strip must not be what wins. Here this falls out of
+        // the exact-match-only restriction alone, without even reaching
+        // the tie-break: the stripped variant ("信") only takes the
+        // containment fast-path against the *full* candidate title
+        // ("信 张三", since candidate.title itself was never stripped) and
+        // scores 1/4 = 0.25, which is well under 1.0 and is therefore
+        // never considered at all -- the plain variant's own exact match
+        // (1.0) is what wins, untouched by this feature. See
+        // artistStripTieBreakPrefersThePlainMatchOverAnEquallyGoodStrip
+        // below for the scenario that actually needs the tie-break.
+        const TrackQuery query{QStringLiteral("信 张三"), {QStringLiteral("张三")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("real"), QStringLiteral("信 张三"),
+                                  {QStringLiteral("张三")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate);
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(!score.titleViaArtistStrip);
+    }
+
+    void artistStripTieBreakPrefersThePlainMatchOverAnEquallyGoodStrip()
+    {
+        // Mirrors considerTitlePrefersNonGlossVariantOnATie, but for the
+        // scenario that actually exercises the generalized tie-break
+        // (prefersPlainOnTie) rather than just the exact-match-only guard
+        // above: the candidate's primary title ("Song") only matches via
+        // the artist-strip variant ("Song", after stripping "Artist Name"),
+        // but an alternateTitle equal to the query's own, unmodified title
+        // ties it at score.title=1.0 through the plain variant. The gate's
+        // premise -- "this match only holds because a variant got
+        // substituted in" -- stops being true once that equally-good,
+        // non-stripped path exists, so titleViaArtistStrip must end up
+        // false.
+        const TrackQuery query{QStringLiteral("Song Artist Name"), {QStringLiteral("Artist Name")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("id"), QStringLiteral("Song"),
+                                  {QStringLiteral("Artist Name")}, QString(), 0,
+                                  {QStringLiteral("Song Artist Name")}};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(!score.titleViaArtistStrip);
+        QVERIFY(score.titleViaAlternate);
+    }
+
+    void chooseMatchSkipsArtistStripGateFailureToTheNextAcceptableCandidate()
+    {
+        // Mirrors defaultPolicyChooseMatchSkipsADisqualifiedTopRankToTheNextAcceptable,
+        // for the new gate: "top" wins only via the artist-strip variant,
+        // with an unknown candidate-side duration (so passesArtistStripGate
+        // fails) but an exact artist and album match give it total=0.9 --
+        // higher than "second" (the real song: exact title/artist, no
+        // album, a 10s duration gap that the ordinary falloff curve -- not
+        // this new gate -- knocks down to total=0.773). chooseMatch's
+        // Default branch must skip the gate-failing "top" (not stop
+        // there) and fall through to the fully acceptable "second".
+        const TrackQuery query{QStringLiteral("Song Artist Name"), {QStringLiteral("Real Artist")},
+                               QStringLiteral("Album"), 200000};
+        const Candidate top{QStringLiteral("top-unknown-duration"), QStringLiteral("Song"),
+                            {QStringLiteral("Real Artist"), QStringLiteral("Artist Name")},
+                            QStringLiteral("Album"), 0};
+        const Candidate second{QStringLiteral("second-ok"), QStringLiteral("Song Artist Name"),
+                               {QStringLiteral("Real Artist")}, QString(), 210000};
+
+        const auto ranked = rankCandidates(query, {top, second});
+
+        QCOMPARE(ranked.first().candidate.trackId, QStringLiteral("top-unknown-duration"));
+        QVERIFY(ranked.first().score.titleViaArtistStrip);
+        QVERIFY(!ranked.first().score.durationComparable);
+        QCOMPARE(ranked.first().score.total, 0.9);
+        QVERIFY(!isAcceptableMatch(ranked.first()));
+        QVERIFY(isAcceptableMatch(ranked.last()));
+
+        const auto chosen = chooseMatch(ranked, false);
+        QVERIFY(chosen.has_value());
+        QCOMPARE(chosen->candidate.trackId, QStringLiteral("second-ok"));
+    }
+
+    // B.3b (qa-b-1, 2026-09-12 rework): passesGlossVariantGate/
+    // passesArtistStripGate must bind only when a stripped variant is the
+    // reason a candidate cleared the acceptance bars *at all*, not merely
+    // the reason it scored highest. The four tests below are the required
+    // regression pair (accepted-without-the-gate / still-gated) for each
+    // strip kind, using qa-b-1's own probe fixture for the "accepted"
+    // half: query "Bohemian Rhapsody (Queen)"/"Bohemian Rhapsody Queen"
+    // vs candidate "Bohemian Rhapsody"/["Queen"], both durations unknown.
+    // The plain (non-stripped) variant alone scores title=17/23=0.739
+    // (textSimilarity's containment fast-path) and total=0.6696 -- already
+    // over both isAcceptableMatch bars on main, before this feature
+    // existed, so this candidate must stay accepted even though a
+    // strip-derived variant now scores higher (1.0, exact) and would
+    // otherwise drag it into a duration gate it never used to face.
+
+    void nonStrippedGlossVariantAlreadyAcceptableBypassesTheDurationGate()
+    {
+        const TrackQuery query{QStringLiteral("Bohemian Rhapsody (Queen)"), {QStringLiteral("Queen")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("real"), QStringLiteral("Bohemian Rhapsody"),
+                                  {QStringLiteral("Queen")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QVERIFY(score.titleViaGlossVariant);
+        QCOMPARE(score.title, 1.0);
+        QCOMPARE(score.titleWithoutStrip, 17.0 / 23.0);
+        QVERIFY(!score.durationComparable);
+        QVERIFY(isAcceptableMatch({candidate, score}));
+    }
+
+    void nonStrippedArtistStripVariantAlreadyAcceptableBypassesTheDurationGate()
+    {
+        // Same shape, but with the artist concatenated straight onto the
+        // title (no bracket) so the win comes through titleViaArtistStrip
+        // instead of titleViaGlossVariant.
+        const TrackQuery query{QStringLiteral("Bohemian Rhapsody Queen"), {QStringLiteral("Queen")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("real"), QStringLiteral("Bohemian Rhapsody"),
+                                  {QStringLiteral("Queen")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QVERIFY(score.titleViaArtistStrip);
+        QCOMPARE(score.title, 1.0);
+        QCOMPARE(score.titleWithoutStrip, 17.0 / 23.0);
+        QVERIFY(!score.durationComparable);
+        QVERIFY(isAcceptableMatch({candidate, score}));
+    }
+
+    void nonStrippedGlossVariantInsufficientStillEntersTheDurationGate()
+    {
+        // Contrast case: when the plain variant does NOT clear the bars on
+        // its own, the gate must still bind exactly as before this rework
+        // -- glossVariantDurationGateRejectsATooShortSameArtistTrack's own
+        // fixture ("心跳 (跳动的心)" vs a same-artist, much shorter "心跳"),
+        // with titleWithoutStrip pinned explicitly this time.
+        const TrackQuery query{QStringLiteral("心跳 (跳动的心)"), {QStringLiteral("歌手A")}, QString(), 200000};
+        const Candidate candidate{QStringLiteral("wrong"), QStringLiteral("心跳"),
+                                  {QStringLiteral("歌手A")}, QString(), 15000};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QVERIFY(score.titleViaGlossVariant);
+        QVERIFY(score.titleWithoutStrip < 0.55);
+        QVERIFY(!isAcceptableMatch({candidate, score}));
+        QCOMPARE(candidateRejectionReason({candidate, score}), QStringLiteral("gloss-duration-threshold"));
+    }
+
+    void nonStrippedArtistStripVariantInsufficientStillEntersTheDurationGate()
+    {
+        // Same contrast, for the artist-strip kind -- the 浴火者 sample
+        // itself: the plain variant only scores 3/11=0.273 against the
+        // candidate's title, nowhere near enough to bypass the gate.
+        const TrackQuery query{QStringLiteral("浴火者 被遗忘者的哀伤"), {QStringLiteral("北山薇")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("real"), QStringLiteral("浴火者"),
+                                  {QStringLiteral("被遗忘者的哀伤"), QStringLiteral("北山薇")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QVERIFY(score.titleViaArtistStrip);
+        QVERIFY(score.titleWithoutStrip < 0.55);
+        QVERIFY(!isAcceptableMatch({candidate, score}));
+        QCOMPARE(candidateRejectionReason({candidate, score}), QStringLiteral("artist-strip-duration-unknown"));
+    }
+
+    // The escape hatch must not credit a non-stripped path that itself only
+    // qualified through an alternateTitle on a wrong-artist candidate --
+    // main rejects that shape via passesAliasArtistGate (D-11), and the
+    // hatch must not silently let it back in just because a strip on the
+    // *primary* title happens to score even higher and flips the actual
+    // winner's titleViaAlternate to false (the alias gate only ever looks
+    // at the winner, not at every path scoreCandidateWithVariants tried).
+    // One case per strip kind, mirroring the required-regression-pair
+    // pattern above.
+    void artistStripEscapeHatchDoesNotResurrectAWrongArtistAlternateTitleCover()
+    {
+        // "cover"'s real artists ("Artist Name") don't match the query's
+        // ("Nobody") at all. Its alternateTitle "Song Artist Nam" (missing
+        // the trailing "e") is a *near*-exact match to the plain query
+        // (15/16 = 0.9375 via containment) -- on its own this would have
+        // been accepted via titleViaAlternate on main, except artists is
+        // nowhere near passesAliasArtistGate's 0.5 bar, so main correctly
+        // rejects it. A strip on the *primary* title ("Song", stripping
+        // "Artist Name") scores an exact 1.0 and wins the overall
+        // tie-break, flipping titleViaAlternate to false for the actual
+        // winner -- the hatch must still see that the only qualifying
+        // non-stripped path was alternate-sourced and refuse to fire.
+        const TrackQuery query{QStringLiteral("Song Artist Name"), {QStringLiteral("Nobody")},
+                               QStringLiteral("Album"), 0};
+        const Candidate candidate{QStringLiteral("cover"), QStringLiteral("Song"),
+                                  {QStringLiteral("Artist Name")}, QStringLiteral("Album"), 0,
+                                  {QStringLiteral("Song Artist Nam")}};
+
+        const auto score = scoreCandidate(query, candidate);
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(score.titleViaArtistStrip);
+        QVERIFY(!score.titleViaAlternate);
+        QCOMPARE(score.titleWithoutStrip, 15.0 / 16.0);
+        QVERIFY(score.titleWithoutStripViaAlternate);
+        QVERIFY(score.artists < 0.5);
+
+        const auto ranked = rankCandidates(query, {candidate});
+        QVERIFY(!isAcceptableMatch(ranked.first()));
+        QVERIFY(!chooseMatch(ranked, false).has_value());
+    }
+
+    void glossEscapeHatchDoesNotResurrectAWrongArtistAlternateTitleCover()
+    {
+        // Same fixture and reasoning as above, through the bracket-gloss
+        // path instead: "Song (Artist Name)" strips to "Song", an exact
+        // match to the primary title, while the plain (un-stripped) query
+        // only reaches 0.9375 -- and only via the same wrong-artist
+        // alternateTitle.
+        const TrackQuery query{QStringLiteral("Song (Artist Name)"), {QStringLiteral("Nobody")},
+                               QStringLiteral("Album"), 0};
+        const Candidate candidate{QStringLiteral("cover"), QStringLiteral("Song"),
+                                  {QStringLiteral("Artist Name")}, QStringLiteral("Album"), 0,
+                                  {QStringLiteral("Song Artist Nam")}};
+
+        const auto score = scoreCandidate(query, candidate);
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(score.titleViaGlossVariant);
+        QVERIFY(!score.titleViaAlternate);
+        QCOMPARE(score.titleWithoutStrip, 15.0 / 16.0);
+        QVERIFY(score.titleWithoutStripViaAlternate);
+        QVERIFY(score.artists < 0.5);
+
+        const auto ranked = rankCandidates(query, {candidate});
+        QVERIFY(!isAcceptableMatch(ranked.first()));
+        QVERIFY(!chooseMatch(ranked, false).has_value());
+    }
+
+    // B.3b legibility fix: without plainTitle=/durationGate=, a candidate
+    // line reading "titleVia=artist-strip duration=0.500" with no
+    // rejected= gives no visible reason why an unknown duration didn't
+    // block it -- decision 46 exists to rule out exactly this kind of
+    // "diagnostic disagrees with the real decision" gap. Both new fields
+    // reuse nonStrippedMatchAloneIsAcceptable/titleWithoutStrip directly,
+    // the same values the gates themselves branch on.
+    void explainShowsWhyTheDurationGateDidNotBindWhenTheStripWasNotNeeded()
+    {
+        const TrackQuery query{QStringLiteral("Bohemian Rhapsody Queen"), {QStringLiteral("Queen")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("real"), QStringLiteral("Bohemian Rhapsody"),
+                                  {QStringLiteral("Queen")}, QString(), 0};
+
+        const QString explanation = explainMatch(query, {candidate}, false, true);
+
+        QVERIFY(explanation.contains(QStringLiteral("titleVia=artist-strip plainTitle=0.739 durationGate=bypassed")));
+        QVERIFY(explanation.contains(QStringLiteral("selected: real")));
+    }
+
+    void explainShowsTheDurationGateStillRequiredWhenThePlainMatchWasInsufficient()
+    {
+        const TrackQuery query{QStringLiteral("浴火者 被遗忘者的哀伤"), {QStringLiteral("北山薇")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("real"), QStringLiteral("浴火者"),
+                                  {QStringLiteral("被遗忘者的哀伤"), QStringLiteral("北山薇")}, QString(), 0};
+
+        const QString explanation = explainMatch(query, {candidate}, false, true);
+
+        QVERIFY(explanation.contains(QStringLiteral("titleVia=artist-strip plainTitle=0.273 durationGate=required")));
+        QVERIFY(explanation.contains(QStringLiteral("rejected=artist-strip-duration-unknown")));
+    }
+
+    void explainOmitsPlainTitleAndDurationGateForOrdinaryTitleMatches()
+    {
+        // The new fields only carry information when titleVia is one of
+        // the stripped kinds -- an ordinary, unstripped match must not
+        // grow a plainTitle=/durationGate= pair that says nothing new.
+        const TrackQuery query{QStringLiteral("Spring Day"), {QStringLiteral("BTS")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("plain"), QStringLiteral("Spring Day"),
+                                  {QStringLiteral("BTS")}, QString(), 0};
+
+        const QString explanation = explainMatch(query, {candidate}, false, true);
+
+        QVERIFY(explanation.contains(QStringLiteral("titleVia=title")));
+        QVERIFY(!explanation.contains(QStringLiteral("plainTitle=")));
+        QVERIFY(!explanation.contains(QStringLiteral("durationGate=")));
+    }
+
+    // B.3c (qa-b-2, 2026-09-12): B.3b's escape hatch was too wide -- it
+    // fired whenever duration was either unknown OR known-and-far-apart,
+    // treating "corroboration unavailable" the same as "corroboration
+    // available and negative". qa-b-2's differential replay against 82
+    // real resolver runs found the flip on real data: query
+    // "ARC Raiders (II)" (170567ms) against a candidate "ARC Raiders"
+    // 27911ms longer (later confirmed to be an instrumental with no lyrics
+    // at all) -- main correctly rejects via gloss-duration-threshold, but
+    // B.3b's un-narrowed hatch accepted it, because the plain
+    // (non-stripped) variant alone ("arc raiders" vs "arc raiders ii",
+    // 11/14=0.786 containment) was already enough to clear both bars even
+    // with the duration score collapsed to 0 by the 27.9s gap. The fixed
+    // rule bypasses the gate only when duration is NOT comparable; a
+    // known, decisively-outside-window duration must reject regardless of
+    // how good the plain match is. Both fixtures below are constructed so
+    // the plain-variant total *would* have cleared 0.58 under B.3b's
+    // logic (proving this pins the actual regression, not just a
+    // trivially-insufficient plain match) -- one per strip kind, per B.3c.
+    void arcRaidersShapeGlossRejectsAKnownFarApartDurationDespiteAnAcceptablePlainMatch()
+    {
+        const TrackQuery query{QStringLiteral("ARC Raiders (II)"), {QStringLiteral("Embark")}, QString(), 170567};
+        const Candidate candidate{QStringLiteral("instrumental"), QStringLiteral("ARC Raiders"),
+                                  {QStringLiteral("Embark")}, QString(), 170567 + 27911};
+
+        const auto score = scoreCandidate(query, candidate);
+        QVERIFY(score.titleViaGlossVariant);
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(score.durationComparable);
+        QCOMPARE(score.durationDifferenceMs, qint64(27911));
+        // Pin that this really is the regression shape: the plain variant
+        // alone, with duration collapsed to 0 by the gap, would already
+        // clear both isAcceptableMatch bars under B.3b's wider hatch.
+        QCOMPARE(score.titleWithoutStrip, 11.0 / 14.0);
+        QCOMPARE(score.duration, 0.0);
+        const double totalWithoutStripUnderTheOldHatch = score.titleWithoutStrip * 0.5 + score.artists * 0.2
+            + score.album * 0.1 + score.duration * 0.2;
+        QVERIFY(score.titleWithoutStrip >= 0.55);
+        QVERIFY(totalWithoutStripUnderTheOldHatch >= 0.58);
+
+        QVERIFY(!isAcceptableMatch({candidate, score}));
+        QCOMPARE(candidateRejectionReason({candidate, score}), QStringLiteral("gloss-duration-threshold"));
+    }
+
+    void arcRaidersShapeArtistStripRejectsAKnownFarApartDurationDespiteAnAcceptablePlainMatch()
+    {
+        // Same shape through the artist-strip path instead: the query
+        // concatenates a short artist name onto the title with no
+        // bracket, sized so the plain-variant containment ratio
+        // (11/14=0.786) matches the gloss fixture above exactly.
+        const TrackQuery query{QStringLiteral("ARC Raiders Ed"), {QStringLiteral("Ed")}, QString(), 170567};
+        const Candidate candidate{QStringLiteral("cover"), QStringLiteral("ARC Raiders"),
+                                  {QStringLiteral("Ed")}, QString(), 170567 + 27911};
+
+        const auto score = scoreCandidate(query, candidate);
+        QVERIFY(score.titleViaArtistStrip);
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(score.durationComparable);
+        QCOMPARE(score.durationDifferenceMs, qint64(27911));
+        QCOMPARE(score.titleWithoutStrip, 11.0 / 14.0);
+        QCOMPARE(score.duration, 0.0);
+        const double totalWithoutStripUnderTheOldHatch = score.titleWithoutStrip * 0.5 + score.artists * 0.2
+            + score.album * 0.1 + score.duration * 0.2;
+        QVERIFY(score.titleWithoutStrip >= 0.55);
+        QVERIFY(totalWithoutStripUnderTheOldHatch >= 0.58);
+
+        QVERIFY(!isAcceptableMatch({candidate, score}));
+        QCOMPARE(candidateRejectionReason({candidate, score}), QStringLiteral("artist-strip-duration-threshold"));
+    }
+
+    void explainShowsOutsideWindowForAKnownFarApartDuration()
+    {
+        // B.3c durationGate= must report the gate's real (post-B.3c)
+        // condition, not nonStrippedMatchAloneIsAcceptable() directly --
+        // this candidate has a known, far-apart duration, so the gate
+        // rejects on duration itself, independent of the hatch.
+        const TrackQuery query{QStringLiteral("ARC Raiders (II)"), {QStringLiteral("Embark")}, QString(), 170567};
+        const Candidate candidate{QStringLiteral("instrumental"), QStringLiteral("ARC Raiders"),
+                                  {QStringLiteral("Embark")}, QString(), 170567 + 27911};
+
+        const QString explanation = explainMatch(query, {candidate}, false, true);
+
+        QVERIFY(explanation.contains(QStringLiteral("titleVia=gloss plainTitle=0.786 durationGate=outside-window")));
+        QVERIFY(explanation.contains(QStringLiteral("rejected=gloss-duration-threshold")));
+        QVERIFY(explanation.contains(QStringLiteral("selected: none")));
+    }
+
+    void explainShowsWithinWindowForAKnownCloseDuration()
+    {
+        // Contrast: a known duration inside the window passes the gate on
+        // duration itself, not through the escape hatch.
+        const TrackQuery query{QStringLiteral("浴火者 被遗忘者的哀伤"), {QStringLiteral("北山薇")}, QString(), 207369};
+        const Candidate candidate{QStringLiteral("real"), QStringLiteral("浴火者"),
+                                  {QStringLiteral("被遗忘者的哀伤"), QStringLiteral("北山薇")}, QString(), 207369};
+
+        const QString explanation = explainMatch(query, {candidate}, false, true);
+
+        QVERIFY(explanation.contains(QStringLiteral("titleVia=artist-strip plainTitle=0.273 durationGate=within-window")));
+        QVERIFY(explanation.contains(QStringLiteral("selected: real")));
+    }
 };
 
 QTEST_GUILESS_MAIN(MatcherTest)

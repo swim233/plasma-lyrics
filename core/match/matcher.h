@@ -60,6 +60,42 @@ struct ScoreBreakdown {
     // durationed track (an Intro/Interlude/Outro) can also do -- see
     // passesGlossVariantGate.
     bool titleViaGlossVariant = false;
+    // true when the winning query-side title match came from stripping a
+    // trailing run of tokens that exactly names one of the candidate's own
+    // artists off the query title (B.2, DESIGN.md decision 66) -- e.g. a
+    // query title of "Song Artist Name" against a candidate whose title is
+    // "Song" and whose artists include "Artist Name". Distinct from
+    // titleViaGlossVariant because this variant is candidate-relative (it
+    // needs candidate.artists to know what to strip), not determined by
+    // the query alone -- but it gets the same "only an exact match counts,
+    // and only with independent duration evidence" treatment; see
+    // passesArtistStripGate.
+    bool titleViaArtistStrip = false;
+    // The best title score achievable using only NON-stripped query
+    // variants (the plain query title, matched against either candidate.title
+    // or an alternateTitle) for this same candidate -- i.e. what score.title
+    // would be if neither the gloss-stripped nor the artist-stripped variant
+    // existed. Used by passesGlossVariantGate/passesArtistStripGate to tell
+    // "this candidate only cleared the acceptance bars because a stripped
+    // variant scored higher" (duration corroboration required) apart from
+    // "a stripped variant merely won the tie-break, but a plain match would
+    // have cleared the bars on its own anyway" (no corroboration needed) --
+    // see DESIGN.md decision 65/66's B.3b correction. Independent of which
+    // variant actually won: score.title/score.titleViaGlossVariant/
+    // score.titleViaArtistStrip above still reflect the single best variant,
+    // exactly as before.
+    double titleWithoutStrip = 0;
+    // Whether the best non-stripped score above (titleWithoutStrip) came
+    // from matching an alternateTitle rather than the candidate's primary
+    // title. Mirrors titleViaAlternate, but for the non-stripped shadow
+    // score rather than the actual winner: needed because the actual
+    // winner's titleViaAlternate can be false (a strip on the *primary*
+    // title outscored the alternate match) even though the only qualifying
+    // non-stripped path went through an alternateTitle -- without tracking
+    // this separately, passesGlossVariantGate/passesArtistStripGate's
+    // escape hatch would credit a path that passesAliasArtistGate (D-11)
+    // was built to reject and let a wrong-artist candidate through.
+    bool titleWithoutStripViaAlternate = false;
     bool durationComparable = false;  // true when both sides had a known length (query and candidate)
     VersionTier versionTier = VersionTier::Normal;
     bool versionPolicyApplied = false;
