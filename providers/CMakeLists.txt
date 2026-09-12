@@ -9,7 +9,7 @@ target_sources(plasma_lyrics_providers PRIVATE
     logging.h
 )
 
-if(ENABLE_PROVIDER_NETEASE OR ENABLE_PROVIDER_AMLL)
+if(ENABLE_PROVIDER_NETEASE OR ENABLE_PROVIDER_AMLL OR ENABLE_PROVIDER_QQ)
     find_package(Qt6 6.6 REQUIRED COMPONENTS Network)
     target_link_libraries(plasma_lyrics_providers PUBLIC Qt6::Network)
 endif()
@@ -28,6 +28,21 @@ if(ENABLE_PROVIDER_AMLL)
         amll/amllprovider.h
     )
     target_compile_definitions(plasma_lyrics_providers PUBLIC PLASMA_LYRICS_HAVE_AMLL=1)
+endif()
+
+if(ENABLE_PROVIDER_QQ)
+    # QRC payloads are a zlib stream under the cipher. zlib is already in
+    # every Qt build's dependency closure, but it is linked explicitly
+    # because this code calls inflate() directly rather than through Qt.
+    find_package(ZLIB REQUIRED)
+    target_sources(plasma_lyrics_providers PRIVATE
+        qq/qqprovider.cpp
+        qq/qqprovider.h
+        qq/qrccipher.cpp
+        qq/qrccipher.h
+    )
+    target_link_libraries(plasma_lyrics_providers PRIVATE ZLIB::ZLIB)
+    target_compile_definitions(plasma_lyrics_providers PUBLIC PLASMA_LYRICS_HAVE_QQ=1)
 endif()
 
 if(BUILD_TESTING AND ENABLE_PROVIDER_NETEASE)
@@ -61,4 +76,17 @@ if(BUILD_TESTING AND ENABLE_PROVIDER_AMLL)
     target_link_libraries(tst_amllprovider PRIVATE plasma_lyrics_providers Qt6::Test)
     add_test(NAME tst_amllprovider COMMAND tst_amllprovider)
     set_tests_properties(tst_amllprovider PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
+endif()
+
+if(BUILD_TESTING AND ENABLE_PROVIDER_QQ)
+    find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
+    add_executable(tst_qqprovider tests/tst_qqprovider.cpp)
+    target_link_libraries(tst_qqprovider PRIVATE plasma_lyrics_providers Qt6::Test)
+    # See the note on tst_neteaseprovider: not QFINDTESTDATA, because
+    # -ffile-prefix-map rewrites __FILE__ inside an Arch package build.
+    target_compile_definitions(tst_qqprovider PRIVATE
+        PLASMA_LYRICS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures"
+        PLASMA_LYRICS_QRC_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../core/tests/fixtures")
+    add_test(NAME tst_qqprovider COMMAND tst_qqprovider)
+    set_tests_properties(tst_qqprovider PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 endif()

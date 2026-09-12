@@ -64,7 +64,12 @@ bool containsProvider(const QStringList &values, const QString &provider)
 
 QStringList defaultProviders()
 {
-    return {QStringLiteral("local"), QStringLiteral("netease"), QStringLiteral("amll")};
+    // Kept in step with Config::builtInProviderOrder() in the daemon. This
+    // list is only the fallback shown when the service is not running to be
+    // asked, and the two disagreeing would make a fresh configuration depend
+    // on whether the service happened to be up when it was first opened.
+    return {QStringLiteral("local"), QStringLiteral("netease"), QStringLiteral("amll"),
+            QStringLiteral("qq")};
 }
 
 // Q24 / DESIGN.md decision 67: see core/config/stringlistsetting.h for why

@@ -56,7 +56,8 @@ private:
                                                    {QStringLiteral("switchingProvider"), switchingProvider},
                                                    {QStringLiteral("availableProviders"),
                                                     QJsonArray::fromStringList(availableProviders)},
-                                                   {QStringLiteral("lines"), QJsonArray{lineToJson({1000, endMs, text, std::nullopt, std::nullopt})}}}}};
+                                                   {QStringLiteral("lines"), QJsonArray{lineToJson({1000, endMs, text, std::nullopt, std::nullopt,
+                                                                          std::nullopt})}}}}};
         QSaveFile file(path);
         QVERIFY(file.open(QIODevice::WriteOnly));
         file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));

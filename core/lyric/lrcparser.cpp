@@ -76,7 +76,7 @@ std::optional<LyricLine> parseJsonCredit(const QString &rawLine)
         return std::nullopt;
     }
     return LyricLine{object.value(QStringLiteral("t")).toInteger(), 0, text.trimmed(),
-                     std::nullopt, std::nullopt, true};
+                     std::nullopt, std::nullopt, std::nullopt, true};
 }
 
 } // namespace

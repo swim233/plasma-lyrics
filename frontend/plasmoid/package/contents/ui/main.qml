@@ -358,6 +358,15 @@ PlasmoidItem {
             onTriggered: lyricSource.setPreferredProvider("amll")
         },
         PlasmaCore.Action {
+            text: i18n("Prefer QQ Music for this song")
+            icon.name: "cloud"
+            checkable: true
+            checked: lyricSource.preferredProvider === "qq"
+            visible: lyricSource.availableProviders.indexOf("qq") >= 0
+            enabled: lyricSource.canControlProvider
+            onTriggered: lyricSource.setPreferredProvider("qq")
+        },
+        PlasmaCore.Action {
             text: i18n("Search for lyrics again")
             icon.name: "view-refresh"
             enabled: lyricSource.canControlProvider

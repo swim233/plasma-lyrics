@@ -5,11 +5,21 @@
 
 namespace PlasmaLyrics {
 
+// romanization is written only when it exists, rather than as an explicit
+// null the way LyricLine::translation is. Almost no source carries it, and a
+// word array runs to hundreds of entries per track -- an always-present
+// "romanization":null would grow every snapshot write and every cached row by
+// half again for a field that is usually absent. An absent key and a null one
+// read back identically below, so nothing downstream has to tell them apart.
 QJsonObject wordToJson(const LyricWord &word)
 {
-    return {{QStringLiteral("startMs"), word.startMs},
-            {QStringLiteral("endMs"), word.endMs},
-            {QStringLiteral("text"), word.text}};
+    QJsonObject object{{QStringLiteral("startMs"), word.startMs},
+                       {QStringLiteral("endMs"), word.endMs},
+                       {QStringLiteral("text"), word.text}};
+    if (word.romanization) {
+        object.insert(QStringLiteral("romanization"), *word.romanization);
+    }
+    return object;
 }
 
 std::optional<LyricWord> wordFromJson(const QJsonObject &object)
@@ -17,9 +27,14 @@ std::optional<LyricWord> wordFromJson(const QJsonObject &object)
     if (!object.contains(QStringLiteral("startMs")) || !object.contains(QStringLiteral("text"))) {
         return std::nullopt;
     }
-    return LyricWord{object.value(QStringLiteral("startMs")).toInteger(),
-                     object.value(QStringLiteral("endMs")).toInteger(),
-                     object.value(QStringLiteral("text")).toString()};
+    LyricWord word{object.value(QStringLiteral("startMs")).toInteger(),
+                   object.value(QStringLiteral("endMs")).toInteger(),
+                   object.value(QStringLiteral("text")).toString()};
+    const auto romanization = object.value(QStringLiteral("romanization"));
+    if (romanization.isString()) {
+        word.romanization = romanization.toString();
+    }
+    return word;
 }
 
 QJsonObject lineToJson(const LyricLine &line)
@@ -37,6 +52,9 @@ QJsonObject lineToJson(const LyricLine &line)
         object.insert(QStringLiteral("words"), words);
     } else {
         object.insert(QStringLiteral("words"), QJsonValue::Null);
+    }
+    if (line.romanization) {
+        object.insert(QStringLiteral("romanization"), *line.romanization);
     }
     if (line.credit) {
         object.insert(QStringLiteral("credit"), true);
@@ -56,6 +74,10 @@ std::optional<LyricLine> lineFromJson(const QJsonObject &object)
     const auto translation = object.value(QStringLiteral("translation"));
     if (translation.isString()) {
         line.translation = translation.toString();
+    }
+    const auto romanization = object.value(QStringLiteral("romanization"));
+    if (romanization.isString()) {
+        line.romanization = romanization.toString();
     }
     const auto wordsValue = object.value(QStringLiteral("words"));
     if (wordsValue.isArray()) {

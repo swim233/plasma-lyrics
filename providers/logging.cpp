@@ -7,5 +7,6 @@ namespace PlasmaLyrics {
 Q_LOGGING_CATEGORY(lcNetease, "plasmalyrics.provider.netease", QtInfoMsg)
 Q_LOGGING_CATEGORY(lcAmll, "plasmalyrics.provider.amll", QtInfoMsg)
 Q_LOGGING_CATEGORY(lcLocal, "plasmalyrics.provider.local", QtInfoMsg)
+Q_LOGGING_CATEGORY(lcQq, "plasmalyrics.provider.qq", QtInfoMsg)
 
 } // namespace PlasmaLyrics

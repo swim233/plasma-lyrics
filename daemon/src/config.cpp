@@ -11,8 +11,10 @@ namespace PlasmaLyrics {
 
 const QStringList &Config::builtInProviderOrder()
 {
+    // qq goes last: it is a full source, but the existing three keep their
+    // established precedence unless the user reorders them.
     static const QStringList order{QStringLiteral("local"), QStringLiteral("netease"),
-                                   QStringLiteral("amll")};
+                                   QStringLiteral("amll"), QStringLiteral("qq")};
     return order;
 }
 
@@ -115,6 +117,27 @@ QUrl Config::neteaseBaseUrl() const
 int Config::networkTimeoutMs() const
 {
     return m_settings.value(QStringLiteral("providers/netease/timeoutMs"), 4000).toInt();
+}
+
+QUrl Config::qqSearchBaseUrl() const
+{
+    return QUrl(m_settings.value(QStringLiteral("providers/qq/searchBaseUrl"),
+                                 QStringLiteral("https://u.y.qq.com")).toString());
+}
+
+QUrl Config::qqLyricBaseUrl() const
+{
+    return QUrl(m_settings.value(QStringLiteral("providers/qq/lyricBaseUrl"),
+                                 QStringLiteral("https://c.y.qq.com")).toString());
+}
+
+// Its own key rather than borrowing providers/netease/timeoutMs, which is
+// what amll does too: sharing one would mean tuning one source silently
+// retuned another. Same default, so nothing changes for anyone who never
+// sets it.
+int Config::qqTimeoutMs() const
+{
+    return m_settings.value(QStringLiteral("providers/qq/timeoutMs"), 4000).toInt();
 }
 
 QStringList Config::providerOrder() const

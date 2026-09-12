@@ -23,6 +23,7 @@ Kirigami.ScrollablePage {
         if (provider === "local") return i18n("Local files");
         if (provider === "netease") return i18n("NetEase");
         if (provider === "amll") return i18n("AMLL");
+        if (provider === "qq") return i18n("QQ Music");
         return provider;
     }
 

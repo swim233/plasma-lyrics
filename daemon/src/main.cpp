@@ -16,6 +16,9 @@
 #ifdef PLASMA_LYRICS_HAVE_NETEASE
 #include "providers/netease/neteaseprovider.h"
 #endif
+#ifdef PLASMA_LYRICS_HAVE_QQ
+#include "providers/qq/qqprovider.h"
+#endif
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -389,6 +392,9 @@ int main(int argc, char **argv)
     AmllProvider amll(config.amllIndexUrl(), config.amllContentBaseUrl(),
                       config.amllTimeoutMs(), {}, config.amllIndexMaxAgeSeconds());
 #endif
+#ifdef PLASMA_LYRICS_HAVE_QQ
+    QqProvider qq(config.qqSearchBaseUrl(), config.qqLyricBaseUrl(), config.qqTimeoutMs());
+#endif
     LocalProvider local(config.localLyricsDirectory());
     QStringList supportedProviders{local.id()};
 #ifdef PLASMA_LYRICS_HAVE_NETEASE
@@ -397,6 +403,9 @@ int main(int argc, char **argv)
 #ifdef PLASMA_LYRICS_HAVE_AMLL
     supportedProviders.append(amll.id());
 #endif
+#ifdef PLASMA_LYRICS_HAVE_QQ
+    supportedProviders.append(qq.id());
+#endif
     QList<Provider *> providers;
     QStringList enabledProviderOrder = config.enabledProviderOrder();
     if (proxyBlocksNetworkProviders) {
@@ -404,6 +413,7 @@ int main(int argc, char **argv)
         // providers/enabled: the local provider is never affected.
         enabledProviderOrder.removeAll(QStringLiteral("netease"));
         enabledProviderOrder.removeAll(QStringLiteral("amll"));
+        enabledProviderOrder.removeAll(QStringLiteral("qq"));
     }
     for (const auto &providerId : enabledProviderOrder) {
         if (providerId == QStringLiteral("local") && local.isConfigured()) {
@@ -417,6 +427,11 @@ int main(int argc, char **argv)
 #ifdef PLASMA_LYRICS_HAVE_AMLL
         if (providerId == QStringLiteral("amll") && amll.isConfigured()) {
             providers.append(&amll);
+        }
+#endif
+#ifdef PLASMA_LYRICS_HAVE_QQ
+        if (providerId == QStringLiteral("qq") && qq.isConfigured()) {
+            providers.append(&qq);
         }
 #endif
     }
@@ -453,6 +468,11 @@ int main(int argc, char **argv)
 #endif
 #ifdef PLASMA_LYRICS_HAVE_AMLL
                     if (providerId == QStringLiteral("amll") && amll.isConfigured()) {
+                        available.append(providerId);
+                    }
+#endif
+#ifdef PLASMA_LYRICS_HAVE_QQ
+                    if (providerId == QStringLiteral("qq") && qq.isConfigured()) {
                         available.append(providerId);
                     }
 #endif

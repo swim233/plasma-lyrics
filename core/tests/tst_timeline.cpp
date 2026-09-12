@@ -82,7 +82,7 @@ private Q_SLOTS:
         // A structured credit entry the shape check would never have matched:
         // the head is too long and carries a space.
         LyricLines lines{{0, 1, QStringLiteral("Mix&Mastering by Foo Bar"),
-                          std::nullopt, std::nullopt, true},
+                          std::nullopt, std::nullopt, std::nullopt, true},
                          {5000, 9000, QStringLiteral("若能再相见"), std::nullopt, std::nullopt}};
         const auto filtered = filterLeadingCredits(lines);
         QCOMPARE(filtered.size(), 1);
@@ -94,7 +94,7 @@ private Q_SLOTS:
         QVERIFY(looksLikeCredit({0, 0, QStringLiteral("作词：想边"), std::nullopt, std::nullopt}));
         QVERIFY(looksLikeCredit({0, 0, QStringLiteral("作词 : 爆音常安"), std::nullopt, std::nullopt}));
         QVERIFY(looksLikeCredit({0, 0, QStringLiteral("Mix&Mastering by Foo Bar"),
-                                 std::nullopt, std::nullopt, true}));
+                                 std::nullopt, std::nullopt, std::nullopt, true}));
     }
 
     void looksLikeCreditRejectsOrdinaryLyricLines()

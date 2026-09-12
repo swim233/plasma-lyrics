@@ -8,6 +8,8 @@ add_library(plasma_lyrics_core STATIC
     lyric/lyricmodel.h
     lyric/lrcparser.cpp
     lyric/lrcparser.h
+    lyric/qrcparser.cpp
+    lyric/qrcparser.h
     lyric/timeline.cpp
     lyric/timeline.h
     lyric/ttmlparser.cpp

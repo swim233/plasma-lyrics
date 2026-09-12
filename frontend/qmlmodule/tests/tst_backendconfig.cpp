@@ -92,7 +92,7 @@ private Q_SLOTS:
             auto config = shellConfig(QStringLiteral("exit 0"));
             QCOMPARE(config.providerOrder(),
                      QStringList({QStringLiteral("local"), QStringLiteral("netease"),
-                                  QStringLiteral("amll")}));
+                                  QStringLiteral("amll"), QStringLiteral("qq")}));
             config.setProviderOrder({QStringLiteral("amll"), QStringLiteral("unknown"),
                                      QStringLiteral("local"), QStringLiteral("netease")});
             config.setEnabledProviders({QStringLiteral("local"), QStringLiteral("amll"),
@@ -109,7 +109,8 @@ private Q_SLOTS:
             auto restored = shellConfig(QStringLiteral("exit 0"));
             QCOMPARE(restored.providerOrder(),
                      QStringList({QStringLiteral("amll"), QStringLiteral("unknown"),
-                                  QStringLiteral("local"), QStringLiteral("netease")}));
+                                  QStringLiteral("local"), QStringLiteral("netease"),
+                                  QStringLiteral("qq")}));
             QCOMPARE(restored.enabledProviders(),
                      QStringList({QStringLiteral("local"), QStringLiteral("amll"),
                                   QStringLiteral("unknown")}));
@@ -408,7 +409,7 @@ private Q_SLOTS:
     {
         auto config = shellConfig(QStringLiteral("exit 0"));
         QVERIFY(config.providerDiscoveryFallback());
-        QCOMPARE(config.providerEntries().size(), 3);
+        QCOMPARE(config.providerEntries().size(), 4);
     }
 
     void reordersVisibleProvidersWithoutDroppingUnknownOnes()

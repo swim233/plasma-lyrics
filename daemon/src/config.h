@@ -49,6 +49,11 @@ public:
     PolicyConfig policy() const;
     QUrl neteaseBaseUrl() const;
     int networkTimeoutMs() const;
+    // Search and lyrics live on different QQ hosts, so the two are separate
+    // settings rather than one base with two paths.
+    QUrl qqSearchBaseUrl() const;
+    QUrl qqLyricBaseUrl() const;
+    int qqTimeoutMs() const;
     // The persisted priority list is independent from the enabled subset so
     // disabling a provider never erases its position from configuration UI.
     QStringList providerOrder() const;

@@ -138,6 +138,7 @@ QString LyricSource::providerDisplayName(const QString &provider) const
     if (provider == QStringLiteral("amll")) return i18nd(domain, "AMLL");
     if (provider == QStringLiteral("netease")) return i18nd(domain, "NetEase");
     if (provider == QStringLiteral("local")) return i18nd(domain, "Local files");
+    if (provider == QStringLiteral("qq")) return i18nd(domain, "QQ Music");
     if (provider == QStringLiteral("waylyrics")) return i18nd(domain, "Waylyrics import");
     if (provider.isEmpty()) return i18nd(domain, "No lyrics source");
     return i18nd(domain, "Other lyrics source (%1)", provider);

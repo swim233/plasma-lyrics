@@ -70,7 +70,7 @@ private Q_SLOTS:
         settings.sync();
         QCOMPARE(Config().providerOrder(),
                  QStringList({QStringLiteral("local"), QStringLiteral("netease"),
-                              QStringLiteral("amll")}));
+                              QStringLiteral("amll"), QStringLiteral("qq")}));
     }
 
     void oldOrderIsUpgradedWithLocalFirst()
@@ -116,7 +116,7 @@ private Q_SLOTS:
                               QStringLiteral("amll")}));
         QCOMPARE(config.enabledProviderOrder(),
                  QStringList({QStringLiteral("local"), QStringLiteral("netease"),
-                              QStringLiteral("amll")}));
+                              QStringLiteral("amll"), QStringLiteral("qq")}));
     }
 
     // qa-a-2: the test above writes `providers/enabled` empty through

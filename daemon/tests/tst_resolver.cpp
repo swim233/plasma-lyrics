@@ -71,7 +71,7 @@ public:
         callback({LyricDocument{{{1000, 2000,
                                   m_creditOnly ? QStringLiteral("作词：Someone")
                                                : QStringLiteral("line"),
-                                  std::nullopt, std::nullopt, m_creditOnly}},
+                                  std::nullopt, std::nullopt, std::nullopt, m_creditOnly}},
                                 0, false}, {}});
     }
     void setNoCandidates(bool noCandidates = true) { m_noCandidates = noCandidates; }

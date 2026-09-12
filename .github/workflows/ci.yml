@@ -64,15 +64,29 @@ jobs:
           cmake --build build-no-amll
           ctest --test-dir build-no-amll --output-on-failure
 
-      # Neither of the two matrices above ever disables both network
-      # providers at once, so explain-provider-selection's "both off" branch
-      # (available providers: local) went unexercised by CI.
+      # Also builds the tree without zlib, which only the QQ provider links.
+      # The "without any network provider" job below covers that too, but
+      # this one isolates it: there, a zlib-related break would be
+      # indistinguishable from a netease or amll one.
+      - name: Build without the QQ provider
+        run: |
+          cmake -S . -B build-no-qq -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DENABLE_PROVIDER_QQ=OFF \
+            -DBUILD_TESTING=ON
+          cmake --build build-no-qq
+          ctest --test-dir build-no-qq --output-on-failure
+
+      # None of the matrices above ever disables every network provider at
+      # once, so explain-provider-selection's "all off" branch (available
+      # providers: local) went unexercised by CI.
       - name: Build without any network provider
         run: |
           cmake -S . -B build-no-providers -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DENABLE_PROVIDER_NETEASE=OFF \
             -DENABLE_PROVIDER_AMLL=OFF \
+            -DENABLE_PROVIDER_QQ=OFF \
             -DBUILD_TESTING=ON
           cmake --build build-no-providers
           ctest --test-dir build-no-providers --output-on-failure

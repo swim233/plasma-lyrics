@@ -1,6 +1,7 @@
 #include "core/store/lyricstore.h"
 
 #include <QSqlDatabase>
+#include <QSqlError>
 #include <QSqlQuery>
 #include <QJsonObject>
 #include <QTemporaryDir>
@@ -43,7 +44,7 @@ private Q_SLOTS:
         QVERIFY(store.open());
         const TrackRef ref{QStringLiteral("netease"), QStringLiteral("1"), 1};
         LyricDocument input{{{1000, 2000, QStringLiteral("line"),
-                              QStringLiteral("translation"),
+                              QStringLiteral("translation"), std::nullopt,
                               QList<LyricWord>{{1000, 1400, QStringLiteral("li")},
                                                {1400, 2000, QStringLiteral("ne")}}}},
                              0, true,
@@ -58,6 +59,77 @@ private Q_SLOTS:
         QCOMPARE(restored->offsetMs, 200);
         QCOMPARE(restored->hasWords, true);
         QCOMPARE(restored->metadata, input.metadata);
+    }
+
+    void romanizationRoundTripsAtBothWordAndLineLevel()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        const TrackRef ref{QStringLiteral("qq"), QStringLiteral("204530409"), 1};
+        LyricWord first{0, 116, QStringLiteral("惑"), QStringLiteral("waku")};
+        LyricWord second{116, 232, QStringLiteral("星"), QStringLiteral("sei")};
+        // A word with no romanization of its own has to survive alongside the
+        // ones that have it.
+        LyricWord bare{232, 300, QStringLiteral("!")};
+        LyricLine line{0, 300, QStringLiteral("惑星!"), QStringLiteral("planet"),
+                       QStringLiteral("waku sei"), QList<LyricWord>{first, second, bare}};
+        LyricDocument input{{line}, 0, true, {}};
+        QVERIFY(store.putLyric(ref, input, 100));
+        const auto restored = store.lyric(ref);
+        QVERIFY(restored.has_value());
+        QCOMPARE(restored->lines, input.lines);
+        const auto &word = restored->lines.first().words->at(0);
+        QCOMPARE(*word.romanization, QStringLiteral("waku"));
+        QVERIFY(!restored->lines.first().words->at(2).romanization.has_value());
+        QCOMPARE(*restored->lines.first().romanization, QStringLiteral("waku sei"));
+        QCOMPARE(*restored->lines.first().translation, QStringLiteral("planet"));
+    }
+
+    void rowsWrittenBeforeRomanizationExistedStillLoad()
+    {
+        // Lines are stored as a JSON blob, so no column was added for
+        // romanization and no migration runs. What has to hold instead is
+        // that a row written by an older build -- whose JSON simply has no
+        // such key -- still reads back, with the field unset rather than
+        // empty.
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("lyrics.db"));
+        // Byte-for-byte what lineToJson produced before romanization existed,
+        // taken from that revision's own output rather than retyped -- Qt
+        // sorts JSON keys, so a hand-written literal in declaration order
+        // would not be the shape an older build actually wrote.
+        const QString legacy = QStringLiteral(
+            R"([{"endMs":2000,"startMs":1000,"text":"line","translation":"t",)"
+            R"("words":[{"endMs":1500,"startMs":1000,"text":"li"}]}])");
+        {
+            LyricStore store(path);
+            QVERIFY(store.open());
+            auto database = QSqlDatabase::database(QSqlDatabase::connectionNames().last());
+            QSqlQuery query(database);
+            query.prepare(QStringLiteral(
+                "INSERT INTO lyric(provider, track_id, fetched_at, origin, translation, "
+                "has_words, metadata) VALUES(?, ?, ?, ?, ?, ?, ?)"));
+            query.addBindValue(QStringLiteral("netease"));
+            query.addBindValue(QStringLiteral("1"));
+            query.addBindValue(100);
+            query.addBindValue(legacy);
+            query.addBindValue(QStringLiteral("[]"));
+            query.addBindValue(1);
+            query.addBindValue(QStringLiteral("{}"));
+            QVERIFY2(query.exec(), qPrintable(query.lastError().text()));
+        }
+        // Reopening runs the schema step a second time; it must be a no-op.
+        LyricStore store(path);
+        QVERIFY(store.open());
+        const auto restored = store.lyric({QStringLiteral("netease"), QStringLiteral("1"), 0});
+        QVERIFY(restored.has_value());
+        QCOMPARE(restored->lines.size(), 1);
+        QCOMPARE(restored->lines.first().text, QStringLiteral("line"));
+        QCOMPARE(*restored->lines.first().translation, QStringLiteral("t"));
+        QVERIFY(!restored->lines.first().romanization.has_value());
+        QVERIFY(restored->lines.first().words.has_value());
+        QVERIFY(!restored->lines.first().words->first().romanization.has_value());
     }
 
     void providerMappingsPreferencesMissesAndOffsetsAreIndependent()

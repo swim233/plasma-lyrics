@@ -48,7 +48,7 @@ private Q_SLOTS:
         LyricDocument document;
         document.hasWords = true;
         document.lines = {{1000, 2000, QStringLiteral("word line"),
-                           QStringLiteral("translated"),
+                           QStringLiteral("translated"), std::nullopt,
                            QList<LyricWord>{{1000, 1500, QStringLiteral("word")},
                                             {1500, 2000, QStringLiteral(" line")}}}};
         document.metadata = {{QStringLiteral("source"), QStringLiteral("amll")},
@@ -88,6 +88,48 @@ private Q_SLOTS:
         QCOMPARE(line.value(QStringLiteral("translation")).toString(),
                  QStringLiteral("translated"));
         QCOMPARE(line.value(QStringLiteral("words")).toArray().size(), 2);
+    }
+
+    void carriesRomanizationThroughTheSnapshotAtBothLevels()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        LyricDocument document;
+        document.hasWords = true;
+        document.lines = {{0, 300, QStringLiteral("惑星!"), std::nullopt,
+                           QStringLiteral("waku sei"),
+                           QList<LyricWord>{{0, 116, QStringLiteral("惑"), QStringLiteral("waku")},
+                                            {116, 232, QStringLiteral("星"), QStringLiteral("sei")},
+                                            {232, 300, QStringLiteral("!")}}}};
+        ResolvedLyric lyric{QStringLiteral("ok"),
+                            TrackRef{QStringLiteral("qq"), QStringLiteral("204530409"), 1},
+                            document, QStringLiteral("qq"), QStringLiteral("qq"), false,
+                            {QStringLiteral("qq")}};
+        MprisState player;
+        player.fingerprint = QStringLiteral("mediaSrc:test");
+
+        SnapshotWriter writer(path);
+        QVERIFY(writer.write(player, lyric));
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const auto root = QJsonDocument::fromJson(file.readAll()).object();
+        const auto line = root.value(QStringLiteral("lyric")).toObject()
+                              .value(QStringLiteral("lines")).toArray().first().toObject();
+        QCOMPARE(line.value(QStringLiteral("romanization")).toString(),
+                 QStringLiteral("waku sei"));
+        const auto words = line.value(QStringLiteral("words")).toArray();
+        QCOMPARE(words.at(0).toObject().value(QStringLiteral("romanization")).toString(),
+                 QStringLiteral("waku"));
+        QCOMPARE(words.at(1).toObject().value(QStringLiteral("romanization")).toString(),
+                 QStringLiteral("sei"));
+        // A word without romanization carries no key at all rather than an
+        // explicit null: word arrays run to hundreds of entries and almost no
+        // source fills this in.
+        QVERIFY(!words.at(2).toObject().contains(QStringLiteral("romanization")));
+        // And the whole line survives the trip back through lineFromJson.
+        const auto restored = lineFromJson(line);
+        QVERIFY(restored.has_value());
+        QCOMPARE(*restored, document.lines.first());
     }
 };
 
