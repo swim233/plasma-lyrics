@@ -16,6 +16,20 @@ Kirigami.ScrollablePage {
     property string cfg_desktopOverflow
     property string cfg_desktopAnimation
     property alias cfg_desktopShowTranslation: desktopTranslation.checked
+    property string cfg_desktopSecondLineSource
+    property bool cfg_desktopSecondLineColorEnabled
+    property string cfg_desktopSecondLineColor
+    property int cfg_desktopLineHeight
+
+    property bool cfg_desktopWordByWord
+    property string cfg_desktopWordUnsungColor
+    property string cfg_desktopWordActiveColor
+    property string cfg_desktopWordSungColor
+    property bool cfg_desktopWordLift
+    property int cfg_desktopWordLiftPercent
+    property bool cfg_desktopWordBrightness
+    property int cfg_desktopWordBrightnessPercent
+    property bool cfg_desktopWordBlurGlow
 
     property bool cfg_desktopShowTrackInfo
     property string cfg_desktopTrackInfoLayout
@@ -67,6 +81,34 @@ Kirigami.ScrollablePage {
             animationMode: page.cfg_desktopAnimation
             fontSizeControl: desktopFontSize
             translationControl: desktopTranslation
+            secondLineSource: page.cfg_desktopSecondLineSource
+            secondLineColorEnabled: page.cfg_desktopSecondLineColorEnabled
+            secondLineColor: page.cfg_desktopSecondLineColor
+            lineHeightPercent: page.cfg_desktopLineHeight
+            liftSupported: true
+            wordByWord: page.cfg_desktopWordByWord
+            wordUnsungColor: page.cfg_desktopWordUnsungColor
+            wordActiveColor: page.cfg_desktopWordActiveColor
+            wordSungColor: page.cfg_desktopWordSungColor
+            wordLift: page.cfg_desktopWordLift
+            wordLiftRowVisible: page.cfg_desktopWordByWord && page.cfg_desktopWordLift
+            wordLiftPercent: page.cfg_desktopWordLiftPercent
+            wordBrightness: page.cfg_desktopWordBrightness
+            wordBrightnessPercent: page.cfg_desktopWordBrightnessPercent
+            wordBlurGlow: page.cfg_desktopWordBlurGlow
+            onSecondLineSourceEdited: value => page.cfg_desktopSecondLineSource = value
+            onSecondLineColorEnabledEdited: value => page.cfg_desktopSecondLineColorEnabled = value
+            onSecondLineColorEdited: value => page.cfg_desktopSecondLineColor = value
+            onLineHeightPercentEdited: value => page.cfg_desktopLineHeight = value
+            onWordByWordEdited: value => page.cfg_desktopWordByWord = value
+            onWordUnsungColorEdited: value => page.cfg_desktopWordUnsungColor = value
+            onWordActiveColorEdited: value => page.cfg_desktopWordActiveColor = value
+            onWordSungColorEdited: value => page.cfg_desktopWordSungColor = value
+            onWordLiftEdited: value => page.cfg_desktopWordLift = value
+            onWordLiftPercentEdited: value => page.cfg_desktopWordLiftPercent = value
+            onWordBrightnessEdited: value => page.cfg_desktopWordBrightness = value
+            onWordBrightnessPercentEdited: value => page.cfg_desktopWordBrightnessPercent = value
+            onWordBlurGlowEdited: value => page.cfg_desktopWordBlurGlow = value
             onPlateModeEdited: value => page.cfg_desktopPlateMode = value
             onSolidColorEdited: value => page.cfg_desktopSolidColor = value
             onTextColorEdited: value => page.cfg_desktopTextColor = value

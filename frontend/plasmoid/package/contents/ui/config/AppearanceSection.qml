@@ -21,8 +21,34 @@ Kirigami.FormLayout {
     property int fontWeight: Font.Normal
     property string overflowMode: "fit"
     property string animationMode: "slide"
+    property string secondLineSource: "translation"
+    property bool secondLineColorEnabled: false
+    property string secondLineColor: "#adfffaf5"
+    property int lineHeightPercent: 125
     required property var fontSizeControl
+    // Still the second line's on/off switch; the combo below turns it and
+    // secondLineSource into the one three-way choice the user sees.
     required property var translationControl
+
+    // The panel has no lift keys at all, so the row below stands there
+    // disabled rather than pretending to store anything.
+    property bool liftSupported: true
+    property bool wordByWord: true
+    // Computed by the page rather than as a conjunction here. Written inline
+    // on this row's `visible`, any two-property conjunction sends Kirigami's
+    // binding-loop detector into a loop -- reproduced by bisection: `true`,
+    // `wordByWord` alone and `wordLift` alone are all silent, the conjunction
+    // is not, and it is specific to this row (the identically shaped
+    // brightness row below is fine). A single property read is silent.
+    property bool wordLiftRowVisible: true
+    property string wordUnsungColor: "#8cfffaf5"
+    property string wordActiveColor: "#e6fffaf5"
+    property string wordSungColor: "#c4fffaf5"
+    property bool wordLift: true
+    property int wordLiftPercent: 14
+    property bool wordBrightness: true
+    property int wordBrightnessPercent: 60
+    property bool wordBlurGlow: false
 
     property bool showTrackInfo: true
     property string trackInfoLayout: "single"
@@ -41,6 +67,20 @@ Kirigami.FormLayout {
     signal fontWeightEdited(int value)
     signal overflowModeEdited(string value)
     signal animationModeEdited(string value)
+    signal secondLineSourceEdited(string value)
+    signal secondLineColorEnabledEdited(bool value)
+    signal secondLineColorEdited(string value)
+    signal lineHeightPercentEdited(int value)
+
+    signal wordByWordEdited(bool value)
+    signal wordUnsungColorEdited(string value)
+    signal wordActiveColorEdited(string value)
+    signal wordSungColorEdited(string value)
+    signal wordLiftEdited(bool value)
+    signal wordLiftPercentEdited(int value)
+    signal wordBrightnessEdited(bool value)
+    signal wordBrightnessPercentEdited(int value)
+    signal wordBlurGlowEdited(bool value)
 
     signal showTrackInfoEdited(bool value)
     signal trackInfoLayoutEdited(string value)
@@ -101,6 +141,15 @@ Kirigami.FormLayout {
         }
         onActivated: root.fontWeightEdited(root.fontWeightValues[currentIndex])
     }
+    QQC2.SpinBox {
+        Kirigami.FormData.label: i18n("Line height:")
+        from: 100
+        to: 200
+        stepSize: 5
+        value: root.lineHeightPercent
+        onValueModified: root.lineHeightPercentEdited(value)
+        textFromValue: (value, locale) => i18nc("@item:valuesuffix line height as a percentage of the font size", "%1%", value)
+    }
     QQC2.CheckBox {
         Kirigami.FormData.label: i18n("Outline:")
         checked: root.strokeEnabled
@@ -112,10 +161,31 @@ Kirigami.FormLayout {
         value: root.strokeColor
         onEdited: hexColor => root.strokeColorEdited(hexColor)
     }
+    QQC2.ComboBox {
+        Kirigami.FormData.label: i18n("Second line:")
+        model: [i18n("Translation"), i18n("Romanization"), i18n("None")]
+        currentIndex: !root.translationControl.checked
+            ? 2
+            : (root.secondLineSource === "romanization" ? 1 : 0)
+        onActivated: {
+            root.translationControl.checked = currentIndex !== 2;
+            if (currentIndex !== 2) {
+                root.secondLineSourceEdited(currentIndex === 1 ? "romanization" : "translation");
+            }
+        }
+    }
     QQC2.CheckBox {
-        Kirigami.FormData.label: i18n("Translation:")
-        checked: root.translationControl.checked
-        onToggled: root.translationControl.checked = checked
+        Kirigami.FormData.label: i18n("Second line color:")
+        visible: root.translationControl.checked
+        text: i18n("Set it separately from the lyric color")
+        checked: root.secondLineColorEnabled
+        onToggled: root.secondLineColorEnabledEdited(checked)
+    }
+    ColorField {
+        Kirigami.FormData.label: i18n("Color:")
+        visible: root.translationControl.checked && root.secondLineColorEnabled
+        value: root.secondLineColor
+        onEdited: hexColor => root.secondLineColorEdited(hexColor)
     }
     QQC2.ComboBox {
         Kirigami.FormData.label: i18n("Long lyrics:")
@@ -128,6 +198,114 @@ Kirigami.FormLayout {
         model: [i18n("None"), i18n("Fade"), i18n("Slide up")]
         currentIndex: ["none", "fade", "slide"].indexOf(root.animationMode)
         onActivated: root.animationModeEdited(["none", "fade", "slide"][currentIndex])
+    }
+
+    Kirigami.Separator {
+        Kirigami.FormData.isSection: true
+        Kirigami.FormData.label: i18n("Word-by-word")
+    }
+    QQC2.CheckBox {
+        Kirigami.FormData.label: i18n("Word-by-word:")
+        text: i18n("Highlight each word as it is sung")
+        checked: root.wordByWord
+        onToggled: root.wordByWordEdited(checked)
+    }
+    QQC2.Label {
+        Layout.fillWidth: true
+        wrapMode: Text.WordWrap
+        text: i18n("Used only when the lyrics source provides word timings. Other tracks keep showing one line at a time.")
+    }
+    ColorField {
+        visible: root.wordByWord
+        Kirigami.FormData.label: i18n("Upcoming words:")
+        value: root.wordUnsungColor
+        onEdited: hexColor => root.wordUnsungColorEdited(hexColor)
+    }
+    ColorField {
+        visible: root.wordByWord
+        Kirigami.FormData.label: i18n("Current word:")
+        value: root.wordActiveColor
+        onEdited: hexColor => root.wordActiveColorEdited(hexColor)
+    }
+    ColorField {
+        visible: root.wordByWord
+        Kirigami.FormData.label: i18n("Sung words:")
+        value: root.wordSungColor
+        onEdited: hexColor => root.wordSungColorEdited(hexColor)
+    }
+    QQC2.CheckBox {
+        Kirigami.FormData.label: i18n("Lift:")
+        visible: root.wordByWord
+        enabled: root.liftSupported
+        checked: root.liftSupported && root.wordLift
+        text: root.liftSupported
+            ? i18n("Raise the word being sung")
+            : i18n("Not available in a panel, which sets the widget height")
+        onToggled: root.wordLiftEdited(checked)
+    }
+    QQC2.SpinBox {
+        Kirigami.FormData.label: i18n("Lift height:")
+        // What makes this row loop, measured on this tree (suite-wide count of
+        // Kirigami "Binding loop" warnings):
+        //   root.wordLiftRowVisible                              -> 0  (current)
+        //   root.wordLiftRowVisible && root.liftSupported        -> 0
+        //   root.wordByWord && root.liftSupported && root.wordLift -> 4
+        //   root.wordByWord && root.wordLift                     -> 4
+        //   root.liftSupported / root.wordByWord / root.wordLift alone -> 0
+        // What fixes it is the hoisting: the computation lives in the config
+        // pages and this row reads one plain pass-through property.
+        //
+        // Do not derive a clause-level rule from that table. The identical
+        // expression `wordByWord && wordLift` measured 0 loops on an earlier
+        // tree, where the panel page left wordLift unbound at its default
+        // true, and measures 4 here, where the panel assigns it false. Same
+        // text, opposite result, because the binding graph around it changed --
+        // so both measurements are accurate reports of their own tree and
+        // neither generalises. On that earlier tree adding `&& liftSupported`
+        // was the single clause that flipped 0 to looping; here adding or
+        // removing it changes nothing. Three more points that defeat any
+        // single-clause rule: wordByWord && wordLift loops;
+        // wordLiftRowVisible && liftSupported does not; and the brightness row
+        // two entries below has always read wordByWord && wordBrightness
+        // without looping.
+        //
+        // The finding is that the trigger is graph-wide rather than clausal.
+        // That is why three careful measurements produced three stories, and
+        // why the next person should re-measure rather than reason from this
+        // file if the expression or its surroundings change.
+        //
+        // Why Kirigami loops on this row and not on the identically shaped
+        // brightness row below is not established.
+        visible: root.wordLiftRowVisible
+        from: 2
+        to: 40
+        value: root.wordLiftPercent
+        onValueModified: root.wordLiftPercentEdited(value)
+        textFromValue: (value, locale) => i18nc("@item:valuesuffix lift height as a percentage of the font size", "%1%", value)
+    }
+    QQC2.CheckBox {
+        Kirigami.FormData.label: i18n("Brightening:")
+        visible: root.wordByWord
+        text: i18n("Brighten the word being sung")
+        checked: root.wordBrightness
+        onToggled: root.wordBrightnessEdited(checked)
+    }
+    QQC2.SpinBox {
+        Kirigami.FormData.label: i18n("Brightness:")
+        visible: root.wordByWord && root.wordBrightness
+        from: 10
+        to: 100
+        stepSize: 5
+        value: root.wordBrightnessPercent
+        onValueModified: root.wordBrightnessPercentEdited(value)
+        textFromValue: (value, locale) => i18nc("@item:valuesuffix how far the sung word is brightened", "%1%", value)
+    }
+    QQC2.CheckBox {
+        Kirigami.FormData.label: i18n("Blurred glow:")
+        visible: root.wordByWord
+        text: i18n("Add a blurred halo. Costs noticeably more to draw than brightening alone.")
+        checked: root.wordBlurGlow
+        onToggled: root.wordBlurGlowEdited(checked)
     }
 
     Kirigami.Separator {

@@ -27,6 +27,36 @@
     <entry name="desktopOverflow" type="String"><default>fit</default></entry>
     <entry name="desktopAnimation" type="String"><default>slide</default></entry>
     <entry name="desktopShowTranslation" type="Bool"><default>true</default></entry>
+    <!-- desktopShowTranslation keeps its original meaning, "show the second
+         line"; desktopSecondLineSource says which line that is. Two keys
+         rather than one three-way string so an existing instance's on/off
+         choice carries over with no migration. -->
+    <entry name="desktopSecondLineSource" type="String"><default>translation</default></entry>
+    <entry name="desktopSecondLineColorEnabled" type="Bool"><default>false</default></entry>
+    <!-- Matches the alpha the second line has always derived from the text
+         colour, so turning this on changes nothing until the colour is
+         actually edited. -->
+    <entry name="desktopSecondLineColor" type="String"><default>#adfffaf5</default></entry>
+    <entry name="desktopLineHeight" type="Int"><default>125</default></entry>
+
+    <!-- Off restores DESIGN.md decision 38's wakeup profile exactly: it empties
+         the word Repeater's model, which is also what stops the per-frame
+         FrameAnimation. No combination of the colour and effect settings below
+         substitutes for it -- three identical colours neutralise the look, but
+         the clock keeps running because nothing can tell it the colours match. -->
+    <entry name="desktopWordByWord" type="Bool"><default>true</default></entry>
+    <entry name="desktopWordUnsungColor" type="String"><default>#8cfffaf5</default></entry>
+    <entry name="desktopWordActiveColor" type="String"><default>#e6fffaf5</default></entry>
+    <entry name="desktopWordSungColor" type="String"><default>#c4fffaf5</default></entry>
+    <!-- No panel counterpart for the two lift keys, the same asymmetry
+         decision 40 settled for desktopHideAnimationMs: a panel sets the
+         widget's height itself, so a lifted word is clipped and the setting
+         would be a control that visibly does nothing. -->
+    <entry name="desktopWordLift" type="Bool"><default>true</default></entry>
+    <entry name="desktopWordLiftPercent" type="Int"><default>14</default></entry>
+    <entry name="desktopWordBrightness" type="Bool"><default>true</default></entry>
+    <entry name="desktopWordBrightnessPercent" type="Int"><default>60</default></entry>
+    <entry name="desktopWordBlurGlow" type="Bool"><default>false</default></entry>
 
     <entry name="desktopShowTrackInfo" type="Bool"><default>true</default></entry>
     <entry name="desktopTrackInfoLayout" type="String"><default>single</default></entry>
@@ -57,6 +87,18 @@
     <entry name="panelOverflow" type="String"><default>fit</default></entry>
     <entry name="panelAnimation" type="String"><default>fade</default></entry>
     <entry name="panelShowTranslation" type="Bool"><default>false</default></entry>
+    <entry name="panelSecondLineSource" type="String"><default>translation</default></entry>
+    <entry name="panelSecondLineColorEnabled" type="Bool"><default>false</default></entry>
+    <entry name="panelSecondLineColor" type="String"><default>#adfffaf5</default></entry>
+    <entry name="panelLineHeight" type="Int"><default>125</default></entry>
+
+    <entry name="panelWordByWord" type="Bool"><default>true</default></entry>
+    <entry name="panelWordUnsungColor" type="String"><default>#8cfffaf5</default></entry>
+    <entry name="panelWordActiveColor" type="String"><default>#e6fffaf5</default></entry>
+    <entry name="panelWordSungColor" type="String"><default>#c4fffaf5</default></entry>
+    <entry name="panelWordBrightness" type="Bool"><default>true</default></entry>
+    <entry name="panelWordBrightnessPercent" type="Int"><default>60</default></entry>
+    <entry name="panelWordBlurGlow" type="Bool"><default>false</default></entry>
 
     <entry name="panelShowTrackInfo" type="Bool"><default>false</default></entry>
     <entry name="panelTrackInfoLayout" type="String"><default>single</default></entry>

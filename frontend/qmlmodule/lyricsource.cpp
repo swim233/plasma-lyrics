@@ -175,6 +175,33 @@ QString LyricSource::currentTranslation() const
     return *m_lines[m_currentLine].translation;
 }
 
+QString LyricSource::currentRomanization() const
+{
+    if (m_currentLine < 0 || m_currentLine >= m_lines.size() || !m_lines[m_currentLine].romanization) {
+        return {};
+    }
+    return *m_lines[m_currentLine].romanization;
+}
+
+QVariantList LyricSource::currentWords() const
+{
+    if (m_currentLine < 0 || m_currentLine >= m_lines.size() || !m_lines[m_currentLine].words) {
+        return {};
+    }
+    QVariantList words;
+    for (const auto &word : *m_lines[m_currentLine].words) {
+        words.append(QVariantMap{{QStringLiteral("startMs"), word.startMs},
+                                 {QStringLiteral("endMs"), word.endMs},
+                                 {QStringLiteral("text"), word.text}});
+    }
+    return words;
+}
+
+qint64 LyricSource::lyricPositionMs() const
+{
+    return livePositionMs() - m_offsetMs;
+}
+
 void LyricSource::setSnapshotPath(const QString &path)
 {
     if (path == m_snapshotPath) {
@@ -338,6 +365,7 @@ void LyricSource::reloadImpl()
     m_switchingProvider = lyric.value(QStringLiteral("switchingProvider")).toString();
     m_globalOffsetEnabled = lyric.value(QStringLiteral("globalOffsetEnabled")).toBool();
     m_offsetMs = lyric.value(QStringLiteral("offsetMs")).toInt();
+    const auto oldLines = m_lines;
     m_lines.clear();
     for (const auto &value : lyric.value(QStringLiteral("lines")).toArray()) {
         if (const auto line = lineFromJson(value.toObject())) {
@@ -373,22 +401,38 @@ void LyricSource::reloadImpl()
     }
     if (oldOffsetMs != m_offsetMs) Q_EMIT offsetChanged();
     if (oldFingerprint != m_fingerprint) Q_EMIT canControlProviderChanged();
-    advance();
+    // The line *index* is not enough to decide whether the current line
+    // changed: a new song whose position lands on the same index as the old
+    // one leaves it untouched, and every QML binding over currentText /
+    // currentTranslation / currentRomanization / currentWords would then go on
+    // showing the previous song. The getters already return the new content,
+    // which is why polling a getter in a test never caught this.
+    updateCurrentLine(oldLines != m_lines);
 }
 
-void LyricSource::advance()
+qint64 LyricSource::livePositionMs() const
 {
     qint64 position = m_positionUs;
     if (m_playbackStatus == QStringLiteral("Playing") && m_anchorMonotonicNs > 0) {
         position += static_cast<qint64>((m_clock() - m_anchorMonotonicNs) / 1000.0 * m_rate);
     }
-    const qint64 positionMs = position / 1000;
+    return position / 1000;
+}
+
+void LyricSource::advance()
+{
+    updateCurrentLine(false);
+}
+
+void LyricSource::updateCurrentLine(bool lineContentChanged)
+{
+    const qint64 positionMs = livePositionMs();
     if (positionMs != m_currentPositionMs) {
         m_currentPositionMs = positionMs;
         Q_EMIT currentPositionChanged();
     }
     const int line = currentLineIndex(m_lines, positionMs, m_offsetMs);
-    if (line != m_currentLine) {
+    if (line != m_currentLine || lineContentChanged) {
         m_currentLine = line;
         Q_EMIT currentLineChanged();
     }

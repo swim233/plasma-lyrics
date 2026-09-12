@@ -16,6 +16,18 @@ Kirigami.ScrollablePage {
     property string cfg_panelOverflow
     property string cfg_panelAnimation
     property alias cfg_panelShowTranslation: panelTranslation.checked
+    property string cfg_panelSecondLineSource
+    property bool cfg_panelSecondLineColorEnabled
+    property string cfg_panelSecondLineColor
+    property int cfg_panelLineHeight
+
+    property bool cfg_panelWordByWord
+    property string cfg_panelWordUnsungColor
+    property string cfg_panelWordActiveColor
+    property string cfg_panelWordSungColor
+    property bool cfg_panelWordBrightness
+    property int cfg_panelWordBrightnessPercent
+    property bool cfg_panelWordBlurGlow
 
     property bool cfg_panelShowTrackInfo
     property string cfg_panelTrackInfoLayout
@@ -70,6 +82,33 @@ Kirigami.ScrollablePage {
             animationMode: page.cfg_panelAnimation
             fontSizeControl: panelFontSize
             translationControl: panelTranslation
+            secondLineSource: page.cfg_panelSecondLineSource
+            secondLineColorEnabled: page.cfg_panelSecondLineColorEnabled
+            secondLineColor: page.cfg_panelSecondLineColor
+            lineHeightPercent: page.cfg_panelLineHeight
+            liftSupported: false
+            // No panel lift keys exist, so the magnitude row stays hidden and
+            // the toggle above it reads unchecked-and-disabled.
+            wordLift: false
+            wordLiftRowVisible: false
+            wordByWord: page.cfg_panelWordByWord
+            wordUnsungColor: page.cfg_panelWordUnsungColor
+            wordActiveColor: page.cfg_panelWordActiveColor
+            wordSungColor: page.cfg_panelWordSungColor
+            wordBrightness: page.cfg_panelWordBrightness
+            wordBrightnessPercent: page.cfg_panelWordBrightnessPercent
+            wordBlurGlow: page.cfg_panelWordBlurGlow
+            onSecondLineSourceEdited: value => page.cfg_panelSecondLineSource = value
+            onSecondLineColorEnabledEdited: value => page.cfg_panelSecondLineColorEnabled = value
+            onSecondLineColorEdited: value => page.cfg_panelSecondLineColor = value
+            onLineHeightPercentEdited: value => page.cfg_panelLineHeight = value
+            onWordByWordEdited: value => page.cfg_panelWordByWord = value
+            onWordUnsungColorEdited: value => page.cfg_panelWordUnsungColor = value
+            onWordActiveColorEdited: value => page.cfg_panelWordActiveColor = value
+            onWordSungColorEdited: value => page.cfg_panelWordSungColor = value
+            onWordBrightnessEdited: value => page.cfg_panelWordBrightness = value
+            onWordBrightnessPercentEdited: value => page.cfg_panelWordBrightnessPercent = value
+            onWordBlurGlowEdited: value => page.cfg_panelWordBlurGlow = value
             onPlateModeEdited: value => page.cfg_panelPlateMode = value
             onSolidColorEdited: value => page.cfg_panelSolidColor = value
             onTextColorEdited: value => page.cfg_panelTextColor = value

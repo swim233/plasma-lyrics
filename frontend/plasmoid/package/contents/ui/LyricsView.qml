@@ -19,6 +19,24 @@ Item {
     property string overflowMode: "fit"
     property string animationMode: "slide"
     property bool showTranslation: true
+    // Which of the two second lines to show when showTranslation is on. The
+    // pair is one three-way user choice -- translation / romanization / off --
+    // kept as two keys so the existing on/off setting survives an upgrade
+    // untouched instead of needing a migration to read it back.
+    property string secondLineSource: "translation"
+    property bool secondLineColorEnabled: false
+    property color secondLineColor: "#adfffaf5"
+    property int lineHeightPercent: 125
+
+    property bool wordByWord: true
+    property color wordUnsungColor: "#8cfffaf5"
+    property color wordActiveColor: "#e6fffaf5"
+    property color wordSungColor: "#c4fffaf5"
+    property bool wordLift: true
+    property int wordLiftPercent: 14
+    property bool wordBrightness: true
+    property int wordBrightnessPercent: 60
+    property bool wordBlurGlow: false
     property string idleText: i18n("No media is playing")
     property string notFoundText: ""
     property string noLyricText: ""
@@ -61,8 +79,62 @@ Item {
         if (source.lyricState === "filtered") return "";
         return source.currentText;
     }
-    readonly property string effectiveTranslation: root.showTranslation && source.lyricState === "ok"
-        ? source.currentTranslation : ""
+    readonly property string effectiveSecondLine: {
+        if (!root.showTranslation || source.lyricState !== "ok") return "";
+        return root.secondLineSource === "romanization"
+            ? source.currentRomanization : source.currentTranslation;
+    }
+    // A line with no romanization at all is the normal case, not a failure:
+    // only one source carries any, so picking romanization on a track from
+    // anywhere else leaves the second line empty rather than falling back to
+    // the translation, which would make the setting mean two different things
+    // depending on the track.
+    readonly property color effectiveSecondLineColor: root.secondLineColorEnabled
+        ? root.secondLineColor
+        : Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.68)
+
+    // Word timings belong to the lyric line alone. Every other thing this slot
+    // can show -- "Searching…", the idle text, a custom not-found message --
+    // is plain text that merely occupies the same row, and handing it the
+    // current line's timings would highlight fragments of it.
+    readonly property var effectiveWords: root.wordByWord
+        && root.effectiveText.length > 0
+        && root.source.lyricState === "ok"
+        && root.effectiveText === root.source.currentText
+        ? root.source.currentWords : []
+
+    // Word-level scanning is pulled per frame rather than pushed from a timer:
+    // DESIGN.md decision 38 settled that a frame-driven source stops by itself
+    // while the window is not rendering, where a 16 ms QTimer would go on
+    // firing. The position is asked of LyricSource each frame rather than
+    // accumulated here, so a seek or an offset change lands immediately.
+    property real lyricPositionMs: 0
+    function syncLyricPosition() {
+        root.lyricPositionMs = root.source.lyricPositionMs();
+    }
+    // Covers both edges the frame pull cannot: the line changing while paused,
+    // and playback resuming after the animation had stopped itself.
+    readonly property string lyricPositionCue: root.source.currentText
+        + "\u0000" + root.source.playbackStatus
+    onLyricPositionCueChanged: root.syncLyricPosition()
+    Component.onCompleted: root.syncLyricPosition()
+
+    // Named rather than inlined into the FrameAnimation so the one condition
+    // that decides whether the widget wakes 60 times a second is observable --
+    // the animation is not an Item and cannot be reached from a test.
+    // Switching word-by-word off empties effectiveWords, which both clears the
+    // Repeater's model and stops this: that is the whole point of the setting,
+    // and it is why turning the effects off or setting three identical colours
+    // is not a substitute. See DESIGN.md decision 38 for why the wakeup count,
+    // not the per-frame cost, is the thing being protected here.
+    readonly property bool wordClockRunning: root.effectiveWords.length > 0
+        && root.source.playbackStatus === "Playing"
+        && (root.panelMode || root.shouldBeVisible)
+
+    FrameAnimation {
+        running: root.wordClockRunning
+        onTriggered: root.syncLyricPosition()
+    }
     // TrackInfo already collapses to zero height on an empty title (see
     // TrackInfo.qml), so gating the config off just means feeding it an
     // empty title too -- no separate visibility flag to keep in sync. It
@@ -200,14 +272,29 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             lyricText: root.effectiveText
-            translationText: root.effectiveTranslation
+            translationText: root.effectiveSecondLine
             textColor: root.textColor
+            secondLineColor: root.effectiveSecondLineColor
             strokeEnabled: root.strokeEnabled
             strokeColor: root.strokeColor
             fontSize: root.fontSize
             fontWeight: root.fontWeight
             overflowMode: root.overflowMode
             animationMode: root.animationMode
+            words: root.effectiveWords
+            positionMs: root.lyricPositionMs
+            unsungColor: root.wordUnsungColor
+            activeColor: root.wordActiveColor
+            sungColor: root.wordSungColor
+            // A panel sets the widget's height itself, so a lifted word would
+            // simply be clipped. Forced off here rather than left to the
+            // configuration, which has no panel key for it at all.
+            liftEnabled: !root.panelMode && root.wordLift
+            liftEm: root.wordLiftPercent / 100
+            brightnessEnabled: root.wordBrightness
+            brightnessStrength: root.wordBrightnessPercent / 100
+            blurGlowEnabled: root.wordBlurGlow
+            lineHeightFactor: root.lineHeightPercent / 100
         }
     }
 

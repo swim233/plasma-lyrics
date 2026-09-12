@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import QtTest
+import QtQuick.Window
 import org.kde.kirigami as Kirigami
 import org.kde.ksvg as KSvg
 import "../package/contents/ui" as LyricsUi
@@ -29,6 +30,36 @@ TestCase {
         LyricsUi.LyricLine {
             width: 320
             lineText: "A deliberately long lyric used to exercise overflow"
+        }
+    }
+
+    // A LyricLine inside a window that is actually shown: Item.visible is
+    // ancestor-combined, so this is the only way anything in this suite can
+    // observe a true `visible` at all.
+    Component {
+        id: windowedLineComponent
+        Window {
+            width: 400
+            height: 200
+            visible: true
+            property alias line: innerLine
+            LyricsUi.LyricLine {
+                id: innerLine
+                width: 400
+                overflowMode: "marquee"
+            }
+        }
+    }
+
+    Component {
+        id: wordLineComponent
+        LyricsUi.LyricLine {
+            width: 400
+            fontSize: 40
+            lineText: "abcdef"
+            unsungColor: "#40ffffff"
+            activeColor: "#ffffffff"
+            sungColor: "#a0ffffff"
         }
     }
 
@@ -122,6 +153,14 @@ TestCase {
             property string trackArtists: "Artist"
             property string currentText: "la la la"
             property string currentTranslation: ""
+            property string currentRomanization: ""
+            property var currentWords: []
+            // LyricsView pulls the position per frame rather than binding to
+            // it, so the stand-in needs the same invokable the real source
+            // exposes; driving this by hand is also how the word tests step
+            // time without waiting on a real animation.
+            property real positionMs: 0
+            function lyricPositionMs() { return positionMs; }
         }
     }
 
@@ -340,11 +379,12 @@ TestCase {
         const desktopSections = findAll(desktopPage, o => typeof o.textColorEdited === "function");
         const panelSections = findAll(panelPage, o => typeof o.textColorEdited === "function");
         desktopPage.cfg_desktopTextColor = "#0f0f0f";
-        // Background, text, outline, track-info text, track-info outline --
-        // in that order down the form. The track-info section added its own
-        // text/outline colour pair, so this went from 3 rows to 5.
+        // Background, text, outline, second line, the three word-state
+        // colours, track-info text, track-info outline -- in that order down
+        // the form. The track-info section took this from 3 rows to 5, and
+        // word-by-word from 5 to 9.
         const rows = findAll(desktopSections[0], o => typeof o.edited === "function");
-        compare(rows.length, 5);
+        compare(rows.length, 9);
         compare(rows[1].value, "#0f0f0f");
 
         // Same crosstalk bug test_sectionEditsReachTheirOwnConfigProperties
@@ -463,6 +503,522 @@ TestCase {
         compare(view.effectiveText, "instrumental");
         source.lyricState = "network-error";
         compare(view.effectiveText, "offline");
+    }
+
+
+    // ---- word-by-word ----
+
+    readonly property var twoWords: [
+        { startMs: 0, endMs: 1000, text: "abc" },
+        { startMs: 1000, endMs: 2000, text: "def" }
+    ]
+
+    function wordTextsOf(line) {
+        // Not textChildrenOf(): the word glyphs sit one Row and one delegate
+        // Item below the line, where that helper does not reach. Matching on
+        // objectName rather than on shape, because the whole-line Text and its
+        // eight stroke copies are Texts with the same properties.
+        return findAll(line, o => o.objectName === "lyricWord");
+    }
+
+    // The companion to the assertion above: without this, `!marqueeWanted` in
+    // word mode would be satisfied by a property that is simply always false.
+    function test_wholeLineMarqueeStillWantsToRun() {
+        const long = [];
+        let text = "";
+        for (let i = 0; i < 40; ++i) { text += "word" + i + " "; }
+        const line = createTemporaryObject(wordLineComponent, this,
+            { lineText: text, overflowMode: "marquee" });
+        tryVerify(() => line.marqueeApplies);
+        tryVerify(() => line.marqueeWanted);
+        // ... and it stops wanting to the moment word timings arrive. The
+        // tryVerify calls below are load-bearing, and there are two separate
+        // reasons a naive version of this test passes for the wrong reason --
+        // both measured, and they apply at different moments:
+        //
+        //   1. A Row lays its children out on the next polish, but only when
+        //      it is asked to relayout -- so this depends on the operation,
+        //      which is why two people measuring it disagreed. Measured both:
+        //        creating the object with `words` in the initial property map
+        //          -> laid out during completion, contentWidth 5854,
+        //             marqueeApplies already true on the creating turn;
+        //        assigning `words` to an object that already exists (what this
+        //          test does) -> contentWidth 0, marqueeApplies false until a
+        //          polish runs, so the assertion at the end would hold without
+        //          `!wordMode` doing any of the work.
+        //   2. tryVerify evaluates its predicate synchronously first and
+        //      returns without pumping the event loop if it is already true.
+        //      So `tryVerify(() => line.marqueeApplies)` is useless as a
+        //      settling device on the creating turn: the 0-interval
+        //      restartPulse never fires and `restarting` stays true, which
+        //      makes marqueeWanted false for a second, unrelated reason.
+        //      Waiting on marqueeWanted above works precisely because it is
+        //      false at first and therefore does pump.
+        for (let i = 0; i < 40; ++i) { long.push({ startMs: i*100, endMs: (i+1)*100, text: "word" + i + " " }); }
+        line.words = long;
+        tryVerify(() => line.wordMode);
+        tryVerify(() => line.marqueeApplies);
+        verify(!line.marqueeWanted);
+    }
+
+    // `visible` is the clause that made the whole condition unobservable, so
+    // it needs a case where it is genuinely true. Without a shown window every
+    // item here reads visible=false and marqueeRunning can never be anything
+    // but false, however broken the rest of the condition is.
+    function test_marqueeRunningNeedsAVisibleItem() {
+        let text = "";
+        for (let i = 0; i < 40; ++i) { text += "word" + i + " "; }
+        const win = createTemporaryObject(windowedLineComponent, this);
+        verify(win !== null);
+        const line = win.line;
+        line.lineText = text;
+        tryVerify(() => line.visible);
+        tryVerify(() => line.marqueeWanted);
+        tryVerify(() => line.marqueeRunning);
+
+        // Hiding the item stops the animation even though everything else
+        // still wants it to run.
+        line.visible = false;
+        verify(line.marqueeWanted);
+        verify(!line.marqueeRunning);
+    }
+
+    // `restarting` holds the sweep off for one event-loop turn so a new line
+    // scrolls from its start rather than continuing the previous one's offset.
+    function test_aNewLineHoldsTheSweepOffForOneTurn() {
+        let text = "";
+        for (let i = 0; i < 40; ++i) { text += "word" + i + " "; }
+        const line = createTemporaryObject(wordLineComponent, this,
+            { lineText: text, overflowMode: "marquee" });
+        tryVerify(() => line.marqueeWanted);
+        line.lineText = text + " again";
+        verify(line.restarting);
+        verify(!line.marqueeWanted);
+        tryVerify(() => line.marqueeWanted);
+    }
+
+    function test_wordSequenceDrivesPerWordState() {
+        const line = createTemporaryObject(wordLineComponent, this,
+            { words: twoWords, positionMs: 500 });
+        verify(line !== null);
+        verify(line.wordMode);
+        const texts = wordTextsOf(line);
+        compare(texts.length, 2);
+        compare(texts[0].text, "abc");
+        compare(texts[1].text, "def");
+
+        // Colour switches for a whole word at its own start time.
+        compare(texts[0].color.toString(), "#ffffff");
+        compare(texts[1].color.toString(), "#40ffffff");
+        compare(line.activeWordIndex, 0);
+
+        line.positionMs = 1500;
+        compare(texts[0].color.toString(), "#a0ffffff");
+        compare(texts[1].color.toString(), "#ffffff");
+        compare(line.activeWordIndex, 1);
+
+        line.positionMs = 2500;
+        compare(texts[0].color.toString(), "#a0ffffff");
+        compare(texts[1].color.toString(), "#a0ffffff");
+    }
+
+    function test_lineWithoutWordDataFallsBackToTheWholeLine() {
+        const line = createTemporaryObject(wordLineComponent, this, { positionMs: 500 });
+        verify(line !== null);
+        verify(!line.wordMode);
+        compare(wordTextsOf(line).length, 0);
+        // The whole-line Text is the one that renders instead.
+        const texts = textChildrenOf(line);
+        compare(texts.length, 1);
+        compare(texts[0].text, "abcdef");
+        compare(line.activeWordIndex, -1);
+    }
+
+    // "wrap" has no single horizontal run for the words to occupy, so it stays
+    // on the whole-line path even when word timings are available.
+    function test_wrapOverflowKeepsTheWholeLinePath() {
+        const line = createTemporaryObject(wordLineComponent, this,
+            { words: twoWords, positionMs: 500, overflowMode: "wrap" });
+        verify(!line.wordMode);
+        compare(wordTextsOf(line).length, 0);
+    }
+
+    function test_switchingBetweenWordAndWholeLineLeavesNoResidualState() {
+        const line = createTemporaryObject(wordLineComponent, this,
+            { words: twoWords, positionMs: 1500 });
+        verify(line.wordMode);
+
+        // A track with no word timings: back to one whole line, with no word
+        // glyphs left behind.
+        line.words = [];
+        line.lineText = "plain line";
+        verify(!line.wordMode);
+        compare(wordTextsOf(line).length, 0);
+        compare(textChildrenOf(line)[0].text, "plain line");
+
+        // And back again, at the start of the new track: the first word must
+        // read unsung rather than inheriting the previous line's progress.
+        line.lineText = "abcdef";
+        line.words = twoWords;
+        line.positionMs = 0;
+        verify(line.wordMode);
+        const texts = wordTextsOf(line);
+        compare(texts.length, 2);
+        compare(texts[0].color.toString(), "#ffffff");
+        compare(texts[1].color.toString(), "#40ffffff");
+    }
+
+    function test_liftReservesItsOwnHeadroomAndOnlyWhenEnabled() {
+        const line = createTemporaryObject(wordLineComponent, this,
+            { words: twoWords, positionMs: 500 });
+        const plainHeight = line.height;
+        compare(line.liftHeadroom, 0);
+
+        line.liftEnabled = true;
+        // The item clips, so without this the lift would simply be cut off --
+        // at fontSize 40 the 1.25 line box leaves under 2px above the glyphs.
+        compare(line.liftHeadroom, Math.ceil(40 * line.liftEm));
+        compare(line.height, plainHeight + line.liftHeadroom);
+
+        // Reserved by the setting alone. A track that carries no word timings
+        // must not change the line height, or the baseline would hop every
+        // time playback crossed between two kinds of source.
+        line.words = [];
+        verify(!line.wordMode);
+        compare(line.liftHeadroom, Math.ceil(40 * line.liftEm));
+        compare(line.height, plainHeight + line.liftHeadroom);
+    }
+
+    function test_liftNeverAppliesInAPanel() {
+        const source = createTemporaryObject(fakeSourceComponent, this);
+        const desktop = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: false, wordLift: true });
+        const panel = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: true, wordLift: true });
+        const lifted = o => o.liftEnabled !== undefined && o.liftEnabled;
+        verify(findAll(desktop, lifted).length > 0);
+        // A panel sets the widget height itself, so a lifted word would only
+        // be clipped. There is no panel key for it either -- the row on that
+        // config tab is disabled and says so.
+        compare(findAll(panel, lifted).length, 0);
+    }
+
+    function test_wordMarqueeKeepsTheCurrentWordVisible() {
+        const long = [];
+        let text = "";
+        for (let i = 0; i < 40; ++i) {
+            long.push({ startMs: i * 100, endMs: (i + 1) * 100, text: "word" + i + " " });
+            text += "word" + i + " ";
+        }
+        const line = createTemporaryObject(wordLineComponent, this, {
+            lineText: text, words: long, overflowMode: "marquee", positionMs: 0
+        });
+        verify(line !== null);
+        // A Row lays its children out on the next polish, so the width this
+        // reads is not yet there on the turn the object was created.
+        tryVerify(() => line.marqueeApplies);
+        // The sweep animation must stay out of it: two things writing the
+        // horizontal position would fight over it. Asserted on marqueeWanted,
+        // not marqueeRunning -- the latter contains `visible`, which is false
+        // for every item in this suite, so it would read false here however
+        // broken the rest of the condition was.
+        verify(!line.marqueeWanted);
+
+        line.positionMs = 3500;
+        tryVerify(() => line.activeWordItem !== null);
+        const item = line.activeWordItem;
+        // A Behavior smooths the scroll, so this waits for it to settle rather
+        // than reading a value still in flight.
+        tryVerify(() => {
+            const visibleLeft = -line.wordScrollOffset;
+            return item.x >= visibleLeft - 1
+                && item.x + item.width <= visibleLeft + line.width + 1;
+        });
+    }
+
+    // The existing whole-line regression, repeated for the word path: leaving
+    // marquee mode has to land back at zero there too.
+    function test_wordScrollOffsetClearsWhenLeavingMarqueeMode() {
+        const long = [];
+        let text = "";
+        for (let i = 0; i < 40; ++i) {
+            long.push({ startMs: i * 100, endMs: (i + 1) * 100, text: "word" + i + " " });
+            text += "word" + i + " ";
+        }
+        const line = createTemporaryObject(wordLineComponent, this, {
+            lineText: text, words: long, overflowMode: "marquee", positionMs: 3500
+        });
+        tryVerify(() => line.wordScrollOffset < 0);
+        line.overflowMode = "fit";
+        tryCompare(line, "wordScrollOffset", 0);
+    }
+
+    function test_secondLineSelectorPicksTranslationRomanizationOrNothing() {
+        const source = createTemporaryObject(fakeSourceComponent, this,
+            { currentTranslation: "translated", currentRomanization: "romanized" });
+        const view = createTemporaryObject(lyricsViewComponent, this, { source: source });
+        verify(view !== null);
+
+        compare(view.effectiveSecondLine, "translated");
+        view.secondLineSource = "romanization";
+        compare(view.effectiveSecondLine, "romanized");
+        view.showTranslation = false;
+        compare(view.effectiveSecondLine, "");
+    }
+
+    // Every source but one carries no romanization at all, so this is the
+    // normal case rather than a transient one: the row goes empty instead of
+    // quietly falling back to the translation, which would make the setting
+    // mean different things on different tracks.
+    function test_romanizationMissingLeavesTheSecondLineEmpty() {
+        const source = createTemporaryObject(fakeSourceComponent, this,
+            { currentTranslation: "translated", currentRomanization: "" });
+        const view = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, secondLineSource: "romanization" });
+        compare(view.effectiveSecondLine, "");
+    }
+
+    function test_secondLineColorFollowsTheLyricUnlessOverridden() {
+        const source = createTemporaryObject(fakeSourceComponent, this);
+        const view = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, textColor: "#ff3366" });
+        // Unset, it keeps the derived alpha the second line has always used.
+        fuzzyCompare(view.effectiveSecondLineColor.r, 1, 0.01);
+        fuzzyCompare(view.effectiveSecondLineColor.a, 0.68, 0.01);
+
+        view.secondLineColorEnabled = true;
+        view.secondLineColor = "#8000ff00";
+        compare(view.effectiveSecondLineColor.toString(), "#8000ff00");
+    }
+
+    // The setting exists to restore DESIGN.md decision 38's wakeup profile, so
+    // "off" has to mean the model is empty and the clock is stopped -- not
+    // merely that nothing is visible. Anything less and the widget still wakes
+    // 60 times a second for a song it is rendering as one whole line.
+    function test_wordByWordOffEmptiesTheModelAndStopsTheClock() {
+        const source = createTemporaryObject(fakeSourceComponent, this,
+            { currentWords: twoWords });
+        const view = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: true });
+        verify(view !== null);
+        compare(view.effectiveWords.length, 2);
+        compare(view.wordClockRunning, true);
+        tryVerify(() => findAll(view, o => o.objectName === "lyricWord").length === 2);
+
+        view.wordByWord = false;
+        compare(view.effectiveWords.length, 0);
+        compare(view.wordClockRunning, false);
+        tryVerify(() => findAll(view, o => o.objectName === "lyricWord").length === 0);
+
+        // Turning the effects off instead is deliberately NOT equivalent: the
+        // colours and envelopes go quiet but the clock keeps running, which is
+        // the reason this setting had to exist separately.
+        view.wordByWord = true;
+        view.wordLift = false;
+        view.wordBrightness = false;
+        view.wordBlurGlow = false;
+        compare(view.wordClockRunning, true);
+    }
+
+    // A line that cannot be made to fit even at the minimum pixel size has no
+    // way to show its current word in "fit" or "elide": the row stays wider
+    // than the item, x pins to 0, and clip cuts the tail off -- the sung word
+    // simply vanishes, with no ellipsis and no scrolling to bring it back.
+    // The whole-line path shrinks and elides instead, so word mode has to step
+    // aside rather than lose the one word that matters.
+    function test_aLineTooLongToFitFallsBackToTheWholeLine() {
+        const words = [];
+        let text = "";
+        for (let i = 0; i < 22; ++i) {
+            words.push({ startMs: i * 200, endMs: (i + 1) * 200, text: "字" });
+            text += "字";
+        }
+        const modes = ["fit", "elide"];
+        for (let m = 0; m < modes.length; ++m) {
+            const line = createTemporaryObject(wordLineComponent, this, {
+                width: 300, fontSize: 34, lineText: text, words: words,
+                overflowMode: modes[m], positionMs: 3800
+            });
+            verify(line !== null);
+            verify(!line.wordMode);
+            compare(wordTextsOf(line).length, 0);
+            compare(textChildrenOf(line)[0].text, text);
+        }
+
+        // A line that does fit once shrunk keeps word-by-word: the fallback is
+        // for the impossible case only, not for every line that needs shrinking.
+        const shortWords = [{ startMs: 0, endMs: 500, text: "字" },
+                            { startMs: 500, endMs: 1000, text: "字" }];
+        const fits = createTemporaryObject(wordLineComponent, this, {
+            width: 300, fontSize: 34, lineText: "字字", words: shortWords,
+            overflowMode: "fit", positionMs: 100
+        });
+        verify(fits.wordMode);
+
+        // marquee is the escape hatch: it scrolls, so the current word is
+        // always reachable however long the line is.
+        const scrolls = createTemporaryObject(wordLineComponent, this, {
+            width: 300, fontSize: 34, lineText: text, words: words,
+            overflowMode: "marquee", positionMs: 3800
+        });
+        verify(scrolls.wordMode);
+    }
+
+    function test_wordTimingsOnlyApplyToTheLyricItself() {
+        const source = createTemporaryObject(fakeSourceComponent, this,
+            { currentWords: twoWords });
+        const view = createTemporaryObject(lyricsViewComponent, this, { source: source });
+        compare(view.effectiveWords.length, 2);
+
+        // "Searching…", the idle text and the custom empty-state messages all
+        // land in the same slot; handing them the line's word timings would
+        // highlight fragments of them.
+        source.lyricState = "searching";
+        compare(view.effectiveWords.length, 0);
+        source.lyricState = "ok";
+        source.playbackStatus = "Stopped";
+        compare(view.effectiveWords.length, 0);
+    }
+
+    function test_blurredGlowIsOffByDefaultAndBuiltOnlyForTheCurrentWord() {
+        const line = createTemporaryObject(wordLineComponent, this,
+            { words: twoWords, positionMs: 500 });
+        const loaders = findAll(line, o => o.active !== undefined && o.sourceComponent !== undefined);
+        compare(loaders.length, 2);
+        // Default off: no MultiEffect anywhere, which is the "pure brightening,
+        // zero shaders" resting state.
+        compare(loaders.filter(l => l.active).length, 0);
+
+        line.blurGlowEnabled = true;
+        // One halo, for the word being sung -- not one per word.
+        compare(loaders.filter(l => l.active).length, 1);
+        line.positionMs = 1500;
+        compare(loaders.filter(l => l.active).length, 1);
+        line.positionMs = 2500;
+        compare(loaders.filter(l => l.active).length, 0);
+    }
+
+    function test_brighteningMovesTheColorOfTheWordBeingSung() {
+        const line = createTemporaryObject(wordLineComponent, this, {
+            words: twoWords, positionMs: 500, activeColor: "#b0ffffff",
+            brightnessEnabled: false
+        });
+        const texts = wordTextsOf(line);
+        compare(texts[0].color.toString(), "#b0ffffff");
+
+        line.brightnessEnabled = true;
+        // Qt.lighter() would be inert here -- these colours already sit at HSV
+        // value 1.0 -- so the brightening has to move the alpha too. The
+        // target is computed, not eyeballed: envelope sin(0.5π) = 1 at
+        // positionMs 500, strength 0.6, so 0.690196 + (1 - 0.690196) × 0.6.
+        // An earlier "> 0.69" here was worthless -- 0xb0/255 = 0.690196 is
+        // already greater than it, so the assertion held with the entire
+        // brightening mechanism deleted.
+        fuzzyCompare(texts[0].color.a, 0.876, 0.01);
+        // ... and it is anchored to the envelope, so it is back at the base
+        // colour by the time the word ends.
+        line.positionMs = 999;
+        fuzzyCompare(texts[0].color.a, 0.69, 0.02);
+    }
+
+    function test_wholeLineStrokeIsUnchangedAndWordStrokeUsesTextOutline() {
+        const whole = createTemporaryObject(wordLineComponent, this, { strokeEnabled: true });
+        // Unchanged: eight offset copies plus the line itself.
+        tryVerify(() => textChildrenOf(whole).length === 9);
+
+        const word = createTemporaryObject(wordLineComponent, this,
+            { words: twoWords, positionMs: 500, strokeEnabled: true });
+        // Per word it is Text's own outline instead. Eight copies per word was
+        // measured at 9.5 ms to rebuild on a line change against 2.7 ms for
+        // this, and the spike lands exactly on the line change.
+        compare(textChildrenOf(word).length, 1);
+        const glyphs = wordTextsOf(word);
+        compare(glyphs.length, 2);
+        for (let i = 0; i < glyphs.length; ++i) {
+            compare(glyphs[i].style, Text.Outline);
+        }
+    }
+
+    function test_aRepeatedLineWithNewWordTimingsStillSwitches() {
+        const first = [{ startMs: 0, endMs: 100, text: "a" }];
+        const second = [{ startMs: 5000, endMs: 5100, text: "a" }];
+        const lyric = createTemporaryObject(animatedLyricComponent, this,
+            { lyricText: "chorus", translationText: "", words: first });
+        verify(lyric !== null);
+        tryCompare(lyric, "shownText", "chorus");
+        tryVerify(() => lyric.shownWords.length === 1 && lyric.shownWords[0].startMs === 0);
+
+        // A refrain repeats the same text with new timings. switchLine() bails
+        // out early when nothing changed, and text alone is not enough to tell
+        // these two apart -- without the word check the highlight would carry
+        // the previous line's progress into the new one.
+        lyric.words = second;
+        tryVerify(() => lyric.shownWords.length === 1 && lyric.shownWords[0].startMs === 5000);
+    }
+
+    // This does NOT pin the binding loop -- reverting these bindings alone
+    // does not reproduce it (the trigger is reading liftSupported in the lift
+    // row's `visible`; see the comment there). What it does pin is the thing
+    // that made the row wrong in the first place: the panel page has no lift
+    // keys at all, so every lift control there must be off and stay off. A
+    // later edit that binds wordLift to something real on this page would be
+    // storing into a key that does not exist.
+    function test_thePanelPageDeclaresNoLift() {
+        const panelPage = createTemporaryObject(configPanelAppearanceComponent, this);
+        const panel = findAll(panelPage, o => typeof o.wordActiveColorEdited === "function")[0];
+        verify(panel !== undefined);
+        compare(panel.liftSupported, false);
+        compare(panel.wordLift, false);
+        compare(panel.wordLiftRowVisible, false);
+
+        const desktopPage = createTemporaryObject(configDesktopAppearanceComponent, this);
+        const desktop = findAll(desktopPage, o => typeof o.wordActiveColorEdited === "function")[0];
+        compare(desktop.liftSupported, true);
+    }
+
+    function test_wordSettingsReachTheirOwnConfigProperties() {
+        const desktopPage = createTemporaryObject(configDesktopAppearanceComponent, this);
+        const panelPage = createTemporaryObject(configPanelAppearanceComponent, this);
+        const desktop = findAll(desktopPage, o => typeof o.wordActiveColorEdited === "function")[0];
+        const panel = findAll(panelPage, o => typeof o.wordActiveColorEdited === "function")[0];
+        verify(desktop !== undefined);
+        verify(panel !== undefined);
+
+        desktop.wordByWordEdited(false);
+        desktop.wordUnsungColorEdited("#11223344");
+        desktop.wordActiveColorEdited("#55667788");
+        desktop.wordSungColorEdited("#99aabbcc");
+        desktop.wordLiftEdited(false);
+        desktop.wordLiftPercentEdited(22);
+        desktop.wordBrightnessPercentEdited(85);
+        desktop.wordBlurGlowEdited(true);
+        desktop.lineHeightPercentEdited(160);
+        desktop.secondLineSourceEdited("romanization");
+        desktop.secondLineColorEnabledEdited(true);
+        desktop.secondLineColorEdited("#80ff0000");
+        compare(desktopPage.cfg_desktopWordByWord, false);
+        compare(desktopPage.cfg_desktopWordUnsungColor, "#11223344");
+        compare(desktopPage.cfg_desktopWordActiveColor, "#55667788");
+        compare(desktopPage.cfg_desktopWordSungColor, "#99aabbcc");
+        compare(desktopPage.cfg_desktopWordLift, false);
+        compare(desktopPage.cfg_desktopWordLiftPercent, 22);
+        compare(desktopPage.cfg_desktopWordBrightnessPercent, 85);
+        compare(desktopPage.cfg_desktopWordBlurGlow, true);
+        compare(desktopPage.cfg_desktopLineHeight, 160);
+        compare(desktopPage.cfg_desktopSecondLineSource, "romanization");
+        compare(desktopPage.cfg_desktopSecondLineColorEnabled, true);
+        compare(desktopPage.cfg_desktopSecondLineColor, "#80ff0000");
+
+        // The panel tab carries no lift keys at all -- decision 40's precedent
+        // for panelHideAnimationMs -- so its row stands disabled instead.
+        compare(panel.liftSupported, false);
+        compare(desktop.liftSupported, true);
+
+        panel.wordActiveColorEdited("#cafebabe");
+        compare(panelPage.cfg_panelWordActiveColor, "#cafebabe");
+        // Same crosstalk guard the other appearance tests apply: the two tabs
+        // are separate page instances and must not reach into each other.
+        compare(desktopPage.cfg_desktopWordActiveColor, "#55667788");
     }
 
     function test_textConfigurationUsesOneEmptyFallbackSwitch() {

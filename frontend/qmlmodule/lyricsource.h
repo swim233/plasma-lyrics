@@ -3,6 +3,7 @@
 #include "core/lyric/lyricmodel.h"
 
 #include <QFileSystemWatcher>
+#include <QVariantList>
 #include <QObject>
 #include <QQmlEngine>
 #include <QTimer>
@@ -23,6 +24,8 @@ class LyricSource : public QObject
     Q_PROPERTY(QString trackArtists READ trackArtists NOTIFY trackChanged)
     Q_PROPERTY(QString currentText READ currentText NOTIFY currentLineChanged)
     Q_PROPERTY(QString currentTranslation READ currentTranslation NOTIFY currentLineChanged)
+    Q_PROPERTY(QString currentRomanization READ currentRomanization NOTIFY currentLineChanged)
+    Q_PROPERTY(QVariantList currentWords READ currentWords NOTIFY currentLineChanged)
     Q_PROPERTY(qint64 currentPositionMs READ currentPositionMs NOTIFY currentPositionChanged)
     Q_PROPERTY(int offsetMs READ offsetMs NOTIFY offsetChanged)
     Q_PROPERTY(bool canAdjustOffset READ canAdjustOffset NOTIFY canAdjustOffsetChanged)
@@ -53,6 +56,8 @@ public:
     QString trackArtists() const;
     QString currentText() const;
     QString currentTranslation() const;
+    QString currentRomanization() const;
+    QVariantList currentWords() const;
     qint64 currentPositionMs() const;
     int offsetMs() const;
     bool canAdjustOffset() const;
@@ -67,6 +72,13 @@ public:
     bool canControlProvider() const;
     bool controlInProgress() const;
     QString controlError() const;
+
+    /// The position the lyric timeline is at right now, offset already applied,
+    /// so it can be compared directly against a line's or a word's own times.
+    /// Pulled per frame by the word-by-word renderer rather than pushed: that
+    /// side is driven by a QML FrameAnimation, which stops on its own while the
+    /// window is not rendering (DESIGN.md decision 38).
+    Q_INVOKABLE qint64 lyricPositionMs() const;
 
     Q_INVOKABLE void reload();
     Q_INVOKABLE bool adjustOffset(int deltaMs);
@@ -102,7 +114,9 @@ private:
     void setDetermined(bool value);
     void updateServiceHealth();
     void reloadImpl();
+    qint64 livePositionMs() const;
     void advance();
+    void updateCurrentLine(bool lineContentChanged);
     bool hasTrackRef() const;
     bool sendControlCommand(const QString &method, const QVariantList &arguments);
 

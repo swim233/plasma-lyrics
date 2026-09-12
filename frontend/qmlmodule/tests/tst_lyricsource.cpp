@@ -64,6 +64,43 @@ private:
         QVERIFY(file.commit());
     }
 
+    static void writeWordSnapshot(const QString &path, int seq, const QList<LyricWord> &words)
+    {
+        QDir().mkpath(QFileInfo(path).absolutePath());
+        // Named assignment rather than aggregate braces: LyricLine has gained
+        // two optional members already, and every positional site warned each
+        // time. This one cannot warn and cannot silently shift meaning when
+        // the next field lands between two identically typed neighbours.
+        LyricLine line;
+        line.startMs = 1000;
+        line.endMs = 2000;
+        line.text = QStringLiteral("worded");
+        line.words = words;
+        const QJsonObject root{
+            {QStringLiteral("schema"), 1},
+            {QStringLiteral("seq"), seq},
+            {QStringLiteral("daemon"),
+             QJsonObject{{QStringLiteral("pid"), QCoreApplication::applicationPid()}}},
+            {QStringLiteral("track"),
+             QJsonObject{{QStringLiteral("fingerprint"), QStringLiteral("mediaSrc:test")},
+                         {QStringLiteral("title"), QStringLiteral("song")},
+                         {QStringLiteral("artists"), QJsonArray{QStringLiteral("artist")}}}},
+            {QStringLiteral("playback"),
+             QJsonObject{{QStringLiteral("status"), QStringLiteral("Playing")},
+                         {QStringLiteral("positionUs"), 1000000},
+                         {QStringLiteral("anchorMonotonicNs"), 1000000000LL},
+                         {QStringLiteral("rate"), 1.0}}},
+            {QStringLiteral("lyric"),
+             QJsonObject{{QStringLiteral("state"), QStringLiteral("ok")},
+                         {QStringLiteral("offsetMs"), 0},
+                         {QStringLiteral("availableProviders"), QJsonArray{}},
+                         {QStringLiteral("lines"), QJsonArray{lineToJson(line)}}}}};
+        QSaveFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        QVERIFY(file.commit());
+    }
+
 private Q_SLOTS:
     // providerDisplayName() goes through i18nd(), so the expected strings below
     // are only stable when the catalogue lookup is pinned to the source
@@ -102,6 +139,161 @@ private Q_SLOTS:
         QCOMPARE(source.currentText(), QStringLiteral("first"));
         now += 100000000;
         QTRY_VERIFY(source.currentText().isEmpty());
+    }
+
+    void aSongChangeLandingOnTheSameLineIndexStillNotifies()
+    {
+        // The line *index* is not enough to decide the current line changed.
+        // Both snapshots below sit on index 0, so advance() used to leave
+        // m_currentLine alone and emit nothing -- while currentText() already
+        // returned the new song. Polling a getter therefore never caught it;
+        // only a QML binding did, by going on showing the previous song.
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        writeSnapshot(path, 1, 1000000000, QStringLiteral("first"));
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+        QCOMPARE(source.currentText(), QStringLiteral("first"));
+        QSignalSpy spy(&source, &LyricSource::currentLineChanged);
+        writeSnapshot(path, 2, 1000000000, QStringLiteral("second"));
+        QTRY_COMPARE(source.currentText(), QStringLiteral("second"));
+        QCOMPARE(spy.size(), 1);
+    }
+
+    void wordsOfTheCurrentLineReachQml()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        // Named assignment here too. Padding the braces with {} would silence
+        // the warning while leaving the positional trap at the site most
+        // likely to grow a line carrying both a translation and a
+        // romanization -- two adjacent, identically typed optionals. GCC
+        // warns on designated initialisers as well (measured), so this is the
+        // only form that both builds clean and stays safe to extend.
+        LyricWord first;
+        first.startMs = 1000;
+        first.endMs = 1400;
+        first.text = QStringLiteral("li");
+        LyricWord second;
+        second.startMs = 1400;
+        second.endMs = 2000;
+        second.text = QStringLiteral("ne");
+        writeWordSnapshot(path, 1, {first, second});
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+
+        const QVariantList words = source.currentWords();
+        QCOMPARE(words.size(), 2);
+        QCOMPARE(words.at(0).toMap().value(QStringLiteral("text")).toString(),
+                 QStringLiteral("li"));
+        QCOMPARE(words.at(0).toMap().value(QStringLiteral("startMs")).toLongLong(), 1000);
+        QCOMPARE(words.at(0).toMap().value(QStringLiteral("endMs")).toLongLong(), 1400);
+        QCOMPARE(words.at(1).toMap().value(QStringLiteral("text")).toString(),
+                 QStringLiteral("ne"));
+    }
+
+    void aLineWithoutWordDataExposesNoWords()
+    {
+        // The common case, not an error: most sources carry no word timings,
+        // and the widget falls back to showing the line whole.
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        writeSnapshot(path, 1, 1000000000, QStringLiteral("plain"));
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+
+        QCOMPARE(source.currentText(), QStringLiteral("plain"));
+        QVERIFY(source.currentWords().isEmpty());
+        // Same for a line whose words array is present but empty.
+        writeWordSnapshot(path, 2, {});
+        QTRY_COMPARE(source.currentText(), QStringLiteral("worded"));
+        QVERIFY(source.currentWords().isEmpty());
+    }
+
+    void romanizationRoundTripsFromTheSnapshot()
+    {
+        // The seam between two branches: the field is written by the QQ
+        // provider's side and read by the widget's, and until both were on
+        // main neither half could exercise the join. Deliberately a real
+        // snapshot round trip rather than a directly-constructed line --
+        // reading the two diffs and concluding they fit is what this is here
+        // to replace.
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        QDir().mkpath(QFileInfo(path).absolutePath());
+        LyricLine line;
+        line.startMs = 1000;
+        line.endMs = 2000;
+        line.text = QStringLiteral("惑星ループ");
+        line.translation = QStringLiteral("行星循环");
+        line.romanization = QStringLiteral("wakusei ruupu");
+        const QJsonObject root{
+            {QStringLiteral("schema"), 1},
+            {QStringLiteral("seq"), 1},
+            {QStringLiteral("daemon"),
+             QJsonObject{{QStringLiteral("pid"), QCoreApplication::applicationPid()}}},
+            {QStringLiteral("track"),
+             QJsonObject{{QStringLiteral("fingerprint"), QStringLiteral("mediaSrc:test")},
+                         {QStringLiteral("title"), QStringLiteral("song")},
+                         {QStringLiteral("artists"), QJsonArray{QStringLiteral("artist")}}}},
+            {QStringLiteral("playback"),
+             QJsonObject{{QStringLiteral("status"), QStringLiteral("Playing")},
+                         {QStringLiteral("positionUs"), 1000000},
+                         {QStringLiteral("anchorMonotonicNs"), 1000000000LL},
+                         {QStringLiteral("rate"), 1.0}}},
+            {QStringLiteral("lyric"),
+             QJsonObject{{QStringLiteral("state"), QStringLiteral("ok")},
+                         {QStringLiteral("offsetMs"), 0},
+                         {QStringLiteral("availableProviders"), QJsonArray{}},
+                         {QStringLiteral("lines"), QJsonArray{lineToJson(line)}}}}};
+        QSaveFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        QVERIFY(file.commit());
+
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+
+        QCOMPARE(source.currentText(), QStringLiteral("惑星ループ"));
+        QCOMPARE(source.currentTranslation(), QStringLiteral("行星循环"));
+        QCOMPARE(source.currentRomanization(), QStringLiteral("wakusei ruupu"));
+    }
+
+    void noCurrentLineMeansNoWordsAndNoRomanization()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        // The line ends before the anchored position, so nothing is current.
+        writeSnapshot(path, 1, 1000000000, QStringLiteral("gone"),
+                      QCoreApplication::applicationPid(), 500);
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+
+        QVERIFY(source.currentText().isEmpty());
+        QVERIFY(source.currentWords().isEmpty());
+        // All three per-line getters are guarded by the same index check, so
+        // this is about there being no current line -- not about the data. It
+        // was written when romanization could not round-trip on this branch at
+        // all; it can now (see romanizationRoundTripsFromTheSnapshot), and this
+        // still holds for the reason it always did.
+        QVERIFY(source.currentRomanization().isEmpty());
+    }
+
+    void theWordClockAppliesTheLyricOffset()
+    {
+        // Word times share the timeline's own base, so the position handed to
+        // the renderer has to have the offset taken out of it -- otherwise the
+        // highlight drifts by exactly the amount the user nudged by hand.
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        writeSnapshot(path, 1, 1000000000, QStringLiteral("first"),
+                      QCoreApplication::applicationPid(), 2000, 300);
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+
+        QCOMPARE(source.offsetMs(), 300);
+        QCOMPARE(source.currentPositionMs(), 1000);
+        QCOMPARE(source.lyricPositionMs(), 700);
     }
 
     void rearmsAfterAtomicRename()

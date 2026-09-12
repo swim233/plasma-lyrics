@@ -27,6 +27,47 @@ if(BUILD_TESTING)
     # LC_ALL=C.UTF-8 stops Qt's own startup locale warning from reaching
     # the real journal via sd_journal_send() (see
     # core/tests/CMakeLists.txt for the full explanation).
+    #
+    # FAIL_REGULAR_EXPRESSION is the only thing that makes a QML binding loop
+    # fail anything: it is reported as a warning, so the suite exits 0 with one
+    # present and no assertion anywhere notices. One shipped in this applet's
+    # config pages and was found by grepping this binary's stderr by hand,
+    # never by a test. Deliberately not scoped to a known loop -- the value is
+    # catching the ones nobody predicted. Pristine main emits none, so this
+    # does not start out noisy. It lives here rather than in a message handler
+    # inside qmltest.cpp because QTest installs its own handler for the
+    # duration of the run and would swallow one installed around it.
+    #
+    # DEMONSTRATED: a loop reported from inside a test function, or while
+    # loading any test file after the first -- QTest's handler is active, the
+    # warning carries the "QWARN :" prefix and an UnknownTestFunc tag when no
+    # test is current, it reaches the output ctest captures, and the regex
+    # matches. In every case the bare binary still exits 0; only ctest fails.
+    #
+    # NOT COVERED: a loop raised while THE FIRST TEST FILE QuickTest LOADS is
+    # being loaded -- currently the only one, tst_appearance.qml. QTestLog is
+    # not active yet, so Qt's default handler applies, the warning carries no
+    # "QWARN :" prefix, and under ctest stderr is a pipe -- sd_journal_send()
+    # (see core/tests/CMakeLists.txt), invisible to the regex. Measured
+    # directly by planting one there: ctest passes.
+    #
+    # The hole is exactly one file wide because QuickTest loads and runs each
+    # file in sequence rather than loading all documents up front -- a probe
+    # with a byte-identical body is caught in a file that sorts after and
+    # escapes in one that sorts before, filename the only variable. Were all
+    # documents loaded up front, every file's load-time scope would be
+    # uncovered instead.
+    #
+    # It is empty today: all 14 top-level declarations inside the TestCase are
+    # Component blocks that only a test function creates. A single
+    # non-Component top-level item would open it, and adding a test file that
+    # sorts earlier would move the uncovered region to that new file instead --
+    # this is a property of load order, not of tst_appearance.qml.
+    #
+    # The prefix is the marker: a loop you can see with
+    # QT_FORCE_STDERR_LOGGING=1 but which carries no "QWARN :" is one this
+    # gate cannot catch.
     set_tests_properties(tst_appearance PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;LC_ALL=C.UTF-8")
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;LC_ALL=C.UTF-8"
+        FAIL_REGULAR_EXPRESSION "Binding loop")
 endif()

@@ -242,6 +242,17 @@ PlasmoidItem {
         overflowMode: Plasmoid.configuration.panelOverflow
         animationMode: Plasmoid.configuration.panelAnimation
         showTranslation: Plasmoid.configuration.panelShowTranslation
+        secondLineSource: Plasmoid.configuration.panelSecondLineSource
+        secondLineColorEnabled: Plasmoid.configuration.panelSecondLineColorEnabled
+        secondLineColor: Plasmoid.configuration.panelSecondLineColor
+        lineHeightPercent: Plasmoid.configuration.panelLineHeight
+        wordByWord: Plasmoid.configuration.panelWordByWord
+        wordUnsungColor: Plasmoid.configuration.panelWordUnsungColor
+        wordActiveColor: Plasmoid.configuration.panelWordActiveColor
+        wordSungColor: Plasmoid.configuration.panelWordSungColor
+        wordBrightness: Plasmoid.configuration.panelWordBrightness
+        wordBrightnessPercent: Plasmoid.configuration.panelWordBrightnessPercent
+        wordBlurGlow: Plasmoid.configuration.panelWordBlurGlow
         idleText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                            Plasmoid.configuration.idleText,
                                            i18n("No media is playing"))
@@ -278,6 +289,19 @@ PlasmoidItem {
         overflowMode: Plasmoid.configuration.desktopOverflow
         animationMode: Plasmoid.configuration.desktopAnimation
         showTranslation: Plasmoid.configuration.desktopShowTranslation
+        secondLineSource: Plasmoid.configuration.desktopSecondLineSource
+        secondLineColorEnabled: Plasmoid.configuration.desktopSecondLineColorEnabled
+        secondLineColor: Plasmoid.configuration.desktopSecondLineColor
+        lineHeightPercent: Plasmoid.configuration.desktopLineHeight
+        wordByWord: Plasmoid.configuration.desktopWordByWord
+        wordUnsungColor: Plasmoid.configuration.desktopWordUnsungColor
+        wordActiveColor: Plasmoid.configuration.desktopWordActiveColor
+        wordSungColor: Plasmoid.configuration.desktopWordSungColor
+        wordLift: Plasmoid.configuration.desktopWordLift
+        wordLiftPercent: Plasmoid.configuration.desktopWordLiftPercent
+        wordBrightness: Plasmoid.configuration.desktopWordBrightness
+        wordBrightnessPercent: Plasmoid.configuration.desktopWordBrightnessPercent
+        wordBlurGlow: Plasmoid.configuration.desktopWordBlurGlow
         idleText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                            Plasmoid.configuration.idleText,
                                            i18n("No media is playing"))
