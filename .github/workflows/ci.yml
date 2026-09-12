@@ -32,6 +32,26 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Regenerating and diffing catches a QML string edited without a
+      # matching `sh messages.sh` re-run, and catches a keyword flag
+      # dropping off messages.sh itself (as happened once with i18np --
+      # see the comment there). It cannot catch a .qml file falling outside
+      # messages.sh's own glob arguments, which are not recursive: a
+      # skipped file changes nothing on either side of the diff.
+      # check-message-coverage.sh is the check for that; it derives the
+      # covered file set from messages.sh's own xgettext invocations
+      # instead of keeping a second copy of the glob list, so the two
+      # cannot drift apart. msgfmt --check then validates both catalogs are
+      # well-formed; it does not need messages.sh's Plural-Forms
+      # workaround, because the checked-in .pot already had that
+      # placeholder stripped before it was committed.
+      - name: Translation catalogs
+        run: |
+          sh frontend/plasmoid/translations/check-pot-freshness.sh
+          sh frontend/plasmoid/translations/check-message-coverage.sh
+          msgfmt --check -o /dev/null frontend/plasmoid/translations/templates/plasma_applet_io.github.swim233.plasma-lyrics.pot
+          msgfmt --check -o /dev/null frontend/plasmoid/translations/zh_CN/plasma_applet_io.github.swim233.plasma-lyrics.po
+
       - name: Build
         run: |
           cmake -S . -B build -G Ninja \
