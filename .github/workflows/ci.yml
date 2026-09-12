@@ -91,6 +91,22 @@ jobs:
           cmake --build build-no-providers
           ctest --test-dir build-no-providers --output-on-failure
 
+      # Nothing else in this job asks GCC to actually warn -- the default
+      # build above sets no warning flags -- so this is the only check that
+      # would catch a new call site regressing back to positional aggregate
+      # init (see core/match/matcher.cpp's exhaustive-switch comment for why
+      # that distinction matters for enum coverage, not just style). Its own
+      # build directory keeps it from polluting the plain build above with
+      # -Werror.
+      - name: Build with -Wall -Wextra -Wpedantic -Werror
+        run: |
+          cmake -S . -B build-warnings -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Werror" \
+            -DBUILD_TESTING=ON
+          cmake --build build-warnings
+          ctest --test-dir build-warnings --output-on-failure
+
       # config.qml references the Plasmoid attached object, main.qml is a
       # PlasmoidItem, and the config pages talk to real QSettings/SQLite paths
       # (DESIGN.md decisions 18/41), so none of them can be safely instantiated

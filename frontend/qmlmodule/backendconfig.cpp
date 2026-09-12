@@ -79,15 +79,15 @@ QStringList defaultProviders()
 // freshly-migrated or freshly-emptied file is in.
 const PlasmaLyrics::StringListSetting &blacklistSetting()
 {
-    static const PlasmaLyrics::StringListSetting setting{QStringLiteral("players/blacklist"),
-                                                         QStringLiteral("players/blacklistEmpty")};
+    static const PlasmaLyrics::StringListSetting setting{.key = QStringLiteral("players/blacklist"),
+                                                         .explicitEmptyKey = QStringLiteral("players/blacklistEmpty")};
     return setting;
 }
 
 const PlasmaLyrics::StringListSetting &musicUrlPrefixesSetting()
 {
-    static const PlasmaLyrics::StringListSetting setting{QStringLiteral("filter/musicUrlPrefixes"),
-                                                         QStringLiteral("filter/musicUrlPrefixesEmpty")};
+    static const PlasmaLyrics::StringListSetting setting{.key = QStringLiteral("filter/musicUrlPrefixes"),
+                                                         .explicitEmptyKey = QStringLiteral("filter/musicUrlPrefixesEmpty")};
     return setting;
 }
 
@@ -98,8 +98,8 @@ const PlasmaLyrics::StringListSetting &musicUrlPrefixesSetting()
 // DESIGN.md decision 67 for why.
 const PlasmaLyrics::StringListSetting &platformsSetting()
 {
-    static const PlasmaLyrics::StringListSetting setting{QStringLiteral("filter/platforms"),
-                                                         QStringLiteral("filter/platformsEmpty")};
+    static const PlasmaLyrics::StringListSetting setting{.key = QStringLiteral("filter/platforms"),
+                                                         .explicitEmptyKey = QStringLiteral("filter/platformsEmpty")};
     return setting;
 }
 

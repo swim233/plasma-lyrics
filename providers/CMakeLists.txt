@@ -49,6 +49,7 @@ if(BUILD_TESTING AND ENABLE_PROVIDER_NETEASE)
     find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
     add_executable(tst_neteaseprovider tests/tst_neteaseprovider.cpp)
     target_link_libraries(tst_neteaseprovider PRIVATE plasma_lyrics_providers Qt6::Test)
+    target_compile_options(tst_neteaseprovider PRIVATE -Wno-missing-field-initializers)
     # Not QFINDTESTDATA: it resolves against __FILE__, which makepkg
     # rewrites via -ffile-prefix-map when debug packages are enabled, so
     # the fixture goes missing inside an Arch package build and nowhere
@@ -66,6 +67,7 @@ if(BUILD_TESTING)
     find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
     add_executable(tst_localprovider tests/tst_localprovider.cpp)
     target_link_libraries(tst_localprovider PRIVATE plasma_lyrics_providers Qt6::Test)
+    target_compile_options(tst_localprovider PRIVATE -Wno-missing-field-initializers)
     add_test(NAME tst_localprovider COMMAND tst_localprovider)
     set_tests_properties(tst_localprovider PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 endif()
@@ -74,6 +76,7 @@ if(BUILD_TESTING AND ENABLE_PROVIDER_AMLL)
     find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
     add_executable(tst_amllprovider tests/tst_amllprovider.cpp)
     target_link_libraries(tst_amllprovider PRIVATE plasma_lyrics_providers Qt6::Test)
+    target_compile_options(tst_amllprovider PRIVATE -Wno-missing-field-initializers)
     add_test(NAME tst_amllprovider COMMAND tst_amllprovider)
     set_tests_properties(tst_amllprovider PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 endif()
@@ -82,6 +85,7 @@ if(BUILD_TESTING AND ENABLE_PROVIDER_QQ)
     find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
     add_executable(tst_qqprovider tests/tst_qqprovider.cpp)
     target_link_libraries(tst_qqprovider PRIVATE plasma_lyrics_providers Qt6::Test)
+    target_compile_options(tst_qqprovider PRIVATE -Wno-missing-field-initializers)
     # See the note on tst_neteaseprovider: not QFINDTESTDATA, because
     # -ffile-prefix-map rewrites __FILE__ inside an Arch package build.
     target_compile_definitions(tst_qqprovider PRIVATE

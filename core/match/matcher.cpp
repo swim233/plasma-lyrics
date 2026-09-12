@@ -344,18 +344,21 @@ StrippedVariantDurationGateOutcome strippedVariantDurationGateOutcome(const Scor
 // configured with -Wall -Wextra -Wpedantic -Werror (verified: adding a
 // hypothetical fifth enumerator to StrippedVariantDurationGateOutcome makes
 // both this switch and durationGateLabel's switch in explainMatch fail to
-// compile under those flags) -- CMakeLists.txt sets no warning flags for
-// the default build, and CI does not configure one that does, so in the
-// build that actually ships, an unhandled enumerator here is silent, not a
-// build failure. The backstop is the post-switch `return false` below,
-// which must keep agreeing with durationGateLabel's own post-switch
-// `"required"` fallback: both encode "an unrecognized/future state means
-// the gate does not pass, corroboration is required" -- the same
-// fail-closed default this gate uses everywhere else (an unknown duration
-// cannot pass, DESIGN.md decision 45). Anyone adding a sixth state needs
-// both halves of this: the switches will not force themselves onto your
-// attention outside a warnings-enabled build, and the two fallbacks are
-// what actually protects the invariant, not incidental leftover code.
+// compile under those flags) -- CMakeLists.txt still sets no warning flags
+// for the default build, and CI's Arch Linux job now configures a separate
+// build directory with exactly those flags (see ci.yml), but the build that
+// actually ships -- the plain default one, packaged by both CI jobs -- still
+// treats an unhandled enumerator here as silent, not a build failure. The
+// backstop is the post-switch `return false` below, which must keep
+// agreeing with durationGateLabel's own post-switch `"required"` fallback:
+// both encode "an unrecognized/future state means the gate does not pass,
+// corroboration is required" -- the same fail-closed default this gate uses
+// everywhere else (an unknown duration cannot pass, DESIGN.md decision 45).
+// Anyone adding a sixth state needs both halves of this: the warnings build
+// will catch the omission in CI, but the switches still will not force
+// themselves onto your attention in the shipped build's own compile, and
+// the two fallbacks are what actually protects the invariant there, not
+// incidental leftover code.
 bool passesStrippedVariantDurationGate(const ScoreBreakdown &score)
 {
     switch (strippedVariantDurationGateOutcome(score)) {
@@ -623,7 +626,27 @@ ScoreBreakdown scoreCandidateWithVariants(const TrackQuery &query, const Candida
     QList<QueryTitleVariant> variants = normalizedQueryVariants;
     for (const auto &remainder :
          artistStrippedTitleVariants(titleForPolicy(query.title, policy), cleanedCandidateArtists)) {
-        variants.append({normalizeSearchText(remainder), false, true});
+        // isGlossStripped=false, isArtistStripped=true -- swapping these two
+        // values has been verified to fail 13 tst_matcher.cpp cases, all of
+        // them the titleViaArtistStrip family: artistAppendedToTitleIsStrippedAndAccepted,
+        // artistAppendedToTitleRejectedWhenDurationUnknown,
+        // artistAppendedToTitleRejectedWhenDurationTooDifferent,
+        // artistAppendedToTitleGateBoundaryIsInclusiveOf2000ms,
+        // artistStripHandlesAMultiTokenTrailingArtistName,
+        // chooseMatchSkipsArtistStripGateFailureToTheNextAcceptableCandidate,
+        // nonStrippedArtistStripVariantAlreadyAcceptableBypassesTheDurationGate,
+        // nonStrippedArtistStripVariantInsufficientStillEntersTheDurationGate,
+        // artistStripEscapeHatchDoesNotResurrectAWrongArtistAlternateTitleCover,
+        // explainShowsWhyTheDurationGateDidNotBindWhenTheStripWasNotNeeded,
+        // explainShowsTheDurationGateStillRequiredWhenThePlainMatchWasInsufficient,
+        // arcRaidersShapeArtistStripRejectsAKnownFarApartDurationDespiteAnAcceptablePlainMatch,
+        // explainShowsWithinWindowForAKnownCloseDuration. Each asserts
+        // score.titleViaArtistStrip (or --explain's titleVia=artist-strip)
+        // and instead sees the gloss-stripped path, so the invariant is
+        // pinned. This is now a designated initializer specifically so that
+        // swapping the two values below requires mistyping the designator
+        // itself, not just reordering two same-typed positional arguments.
+        variants.append({.text = normalizeSearchText(remainder), .isGlossStripped = false, .isArtistStripped = true});
     }
     // B.3b: the best title score reachable using only non-stripped query
     // variants, tracked alongside (not instead of) the overall best below,
@@ -1178,12 +1201,13 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
             || item.score.titleViaCandidateGloss) {
             // See passesStrippedVariantDurationGate's comment: this
             // switch's exhaustiveness is likewise only compiler-enforced
-            // under -Wall -Wextra -Wpedantic -Werror, not in the default
-            // build or CI. Its post-switch "required" fallback below must
-            // keep agreeing with that gate's post-switch `return false` --
-            // an unrecognized state fails closed on both sides, and that
-            // agreement, not the switches themselves, is what protects the
-            // invariant outside a warnings-enabled build.
+            // under -Wall -Wextra -Wpedantic -Werror, which CI's Arch Linux
+            // job now builds separately but the default (shipped) build
+            // still does not. Its post-switch "required" fallback below
+            // must keep agreeing with that gate's post-switch `return
+            // false` -- an unrecognized state fails closed on both sides,
+            // and that agreement, not the switches themselves, is what
+            // protects the invariant in the build that ships.
             const auto durationGateLabel = [](StrippedVariantDurationGateOutcome outcome) {
                 switch (outcome) {
                 case StrippedVariantDurationGateOutcome::WithinWindow:

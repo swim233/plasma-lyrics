@@ -21,6 +21,7 @@ if(BUILD_TESTING)
     find_package(Qt6 6.6 REQUIRED COMPONENTS QuickTest)
     add_executable(tst_appearance autotests/qmltest.cpp)
     target_link_libraries(tst_appearance PRIVATE Qt6::QuickTest Qt6::Qml KF6::I18n KF6::I18nQml)
+    target_compile_options(tst_appearance PRIVATE -Wno-missing-field-initializers)
     target_compile_definitions(tst_appearance PRIVATE
         QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/autotests")
     add_test(NAME tst_appearance COMMAND tst_appearance)

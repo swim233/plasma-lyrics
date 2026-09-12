@@ -713,11 +713,11 @@ void AmllProvider::getAttempt(const QUrl &url, bool conditional, qint64 maximumB
         m_replies.remove(reply);
         reply->deleteLater();
         if (status == 304) {
-            callback({std::nullopt, {}, false, true, etag, lastModified});
+            callback({.payload = std::nullopt, .error = {}, .transportFailed = false, .notModified = true, .etag = etag, .lastModified = lastModified});
             return;
         }
         if (replyError == QNetworkReply::NoError) {
-            callback({payload, {}, false, false, etag, lastModified});
+            callback({.payload = payload, .error = {}, .transportFailed = false, .notModified = false, .etag = etag, .lastModified = lastModified});
             return;
         }
         if (transportFailed && attempt < 3) {
@@ -725,7 +725,7 @@ void AmllProvider::getAttempt(const QUrl &url, bool conditional, qint64 maximumB
                        std::move(callback));
             return;
         }
-        callback({std::nullopt, errorText, transportFailed, false, etag, lastModified});
+        callback({.payload = std::nullopt, .error = errorText, .transportFailed = transportFailed, .notModified = false, .etag = etag, .lastModified = lastModified});
     });
     timeout->start(std::max(1, m_timeoutMs));
 }

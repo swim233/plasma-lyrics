@@ -503,7 +503,12 @@ int main(int argc, char **argv)
             }
             explainLengthMs = parsedLength;
         }
-        const TrackQuery query{arguments.first(), artists, QString(), explainLengthMs};
+        const TrackQuery query{.title = arguments.first(),
+                               .artists = artists,
+                               .album = QString(),
+                               .lengthMs = explainLengthMs,
+                               .platformIds = {},
+                               .mediaSrc = QString()};
         return explainProviders(application, query, providers,
                                 parser.value(QStringLiteral("platform"))
                                     == QStringLiteral("apple"));
@@ -586,6 +591,11 @@ int main(int argc, char **argv)
     config.migrateLegacySettings();
     MprisManager manager(config.policy());
     ResolvedLyric resolved{.state = QStringLiteral("filtered"),
+                           .ref = std::nullopt,
+                           .document = {},
+                           .preferredProvider = QString(),
+                           .effectivePreferredProvider = QString(),
+                           .availableProviders = {},
                            .switchingProvider = {}};
     QString fingerprint;
 
@@ -616,6 +626,11 @@ int main(int argc, char **argv)
             // when a (possibly different) player reappears next.
             lastActiveService.clear();
             resolved = ResolvedLyric{.state = QStringLiteral("filtered"),
+                                     .ref = std::nullopt,
+                                     .document = {},
+                                     .preferredProvider = QString(),
+                                     .effectivePreferredProvider = QString(),
+                                     .availableProviders = {},
                                      .switchingProvider = {}};
             publish(std::nullopt, resolved);
             return;
@@ -626,6 +641,11 @@ int main(int argc, char **argv)
             ResolvedLyric searching{
                 .state = state->music ? QStringLiteral("searching")
                                       : QStringLiteral("filtered"),
+                .ref = std::nullopt,
+                .document = {},
+                .preferredProvider = QString(),
+                .effectivePreferredProvider = QString(),
+                .availableProviders = {},
                 .switchingProvider = {},
             };
             searching.preferredProvider = store.preferredProvider(fingerprint).value_or(QString());

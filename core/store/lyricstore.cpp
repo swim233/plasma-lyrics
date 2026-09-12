@@ -219,7 +219,7 @@ std::optional<TrackRef> LyricStore::refForFingerprint(const QString &fingerprint
     if (!query.exec() || !query.next()) {
         return std::nullopt;
     }
-    return TrackRef{query.value(0).toString(), query.value(1).toString(), query.value(2).toDouble()};
+    return TrackRef{.provider = query.value(0).toString(), .trackId = query.value(1).toString(), .score = query.value(2).toDouble()};
 }
 
 bool LyricStore::mapProviderFingerprint(const QString &fingerprint, const TrackRef &ref,
@@ -243,7 +243,7 @@ std::optional<TrackRef> LyricStore::refForProvider(const QString &fingerprint,
     query.addBindValue(fingerprint);
     query.addBindValue(provider);
     if (!query.exec() || !query.next()) return std::nullopt;
-    return TrackRef{query.value(0).toString(), query.value(1).toString(), query.value(2).toDouble()};
+    return TrackRef{.provider = query.value(0).toString(), .trackId = query.value(1).toString(), .score = query.value(2).toDouble()};
 }
 
 bool LyricStore::setPreferredProvider(const QString &fingerprint, const QString &provider,
@@ -336,7 +336,7 @@ std::optional<MissRecord> LyricStore::freshMiss(const QString &fingerprint, qint
     if (!query.exec() || !query.next()) {
         return std::nullopt;
     }
-    const MissRecord miss{query.value(0).toString(), query.value(1).toLongLong()};
+    const MissRecord miss{.reason = query.value(0).toString(), .triedAt = query.value(1).toLongLong(), .cacheVersion = QString()};
     return epochSeconds(now) - miss.triedAt < ttlSeconds
         ? std::optional<MissRecord>(miss)
         : std::nullopt;

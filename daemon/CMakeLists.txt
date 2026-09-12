@@ -58,6 +58,7 @@ if(BUILD_TESTING)
     )
     target_include_directories(tst_logmirrorformat PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_logmirrorformat PRIVATE Qt6::Core Qt6::Test)
+    target_compile_options(tst_logmirrorformat PRIVATE -Wno-missing-field-initializers)
     add_test(NAME tst_logmirrorformat COMMAND tst_logmirrorformat)
     set_tests_properties(tst_logmirrorformat PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
@@ -68,6 +69,7 @@ if(BUILD_TESTING)
     )
     target_include_directories(tst_config PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_config PRIVATE plasma_lyrics_core plasma_lyrics_providers Qt6::Test)
+    target_compile_options(tst_config PRIVATE -Wno-missing-field-initializers)
     add_test(NAME tst_config COMMAND tst_config)
     set_tests_properties(tst_config PROPERTIES
         RESOURCE_LOCK plasma_lyrics_config
@@ -86,6 +88,7 @@ if(BUILD_TESTING)
     )
     target_include_directories(tst_mprispolicy PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_mprispolicy PRIVATE plasma_lyrics_core Qt6::Test)
+    target_compile_options(tst_mprispolicy PRIVATE -Wno-missing-field-initializers)
     # Not QFINDTESTDATA: it resolves against __FILE__, which makepkg
     # rewrites via -ffile-prefix-map when debug packages are enabled, so
     # the fixture goes missing inside an Arch package build and nowhere
@@ -112,6 +115,7 @@ if(BUILD_TESTING)
         )
         target_include_directories(tst_mprisdiscovery PRIVATE ${CMAKE_SOURCE_DIR})
         target_link_libraries(tst_mprisdiscovery PRIVATE plasma_lyrics_core Qt6::DBus Qt6::Test)
+        target_compile_options(tst_mprisdiscovery PRIVATE -Wno-missing-field-initializers)
         add_test(NAME tst_mprisdiscovery
                  COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_mprisdiscovery>)
         set_tests_properties(tst_mprisdiscovery PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
@@ -124,6 +128,7 @@ if(BUILD_TESTING)
         )
         target_include_directories(tst_mprisplayer_lifecycle PRIVATE ${CMAKE_SOURCE_DIR})
         target_link_libraries(tst_mprisplayer_lifecycle PRIVATE plasma_lyrics_core Qt6::DBus Qt6::Test)
+        target_compile_options(tst_mprisplayer_lifecycle PRIVATE -Wno-missing-field-initializers)
         add_test(NAME tst_mprisplayer_lifecycle
                  COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_mprisplayer_lifecycle>)
         set_tests_properties(tst_mprisplayer_lifecycle PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
@@ -137,6 +142,7 @@ if(BUILD_TESTING)
     )
     target_include_directories(tst_snapshot PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_snapshot PRIVATE plasma_lyrics_core Qt6::Test)
+    target_compile_options(tst_snapshot PRIVATE -Wno-missing-field-initializers)
     add_test(NAME tst_snapshot COMMAND tst_snapshot)
     set_tests_properties(tst_snapshot PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
@@ -151,6 +157,7 @@ if(BUILD_TESTING)
         plasma_lyrics_providers
         Qt6::Test
     )
+    target_compile_options(tst_resolver PRIVATE -Wno-missing-field-initializers)
     add_test(NAME tst_resolver COMMAND tst_resolver)
     set_tests_properties(tst_resolver PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
@@ -201,6 +208,7 @@ if(BUILD_TESTING)
         target_include_directories(tst_controlservice PRIVATE ${CMAKE_SOURCE_DIR})
         target_link_libraries(tst_controlservice PRIVATE
             plasma_lyrics_core plasma_lyrics_providers Qt6::DBus Qt6::Test)
+        target_compile_options(tst_controlservice PRIVATE -Wno-missing-field-initializers)
         add_test(NAME tst_controlservice
                  COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_controlservice>)
         set_tests_properties(tst_controlservice PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")

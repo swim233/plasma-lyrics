@@ -27,9 +27,10 @@ std::optional<LyricWord> wordFromJson(const QJsonObject &object)
     if (!object.contains(QStringLiteral("startMs")) || !object.contains(QStringLiteral("text"))) {
         return std::nullopt;
     }
-    LyricWord word{object.value(QStringLiteral("startMs")).toInteger(),
-                   object.value(QStringLiteral("endMs")).toInteger(),
-                   object.value(QStringLiteral("text")).toString()};
+    LyricWord word{.startMs = object.value(QStringLiteral("startMs")).toInteger(),
+                   .endMs = object.value(QStringLiteral("endMs")).toInteger(),
+                   .text = object.value(QStringLiteral("text")).toString(),
+                   .romanization = std::nullopt};
     const auto romanization = object.value(QStringLiteral("romanization"));
     if (romanization.isString()) {
         word.romanization = romanization.toString();

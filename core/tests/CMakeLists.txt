@@ -1,6 +1,16 @@
 function(add_plasma_lyrics_test name)
     add_executable(${name} ${name}.cpp)
     target_link_libraries(${name} PRIVATE plasma_lyrics_core Qt6::Test)
+    # Test fixtures build large structs (e.g. tst_matcher.cpp's TrackQuery/
+    # Candidate tables) with brace-init that only sets the fields a given
+    # case cares about. Every member already carries a default, so this is
+    # well-defined aggregate init, not a bug -- unlike the production
+    # sites under core/, providers/, daemon/ and tools/, which use C++20
+    # designated initializers instead so -Wmissing-field-initializers stays
+    # meaningful there. Suppressing it here, per test target rather than
+    # globally, avoids rewriting hundreds of test call sites for a warning
+    # with nothing to catch.
+    target_compile_options(${name} PRIVATE -Wno-missing-field-initializers)
     add_test(NAME ${name} COMMAND ${name})
     # Qt prints one locale warning at startup whenever the ambient locale
     # isn't already UTF-8 (developer shells and CI runners often

@@ -465,7 +465,7 @@ void QqProvider::searchAttempt(const TrackQuery &query, int attempt, SearchCallb
                             std::optional<QByteArray> payload, QString error,
                             bool transportFailed) mutable {
         if (!payload) {
-            callback({{}, std::move(error), transportFailed});
+            callback({.candidates = {}, .error = std::move(error), .transportFailed = transportFailed, .cacheVersion = QString()});
             return;
         }
         const auto response = parseSearchResponse(*payload);
@@ -474,7 +474,7 @@ void QqProvider::searchAttempt(const TrackQuery &query, int attempt, SearchCallb
             qCDebug(lcQq).noquote()
                 << QStringLiteral("search accepted: candidates=%1 total=%2")
                        .arg(response.candidates.size()).arg(response.total);
-            callback({response.candidates, {}, false});
+            callback({.candidates = response.candidates, .error = {}, .transportFailed = false, .cacheVersion = QString()});
             return;
         case SearchStatus::Transient:
             if (attempt < kMaximumSearchAttempts) {
@@ -491,8 +491,10 @@ void QqProvider::searchAttempt(const TrackQuery &query, int attempt, SearchCallb
             qCWarning(lcQq).noquote()
                 << QStringLiteral("search still throttled after %1 attempts: req_code=%2 is_filter=%3")
                        .arg(kMaximumSearchAttempts).arg(response.requestCode).arg(response.isFilter);
-            callback({{}, QStringLiteral("search was throttled (is_filter=%1)").arg(response.isFilter),
-                      false});
+            callback({.candidates = {},
+                      .error = QStringLiteral("search was throttled (is_filter=%1)").arg(response.isFilter),
+                      .transportFailed = false,
+                      .cacheVersion = QString()});
             return;
         case SearchStatus::ShapeRejected:
             // Louder than an empty result on purpose. This is what a retired
@@ -502,13 +504,16 @@ void QqProvider::searchAttempt(const TrackQuery &query, int attempt, SearchCallb
                 << QStringLiteral("search request form was rejected: is_filter=%1 req_code=%2 -- "
                                   "the pinned client version may have been retired")
                        .arg(response.isFilter).arg(response.requestCode);
-            callback({{}, QStringLiteral("search request form was rejected (is_filter=%1)")
-                              .arg(response.isFilter), false});
+            callback({.candidates = {},
+                      .error = QStringLiteral("search request form was rejected (is_filter=%1)")
+                              .arg(response.isFilter),
+                      .transportFailed = false,
+                      .cacheVersion = QString()});
             return;
         case SearchStatus::Malformed:
             qCWarning(lcQq).noquote()
                 << QStringLiteral("search response could not be read: %1").arg(quoted(response.error));
-            callback({{}, response.error, false});
+            callback({.candidates = {}, .error = response.error, .transportFailed = false, .cacheVersion = QString()});
             return;
         }
     });

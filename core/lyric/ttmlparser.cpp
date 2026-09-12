@@ -151,8 +151,8 @@ QString consumeMainSpan(QXmlStreamReader &reader, QList<Translation> &translatio
         const auto attributes = reader.attributes();
         const QString role = roleOf(attributes);
         if (isTranslationRole(role)) {
-            translations.append({attribute(attributes, QStringLiteral("lang")),
-                                 collectElementText(reader)});
+            translations.append({.language = attribute(attributes, QStringLiteral("lang")),
+                                 .text = collectElementText(reader)});
         } else if (isIgnoredRole(role)) {
             collectElementText(reader);
         } else if (reader.name() == QStringLiteral("br")) {
@@ -224,8 +224,8 @@ std::optional<Paragraph> parseMainParagraph(QXmlStreamReader &reader, bool *time
         const auto childAttributes = reader.attributes();
         const QString role = roleOf(childAttributes);
         if (isTranslationRole(role)) {
-            paragraph.translations.append({attribute(childAttributes, QStringLiteral("lang")),
-                                           collectElementText(reader)});
+            paragraph.translations.append({.language = attribute(childAttributes, QStringLiteral("lang")),
+                                           .text = collectElementText(reader)});
             continue;
         }
         if (isIgnoredRole(role)) {
@@ -248,7 +248,7 @@ std::optional<Paragraph> parseMainParagraph(QXmlStreamReader &reader, bool *time
         }
         text += wordText;
         if (wordBegin && wordEnd && *wordEnd > *wordBegin && !wordText.isEmpty()) {
-            words.append({*wordBegin, *wordEnd, wordText});
+            words.append({.startMs = *wordBegin, .endMs = *wordEnd, .text = wordText, .romanization = std::nullopt});
         }
     }
     text = text.trimmed();
@@ -348,8 +348,8 @@ std::optional<LyricDocument> TtmlParser::parse(const QByteArray &payload, QStrin
             const QString role = roleOf(reader.attributes());
             const QString key = paragraphKey(reader.attributes());
             if (!inBody || isTranslationRole(role)) {
-                Translation translation{attribute(reader.attributes(), QStringLiteral("lang")),
-                                        collectElementText(reader)};
+                Translation translation{.language = attribute(reader.attributes(), QStringLiteral("lang")),
+                                        .text = collectElementText(reader)};
                 if (!key.isEmpty() && !translation.text.trimmed().isEmpty()) {
                     associatedTranslations[key].append(std::move(translation));
                 }

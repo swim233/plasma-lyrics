@@ -31,12 +31,12 @@ struct PlatformRule {
 const QList<PlatformRule> &platformRules()
 {
     static const QList<PlatformRule> rules{
-        {QStringLiteral("netease"),
-         {},
-         {QStringLiteral("https://music.163.com/"), QStringLiteral("http://music.163.com/")}},
-        {QStringLiteral("apple"),
-         {QStringLiteral("*.sidra"), QStringLiteral("*.cider*")},
-         {QStringLiteral("https://music.apple.com/"), QStringLiteral("http://music.apple.com/"),
+        {.id = QStringLiteral("netease"),
+         .serviceWildcards = {},
+         .urlPrefixes = {QStringLiteral("https://music.163.com/"), QStringLiteral("http://music.163.com/")}},
+        {.id = QStringLiteral("apple"),
+         .serviceWildcards = {QStringLiteral("*.sidra"), QStringLiteral("*.cider*")},
+         .urlPrefixes = {QStringLiteral("https://music.apple.com/"), QStringLiteral("http://music.apple.com/"),
           QStringLiteral("https://classical.music.apple.com/"), QStringLiteral("http://classical.music.apple.com/")}},
     };
     return rules;

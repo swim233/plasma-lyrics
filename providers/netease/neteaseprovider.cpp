@@ -138,12 +138,12 @@ void NeteaseProvider::search(const TrackQuery &query, SearchCallback callback)
     get(url, [callback = std::move(callback)](std::optional<QByteArray> payload, QString error,
                                                bool transportFailed) mutable {
         if (!payload) {
-            callback({{}, std::move(error), transportFailed});
+            callback({.candidates = {}, .error = std::move(error), .transportFailed = transportFailed, .cacheVersion = QString()});
             return;
         }
         QString parseError;
         auto candidates = parseSearchResponse(*payload, &parseError);
-        callback({std::move(candidates), std::move(parseError), false});
+        callback({.candidates = std::move(candidates), .error = std::move(parseError), .transportFailed = false, .cacheVersion = QString()});
     });
 }
 
@@ -211,14 +211,17 @@ QList<Candidate> NeteaseProvider::parseSearchResponse(const QByteArray &payload,
                 alternateTitles.append(text);
             }
         }
-        candidates.append({QString::number(song.value(QStringLiteral("id")).toInteger()),
-                           song.value(QStringLiteral("name")).toString(),
-                           artists,
-                           albumObject.value(QStringLiteral("name")).toString(),
-                           song.contains(QStringLiteral("duration"))
+        candidates.append({.trackId = QString::number(song.value(QStringLiteral("id")).toInteger()),
+                           .title = song.value(QStringLiteral("name")).toString(),
+                           .artists = artists,
+                           .album = albumObject.value(QStringLiteral("name")).toString(),
+                           .lengthMs = song.contains(QStringLiteral("duration"))
                                ? song.value(QStringLiteral("duration")).toInteger()
                                : song.value(QStringLiteral("dt")).toInteger(),
-                           alternateTitles});
+                           .alternateTitles = alternateTitles,
+                           .contentId = QString(),
+                           .platformIds = {},
+                           .authors = {}});
     }
     return candidates;
 }

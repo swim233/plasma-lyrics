@@ -75,8 +75,13 @@ std::optional<LyricLine> parseJsonCredit(const QString &rawLine)
     if (text.trimmed().isEmpty()) {
         return std::nullopt;
     }
-    return LyricLine{object.value(QStringLiteral("t")).toInteger(), 0, text.trimmed(),
-                     std::nullopt, std::nullopt, std::nullopt, true};
+    return LyricLine{.startMs = object.value(QStringLiteral("t")).toInteger(),
+                     .endMs = 0,
+                     .text = text.trimmed(),
+                     .translation = std::nullopt,
+                     .romanization = std::nullopt,
+                     .words = std::nullopt,
+                     .credit = true};
 }
 
 } // namespace
@@ -144,7 +149,7 @@ ParsedLrc LrcParser::parse(QStringView source)
             continue;
         }
         for (const qint64 start : starts) {
-            result.lines.append({start, 0, text, std::nullopt, std::nullopt});
+            result.lines.append({.startMs = start, .endMs = 0, .text = text, .translation = std::nullopt, .romanization = std::nullopt, .words = std::nullopt});
         }
     }
 
@@ -176,7 +181,7 @@ LyricDocument LrcParser::merge(QStringView origin, QStringView translation)
     }
     // The embedded tag has already been applied to the normalized line times.
     // offsetMs is reserved for the user's persistent per-track adjustment.
-    return {parsedOrigin.lines, 0, false};
+    return {.lines = parsedOrigin.lines, .offsetMs = 0, .hasWords = false, .metadata = {}};
 }
 
 LyricDocument LrcParser::parseBilingual(QStringView source, int *droppedLines)
@@ -222,7 +227,7 @@ LyricDocument LrcParser::parseBilingual(QStringView source, int *droppedLines)
     }
     // Same reservation as merge(): offsetMs stays with the user's per-track
     // adjustment, not anything embedded in the file.
-    return {result, 0, false};
+    return {.lines = result, .offsetMs = 0, .hasWords = false, .metadata = {}};
 }
 
 } // namespace PlasmaLyrics

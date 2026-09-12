@@ -71,7 +71,7 @@ QList<LyricWord> parseWords(const QString &payload)
         const auto match = iterator.next();
         const qint64 start = match.capturedView(2).toLongLong();
         const qint64 duration = match.capturedView(3).toLongLong();
-        words.append({start, start + duration, match.captured(1)});
+        words.append({.startMs = start, .endMs = start + duration, .text = match.captured(1), .romanization = std::nullopt});
     }
     return words;
 }
@@ -280,7 +280,7 @@ ParsedQrc QrcParser::parse(QStringView document)
             if (text.trimmed().isEmpty()) {
                 continue;
             }
-            LyricLine line{start, start + duration, text};
+            LyricLine line{.startMs = start, .endMs = start + duration, .text = text, .translation = std::nullopt, .romanization = std::nullopt, .words = std::nullopt};
             line.words = std::move(words);
             result.lines.append(std::move(line));
             continue;
@@ -355,7 +355,7 @@ LyricDocument QrcParser::assemble(QStringView content, QStringView romanization,
     // The embedded [offset:] tag has already been applied to the line and
     // word times by parse(). offsetMs stays reserved for the user's own
     // per-track adjustment, the same reservation LrcParser::merge documents.
-    return {parsed.lines, 0, hasWords};
+    return {.lines = parsed.lines, .offsetMs = 0, .hasWords = hasWords, .metadata = {}};
 }
 
 } // namespace PlasmaLyrics

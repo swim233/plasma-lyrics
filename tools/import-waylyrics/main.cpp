@@ -69,7 +69,7 @@ CachedLines parseCachedLines(const QJsonValue &value)
         const qint64 nanos = start.value(QStringLiteral("nanos")).toInteger();
         const QString text = line.value(QStringLiteral("text")).toString().trimmed();
         if (!text.isEmpty()) {
-            lines.append({seconds * 1000 + nanos / 1000000, 0, text, std::nullopt, std::nullopt});
+            lines.append({.startMs = seconds * 1000 + nanos / 1000000, .endMs = 0, .text = text, .translation = std::nullopt, .romanization = std::nullopt, .words = std::nullopt});
         }
     }
     std::stable_sort(lines.begin(), lines.end(), [](const auto &left, const auto &right) {
@@ -99,7 +99,7 @@ std::optional<LyricDocument> parseCache(const QJsonObject &object)
             line.translation = translated->text;
         }
     }
-    return LyricDocument{origin.lines, 0, false};
+    return LyricDocument{.lines = origin.lines, .offsetMs = 0, .hasWords = false, .metadata = {}};
 }
 
 bool importCache(const QJsonObject &object, const QString &fallbackId, LyricStore &store, bool dryRun)

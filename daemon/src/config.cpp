@@ -25,15 +25,15 @@ namespace {
 // value.
 const StringListSetting &blacklistSetting()
 {
-    static const StringListSetting setting{QStringLiteral("players/blacklist"),
-                                           QStringLiteral("players/blacklistEmpty")};
+    static const StringListSetting setting{.key = QStringLiteral("players/blacklist"),
+                                           .explicitEmptyKey = QStringLiteral("players/blacklistEmpty")};
     return setting;
 }
 
 const StringListSetting &musicUrlPrefixesSetting()
 {
-    static const StringListSetting setting{QStringLiteral("filter/musicUrlPrefixes"),
-                                           QStringLiteral("filter/musicUrlPrefixesEmpty")};
+    static const StringListSetting setting{.key = QStringLiteral("filter/musicUrlPrefixes"),
+                                           .explicitEmptyKey = QStringLiteral("filter/musicUrlPrefixesEmpty")};
     return setting;
 }
 
@@ -44,8 +44,8 @@ const StringListSetting &musicUrlPrefixesSetting()
 // migrateLegacySettings() and DESIGN.md decision 67 for why.
 const StringListSetting &platformsSetting()
 {
-    static const StringListSetting setting{QStringLiteral("filter/platforms"),
-                                           QStringLiteral("filter/platformsEmpty")};
+    static const StringListSetting setting{.key = QStringLiteral("filter/platforms"),
+                                           .explicitEmptyKey = QStringLiteral("filter/platformsEmpty")};
     return setting;
 }
 
