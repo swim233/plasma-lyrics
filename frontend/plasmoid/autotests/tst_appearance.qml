@@ -8,6 +8,32 @@ import "../package/contents/ui" as LyricsUi
 import "../package/contents/ui/config" as LyricsConfig
 import "../package/contents/ui/TextPolicy.js" as TextPolicy
 
+// A QML binding loop is never a QtTest failure: it is only a warning, so
+// this binary's own exit code is 0 and its own Totals line reports 0 failed
+// regardless of when the loop fires or whether ctest is involved at all --
+// confirmed by running the binary directly, with a runtime binding loop
+// planted in a test function, printing a QWARN line to the terminal while
+// still exiting 0. The only thing that can fail this test over a binding
+// loop is frontend/plasmoid/CMakeLists.txt's
+// FAIL_REGULAR_EXPRESSION "Binding loop", which greps ctest's captured
+// output text for that string -- it catches nothing itself, it just makes
+// ctest treat a matching line as a failure.
+//
+// That text-scan has its own blind spot: QTestLog only starts tagging
+// warnings with a QWARN prefix once the first test function begins running,
+// so a binding loop that fires while loading the FIRST QML document in this
+// file (before any test function has started) prints with no QWARN prefix.
+// Under ctest, stderr is a pipe rather than a tty, and Qt's default handler
+// routes an untagged warning through sd_journal_send() into the real journal
+// instead of ctest's captured output -- confirmed with journalctl. The regex
+// never sees it, and this specific loop escapes even ctest, not just the
+// bare binary. Warnings from documents loaded after that point are tagged
+// and are caught.
+//
+// This is safe today only because every top-level object below is a
+// Component (its contents are lazily instantiated, so loading them here
+// emits nothing) -- the moment a top-level object that is NOT a Component is
+// added, whatever it does at load time reopens this blind spot.
 TestCase {
     name: "Appearance"
     when: windowShown
@@ -817,6 +843,52 @@ TestCase {
         view.wordLift = false;
         view.wordBrightness = false;
         view.wordBlurGlow = false;
+        compare(view.wordClockRunning, true);
+    }
+
+    // wordClockRunning's second conjunct: a paused (or otherwise non-Playing)
+    // track must not keep the frame-driven clock awake, even with words on
+    // screen. Pins this independently of the first conjunct, which
+    // test_wordByWordOffEmptiesTheModelAndStopsTheClock already owns.
+    function test_pausedPlaybackStopsTheWordClock() {
+        const source = createTemporaryObject(fakeSourceComponent, this,
+            { currentWords: twoWords, playbackStatus: "Playing" });
+        const view = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: true });
+        verify(view !== null);
+        compare(view.effectiveWords.length, 2);
+        compare(view.wordClockRunning, true);
+
+        source.playbackStatus = "Paused";
+        // Mutation check: deleting the playbackStatus conjunct from
+        // wordClockRunning leaves this comparing true against true, and only
+        // this test goes red.
+        compare(view.wordClockRunning, false);
+
+        source.playbackStatus = "Playing";
+        compare(view.wordClockRunning, true);
+    }
+
+    // wordClockRunning's third conjunct: with the widget hidden on the
+    // desktop (not in a panel, and shouldBeVisible false) the clock must not
+    // run even though words are loaded and playback is active. Pins this
+    // independently of the other two conjuncts.
+    function test_hiddenDesktopWidgetStopsTheWordClock() {
+        const source = createTemporaryObject(fakeSourceComponent, this,
+            { currentWords: twoWords, playbackStatus: "Playing" });
+        const view = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: false, shouldBeVisible: true });
+        verify(view !== null);
+        compare(view.effectiveWords.length, 2);
+        compare(view.wordClockRunning, true);
+
+        view.shouldBeVisible = false;
+        // Mutation check: deleting the (panelMode || shouldBeVisible)
+        // conjunct from wordClockRunning leaves this comparing true against
+        // true, and only this test goes red.
+        compare(view.wordClockRunning, false);
+
+        view.shouldBeVisible = true;
         compare(view.wordClockRunning, true);
     }
 
