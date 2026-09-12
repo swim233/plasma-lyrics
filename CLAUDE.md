@@ -40,6 +40,15 @@ entries behind. The same applies when running a test binary directly instead of
 through ctest -- set the variable yourself. Rationale also recorded in
 `core/tests/CMakeLists.txt`.
 
+Exception: `appstreamtest` needs no `ENVIRONMENT`. It is not one of this
+repo's `add_test` calls -- ECM adds it in
+`/usr/share/ECM/kde-modules/KDECMakeSettings.cmake`, and its command is
+`cmake -P appstreamtest.cmake`, which runs no Qt binary at all (confirmed:
+in a build directory that has never been installed from -- which is what CI
+always has -- its only output is "Not installed yet, skipping"; a directory
+that has been installed from takes a different branch and prints nothing).
+The `sd_journal_send()` rationale above does not apply to it either way.
+
 Commit messages are in Chinese with an English Conventional Commits prefix:
 `type(scope): 中文主题`, where type is one of feat / fix / perf / docs /
 chore / merge. The subject states what was implemented or fixed and the new
