@@ -338,6 +338,22 @@ StrippedVariantDurationGateOutcome strippedVariantDurationGateOutcome(const Scor
                                                      : StrippedVariantDurationGateOutcome::Required;
 }
 
+// This switch's exhaustiveness is enforced by the compiler only in a build
+// configured with -Wall -Wextra -Wpedantic -Werror (verified: adding a
+// hypothetical fifth enumerator to StrippedVariantDurationGateOutcome makes
+// both this switch and durationGateLabel's switch in explainMatch fail to
+// compile under those flags) -- CMakeLists.txt sets no warning flags for
+// the default build, and CI does not configure one that does, so in the
+// build that actually ships, an unhandled enumerator here is silent, not a
+// build failure. The backstop is the post-switch `return false` below,
+// which must keep agreeing with durationGateLabel's own post-switch
+// `"required"` fallback: both encode "an unrecognized/future state means
+// the gate does not pass, corroboration is required" -- the same
+// fail-closed default this gate uses everywhere else (an unknown duration
+// cannot pass, DESIGN.md decision 45). Anyone adding a sixth state needs
+// both halves of this: the switches will not force themselves onto your
+// attention outside a warnings-enabled build, and the two fallbacks are
+// what actually protects the invariant, not incidental leftover code.
 bool passesStrippedVariantDurationGate(const ScoreBreakdown &score)
 {
     switch (strippedVariantDurationGateOutcome(score)) {
@@ -642,7 +658,9 @@ QString normalizeSearchText(QString text)
     // tokenizing and re-scoring) roughly doubled that call count. Same
     // treatment decision 65 already gave versionEvidence()'s 16 patterns
     // for the identical reason; this one was simply missed. qa-b-2
-    // measured 659ms/198ms on the real user index; re-measured
+    // measured 230ms/67ms per lookup on the real user index (an earlier
+    // draft of this comment mis-cited a 3-lookup total, 691ms/200ms, as if
+    // it were per-lookup; corrected here and in CHANGELOG.md); re-measured
     // independently on a synthetic ~3275-entry pool (see DESIGN.md decision
     // 65's performance note) at ~207ms/~150ms per PreserveVersions
     // rankCandidates call -- different dataset and hardware than qa-b-2's,
@@ -1015,6 +1033,14 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
         // a known, far-apart duration). Only shown for these two titleVia
         // kinds -- every other candidate's line is unaffected.
         if (item.score.titleViaGlossVariant || item.score.titleViaArtistStrip) {
+            // See passesStrippedVariantDurationGate's comment: this
+            // switch's exhaustiveness is likewise only compiler-enforced
+            // under -Wall -Wextra -Wpedantic -Werror, not in the default
+            // build or CI. Its post-switch "required" fallback below must
+            // keep agreeing with that gate's post-switch `return false` --
+            // an unrecognized state fails closed on both sides, and that
+            // agreement, not the switches themselves, is what protects the
+            // invariant outside a warnings-enabled build.
             const auto durationGateLabel = [](StrippedVariantDurationGateOutcome outcome) {
                 switch (outcome) {
                 case StrippedVariantDurationGateOutcome::WithinWindow:
