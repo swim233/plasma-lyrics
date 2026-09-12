@@ -6,6 +6,16 @@
 # `sh messages.sh` re-run -- or a keyword flag dropping off messages.sh
 # itself, as happened once with i18np, see its own comment -- gets caught.
 #
+# The regenerated copy is written outside the repository (via messages.sh's
+# own `podir` override, same trick check-message-coverage.sh uses) instead
+# of letting messages.sh overwrite the checked-in .pot in place. A checker
+# must not modify the thing it is checking: writing into the repo would
+# leave a stray, uncommitted change behind after every local run -- and
+# specifically a change to POT-Creation-Date, the one field this script
+# deliberately does not compare (see below), so this exact check would
+# never flag the stray write as a problem, and someone could commit that
+# timestamp noise without ever finding out where it came from.
+#
 # The one thing this deliberately does NOT compare is the
 # POT-Creation-Date header line. xgettext stamps it with the current
 # wall-clock time (minute resolution) on every single run, with no flag to
@@ -23,16 +33,19 @@ set -eu
 
 script_dir=$(cd "$(dirname "$0")" && pwd)
 repo_root=$(cd "$script_dir/../../.." && pwd)
-pot_relpath="frontend/plasmoid/translations/templates/plasma_applet_io.github.swim233.plasma-lyrics.pot"
-
-cd "$repo_root"
-sh frontend/plasmoid/translations/messages.sh
+catalog="plasma_applet_io.github.swim233.plasma-lyrics"
+pot_relpath="frontend/plasmoid/translations/templates/$catalog.pot"
 
 workdir=$(mktemp -d)
 trap 'rm -rf "$workdir"' EXIT INT TERM
 
-git show "HEAD:$pot_relpath" | grep -v '^"POT-Creation-Date:' > "$workdir/committed.pot"
-grep -v '^"POT-Creation-Date:' "$pot_relpath" > "$workdir/regenerated.pot"
+(
+    cd "$repo_root"
+    podir="$workdir" sh frontend/plasmoid/translations/messages.sh
+)
+
+git -C "$repo_root" show "HEAD:$pot_relpath" | grep -v '^"POT-Creation-Date:' > "$workdir/committed.pot"
+grep -v '^"POT-Creation-Date:' "$workdir/$catalog.pot" > "$workdir/regenerated.pot"
 
 if ! diff -u "$workdir/committed.pot" "$workdir/regenerated.pot"; then
     echo "check-pot-freshness: the checked-in .pot does not match what messages.sh produces from the current source (POT-Creation-Date excluded from the comparison above)." >&2
