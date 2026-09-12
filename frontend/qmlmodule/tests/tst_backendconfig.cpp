@@ -1,13 +1,43 @@
 #include "frontend/qmlmodule/backendconfig.h"
 
+#include "daemon/src/config.h"
+
 #include <QDBusConnection>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QSignalSpy>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTest>
+#include <algorithm>
 
 namespace {
+
+QString rawSettingsFileContents()
+{
+    const QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                             QStringLiteral("plasma-lyrics"), QStringLiteral("plasma-lyricsd"));
+    QFile file(settings.fileName());
+    const bool opened = file.open(QIODevice::ReadOnly | QIODevice::Text);
+    Q_ASSERT(opened);
+    return QString::fromUtf8(file.readAll());
+}
+
+// Writes the literal ini text directly, bypassing QSettings entirely --
+// same reason as daemon/tests/tst_config.cpp's helper of the same shape:
+// a same-process QSettings::setValue(key, QStringList()) does not
+// round-trip through the `@Invalid()` literal a genuinely fresh read
+// would see (Qt's in-process QConfFile cache hands a same-process reader
+// the pre-serialization valid-empty variant instead).
+void writeRawSettingsFileContents(const QByteArray &content)
+{
+    const QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                             QStringLiteral("plasma-lyrics"), QStringLiteral("plasma-lyricsd"));
+    QFile file(settings.fileName());
+    const bool opened = file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate);
+    Q_ASSERT(opened);
+    file.write(content);
+}
 
 class FakeControlService final : public QObject
 {
@@ -90,6 +120,182 @@ private Q_SLOTS:
             QCOMPARE(restored.amllTimeoutMs(), 12345);
             QCOMPARE(restored.amllIndexRefreshHours(), 36);
         }
+    }
+
+    // Q24 / DESIGN.md decision 67: players/blacklist and
+    // filter/musicUrlPrefixes must distinguish "unset" (-> built-in
+    // default), "explicitly emptied" (-> empty, not the default) and
+    // "populated" (-> the stored value), and the write side must never
+    // produce the literal `@Invalid()`. See A.2-A.4 in SPEC.md.
+
+    void blacklistUnsetUsesBuiltInDefault()
+    {
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        QCOMPARE(config.serviceBlacklist(),
+                 QStringLiteral("org.mpris.MediaPlayer2.kdeconnect.*"));
+    }
+
+    void blacklistExplicitlyEmptyStaysEmptyAcrossRestartAndWritesNoInvalidLiteral()
+    {
+        {
+            auto config = shellConfig(QStringLiteral("exit 0"));
+            config.setServiceBlacklist(QString());
+            QVERIFY(config.save());
+        }
+        QVERIFY(!rawSettingsFileContents().contains(QStringLiteral("@Invalid()")));
+        auto restarted = shellConfig(QStringLiteral("exit 0"));
+        QVERIFY(restarted.serviceBlacklist().isEmpty());
+    }
+
+    void blacklistPopulatedValueRoundTrips()
+    {
+        {
+            auto config = shellConfig(QStringLiteral("exit 0"));
+            config.setServiceBlacklist(QStringLiteral("org.mpris.MediaPlayer2.custom.*"));
+            QVERIFY(config.save());
+        }
+        auto restarted = shellConfig(QStringLiteral("exit 0"));
+        QCOMPARE(restarted.serviceBlacklist(), QStringLiteral("org.mpris.MediaPlayer2.custom.*"));
+    }
+
+    void musicUrlPrefixesUnsetUsesBuiltInDefault()
+    {
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        QCOMPARE(config.musicUrlPrefixes(),
+                 QStringLiteral("https://music.163.com/\nhttp://music.163.com/"));
+    }
+
+    void musicUrlPrefixesExplicitlyEmptyStaysEmptyAcrossRestartAndWritesNoInvalidLiteral()
+    {
+        {
+            auto config = shellConfig(QStringLiteral("exit 0"));
+            config.setMusicUrlPrefixes(QString());
+            QVERIFY(config.save());
+        }
+        QVERIFY(!rawSettingsFileContents().contains(QStringLiteral("@Invalid()")));
+        auto restarted = shellConfig(QStringLiteral("exit 0"));
+        QVERIFY(restarted.musicUrlPrefixes().isEmpty());
+    }
+
+    void musicUrlPrefixesPopulatedValueRoundTrips()
+    {
+        {
+            auto config = shellConfig(QStringLiteral("exit 0"));
+            config.setMusicUrlPrefixes(QStringLiteral("https://example.invalid/"));
+            QVERIFY(config.save());
+        }
+        auto restarted = shellConfig(QStringLiteral("exit 0"));
+        QCOMPARE(restarted.musicUrlPrefixes(), QStringLiteral("https://example.invalid/"));
+    }
+
+    // A.3.5: providers/order and providers/enabled keep their pre-existing
+    // "empty means: use the built-in default" semantics, but the write side
+    // must stop producing `@Invalid()` too. Verified against the daemon's
+    // own Config reading the same file, so both sides are proven to still
+    // agree -- not just BackendConfig in isolation.
+
+    void emptyProviderOrderWritesNoInvalidLiteralAndDaemonStillFallsBackToBuiltIn()
+    {
+        {
+            auto config = shellConfig(QStringLiteral("exit 0"));
+            config.setProviderOrder({});
+            QVERIFY(config.save());
+        }
+        QVERIFY(!rawSettingsFileContents().contains(QStringLiteral("@Invalid()")));
+        // Asserted against the accessor, not a hard-coded three-element
+        // literal: C2 appends "qq" to it, and a literal here would
+        // silently drift stale once that merges.
+        QCOMPARE(PlasmaLyrics::Config().providerOrder(),
+                 PlasmaLyrics::Config::builtInProviderOrder());
+    }
+
+    void emptyEnabledProvidersWritesNoInvalidLiteralAndDaemonStillFallsBackToBuiltIn()
+    {
+        const QStringList customOrder{QStringLiteral("amll"), QStringLiteral("local"),
+                                      QStringLiteral("netease")};
+        {
+            auto config = shellConfig(QStringLiteral("exit 0"));
+            config.setProviderOrder(customOrder);
+            config.setEnabledProviders({});
+            QVERIFY(config.save());
+        }
+        // qa-a-2: checking daemonConfig's *behaviour* below is not the
+        // same as checking what KeepPresentAsBlank actually put on disk --
+        // reading the raw bytes is what rules out the empty-QStringList-
+        // round-trips-to-@Invalid() failure this policy exists to avoid.
+        const QString rawAfterSave = rawSettingsFileContents();
+        QVERIFY(!rawAfterSave.contains(QStringLiteral("@Invalid()")));
+        const QStringList rawLinesAfterSave = rawAfterSave.split(QLatin1Char('\n'));
+        QVERIFY(std::any_of(rawLinesAfterSave.cbegin(), rawLinesAfterSave.cend(),
+                            [](const QString &line) {
+            return line.trimmed() == QStringLiteral("enabled=");
+        }));
+        PlasmaLyrics::Config daemonConfig;
+        QCOMPARE(daemonConfig.providerOrder(), customOrder);
+        // Matches Config::enabledProviderOrder()'s pre-existing behaviour:
+        // an empty selection falls all the way back to the hard-coded
+        // built-in order, not to the (customised) providers/order above --
+        // see tst_config's emptyEnabledSetFallsBackToBuiltInOrder(), which
+        // this mirrors on the write side. Asserted against the accessor,
+        // not a hard-coded literal, since C2 appends "qq" to it.
+        const QStringList enabled = daemonConfig.enabledProviderOrder();
+        QCOMPARE(enabled, PlasmaLyrics::Config::builtInProviderOrder());
+        // Load-bearing on its own: pins that the result is the built-in
+        // default specifically, not merely the seeded custom order above
+        // (which qa-a-2's mutation -- present-but-drained providers/enabled
+        // treated as absent -- would otherwise return instead).
+        QVERIFY(enabled != customOrder);
+    }
+
+    // filter/platforms uses the same three-state marker machinery as the
+    // two Q24 keys (DESIGN.md decision 67); its migration target differs,
+    // covered separately below.
+
+    void platformsUnsetUsesBuiltInDefault()
+    {
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        QVERIFY(config.platformNetease());
+        QVERIFY(config.platformApple());
+    }
+
+    void platformsExplicitlyEmptyStaysEmptyAcrossRestartAndWritesNoInvalidLiteral()
+    {
+        {
+            auto config = shellConfig(QStringLiteral("exit 0"));
+            config.setPlatformNetease(false);
+            config.setPlatformApple(false);
+            QVERIFY(config.save());
+        }
+        QVERIFY(!rawSettingsFileContents().contains(QStringLiteral("@Invalid()")));
+        auto restarted = shellConfig(QStringLiteral("exit 0"));
+        QVERIFY(!restarted.platformNetease());
+        QVERIFY(!restarted.platformApple());
+    }
+
+    void platformsPopulatedValueRoundTrips()
+    {
+        {
+            auto config = shellConfig(QStringLiteral("exit 0"));
+            config.setPlatformNetease(true);
+            config.setPlatformApple(false);
+            QVERIFY(config.save());
+        }
+        auto restarted = shellConfig(QStringLiteral("exit 0"));
+        QVERIFY(restarted.platformNetease());
+        QVERIFY(!restarted.platformApple());
+    }
+
+    // A.3b: a leaked `filter/platforms=@Invalid()` migrates to explicitly
+    // empty, not to the built-in default -- the only way that literal gets
+    // written is a user deliberately unchecking both platforms, so
+    // migration must not silently re-enable them.
+    void migrationOfLeakedPlatformsInvalidLiteralPreservesExplicitEmptyNotDefault()
+    {
+        writeRawSettingsFileContents(QByteArrayLiteral("[filter]\nplatforms=@Invalid()\n"));
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        QVERIFY(!config.platformNetease());
+        QVERIFY(!config.platformApple());
+        QVERIFY(!rawSettingsFileContents().contains(QStringLiteral("@Invalid()")));
     }
 
     void debugLoggingDefaultsToFalse()

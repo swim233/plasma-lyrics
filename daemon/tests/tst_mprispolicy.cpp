@@ -1,10 +1,13 @@
 #include "daemon/src/mpris/mprispolicy.h"
+#include "daemon/src/config.h"
 #include "core/match/matcher.h"
 
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSettings>
+#include <QStandardPaths>
 #include <QTest>
 
 using namespace PlasmaLyrics;
@@ -14,6 +17,22 @@ class MprisPolicyTest : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
+    void initTestCase()
+    {
+        QStandardPaths::setTestModeEnabled(true);
+    }
+
+    // Only the Q24 end-to-end tests below touch QSettings; every other
+    // test in this file constructs its own PolicyConfig in memory and is
+    // unaffected by this per-test reset.
+    void init()
+    {
+        QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                           QStringLiteral("plasma-lyrics"), QStringLiteral("plasma-lyricsd"));
+        settings.clear();
+        settings.sync();
+    }
+
     void replaysRecordedPbiDirtyData()
     {
         QFile file(QStringLiteral(PLASMA_LYRICS_FIXTURES_DIR "/pbi-dirty-replay.json"));
@@ -382,6 +401,70 @@ private Q_SLOTS:
 
         PolicyConfig config;
         QVERIFY(MprisPolicy::isMusic(state, config));
+    }
+
+    // Q24 / DESIGN.md decision 67, end to end: the exact regression chain
+    // from SPEC.md A.1 -- Config::policy() -> MprisPolicy::isBlacklisted()
+    // -- for a kdeconnect-forwarded service, across all three states plus
+    // the migration that recovers from the leaked state.
+
+    void leakedInvalidBlacklistLiteralIsMigratedAndKdeconnectStaysBlocked()
+    {
+        {
+            const QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                                     QStringLiteral("plasma-lyrics"), QStringLiteral("plasma-lyricsd"));
+            QFile file(settings.fileName());
+            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate));
+            file.write(QByteArrayLiteral("[players]\nblacklist=@Invalid()\n"));
+        }
+        Config config;
+        config.migrateLegacySettings();
+        QVERIFY(MprisPolicy::isBlacklisted(
+            QStringLiteral("org.mpris.MediaPlayer2.kdeconnect.mobile"), config.policy()));
+    }
+
+    void explicitlyEmptyBlacklistLetsKdeconnectThrough()
+    {
+        {
+            QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                               QStringLiteral("plasma-lyrics"), QStringLiteral("plasma-lyricsd"));
+            settings.setValue(QStringLiteral("players/blacklistEmpty"), true);
+            settings.sync();
+        }
+        const Config config;
+        QVERIFY(!MprisPolicy::isBlacklisted(
+            QStringLiteral("org.mpris.MediaPlayer2.kdeconnect.mobile"), config.policy()));
+    }
+
+    void unsetBlacklistKeepsKdeconnectBlockedByDefault()
+    {
+        const Config config;
+        QVERIFY(MprisPolicy::isBlacklisted(
+            QStringLiteral("org.mpris.MediaPlayer2.kdeconnect.mobile"), config.policy()));
+    }
+
+    // qa-a-2: a bare hand-written `filter/musicUrlPrefixes=` used to reach
+    // musicRejectReason() as a one-element list containing "", and
+    // state.url.startsWith("") is true for every URL -- so a browser tab on
+    // a non-music page would have been silently accepted as music instead
+    // of correctly rejected as browser-non-music. End-to-end reproduction
+    // of the exact real scenario A.1 records (a bilibili video tab), going
+    // through Config::policy() rather than a hand-built PolicyConfig.
+    void bareMusicUrlPrefixesDoesNotAcceptEveryUrlAsMusic()
+    {
+        {
+            const QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                                     QStringLiteral("plasma-lyrics"), QStringLiteral("plasma-lyricsd"));
+            QFile file(settings.fileName());
+            QVERIFY(file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate));
+            file.write(QByteArrayLiteral("[filter]\nmusicUrlPrefixes=\n"));
+        }
+        const Config config;
+        MprisState state;
+        state.service = QStringLiteral("org.mpris.MediaPlayer2.plasma-browser-integration");
+        state.url = QStringLiteral("https://www.bilibili.com/video/BV1mkg36zEfX/");
+        QCOMPARE(MprisPolicy::musicRejectReason(state, config.policy()),
+                 QStringLiteral("browser-non-music"));
     }
 };
 

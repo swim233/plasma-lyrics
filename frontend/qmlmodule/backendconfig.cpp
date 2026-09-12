@@ -1,6 +1,7 @@
 #include "backendconfig.h"
 
 #include "core/config/proxyspec.h"
+#include "core/config/stringlistsetting.h"
 
 #include <KLocalizedString>
 #include <QDBusConnection>
@@ -64,6 +65,37 @@ bool containsProvider(const QStringList &values, const QString &provider)
 QStringList defaultProviders()
 {
     return {QStringLiteral("local"), QStringLiteral("netease"), QStringLiteral("amll")};
+}
+
+// Q24 / DESIGN.md decision 67: see core/config/stringlistsetting.h for why
+// "explicitly empty" needs a companion key rather than the primary key's
+// value. Same keys and marker names as daemon/src/config.cpp -- both sides
+// must agree or the UI and the daemon would disagree about which state a
+// freshly-migrated or freshly-emptied file is in.
+const PlasmaLyrics::StringListSetting &blacklistSetting()
+{
+    static const PlasmaLyrics::StringListSetting setting{QStringLiteral("players/blacklist"),
+                                                         QStringLiteral("players/blacklistEmpty")};
+    return setting;
+}
+
+const PlasmaLyrics::StringListSetting &musicUrlPrefixesSetting()
+{
+    static const PlasmaLyrics::StringListSetting setting{QStringLiteral("filter/musicUrlPrefixes"),
+                                                         QStringLiteral("filter/musicUrlPrefixesEmpty")};
+    return setting;
+}
+
+// filter/platforms leaks the same `@Invalid()` literal (unchecking both
+// platform checkboxes writes an empty QStringList) and reads/writes
+// through the same three-state marker machinery -- but its *migration*
+// target differs from the two keys above; see load()'s comment below and
+// DESIGN.md decision 67 for why.
+const PlasmaLyrics::StringListSetting &platformsSetting()
+{
+    static const PlasmaLyrics::StringListSetting setting{QStringLiteral("filter/platforms"),
+                                                         QStringLiteral("filter/platformsEmpty")};
+    return setting;
 }
 
 } // namespace
@@ -269,16 +301,30 @@ void BackendConfig::load()
 {
     discoverProviders();
     auto config = settings();
-    m_serviceBlacklist = lines(config.value(
-        QStringLiteral("players/blacklist"),
-        QStringList{QStringLiteral("org.mpris.MediaPlayer2.kdeconnect.*")}).toStringList());
-    m_musicUrlPrefixes = lines(config.value(
-        QStringLiteral("filter/musicUrlPrefixes"),
-        QStringList{QStringLiteral("https://music.163.com/"), QStringLiteral("http://music.163.com/")}).toStringList());
+    // One-time, idempotent: same cleanup as Config::migrateLegacySettings()
+    // (daemon/src/config.cpp), run here too so the settings UI shows the
+    // post-migration state even if opened before the daemon next restarts.
+    // Synced explicitly rather than left to `config`'s destructor, so it
+    // matches Config::migrateLegacySettings()'s own explicit sync() and a
+    // later reader isn't left wondering which of the two is the odd one out.
+    // filter/platforms migrates to "explicitly empty" rather than "unset"
+    // -- see Config::migrateLegacySettings() (daemon/src/config.cpp) and
+    // DESIGN.md decision 67 for why this one key's migration semantics
+    // differ.
+    PlasmaLyrics::migrateLegacyInvalidEntry(config, blacklistSetting().key);
+    PlasmaLyrics::migrateLegacyInvalidEntry(config, musicUrlPrefixesSetting().key);
+    PlasmaLyrics::migrateLegacyInvalidEntryToExplicitEmpty(config, platformsSetting());
+    config.sync();
+    m_serviceBlacklist = lines(PlasmaLyrics::readStringListOrEmpty(
+        config, blacklistSetting(),
+        QStringList{QStringLiteral("org.mpris.MediaPlayer2.kdeconnect.*")}));
+    m_musicUrlPrefixes = lines(PlasmaLyrics::readStringListOrEmpty(
+        config, musicUrlPrefixesSetting(),
+        QStringList{QStringLiteral("https://music.163.com/"), QStringLiteral("http://music.163.com/")}));
     m_metadataHeuristic = config.value(QStringLiteral("filter/metadataHeuristic"), true).toBool();
-    const auto platforms = config.value(
-        QStringLiteral("filter/platforms"),
-        QStringList{QStringLiteral("netease"), QStringLiteral("apple")}).toStringList();
+    const auto platforms = PlasmaLyrics::readStringListOrEmpty(
+        config, platformsSetting(),
+        QStringList{QStringLiteral("netease"), QStringLiteral("apple")});
     m_platformNetease = platforms.contains(QStringLiteral("netease"));
     m_platformApple = platforms.contains(QStringLiteral("apple"));
     m_filterCredits = config.value(QStringLiteral("lyrics/filterLeadingCredits"), true).toBool();
@@ -347,8 +393,8 @@ bool BackendConfig::save()
         return false;
     }
     auto config = settings();
-    config.setValue(QStringLiteral("players/blacklist"), list(m_serviceBlacklist));
-    config.setValue(QStringLiteral("filter/musicUrlPrefixes"), list(m_musicUrlPrefixes));
+    PlasmaLyrics::writeStringListOrEmpty(config, blacklistSetting(), list(m_serviceBlacklist));
+    PlasmaLyrics::writeStringListOrEmpty(config, musicUrlPrefixesSetting(), list(m_musicUrlPrefixes));
     config.setValue(QStringLiteral("filter/metadataHeuristic"), m_metadataHeuristic);
     QStringList platforms;
     if (m_platformNetease) {
@@ -357,12 +403,20 @@ bool BackendConfig::save()
     if (m_platformApple) {
         platforms.append(QStringLiteral("apple"));
     }
-    config.setValue(QStringLiteral("filter/platforms"), platforms);
+    PlasmaLyrics::writeStringListOrEmpty(config, platformsSetting(), platforms);
     config.setValue(QStringLiteral("lyrics/filterLeadingCredits"), m_filterCredits);
     config.setValue(QStringLiteral("providers/netease/baseUrl"), m_neteaseBaseUrl);
     config.setValue(QStringLiteral("providers/netease/timeoutMs"), m_networkTimeoutMs);
-    config.setValue(QStringLiteral("providers/order"), m_providerOrder);
-    config.setValue(QStringLiteral("providers/enabled"), m_enabledProviders);
+    // providers/order and providers/enabled keep their existing "empty
+    // means: use the built-in default" semantics (decision 67); only the
+    // `@Invalid()` litter an empty QStringList write would otherwise
+    // produce is avoided, via two different substitutes because the two
+    // keys' readers treat an absent key differently -- see
+    // core/config/stringlistsetting.h.
+    PlasmaLyrics::writeStringListNoInvalid(config, QStringLiteral("providers/order"), m_providerOrder,
+                                           PlasmaLyrics::EmptyStringListPolicy::RemoveKey);
+    PlasmaLyrics::writeStringListNoInvalid(config, QStringLiteral("providers/enabled"), m_enabledProviders,
+                                           PlasmaLyrics::EmptyStringListPolicy::KeepPresentAsBlank);
     config.setValue(QStringLiteral("providers/local/directory"), m_localLyricsDirectory);
     config.setValue(QStringLiteral("providers/amll/indexUrl"), m_amllIndexUrl);
     config.setValue(QStringLiteral("providers/amll/contentBaseUrl"), m_amllContentBaseUrl);

@@ -76,6 +76,13 @@ if(BUILD_TESTING)
     add_executable(tst_mprispolicy
         tests/tst_mprispolicy.cpp
         src/mpris/mprispolicy.cpp
+        # Q24 / DESIGN.md decision 67: the end-to-end regression from
+        # SPEC.md A.1 (a leaked players/blacklist=@Invalid() silently
+        # un-blacklisting kdeconnect) runs through Config::policy(), not
+        # just MprisPolicy in isolation, so this test needs the daemon's
+        # own Config too.
+        src/config.cpp
+        src/logging.cpp
     )
     target_include_directories(tst_mprispolicy PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_mprispolicy PRIVATE plasma_lyrics_core Qt6::Test)
@@ -87,7 +94,9 @@ if(BUILD_TESTING)
     target_compile_definitions(tst_mprispolicy PRIVATE
         PLASMA_LYRICS_FIXTURES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures")
     add_test(NAME tst_mprispolicy COMMAND tst_mprispolicy)
-    set_tests_properties(tst_mprispolicy PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
+    set_tests_properties(tst_mprispolicy PROPERTIES
+        RESOURCE_LOCK plasma_lyrics_config
+        ENVIRONMENT "LC_ALL=C.UTF-8")
 
     # The bug this covers lives in the D-Bus wiring itself, so the test needs a
     # real bus. dbus-run-session gives it a private one, which also keeps the
@@ -166,6 +175,20 @@ if(BUILD_TESTING)
     # execute_process() inside that script inherits ctest's environment
     # for the real plasma-lyricsd invocation -- LC_ALL set here reaches it.
     set_tests_properties(explain-provider-selection PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
+
+    # A.3e item 1: --explain must never write the settings file (it used to,
+    # via Config::migrateLegacySettings() unconditionally sync()-ing before
+    # the --explain branch's early return and before the single-instance
+    # lock -- see main.cpp). Own CONFIG_HOME/CACHE_HOME, isolated the same
+    # way as explain-provider-selection above, so the two tests' seeded
+    # settings files never interact.
+    add_test(NAME explain-does-not-write-config
+        COMMAND ${CMAKE_COMMAND}
+            -DDAEMON=$<TARGET_FILE:plasma-lyricsd>
+            -DCONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/explain-no-write-test-config
+            -DCACHE_HOME=${CMAKE_CURRENT_BINARY_DIR}/explain-no-write-test-cache
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_explain_no_config_write.cmake)
+    set_tests_properties(explain-does-not-write-config PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
     if(DBUS_RUN_SESSION_EXECUTABLE)
         add_executable(tst_controlservice

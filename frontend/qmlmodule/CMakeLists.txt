@@ -29,6 +29,12 @@ if(BUILD_TESTING)
     add_executable(tst_backendconfig
         tests/tst_backendconfig.cpp
         backendconfig.cpp
+        # Q24 / DESIGN.md decision 67 coverage needs the daemon's own
+        # Config reading the same ini file BackendConfig::save() just
+        # wrote, to prove the two sides agree on providers/order and
+        # providers/enabled's post-migration behaviour.
+        ${CMAKE_SOURCE_DIR}/daemon/src/config.cpp
+        ${CMAKE_SOURCE_DIR}/daemon/src/logging.cpp
     )
     target_include_directories(tst_backendconfig PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_backendconfig PRIVATE

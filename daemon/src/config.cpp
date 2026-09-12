@@ -1,18 +1,50 @@
 #include "config.h"
 #include "logging.h"
 
+#include "core/config/stringlistsetting.h"
+
 #include <QStandardPaths>
 #include <QDebug>
 #include <QUrl>
 
 namespace PlasmaLyrics {
-namespace {
 
-const QStringList &builtInProviderOrder()
+const QStringList &Config::builtInProviderOrder()
 {
     static const QStringList order{QStringLiteral("local"), QStringLiteral("netease"),
                                    QStringLiteral("amll")};
     return order;
+}
+
+namespace {
+
+// Q24 / DESIGN.md decision 67. See core/config/stringlistsetting.h for why
+// "explicitly empty" needs a companion key rather than the primary key's
+// value.
+const StringListSetting &blacklistSetting()
+{
+    static const StringListSetting setting{QStringLiteral("players/blacklist"),
+                                           QStringLiteral("players/blacklistEmpty")};
+    return setting;
+}
+
+const StringListSetting &musicUrlPrefixesSetting()
+{
+    static const StringListSetting setting{QStringLiteral("filter/musicUrlPrefixes"),
+                                           QStringLiteral("filter/musicUrlPrefixesEmpty")};
+    return setting;
+}
+
+// filter/platforms leaks the same `@Invalid()` literal (unchecking both
+// platform checkboxes writes an empty QStringList) and reads/writes
+// through the same three-state marker machinery -- but its *migration*
+// target differs from the two keys above; see the comment on
+// migrateLegacySettings() and DESIGN.md decision 67 for why.
+const StringListSetting &platformsSetting()
+{
+    static const StringListSetting setting{QStringLiteral("filter/platforms"),
+                                           QStringLiteral("filter/platformsEmpty")};
+    return setting;
 }
 
 } // namespace
@@ -23,19 +55,54 @@ Config::Config()
 {
 }
 
+void Config::migrateLegacySettings()
+{
+    // players/blacklist: migrate to "unset", restoring the built-in
+    // default. Backed by case-specific evidence that this exact corruption
+    // was unintended -- a real journal capture plus the user's own request
+    // to have kdeconnect filtering restored -- not by any structural
+    // property of the setting, and not by any cost/severity comparison
+    // (several earlier attempts to justify the three-key split that way
+    // were each disproved by probe; DESIGN.md decision 67, "unset" tier).
+    migrateLegacyInvalidEntry(m_settings, blacklistSetting().key);
+    // filter/musicUrlPrefixes: also migrates to "unset", but the choice is
+    // unobservable, not evidence-backed. The built-in default here is
+    // byte-identical to platformRules()'s netease urlPrefixes
+    // (mprispolicy.cpp), and MprisPolicy::musicRejectReason() decides via
+    // platformFor() before it ever reaches the musicUrlPrefixes loop -- so
+    // "unset" and "explicitly empty" produce identical results for every
+    // URL the built-in default would have matched (probed across
+    // netease/apple/bilibili/bandcamp). It migrates the same way as
+    // players/blacklist because Q24 named the two together, not because
+    // of an independent argument for this key.
+    migrateLegacyInvalidEntry(m_settings, musicUrlPrefixesSetting().key);
+    // filter/platforms: migrate to "explicitly empty" instead. The basis
+    // is origin, not severity: `@Invalid()` here can only be produced by
+    // a user actively unchecking both platform checkboxes, so it is real
+    // user state, not a defect artifact. Severity is NOT the argument and
+    // in fact points the other way -- MprisPolicy::musicRejectReason()
+    // rejects every enabled-platform track unconditionally once its
+    // platform is unchecked, more severe than musicUrlPrefixes above --
+    // so re-deriving this by severity gives the wrong answer. See
+    // DESIGN.md decision 67 for the boundary condition under which the
+    // origin argument stops holding.
+    migrateLegacyInvalidEntryToExplicitEmpty(m_settings, platformsSetting());
+    m_settings.sync();
+}
+
 PolicyConfig Config::policy() const
 {
     PolicyConfig config;
-    config.serviceBlacklist = m_settings.value(
-        QStringLiteral("players/blacklist"),
-        QStringList{QStringLiteral("org.mpris.MediaPlayer2.kdeconnect.*")}).toStringList();
-    config.musicUrlPrefixes = m_settings.value(
-        QStringLiteral("filter/musicUrlPrefixes"),
-        QStringList{QStringLiteral("https://music.163.com/"), QStringLiteral("http://music.163.com/")}).toStringList();
+    config.serviceBlacklist = readStringListOrEmpty(
+        m_settings, blacklistSetting(),
+        QStringList{QStringLiteral("org.mpris.MediaPlayer2.kdeconnect.*")});
+    config.musicUrlPrefixes = readStringListOrEmpty(
+        m_settings, musicUrlPrefixesSetting(),
+        QStringList{QStringLiteral("https://music.163.com/"), QStringLiteral("http://music.163.com/")});
     config.useMetadataHeuristic = m_settings.value(QStringLiteral("filter/metadataHeuristic"), true).toBool();
-    config.enabledPlatforms = m_settings.value(
-        QStringLiteral("filter/platforms"),
-        QStringList{QStringLiteral("netease"), QStringLiteral("apple")}).toStringList();
+    config.enabledPlatforms = readStringListOrEmpty(
+        m_settings, platformsSetting(),
+        QStringList{QStringLiteral("netease"), QStringLiteral("apple")});
     return config;
 }
 

@@ -18,6 +18,16 @@ struct PlatformRule {
     QStringList urlPrefixes;
 };
 
+// Renaming an `id` here (or otherwise making a previously-stored id stop
+// matching) invalidates DESIGN.md decision 67's origin argument for
+// filter/platforms: that argument rests on `@Invalid()` there only ever
+// coming from a user actively unchecking both checkboxes, which stops
+// being true once a stored id can no longer round-trip -- both boxes
+// would then read unchecked with the user never having touched them, and
+// the next unrelated save would silently reproduce the same `@Invalid()`
+// leak Q24 exists to fix. Adding a *new* id (e.g. a fifth provider) is
+// safe and doesn't need this note: a new id was never in anyone's stored
+// config, so it can't spuriously vanish from one.
 const QList<PlatformRule> &platformRules()
 {
     static const QList<PlatformRule> rules{

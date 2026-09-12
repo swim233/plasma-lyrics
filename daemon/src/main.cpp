@@ -519,6 +519,51 @@ int main(int argc, char **argv)
     }
     Resolver resolver(store, providers, config.filterCredits());
     SnapshotWriter snapshots;
+    // One-time, idempotent: cleans up a leftover `@Invalid()` literal on
+    // players/blacklist, filter/musicUrlPrefixes and filter/platforms
+    // before the config.policy() call immediately below, its only consumer
+    // in this entire binary (see DESIGN.md decision 67 -- not one
+    // justification, and NOT a severity comparison across the three keys;
+    // an earlier version of this reasoning tried that and got the
+    // severity ranking backwards). players/blacklist turns back into
+    // "unset" on case-specific evidence alone (a real journal capture plus
+    // the user's own request to have kdeconnect filtering restored) --
+    // that evidence covers only this one key. filter/musicUrlPrefixes also
+    // turns back into "unset", but the choice is unobservable rather than
+    // evidence-backed: the built-in default here is byte-identical to
+    // platformRules()'s netease urlPrefixes, and
+    // MprisPolicy::musicRejectReason() decides via platformFor() before it
+    // ever reaches the musicUrlPrefixes loop, so "unset" and "explicitly
+    // empty" produce identical results for every URL the default would
+    // have matched -- it migrates the same way as players/blacklist
+    // because Q24 named the two together, not on its own argument.
+    // filter/platforms turns into "explicitly empty" instead, on origin
+    // rather than severity: `@Invalid()` here can only come from a user
+    // actively unchecking both platform checkboxes, so it is real state,
+    // not a defect artifact. Severity actually points the other way --
+    // musicRejectReason() rejects every enabled-platform track
+    // unconditionally once its platform is unchecked, more severe than
+    // musicUrlPrefixes above -- so it is not the basis for this one.
+    // Placed here, not earlier, for two independent reasons: (1) this call
+    // can write the settings file (via an unconditional sync()), and
+    // --explain -- a read-only diagnostic a user runs by hand, repeatedly,
+    // possibly while the real daemon is already running -- always returns
+    // above and never reaches config.policy() at all, so it must never run
+    // this; (2) being the sole gate in front of policy()'s only caller
+    // means the single-instance QLockFile above structurally rules out a
+    // concurrent migration race between two daemon instances: only the
+    // lock's winner ever reaches this line, so there is no second writer
+    // to race against, not merely one that would self-heal if it happened.
+    // (Placement relative to qInstallMessageHandler(mirrorMessage) above
+    // is not a third reason: nothing on this call's path --
+    // migrateLegacySettings() or either helper it calls -- logs anything
+    // at all, so there is no warning here that could reach the wrong
+    // handler.) The race guarantee above is specific to daemon-vs-daemon:
+    // BackendConfig::load() (frontend/qmlmodule/backendconfig.cpp) runs the
+    // same migration under no lock at all, so a daemon-vs-settings-dialog
+    // or dialog-vs-dialog race is still just known-untested-but-idempotent,
+    // not eliminated -- see DESIGN.md decision 67.
+    config.migrateLegacySettings();
     MprisManager manager(config.policy());
     ResolvedLyric resolved{.state = QStringLiteral("filtered"),
                            .switchingProvider = {}};
