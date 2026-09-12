@@ -163,10 +163,16 @@ private Q_SLOTS:
              {QStringLiteral("偶像")}},
             {QStringLiteral("1803908863"), QStringLiteral("怪物"), {QStringLiteral("YOASOBI")}, QString(), 206000}};
         const auto ranked = rankCandidates(query, candidates);
-        // The literal title match ("GUNJOU (Cover)" / Omnixor) must not win --
-        // wrong artist, real duration delta of 13709 ms sinks its total below
-        // 0.58, which is why isAcceptableMatch(ranked.first()) fails and the
-        // fallback path has to run at all.
+        // Rank-1 is now "Gunjou (Originally Performed by YOASOBI)" /
+        // Backing Business -- decision 70's candidate-side gloss strip
+        // gives it title=1.000, and it fails on the new
+        // candidate-gloss-artist-threshold (artists=0.125), not on
+        // total-threshold the way "GUNJOU (Cover)" / Omnixor used to
+        // before task E existed (that one is still in the pool and still
+        // correctly rejected, just no longer rank-1 -- see
+        // candidateGlossArtistFloorDoesNotDisturbTheRomanizedFallback for
+        // the full ranked breakdown). Either way, isAcceptableMatch(ranked.first())
+        // must still fail so the fallback path below has to run at all.
         QVERIFY(!isAcceptableMatch(ranked.first()));
         const auto chosen = chooseMatch(ranked, true);
         QVERIFY(chosen.has_value());
@@ -513,6 +519,16 @@ private Q_SLOTS:
             {QStringLiteral("2042879549"), QStringLiteral("Gunjou (Originally Performed by YOASOBI)"),
              {QStringLiteral("Backing Business")}, QString(), 249324}};
         const auto ranked = rankCandidates(query, candidates);
+        // Rank-1 is now "Gunjou (Originally Performed by YOASOBI)" /
+        // Backing Business, not either 群青 candidate -- decision 70's
+        // candidate-side gloss strip gives it title=1.000 and total=0.716
+        // (both 群青 rows stay at title=0.000, total=0.400), and it fails
+        // on candidate-gloss-artist-threshold (artists=0.125), not on the
+        // title-threshold either 群青 row hits before task E existed. Same
+        // mechanism and same disclosure as
+        // romanizedTitleRescuedByLocalizedFallback's comment -- either way,
+        // isAcceptableMatch(ranked.first()) must still fail so the dedupe
+        // fallback below has to run at all.
         QVERIFY(!isAcceptableMatch(ranked.first()));
         const auto chosen = chooseMatch(ranked, true);
         QVERIFY(chosen.has_value());
@@ -1587,6 +1603,396 @@ private Q_SLOTS:
 
         QVERIFY(explanation.contains(QStringLiteral("titleVia=artist-strip plainTitle=0.273 durationGate=within-window")));
         QVERIFY(explanation.contains(QStringLiteral("selected: real")));
+    }
+
+    // DESIGN.md decision 70 (task E): candidate-side gloss stripping.
+    // Mirrors the query-side gloss variant (decision 65) but on the
+    // CANDIDATE's own title -- QQ appends a Chinese translated title onto
+    // otherwise non-Chinese tracks. §E.1's motivating sample: exact numbers
+    // from the recorded QQ search response (qq-search-ja-hoshiloop.json).
+    void candidateGlossAcceptsQQAppendedChineseTranslatedTitle()
+    {
+        const TrackQuery query{QStringLiteral("惑星ループ"), {QStringLiteral("Eve")}, QString(), 207504};
+        const Candidate candidate{QStringLiteral("qq-hoshiloop"), QStringLiteral("惑星ループ (行星循环)"),
+                                  {QStringLiteral("Eve")}, QString(), 207000};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QVERIFY(score.titleViaCandidateGloss);
+        QCOMPARE(score.title, 1.0);
+        // Pin the pre-fix numbers too (E.1: title=0.500, total=0.645) so a
+        // future reader can see exactly what changed: before this task,
+        // the candidate's untouched title only cleared the containment
+        // fast-path at 0.5 (5 of the 10 normalized characters), landing
+        // total at 0.645 -- under the 0.55 title-threshold despite
+        // artists=1.000 and a 504ms delta comfortably inside the window.
+        QCOMPARE(score.titleWithoutStrip, 0.5);
+        QCOMPARE(score.artists, 1.0);
+        QCOMPARE(score.durationDifferenceMs, qint64(504));
+        QVERIFY(isAcceptableMatch({candidate, score}));
+
+        const auto ranked = rankCandidates(query, {candidate});
+        QVERIFY(chooseMatch(ranked, false).has_value());
+    }
+
+    // §E.5's ready-made discrimination test: qq-search-ja-dramaturgy.json
+    // has "ドラマツルギー (Live Film Ver.)" (a version marker -- "Live" --
+    // must stay refused) and four "ドラマツルギー (拟剧论)" entries (a
+    // translation gloss -- must be accepted) in the very same result set.
+    // Direct unit test on the predicate itself first, since that's the
+    // exact mechanism §E.5 asks to discriminate.
+    void splitTrailingGlossDiscriminatesDramaturgyLiveVersusTranslatedTitle()
+    {
+        QString main;
+        QVERIFY(!splitTrailingGloss(QStringLiteral("ドラマツルギー (Live Film Ver.)"), &main));
+        QVERIFY(splitTrailingGloss(QStringLiteral("ドラマツルギー (拟剧论)"), &main));
+        QCOMPARE(main, QStringLiteral("ドラマツルギー"));
+    }
+
+    // Same pair, through the full scoring/selection path with both
+    // candidates in one pool (the actual recorded result set), verifying
+    // the two shapes come out on opposite sides. Uses
+    // MatchPolicy::PreserveVersions specifically so cleanTitle's own,
+    // unrelated version-marker bracket removal (which would otherwise
+    // strip "(Live Film Ver.)" under MatchPolicy::Default the same way it
+    // already strips "(Cover)"/"(Remix)" for other fixtures in this file)
+    // doesn't confound what's being tested here -- under PreserveVersions,
+    // titleForPolicy uses title.simplified() instead of cleanTitle, so only
+    // splitTrailingGloss (this task's own mechanism, policy-independent)
+    // decides whether either bracket gets stripped. Under Default,
+    // cleanTitle strips "(Live Film Ver.)" and the Live candidate matches
+    // at title=1.0 anyway, with titleViaCandidateGloss staying false --
+    // this is pre-existing, intended behaviour (MatchPolicy::Default
+    // deliberately collapses version distinctions; decision 54), not
+    // something task E introduces or accepts as a risk, so it isn't pinned
+    // here as a counterexample.
+    void candidateGlossDiscriminatesDramaturgyInTheSameResultSet()
+    {
+        const TrackQuery query{QStringLiteral("ドラマツルギー"), {QStringLiteral("Eve")}, QString(), 238000};
+        const QList<Candidate> candidates{
+            {QStringLiteral("live-film-ver"), QStringLiteral("ドラマツルギー (Live Film Ver.)"),
+             {QStringLiteral("Eve")}, QString(), 237000},
+            {QStringLiteral("translated"), QStringLiteral("ドラマツルギー (拟剧论)"),
+             {QStringLiteral("Eve")}, QString(), 238000}};
+
+        const auto ranked = rankCandidates(query, candidates, MatchPolicy::PreserveVersions);
+
+        const auto translated = std::find_if(ranked.cbegin(), ranked.cend(), [](const auto &item) {
+            return item.candidate.trackId == QStringLiteral("translated");
+        });
+        QVERIFY(translated != ranked.cend());
+        QVERIFY(translated->score.titleViaCandidateGloss);
+        QCOMPARE(translated->score.title, 1.0);
+        QVERIFY(isAcceptableMatch(*translated));
+
+        const auto liveFilmVer = std::find_if(ranked.cbegin(), ranked.cend(), [](const auto &item) {
+            return item.candidate.trackId == QStringLiteral("live-film-ver");
+        });
+        QVERIFY(liveFilmVer != ranked.cend());
+        QVERIFY(!liveFilmVer->score.titleViaCandidateGloss);
+        QVERIFY(!isAcceptableMatch(*liveFilmVer));
+
+        const auto chosen = chooseMatch(ranked, false);
+        QVERIFY(chosen.has_value());
+        QCOMPARE(chosen->candidate.trackId, QStringLiteral("translated"));
+    }
+
+    // §E.4a (dev-b, found while implementing E, lead's ruling: adopt an
+    // artist floor on passesCandidateGlossGate). Discovered by the stop-
+    // and-report rule §E.7 requires: implementing the plain candidate-gloss
+    // mechanism and then running the full existing suite flipped two
+    // pre-existing tests (romanizedTitleRescuedByLocalizedFallback,
+    // dedupeGuardTreatsSameSongUnderDifferentIdsAsOne), both via this same
+    // real, previously-recorded netease candidate. "Originally Performed by
+    // YOASOBI" is a cover/backing-track attribution phrase -- neither a
+    // translation nor a recognized version marker -- so it gets stripped to
+    // an exact title match; its real duration (249324ms) lands only 880ms
+    // from the query's (248444ms), legitimately inside the window, no
+    // escape hatch involved. But its real artist ("Backing Business") has
+    // nothing to do with the query artist ("YOASOBI"). This is what
+    // motivated mirroring D-11's passesAliasArtistGate onto
+    // passesCandidateGlossGate: candidate-side title evidence (there
+    // transNames/alternateTitles, here a candidate-side gloss strip) can
+    // inflate score.title on a candidate whose real artist doesn't match,
+    // and duration alone cannot tell that apart from a genuine close
+    // encoding of the same recording.
+    void candidateGlossArtistFloorRejectsAWrongArtistBackingTrack()
+    {
+        const TrackQuery query{QStringLiteral("Gunjou"), {QStringLiteral("YOASOBI")}, QString(), 248444};
+        const Candidate candidate{QStringLiteral("2042879549"), QStringLiteral("Gunjou (Originally Performed by YOASOBI)"),
+                                  {QStringLiteral("Backing Business")}, QString(), 249324};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QVERIFY(score.titleViaCandidateGloss);
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(score.artists < 0.5);
+        QCOMPARE(score.durationDifferenceMs, qint64(880));
+        QVERIFY(score.durationComparable);
+        // The duration gate alone would have passed this (880ms is well
+        // inside the 2000ms window) -- pin that the rejection is
+        // specifically the new artist floor, not mistakenly attributed to
+        // duration.
+        QVERIFY(!isAcceptableMatch({candidate, score}));
+        QCOMPARE(candidateRejectionReason({candidate, score}), QStringLiteral("candidate-gloss-artist-threshold"));
+    }
+
+    // Both real-log tests this shape originally flipped, re-pinned against
+    // the full recorded pool now that the artist floor is in place. Per
+    // the lead's request: these do NOT return to their pre-task-E internal
+    // state byte-for-byte (the "Gunjou (Originally Performed by YOASOBI)"
+    // candidate now scores title=1.000 via titleViaCandidateGloss and is
+    // rejected as candidate-gloss-artist-threshold, not the plain
+    // title-threshold it hit before this task existed) -- but the outward
+    // behaviour these tests actually assert (top rank still unacceptable,
+    // chooseMatch still resolves to the real song) is unchanged.
+    void candidateGlossArtistFloorDoesNotDisturbTheRomanizedFallback()
+    {
+        const TrackQuery query{QStringLiteral("Gunjou"), {QStringLiteral("YOASOBI")}, QString(), 248444};
+        const QList<Candidate> candidates{
+            {QStringLiteral("1875383422"), QStringLiteral("Gunjou (Yoasobi)"), {QStringLiteral("Vangakuz")}, QString(), 243941},
+            {QStringLiteral("2042876595"), QStringLiteral("Gunjou (8-Bit YOASOBI Emulation)"), {QStringLiteral("8-Bit Arcade")}, QString(), 246061},
+            {QStringLiteral("1472480890"), QStringLiteral("群青"), {QStringLiteral("YOASOBI")}, QString(), 248444},
+            {QStringLiteral("2042879549"), QStringLiteral("Gunjou (Originally Performed by YOASOBI)"),
+             {QStringLiteral("Backing Business")}, QString(), 249324},
+            {QStringLiteral("3323596738"), QStringLiteral("GUNJOU (Cover)"), {QStringLiteral("Omnixor")}, QString(), 262153}};
+
+        const auto ranked = rankCandidates(query, candidates);
+        QCOMPARE(ranked.first().candidate.trackId, QStringLiteral("2042879549"));
+        QVERIFY(ranked.first().score.titleViaCandidateGloss);
+        QVERIFY(!isAcceptableMatch(ranked.first()));
+        QCOMPARE(candidateRejectionReason(ranked.first()), QStringLiteral("candidate-gloss-artist-threshold"));
+
+        const auto chosen = chooseMatch(ranked, true);
+        QVERIFY(chosen.has_value());
+        QCOMPARE(chosen->candidate.trackId, QStringLiteral("1472480890"));
+    }
+
+    // §E.4's three residual-risk shapes (lead's ruling, decision 70: accept
+    // the risk, pin the actual behaviour). splitTrailingGloss's predicate
+    // rejects only version markers; "Karaoke"/"Inst."/"feat. X" are none of
+    // those, so all three get stripped exactly like a genuine translation
+    // gloss would. The risk is narrow (§E.4 point 1: a pool that also has
+    // the exact, unmodified title wins that one via the plain,
+    // non-stripped path instead, per the tie-break) and only materializes
+    // when the real track is absent from the pool -- which is the shape
+    // pinned here (single-candidate pool, same artist, same duration, so
+    // neither the artist floor above nor the duration gate can catch it).
+    // Assertions are on the matcher's own accept/reject outcome only; this
+    // does NOT rely on C2's fetch-stage instrumental-placeholder handling,
+    // which lives in a different layer, fires only on a narrower condition
+    // (single-line body containing 纯音乐, line-level path only), and does
+    // not run before this decision is made (SPEC §E.4, 2026-09-12 dev-c
+    // correction).
+    void candidateGlossKaraokeResidualRiskIsAcceptedWhenTheRealTrackIsAbsent()
+    {
+        const TrackQuery query{QStringLiteral("Sunflower"), {QStringLiteral("Artist")}, QString(), 200000};
+        const Candidate candidate{QStringLiteral("karaoke"), QStringLiteral("Sunflower (Karaoke)"),
+                                  {QStringLiteral("Artist")}, QString(), 200000};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QVERIFY(score.titleViaCandidateGloss);
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(isAcceptableMatch({candidate, score}));
+    }
+
+    void candidateGlossInstrumentalResidualRiskIsAcceptedWhenTheRealTrackIsAbsent()
+    {
+        const TrackQuery query{QStringLiteral("Sunflower"), {QStringLiteral("Artist")}, QString(), 200000};
+        const Candidate candidate{QStringLiteral("inst"), QStringLiteral("Sunflower (Inst.)"),
+                                  {QStringLiteral("Artist")}, QString(), 200000};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QVERIFY(score.titleViaCandidateGloss);
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(isAcceptableMatch({candidate, score}));
+    }
+
+    void candidateGlossFeaturedArtistResidualRiskIsAcceptedWhenTheRealTrackIsAbsent()
+    {
+        const TrackQuery query{QStringLiteral("Sunflower"), {QStringLiteral("Artist")}, QString(), 200000};
+        const Candidate candidate{QStringLiteral("feat"), QStringLiteral("Sunflower (feat. Someone)"),
+                                  {QStringLiteral("Artist")}, QString(), 200000};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QVERIFY(score.titleViaCandidateGloss);
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(isAcceptableMatch({candidate, score}));
+    }
+
+    // §E.7 requires `--explain` to keep up (decision 46), the same way
+    // decisions 65/66 each pinned their own stripped-variant diagnostics
+    // (explainShowsWhyTheDurationGateDidNotBindWhenTheStripWasNotNeeded and
+    // friends) -- this is that test for decision 70's candidate-gloss
+    // path: titleVia=candidate-gloss, plainTitle= and durationGate= must
+    // all appear and be correct for the §E.1 motivating sample.
+    void explainShowsCandidateGlossWithinWindowForTheHoshiloopSample()
+    {
+        const TrackQuery query{QStringLiteral("惑星ループ"), {QStringLiteral("Eve")}, QString(), 207504};
+        const Candidate candidate{QStringLiteral("qq-hoshiloop"), QStringLiteral("惑星ループ (行星循环)"),
+                                  {QStringLiteral("Eve")}, QString(), 207000};
+
+        const QString explanation = explainMatch(query, {candidate}, false, true);
+
+        QVERIFY(explanation.contains(
+            QStringLiteral("titleVia=candidate-gloss plainTitle=0.500 durationGate=within-window")));
+        QVERIFY(explanation.contains(QStringLiteral("selected: qq-hoshiloop")));
+    }
+
+    // Same field, the rejection-reason side: the Gunjou/Backing-Business
+    // shape (§E.4a) must show up as candidate-gloss-artist-threshold, not
+    // silently as some other reason or as accepted.
+    void explainShowsCandidateGlossArtistThresholdForTheGunjouBackingTrack()
+    {
+        const TrackQuery query{QStringLiteral("Gunjou"), {QStringLiteral("YOASOBI")}, QString(), 248444};
+        const Candidate candidate{QStringLiteral("2042879549"), QStringLiteral("Gunjou (Originally Performed by YOASOBI)"),
+                                  {QStringLiteral("Backing Business")}, QString(), 249324};
+
+        const QString explanation = explainMatch(query, {candidate}, false, true);
+
+        QVERIFY(explanation.contains(QStringLiteral("titleVia=candidate-gloss")));
+        QVERIFY(explanation.contains(QStringLiteral("durationGate=within-window")));
+        QVERIFY(explanation.contains(QStringLiteral("rejected=candidate-gloss-artist-threshold")));
+        QVERIFY(explanation.contains(QStringLiteral("selected: none")));
+    }
+
+    // Mirrors considerTitlePrefersNonGlossVariantOnATie, on the new
+    // candidate-gloss axis (adjacent to the D-11 hole decision 66 had to
+    // fix): the candidate's primary title matches only via its own
+    // gloss-stripped form, tied exactly against a plain alternateTitle
+    // match. Ties must prefer the non-stripped path -- passesCandidateGlossGate's
+    // premise is "this match only holds because the candidate's own title
+    // got a bracket stripped", which stops being true the moment an
+    // equally-good, unmodified alternateTitle match exists.
+    void considerTitlePrefersNonCandidateGlossVariantOnATie()
+    {
+        const TrackQuery query{QStringLiteral("Song"), {QStringLiteral("Artist")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("id"), QStringLiteral("Song (Localized Gloss)"),
+                                  {QStringLiteral("Artist")}, QString(), 0,
+                                  {QStringLiteral("Song")}};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(!score.titleViaCandidateGloss);
+        QVERIFY(score.titleViaAlternate);
+    }
+
+    // qa-e-2 finding 4 (2026-09-12): candidate-gloss-duration-threshold had
+    // zero test coverage, even though decisions 65 and 66 each pinned their
+    // own duration-threshold reason. Same ARC Raiders shape as the two
+    // tests above, roles reversed -- the CANDIDATE carries the bracket this
+    // time ("(II)" is not a recognized version marker, so it strips exactly
+    // like a translation gloss would) and the query is the plain title.
+    void candidateGlossShapeRejectsAKnownFarApartDurationDespiteAnAcceptablePlainMatch()
+    {
+        const TrackQuery query{QStringLiteral("ARC Raiders"), {QStringLiteral("Embark")}, QString(), 170567};
+        const Candidate candidate{QStringLiteral("ii"), QStringLiteral("ARC Raiders (II)"),
+                                  {QStringLiteral("Embark")}, QString(), 170567 + 27911};
+
+        const auto score = scoreCandidate(query, candidate);
+        QVERIFY(score.titleViaCandidateGloss);
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(score.durationComparable);
+        QCOMPARE(score.durationDifferenceMs, qint64(27911));
+        // Same plain-match shape as the query-side fixtures above: the
+        // candidate's own untouched title, via containment alone, already
+        // clears both isAcceptableMatch bars.
+        QCOMPARE(score.titleWithoutStrip, 11.0 / 14.0);
+        QCOMPARE(score.duration, 0.0);
+        QVERIFY(score.artists >= 0.5);
+
+        QVERIFY(!isAcceptableMatch({candidate, score}));
+        QCOMPARE(candidateRejectionReason({candidate, score}), QStringLiteral("candidate-gloss-duration-threshold"));
+    }
+
+    // qa-e-2 finding 4: candidate-gloss-duration-unknown also had zero
+    // coverage. The realistic shape this hits in production: AMLL never
+    // provides a length at all (decision 65), so §E.1's own hoshiloop
+    // sample, unmodified except for the candidate's length, lands here
+    // instead of within-window.
+    void candidateGlossDurationUnknownRejectsEvenWhenTheArtistFloorPasses()
+    {
+        const TrackQuery query{QStringLiteral("惑星ループ"), {QStringLiteral("Eve")}, QString(), 207504};
+        const Candidate candidate{QStringLiteral("qq-hoshiloop-no-length"), QStringLiteral("惑星ループ (行星循环)"),
+                                  {QStringLiteral("Eve")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate, MatchPolicy::PreserveVersions);
+
+        QVERIFY(score.titleViaCandidateGloss);
+        QCOMPARE(score.title, 1.0);
+        QVERIFY(!score.durationComparable);
+        QCOMPARE(score.titleWithoutStrip, 0.5);
+        QVERIFY(score.artists >= 0.5);
+
+        QVERIFY(!isAcceptableMatch({candidate, score}));
+        QCOMPARE(candidateRejectionReason({candidate, score}), QStringLiteral("candidate-gloss-duration-unknown"));
+    }
+
+    // qa-e-2 finding 4: titleViaLabel's join-based rewrite (replacing six
+    // hardcoded if-branches, see explainMatch) had zero assertions on any
+    // COMBINED label -- it renders on every --explain candidate line, so a
+    // silent regression here would be widely visible. Pins one of the two
+    // genuinely new combinations decision 70 introduces: an alternateTitle
+    // that only matches through its OWN candidate-side gloss strip.
+    void explainShowsAliasPlusCandidateGlossCombinedLabel()
+    {
+        const TrackQuery query{QStringLiteral("Song"), {QStringLiteral("Artist")}, QString(), 200000};
+        const Candidate candidate{QStringLiteral("id"), QStringLiteral("Unrelated Title"),
+                                  {QStringLiteral("Artist")}, QString(), 200000,
+                                  {QStringLiteral("Song (译名)")}};
+
+        const QString explanation = explainMatch(query, {candidate}, false, true);
+
+        QVERIFY(explanation.contains(QStringLiteral("titleVia=alias+candidate-gloss")));
+        QVERIFY(explanation.contains(QStringLiteral("selected: id")));
+    }
+
+    // qa-e-2 finding 5, lead's ruling: keep the rejection, do not add an
+    // escape hatch. Unlike the duration half of passesCandidateGlossGate
+    // (which inherited B.3b/B.3c's hatch for "the plain match alone would
+    // already have cleared both bars"), the artist floor §E.4a added
+    // carries none -- so a candidate whose PLAIN title match alone already
+    // clears isAcceptableMatch can still be demoted the moment the
+    // candidate-side strip wins the tie, purely because the strip's own
+    // winner has the wrong artist. b22d041 (before this task) accepted
+    // this exact candidate on its plain title alone; this branch rejects
+    // it. That is a deliberate, disclosed acceptance change (DESIGN.md
+    // decision 70), not a regression: the artist really is wrong
+    // (artists=0.0 against "Queen"), and B.3c's own principle --
+    // corroboration available and negative is not the same as
+    // corroboration missing -- applies just as much to a mismatched artist
+    // as to a known, far-apart duration. Extending the hatch to this gate
+    // was considered and declined: it would let a wrong-artist candidate
+    // through *because* it happens to carry a bracket, inverting the
+    // floor's whole purpose.
+    void candidateGlossArtistFloorHasNoEscapeHatchUnlikeItsDurationHalf()
+    {
+        const TrackQuery query{QStringLiteral("Bohemian Rhapsody"), {QStringLiteral("Queen")}, QString(), 355000};
+        const Candidate candidate{QStringLiteral("br"), QStringLiteral("Bohemian Rhapsody (BR)"),
+                                  {QStringLiteral("Nobody At All")}, QString(), 355500};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QVERIFY(score.titleViaCandidateGloss);
+        QCOMPARE(score.title, 1.0);
+        QCOMPARE(score.artists, 0.0);
+        QVERIFY(score.durationComparable);
+        QCOMPARE(score.durationDifferenceMs, qint64(500));
+        // Pin that this really is the shape qa-e-2 found: the plain match
+        // alone, unaffected by any stripping mechanism, already clears both
+        // isAcceptableMatch bars -- this is what b22d041 accepted.
+        QCOMPARE(score.titleWithoutStrip, 17.0 / 20.0);
+        const double totalWithoutStrip = score.titleWithoutStrip * 0.5 + score.artists * 0.2
+            + score.album * 0.1 + score.duration * 0.2;
+        QVERIFY(score.titleWithoutStrip >= 0.55);
+        QVERIFY(totalWithoutStrip >= 0.58);
+
+        QVERIFY(!isAcceptableMatch({candidate, score}));
+        QCOMPARE(candidateRejectionReason({candidate, score}), QStringLiteral("candidate-gloss-artist-threshold"));
     }
 };
 

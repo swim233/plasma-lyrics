@@ -96,6 +96,19 @@ struct ScoreBreakdown {
     // escape hatch would credit a path that passesAliasArtistGate (D-11)
     // was built to reject and let a wrong-artist candidate through.
     bool titleWithoutStripViaAlternate = false;
+    // true when the winning title match came from stripping a trailing
+    // localized-gloss bracket off the CANDIDATE's own title (or
+    // alternateTitle) rather than the query's -- e.g. a candidate title of
+    // "惑星ループ (行星循环)" against a query of "惑星ループ" (QQ appends a
+    // Chinese translated title onto non-Chinese tracks; DESIGN.md decision
+    // 70). Mirrors titleViaGlossVariant's mechanism (same splitTrailingGloss
+    // predicate, same exact-match-only restriction) but on the other side
+    // of the comparison, and independent of it: both can be true at once
+    // (a bracket stripped from both the query and the candidate to reach
+    // an exact match). Gets the same "only an exact match counts, and only
+    // with independent duration evidence" treatment; see
+    // passesCandidateGlossGate.
+    bool titleViaCandidateGloss = false;
     bool durationComparable = false;  // true when both sides had a known length (query and candidate)
     VersionTier versionTier = VersionTier::Normal;
     bool versionPolicyApplied = false;
