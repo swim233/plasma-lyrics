@@ -146,8 +146,32 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
                      MatchPolicy policy = MatchPolicy::Default);
 // Same rejection classification explainMatch uses for one candidate's
 // listing line: the candidate's own rejectionReason if scoreCandidate set
-// one (e.g. version-conflict), otherwise the first threshold it misses
-// (title-threshold, total-threshold, alias-artist-threshold). Empty means
+// one (version-conflict), otherwise the first gate or threshold it misses.
+// The -threshold suffix alone does NOT say which of the two kinds a reason
+// is, and the difference is the one decision 65 argued is the line between
+// "no lyrics" and "the wrong lyrics" -- so the full set is grouped here:
+//
+//   Gate rejections -- chooseMatch's loop does `continue`, skipping this
+//   candidate and trying the next one (matcher.cpp, all four gates share
+//   the one `continue` branch):
+//     alias-artist-threshold                  (passesAliasArtistGate)
+//     gloss-duration-threshold / -unknown     (passesGlossVariantGate)
+//     artist-strip-duration-threshold / -unknown
+//                                             (passesArtistStripGate)
+//     candidate-gloss-artist-threshold,
+//     candidate-gloss-duration-threshold / -unknown
+//                                             (passesCandidateGlossGate)
+//
+//   Acceptance-threshold failures -- chooseMatch's loop does `break`: the
+//   ranking is by total, so once the best remaining candidate misses one of
+//   these, no lower-ranked one can be a better answer. `break`, not
+//   `return`, because the localized fallback (D-8) is judged separately.
+//     title-threshold, total-threshold
+//
+// The -unknown reasons mean "a duration was not available", which is the
+// common case on AMLL and on .lrc files without a [length:] tag, not an
+// exotic one; the paired -threshold reason means the durations were known
+// and decisively far apart. Empty means
 // the candidate would actually be accepted. Callers that only need "why
 // didn't the top-ranked candidate win" (e.g. a resolver log line) can call
 // this on ranked.first() instead of formatting/parsing explainMatch's text.
