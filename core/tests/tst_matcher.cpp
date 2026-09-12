@@ -1,5 +1,6 @@
 #include "core/match/matcher.h"
 
+#include <QRegularExpression>
 #include <QTest>
 #include <algorithm>
 
@@ -369,6 +370,138 @@ private Q_SLOTS:
     {
         QString main;
         QVERIFY(!splitTrailingGloss(QStringLiteral("Plain Title"), &main));
+    }
+
+    // The O(1) fast-reject above splitTrailingGloss's real work (see its
+    // own comment) is argued to be exactly equivalent to running the full
+    // anchored regex and getting no-match, because the trim loop's
+    // QChar::isSpace() is a superset of what the pattern's own `\s` can
+    // match -- but `pattern` is built with no options at all (unlike this
+    // function's own cleanTitleMarker, which does carry
+    // CaseInsensitiveOption), so `\s` there only ever matches ASCII
+    // whitespace. Neither existing splitTrailingGloss test case below
+    // contains a single non-ASCII whitespace character, so nothing here
+    // pins that superset claim. These two cases do, one per direction a
+    // future edit could break it:
+    void splitTrailingGlossAcceptsATrailingAsciiTabAfterTheCloseParen()
+    {
+        // Narrowing the trim loop's isSpace() to a literal ASCII space
+        // (e.g. `== QLatin1Char(' ')`) would make the fast-reject stop
+        // scanning at this trailing tab and return false before the regex
+        // ever runs -- even though the regex's own `\s*$` matches an ASCII
+        // tab exactly as well as a space, with or without
+        // UseUnicodePropertiesOption, so the correct answer is still a
+        // strip. Confirmed by mutation: narrowing the trim to
+        // `== QLatin1Char(' ')` flips this from true/"Foo" to false and
+        // fails this QVERIFY.
+        QString main;
+        const QString tabTail = QStringLiteral("Foo (Bar)") + QChar(0x0009);
+        QVERIFY(splitTrailingGloss(tabTail, &main));
+        QCOMPARE(main, QStringLiteral("Foo"));
+    }
+
+    void splitTrailingGlossRejectsATrailingIdeographicSpaceAfterTheCloseParen()
+    {
+        // U+3000 IDEOGRAPHIC SPACE satisfies QChar::isSpace(), so the
+        // fast-reject still lets this through to the real regex -- but
+        // `pattern` has no UseUnicodePropertiesOption, so its `\s` cannot
+        // consume U+3000, the trailing `$` anchor never lines up, and the
+        // whole match fails: today's correct answer is "not a gloss".
+        // Confirmed by mutation: adding
+        // QRegularExpression::UseUnicodePropertiesOption to `pattern`
+        // flips this from false to true/"Foo" and fails this QVERIFY.
+        QString main;
+        const QString ideographicTail = QStringLiteral("Foo (Bar)") + QChar(0x3000);
+        QVERIFY(!splitTrailingGloss(ideographicTail, &main));
+    }
+
+    // The two hand-written cases above pin one ASCII and one non-ASCII
+    // whitespace character each, chosen for readability -- but a hardcoded
+    // pair only proves the fast-reject and the bare regex agree on those
+    // two code points, not on the boundary between them. QChar::isSpace()
+    // is true for considerably more than "the 5 ASCII controls plus
+    // U+3000": this task's own investigation counted 19 codepoints where
+    // isSpace() is true but a no-option `\s` is false (U+0085, U+00A0,
+    // U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000), and
+    // a change that narrows the trim loop to exclude just one of the five
+    // ASCII ones (not necessarily the tab the hand-written case above
+    // uses), or that widens the regex's whitespace class to accept just
+    // one more of those 19 (not necessarily U+3000, and not necessarily
+    // via UseUnicodePropertiesOption -- e.g. splicing a single extra
+    // codepoint like NBSP into the character class), would slip past
+    // both hand-written cases untouched.
+    //
+    // Rather than hardcode that 19-codepoint list as a second snapshot
+    // (which would just move the staleness risk rather than remove it --
+    // QChar::isSpace() comes from Qt's own Unicode tables and a bare `\s`
+    // from PCRE2's, and either can shift between Qt/PCRE versions, and
+    // this project's CI builds on both Arch and Debian 13), this test
+    // derives the boundary itself at run time: for every codepoint in the
+    // Basic Multilingual Plane, a bare `\s` (built with no options at
+    // all, exactly like splitTrailingGloss's own `pattern`) is asked
+    // whether it matches that single character, and splitTrailingGloss is
+    // required to agree. The scan stops at U+FFFF (the end of the BMP)
+    // rather than the U+3000 this task's own investigation happened to
+    // find every hit at: every Unicode whitespace category (Zs, plus the
+    // Zl/Zp line/paragraph separators) is assigned entirely within the
+    // BMP, so nothing above U+FFFF can ever make QChar::isSpace() true,
+    // and there is no need to encode that as a second, unverified claim
+    // -- the row count the run below produces is itself the check that
+    // no isSpace()-true codepoint exists past where this task counted 19.
+    // Stopping at U+FFFF also keeps every codepoint a single QChar (no
+    // surrogate pairs to assemble), which a supplementary-plane scan
+    // would otherwise require.
+    void splitTrailingGlossFastRejectAgreesWithTheBareRegexForEveryWhitespaceCodepoint_data()
+    {
+        QTest::addColumn<uint>("codepoint");
+        QTest::addColumn<bool>("bareRegexMatches");
+
+        // Independent of matcher.cpp's `pattern`: this is *this test's own*
+        // re-derivation of "what does a no-option `\s` match", so a change
+        // to matcher.cpp cannot also change what this test expects.
+        static const QRegularExpression bareWhitespace(QStringLiteral(R"(^\s$)"));
+
+        for (uint c = 0x0000; c <= 0xFFFF; ++c) {
+            const QChar ch(static_cast<char16_t>(c));
+            if (!ch.isSpace()) {
+                continue;
+            }
+            const bool bareMatches = bareWhitespace.match(QString(ch)).hasMatch();
+            QTest::newRow(qPrintable(QStringLiteral("U+%1").arg(c, 4, 16, QLatin1Char('0')).toUpper()))
+                << c << bareMatches;
+        }
+    }
+
+    void splitTrailingGlossFastRejectAgreesWithTheBareRegexForEveryWhitespaceCodepoint()
+    {
+        QFETCH(uint, codepoint);
+        QFETCH(bool, bareRegexMatches);
+
+        const QString title = QStringLiteral("Foo (Bar)") + QChar(static_cast<char16_t>(codepoint));
+        QString main;
+        const bool stripped = splitTrailingGloss(title, &main);
+
+        // Mutation 1 (this task, 2026-09-12): narrowing the trim loop to
+        // `== QLatin1Char(' ')` instead of isSpace() fails every row whose
+        // codepoint is an isSpace()-true ASCII control the regex's `\s`
+        // still matches (U+0009, U+000A, U+000B, U+000C, U+000D) except
+        // U+0020 itself, not only the U+0009 the hand-written case above
+        // happens to use -- confirmed: excluding only U+000B (leaving the
+        // other four alone) fails exactly row "U+000B" here while the
+        // hand-written tab case stays green.
+        // Mutation 2 (this task): adding
+        // QRegularExpression::UseUnicodePropertiesOption to `pattern` fails
+        // every one of the 19 non-ASCII rows at once (U+0085, U+00A0,
+        // U+1680, U+2000-U+200A, U+2028, U+2029, U+202F, U+205F, U+3000),
+        // not only the U+3000 row the hand-written case above happens to
+        // use.
+        // Mutation 4 (this task): widening the pattern's tail to
+        // `[\s\x{00A0}]*` (no UCP option at all) fails exactly row
+        // "U+00A0", which neither hand-written case above covers.
+        QCOMPARE(stripped, bareRegexMatches);
+        if (stripped) {
+            QCOMPARE(main, QStringLiteral("Foo"));
+        }
     }
 
     void unrelatedBracketedAsideCannotDragAWrongSongOverThreshold()
