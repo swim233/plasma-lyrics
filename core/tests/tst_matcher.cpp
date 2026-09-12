@@ -1488,6 +1488,84 @@ private Q_SLOTS:
         QVERIFY(isAcceptableMatch({candidate, score}));
     }
 
+    // qa-4 regression (2026-09-12): score.durationComparable's own
+    // definition is `query.lengthMs > 0 && candidate.lengthMs > 0` --
+    // strictly both sides, not either. The pair above only ever probes it
+    // with both sides 0 (both unknown), which cannot tell `&&` apart from
+    // `||`, from a query-only `query.lengthMs > 0`, or from a
+    // candidate-only `candidate.lengthMs > 0`: all four give the exact same
+    // (false) answer when both sides already agree. That gap matters
+    // because "one side known, one side unknown" is not an edge case here
+    // -- it is the *normal* shape of a real resolver run: AMLL's index is
+    // structurally incapable of supplying a candidate duration at all,
+    // while MPRIS almost always supplies one for the query. Same fixture as
+    // nonStrippedArtistStripVariantAlreadyAcceptableBypassesTheDurationGate
+    // (score.duration collapses to the same 0.5 whether zero, one, or both
+    // sides carry a length -- see scoreCandidate -- so titleWithoutStrip
+    // and the escape hatch's totalWithoutStrip are unaffected either way),
+    // with a duration added to exactly one side per test so each direction
+    // of `&&` is exercised on its own.
+    //
+    // Verified against three control mutations of matcher.cpp's
+    // `durationComparable = query.lengthMs > 0 && candidate.lengthMs > 0;`
+    // (each applied alone, full ctest run, then reverted -- net diff to
+    // matcher.cpp is zero):
+    //   1. `&&` -> `||`                        : both tests below fail.
+    //   2. `query.lengthMs > 0` alone           : QueryDurationIsKnown fails.
+    //   3. `candidate.lengthMs > 0` alone       : CandidateDurationIsKnown fails.
+    // Do not read those three as this pair's own doing: measured, each of
+    // them also reds out pre-existing cases
+    // (glossVariantDurationGateRejectsWhenEitherSideDurationIsUnknown and
+    // friends), so that direction was already guarded and these two tests
+    // only add a second, more direct witness.
+    // In every mutated case the failure is the same shape: durationComparable
+    // flips to true, durationDifferenceMs becomes qAbs(355000 - 0) = 355000
+    // (far outside the 2000ms window), the gate outcome flips from Bypassed
+    // to OutsideWindow, and isAcceptableMatch turns false.
+    //
+    // A fourth mutation is the one these two tests exist for. It is not a
+    // slip of the fingers but the edit a reader makes on purpose after
+    // reading a release note that says the hatch opens only when BOTH sides
+    // are unknown: leave durationComparable alone and narrow the hatch
+    // itself to `both sides <= 0 && nonStrippedMatchAloneIsAcceptable`.
+    // Measured, not assumed: with that edit applied and these two tests
+    // disabled, the whole suite is still 30/30 green -- the pre-existing
+    // tests all pass a known duration on both sides, so none of them can
+    // see it. With these two tests enabled, ctest reports 122 passed /
+    // 2 failed and the two failures are exactly these. They are the only
+    // thing standing between that edit and a silent loss of the production
+    // main path: AMLL never supplies a candidate duration while MPRIS
+    // usually supplies the query's, so "known on one side only" is the
+    // common case in the field, not an edge case.
+    void nonStrippedArtistStripVariantBypassesTheDurationGateWhenOnlyQueryDurationIsKnown()
+    {
+        const TrackQuery query{QStringLiteral("Bohemian Rhapsody Queen"), {QStringLiteral("Queen")}, QString(),
+                               355000};
+        const Candidate candidate{QStringLiteral("real"), QStringLiteral("Bohemian Rhapsody"),
+                                  {QStringLiteral("Queen")}, QString(), 0};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QVERIFY(score.titleViaArtistStrip);
+        QCOMPARE(score.titleWithoutStrip, 17.0 / 23.0);
+        QVERIFY(!score.durationComparable);
+        QVERIFY(isAcceptableMatch({candidate, score}));
+    }
+
+    void nonStrippedArtistStripVariantBypassesTheDurationGateWhenOnlyCandidateDurationIsKnown()
+    {
+        const TrackQuery query{QStringLiteral("Bohemian Rhapsody Queen"), {QStringLiteral("Queen")}, QString(), 0};
+        const Candidate candidate{QStringLiteral("real"), QStringLiteral("Bohemian Rhapsody"),
+                                  {QStringLiteral("Queen")}, QString(), 355000};
+
+        const auto score = scoreCandidate(query, candidate);
+
+        QVERIFY(score.titleViaArtistStrip);
+        QCOMPARE(score.titleWithoutStrip, 17.0 / 23.0);
+        QVERIFY(!score.durationComparable);
+        QVERIFY(isAcceptableMatch({candidate, score}));
+    }
+
     void nonStrippedGlossVariantInsufficientStillEntersTheDurationGate()
     {
         // Contrast case: when the plain variant does NOT clear the bars on
