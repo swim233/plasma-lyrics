@@ -79,8 +79,11 @@ constexpr int kMaximumSearchAttempts = 3;
 // provider's own attempts; on the lyric path Qt adds one transparent retry
 // of its own, because fetch is a GET and Qt re-sends an idempotent request
 // once when the connection closes unanswered -- so a fetch that keeps losing
-// its connection puts 4 requests on the wire, not 3. Measured, not assumed:
-// the POST search produces exactly 3 under the same conditions.
+// its connection puts 4 requests on the wire, not 3. Measured, not assumed --
+// and the measurement depends on the Qt: the POST search produces 3 on 6.11,
+// which re-sends only the idempotent GET, and 4 on 6.8, which re-sends the
+// POST too. Both are Qt being transparent about it; the provider's own budget
+// is 3 either way.
 constexpr int kMaximumTransportAttempts = 3;
 
 // QQ returns this single line in place of lyrics for a track it holds no

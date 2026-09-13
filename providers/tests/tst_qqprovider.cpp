@@ -627,7 +627,18 @@ private Q_SLOTS:
         QVERIFY(server.start());
         QqProvider provider(server.baseUrl(), server.baseUrl(), 2000, 0);
         const auto result = searchAndWait(provider, {QStringLiteral("song"), {}, QString(), 0});
-        QCOMPARE(server.requestCount(), 3);
+        // Three provider attempts -- it logs attempt=1/3..3/3 on every Qt --
+        // but the wire count is not the same number on every Qt. Qt re-sends
+        // a request whose connection closed before any response arrived; 6.8
+        // does that for the POST as well, 6.9 onwards only for the idempotent
+        // GET, which is why the fetch half of
+        // fetchSeparatesHttpFailureFromTransportFailure is four everywhere
+        // and this one is three or four. Measured: 3 on 6.11 (Arch), 4 on 6.8
+        // (Debian trixie, which is what the Debian CI job builds against).
+        // Pinning it to either number fails the suite on the other Qt.
+        const int wire = server.requestCount();
+        QVERIFY2(wire == 3 || wire == 4,
+                 qPrintable(QStringLiteral("requests on the wire: %1").arg(wire)));
         QVERIFY(result.candidates.isEmpty());
         QVERIFY(result.transportFailed);
     }
@@ -675,11 +686,13 @@ private Q_SLOTS:
             // Four, not kMaximumTransportAttempts. fetch is a GET, and Qt
             // retries an idempotent request once on its own when the
             // connection closes without a response, so the server sees one
-            // more request than the provider makes attempts. Measured both
-            // ways: the provider logs attempt=1/3..3/3 here, while a POST
-            // search against the same scripted abort produces exactly 3
-            // connections. Asserting 3 here would be asserting the provider's
-            // bookkeeping rather than what actually reaches the network.
+            // more request than the provider makes attempts -- the same on
+            // 6.8 and on 6.11, with the provider logging attempt=1/3..3/3
+            // either way. The search path is not that stable across Qt
+            // versions, which is why the test above accepts two counts; the
+            // GET path is, so this one stays exact. Asserting 3 here would be
+            // asserting the provider's bookkeeping rather than what actually
+            // reaches the network.
             QCOMPARE(server.requestCount(), 4);
             QVERIFY(!result.document.has_value());
             QVERIFY(result.transportFailed);
