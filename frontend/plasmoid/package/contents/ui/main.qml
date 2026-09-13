@@ -293,6 +293,15 @@ PlasmoidItem {
         secondLineColorEnabled: Plasmoid.configuration.desktopSecondLineColorEnabled
         secondLineColor: Plasmoid.configuration.desktopSecondLineColor
         lineHeightPercent: Plasmoid.configuration.desktopLineHeight
+        // DESIGN.md decision 69/73: the desktop form factor cannot go below
+        // 125% -- below it, the previous line's descenders can reach into
+        // the next line's ink. The panel (compactRepresentation above)
+        // leaves this at LyricsView's own 100% default; its height is not
+        // this widget's to grow, and at 100% it never had lift headroom to
+        // begin with. Kept as a literal, matching AppearanceSection.qml's
+        // lineHeightMin: 125 override in ConfigDesktopAppearance.qml rather
+        // than sharing one constant -- DESIGN.md decision 69 has the reasoning.
+        lineHeightMinPercent: 125
         wordByWord: Plasmoid.configuration.desktopWordByWord
         wordUnsungColor: Plasmoid.configuration.desktopWordUnsungColor
         wordActiveColor: Plasmoid.configuration.desktopWordActiveColor

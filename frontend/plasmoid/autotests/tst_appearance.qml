@@ -1344,6 +1344,59 @@ TestCase {
         compare(desktopPage.cfg_desktopWordActiveColor, "#55667788");
     }
 
+    // DESIGN.md decision 69/73: below 125% line height, the previous line's
+    // descenders can reach into the next line's ink -- the desktop form
+    // factor's stored lineHeightPercent is therefore clamped up to 125% at
+    // render time, in LyricsView rather than main.qml (a PlasmoidItem the
+    // suite cannot instantiate, per CLAUDE.md). The panel keeps the 100%
+    // floor because its height is not this widget's to grow.
+    function test_lineHeightPercentClampsToLineHeightMinPercent() {
+        const source = createTemporaryObject(fakeSourceComponent, this);
+
+        // A stored value below the desktop floor is clamped up.
+        const desktop = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, lineHeightPercent: 100, lineHeightMinPercent: 125 });
+        verify(desktop !== null);
+        const desktopLyric = findAll(desktop, o => o.shownText !== undefined)[0];
+        verify(desktopLyric !== undefined);
+        compare(desktopLyric.lineHeightFactor, 1.25);
+
+        // lineHeightMinPercent left at its default (100, main.qml's panel
+        // instance never sets it): an equally low stored value passes
+        // through unclamped.
+        const panel = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, lineHeightPercent: 100 });
+        verify(panel !== null);
+        const panelLyric = findAll(panel, o => o.shownText !== undefined)[0];
+        verify(panelLyric !== undefined);
+        compare(panelLyric.lineHeightFactor, 1.0);
+
+        // And a stored value already above the floor is not pulled down to
+        // it -- this only ever raises, never overrides.
+        const desktopAbove = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, lineHeightPercent: 160, lineHeightMinPercent: 125 });
+        const desktopAboveLyric = findAll(desktopAbove, o => o.shownText !== undefined)[0];
+        verify(desktopAboveLyric !== undefined);
+        compare(desktopAboveLyric.lineHeightFactor, 1.6);
+    }
+
+    // The SpinBox itself carries the same 125 floor on the desktop config
+    // page, so a user cannot even ask for less than the render-time clamp
+    // already enforces. AppearanceSection is shared by both form factors
+    // (AppearanceSection.qml's lineHeightMin default is the panel's 100),
+    // so this also guards against the desktop page's override leaking into
+    // the panel page, which is a separate component instance.
+    function test_lineHeightSpinBoxFloorDiffersByFormFactor() {
+        const desktopPage = createTemporaryObject(configDesktopAppearanceComponent, this);
+        const panelPage = createTemporaryObject(configPanelAppearanceComponent, this);
+        const desktopSpinBox = findAll(desktopPage, o => o.objectName === "lineHeightSpinBox")[0];
+        const panelSpinBox = findAll(panelPage, o => o.objectName === "lineHeightSpinBox")[0];
+        verify(desktopSpinBox !== undefined);
+        verify(panelSpinBox !== undefined);
+        compare(desktopSpinBox.from, 125);
+        compare(panelSpinBox.from, 100);
+    }
+
     function test_textConfigurationUsesOneEmptyFallbackSwitch() {
         const page = createTemporaryObject(configTextComponent, this);
         verify(page !== null);

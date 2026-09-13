@@ -25,6 +25,12 @@ Kirigami.FormLayout {
     property bool secondLineColorEnabled: false
     property string secondLineColor: "#adfffaf5"
     property int lineHeightPercent: 125
+    // Floor for the SpinBox below, not for lineHeightPercent itself: the
+    // desktop and panel config pages share this one component, and only the
+    // desktop page raises it (see ConfigDesktopAppearance.qml). Left at
+    // 100 -- the panel's own floor -- rather than doubling as some kind of
+    // shared default, since the panel page never sets it at all.
+    property int lineHeightMin: 100
     required property var fontSizeControl
     // Still the second line's on/off switch; the combo below turns it and
     // secondLineSource into the one three-way choice the user sees.
@@ -142,8 +148,22 @@ Kirigami.FormLayout {
         onActivated: root.fontWeightEdited(root.fontWeightValues[currentIndex])
     }
     QQC2.SpinBox {
+        objectName: "lineHeightSpinBox"
         Kirigami.FormData.label: i18n("Line height:")
-        from: 100
+        // A stored value below `from` on the desktop page (any value saved
+        // before this floor existed) is NOT rejected or migrated: `value` is
+        // a one-way binding from the stored cfg_desktopLineHeight, and QQC2
+        // only clamps what it *displays* -- that clamped 125 never writes
+        // back to cfg_desktopLineHeight (onValueModified fires only on
+        // actual user interaction, never from this binding alone), and the
+        // shell's saveConfig() writes whatever cfg_desktopLineHeight still
+        // holds. So a stale value below 125 stays in the config file
+        // indefinitely, through any number of dialog opens and saves, until
+        // the user actually drags/types/arrows this control themselves.
+        // Rendering is unaffected regardless -- LyricsView's own
+        // Math.max(lineHeightMinPercent, lineHeightPercent) clamp applies
+        // independently of what is stored.
+        from: root.lineHeightMin
         to: 200
         stepSize: 5
         value: root.lineHeightPercent

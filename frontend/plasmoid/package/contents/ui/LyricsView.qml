@@ -27,6 +27,13 @@ Item {
     property bool secondLineColorEnabled: false
     property color secondLineColor: "#adfffaf5"
     property int lineHeightPercent: 125
+    // Floor applied at render time, independent of what is actually stored
+    // in the configuration -- see main.qml's fullRepresentation (125, the
+    // desktop instance) and compactRepresentation (unset, so this default of
+    // 100 stands for the panel). Read here rather than clamped in main.qml,
+    // which is a PlasmoidItem the QML test suite cannot instantiate
+    // (CLAUDE.md); LyricsView can be, so the clamp is testable here instead.
+    property int lineHeightMinPercent: 100
 
     property bool wordByWord: true
     property color wordUnsungColor: "#8cfffaf5"
@@ -294,7 +301,7 @@ Item {
             brightnessEnabled: root.wordBrightness
             brightnessStrength: root.wordBrightnessPercent / 100
             blurGlowEnabled: root.wordBlurGlow
-            lineHeightFactor: root.lineHeightPercent / 100
+            lineHeightFactor: Math.max(root.lineHeightMinPercent, root.lineHeightPercent) / 100
         }
     }
 

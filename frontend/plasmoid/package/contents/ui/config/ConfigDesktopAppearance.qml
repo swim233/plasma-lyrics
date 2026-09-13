@@ -85,6 +85,10 @@ Kirigami.ScrollablePage {
             secondLineColorEnabled: page.cfg_desktopSecondLineColorEnabled
             secondLineColor: page.cfg_desktopSecondLineColor
             lineHeightPercent: page.cfg_desktopLineHeight
+            // Kept as a literal, matching main.qml's fullRepresentation
+            // lineHeightMinPercent: 125 override rather than sharing one
+            // constant -- DESIGN.md decision 69 has the reasoning.
+            lineHeightMin: 125
             liftSupported: true
             wordByWord: page.cfg_desktopWordByWord
             wordUnsungColor: page.cfg_desktopWordUnsungColor
