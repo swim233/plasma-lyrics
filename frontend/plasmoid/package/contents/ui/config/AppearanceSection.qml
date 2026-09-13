@@ -303,7 +303,7 @@ Kirigami.FormLayout {
     QQC2.CheckBox {
         Kirigami.FormData.label: i18n("Blurred glow:")
         visible: root.wordByWord
-        text: i18n("Add a blurred halo. Costs noticeably more to draw than brightening alone.")
+        text: i18n("Add a blurred halo; fast passages show several at once. Costs noticeably more to draw than brightening alone.")
         checked: root.wordBlurGlow
         onToggled: root.wordBlurGlowEdited(checked)
     }

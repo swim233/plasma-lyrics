@@ -702,8 +702,12 @@ TestCase {
 
         line.liftEnabled = true;
         // The item clips, so without this the lift would simply be cut off --
-        // at fontSize 40 the 1.25 line box leaves under 2px above the glyphs.
-        compare(line.liftHeadroom, Math.ceil(40 * line.liftEm));
+        // at fontSize 40 the 1.25 line box leaves under 2px above the glyphs,
+        // and the spring's peak sits liftOvershoot above the settled lift, so
+        // the reserve is sized for the peak: ceil(40 × 0.14 × 1.1) = 7 where
+        // the settled lift alone would round to 6 (decision 73).
+        compare(line.liftHeadroom, Math.ceil(40 * line.liftEm * (1 + line.liftOvershoot)));
+        compare(line.liftHeadroom, 7);
         compare(line.height, plainHeight + line.liftHeadroom);
 
         // Reserved by the setting alone. A track that carries no word timings
@@ -711,7 +715,7 @@ TestCase {
         // time playback crossed between two kinds of source.
         line.words = [];
         verify(!line.wordMode);
-        compare(line.liftHeadroom, Math.ceil(40 * line.liftEm));
+        compare(line.liftHeadroom, Math.ceil(40 * line.liftEm * (1 + line.liftOvershoot)));
         compare(line.height, plainHeight + line.liftHeadroom);
     }
 
@@ -964,7 +968,7 @@ TestCase {
         compare(view.effectiveWords.length, 0);
     }
 
-    function test_blurredGlowIsOffByDefaultAndBuiltOnlyForTheCurrentWord() {
+    function test_blurredGlowIsOffByDefaultAndFollowsEachWordUntilItSettles() {
         const line = createTemporaryObject(wordLineComponent, this,
             { words: twoWords, positionMs: 500 });
         const loaders = findAll(line, o => o.active !== undefined && o.sourceComponent !== undefined);
@@ -974,12 +978,35 @@ TestCase {
         compare(loaders.filter(l => l.active).length, 0);
 
         line.blurGlowEnabled = true;
-        // One halo, for the word being sung -- not one per word.
+        // One halo: the first word is being sung, the second has not started.
         compare(loaders.filter(l => l.active).length, 1);
-        line.positionMs = 1500;
+        // Two: the second word is being sung while the first is still coming
+        // down. The halo lives while the glyph moves visibly, not only while
+        // the word is sung, so it fades with the glyph instead of vanishing
+        // at endMs with the glyph still in the air (decision 73).
+        line.positionMs = 1200;
+        compare(loaders.filter(l => l.active).length, 2);
+        // Back to one at endMs + liftReleaseMs: the halo's window closes
+        // there, before the glyph has settled, because the release crossed
+        // zero at ~210 ms and the clipped glow never exceeds ~1% afterwards.
+        // The glyph itself is still in flight at that point.
+        line.positionMs = 1000 + line.liftReleaseMs;
         compare(loaders.filter(l => l.active).length, 1);
-        line.positionMs = 2500;
+        verify(line.liftEnvelope(1000 + line.liftReleaseMs, 0, 1000) !== 0);
+        // ...and none once the last word's window has closed too. The window
+        // is time-based and closes for good; a threshold on the envelope's
+        // value would re-open it at each zero crossing of the release.
+        line.positionMs = 2000 + line.liftReleaseMs;
         compare(loaders.filter(l => l.active).length, 0);
+
+        // A zero-length token never moves, so it never gets a halo either:
+        // 1.4% of real words are zero-length (trailing punctuation), and each
+        // would otherwise hold an invisible MultiEffect for the whole window.
+        line.words = [{ startMs: 0, endMs: 0, text: "…" }, { startMs: 0, endMs: 1000, text: "abc" }];
+        line.positionMs = 100;
+        const rebuilt = findAll(line, o => o.active !== undefined && o.sourceComponent !== undefined);
+        compare(rebuilt.length, 2);
+        compare(rebuilt.filter(l => l.active).length, 1);
     }
 
     function test_brighteningMovesTheColorOfTheWordBeingSung() {
@@ -993,16 +1020,86 @@ TestCase {
         line.brightnessEnabled = true;
         // Qt.lighter() would be inert here -- these colours already sit at HSV
         // value 1.0 -- so the brightening has to move the alpha too. The
-        // target is computed, not eyeballed: envelope sin(0.5π) = 1 at
-        // positionMs 500, strength 0.6, so 0.690196 + (1 - 0.690196) × 0.6.
+        // target is computed, not eyeballed: at positionMs 500 the spring has
+        // settled (within 2% of 1 after about 255 ms at ζ 0.59), the envelope
+        // is clipped to 1, strength 0.6, so 0.690196 + (1 - 0.690196) × 0.6.
         // An earlier "> 0.69" here was worthless -- 0xb0/255 = 0.690196 is
         // already greater than it, so the assertion held with the entire
         // brightening mechanism deleted.
         fuzzyCompare(texts[0].color.a, 0.876, 0.01);
-        // ... and it is anchored to the envelope, so it is back at the base
-        // colour by the time the word ends.
+        // At the peak the envelope is 1.1 and the brightening clips it to 1.
+        // Unclipped it would read 0.690196 + 0.309804 × 0.66 = 0.8947, which
+        // the tolerance here rejects; the 500 ms probe above cannot tell the
+        // two apart because the envelope has settled to 1 there.
+        line.positionMs = line.liftArriveMs;
+        fuzzyCompare(texts[0].color.a, 0.876, 0.005);
+        // Held, not a hump: still fully bright just before the word ends. The
+        // sin(p·π) envelope this replaced was back at the base colour here.
         line.positionMs = 999;
-        fuzzyCompare(texts[0].color.a, 0.69, 0.02);
+        fuzzyCompare(texts[0].color.a, 0.876, 0.01);
+        // The release dips under the baseline at endMs + liftReleaseMs; the
+        // brightening clips the envelope to 0 there, so a word already in the
+        // sung colour is exactly the sung colour, never darker than it.
+        line.positionMs = 1000 + line.liftReleaseMs;
+        compare(texts[0].color.toString(), "#a0ffffff");
+        // And once settled it stays there.
+        line.positionMs = 1000 + line.liftSettleMs + 1;
+        compare(texts[0].color.toString(), "#a0ffffff");
+    }
+
+    // The bounds below are derived from the three constants, not eyeballed:
+    // 10% overshoot gives ζ ≈ 0.59, the first peak lands at liftArriveMs by
+    // construction, the system is within 2% of rest after -ln(0.02)/(ζω) ≈
+    // 255 ms, and the release reaches its lowest point -- liftOvershoot of the
+    // released height under the baseline -- liftReleaseMs after endMs.
+    function test_liftEnvelopeIsATimeBasedSpringNotAProgressCurve() {
+        const line = createTemporaryObject(wordLineComponent, this, { words: twoWords });
+        // Decision 73's constants, pinned directly: every other assertion in
+        // this file reads them back through the component, so a changed
+        // constant would move the probe points along with it and pass.
+        compare(line.liftArriveMs, 150);
+        compare(line.liftOvershoot, 0.10);
+        compare(line.liftReleaseMs, 300);
+        fuzzyCompare(line.liftSettleMs, 628, 1);
+        compare(line.liftEnvelope(-1, 0, 1000), 0);
+        compare(line.liftEnvelope(0, 0, 1000), 0);
+        fuzzyCompare(line.liftEnvelope(line.liftArriveMs, 0, 1000), 1 + line.liftOvershoot, 0.005);
+        // Settled and held for as long as the word is sung.
+        fuzzyCompare(line.liftEnvelope(500, 0, 1000), 1, 0.02);
+        fuzzyCompare(line.liftEnvelope(999, 0, 1000), 1, 0.02);
+        // Time-based: the same instant reads the same on a five-second word.
+        // A progress-based curve would put 150 ms of a 5 s word at 3%.
+        compare(line.liftEnvelope(150, 0, 5000), line.liftEnvelope(150, 0, 1000));
+        // Release: lowest point liftReleaseMs after endMs, exactly 0 once
+        // settled -- not merely small, because a sub-pixel y that keeps
+        // changing would re-render every sung word on every frame.
+        fuzzyCompare(line.liftEnvelope(1000 + line.liftReleaseMs, 0, 1000), -line.liftOvershoot, 0.01);
+        verify(Math.abs(line.liftEnvelope(1000 + line.liftSettleMs - 1, 0, 1000)) < 0.012);
+        compare(line.liftEnvelope(1000 + line.liftSettleMs, 0, 1000), 0);
+        // A word shorter than the arrive time is released part-way up, from
+        // wherever it got to, and dips by its own share of the overshoot.
+        // 50 ms into the rise the closed form gives
+        // 1 − e^(−ζω·0.05)·(cos(ω_d·0.05) + (ζ/√(1−ζ²))·sin(ω_d·0.05)) with
+        // ζ 0.5912, ω 25.97 rad/s, ω_d 20.95 rad/s, i.e. 0.4734. This is the
+        // one probe on the curve's mid-rise shape: at the peak, on the plateau
+        // and at the release's lowest point the sine term is zero or the
+        // exponential negligible, so a wrong ζ/√(1−ζ²) coefficient shows up
+        // only here (with the coefficient dropped it reads 0.530).
+        const short50 = line.liftEnvelope(50, 0, 50);
+        fuzzyCompare(short50, 0.4734, 0.01);
+        fuzzyCompare(line.liftEnvelope(50 + line.liftReleaseMs, 0, 50), -short50 * line.liftOvershoot, 0.005);
+
+        // And the glyph follows it: at fontSize 40, liftEm 0.14 the peak is
+        // 40 × 0.14 × 1.1 = 6.16 px up, the release's lowest point 0.56 px
+        // down, and rest is exactly 0.
+        line.liftEnabled = true;
+        line.positionMs = line.liftArriveMs;
+        const texts = wordTextsOf(line);
+        fuzzyCompare(texts[0].y, -40 * line.liftEm * (1 + line.liftOvershoot), 0.05);
+        line.positionMs = 1000 + line.liftReleaseMs;
+        fuzzyCompare(texts[0].y, 40 * line.liftEm * line.liftOvershoot, 0.05);
+        line.positionMs = 1000 + line.liftSettleMs;
+        compare(texts[0].y, 0);
     }
 
     function test_wholeLineStrokeIsUnchangedAndWordStrokeUsesTextOutline() {

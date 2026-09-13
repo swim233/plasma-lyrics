@@ -31,6 +31,72 @@ Item {
     property bool blurGlowEnabled: false
     property real lineHeightFactor: 1.25
 
+    // Word-lift dynamics (DESIGN.md decision 73). Constants, not
+    // configuration: properties only so that tests can pin them. A word's
+    // envelope is a damped-spring step response in absolute time -- it rises
+    // to liftEm in liftArriveMs however long it is sung, holds there, and is
+    // released at its endMs with the same damping ratio, so it dips under the
+    // baseline once before it rests. Measured on this machine's cache (22
+    // word-timed tracks, ~9 000 words): median word 230 ms, 55% under 250 ms,
+    // 92.5% of adjacent words touching. The progress-based sin(p·π) this
+    // replaced rose and fell inside the word, so a 230 ms word twitched for
+    // 115 ms each way and never rested anywhere.
+    property real liftArriveMs: 150     // startMs to the first peak
+    property real liftOvershoot: 0.10   // how far that peak exceeds liftEm
+    property real liftReleaseMs: 300    // endMs to the lowest point
+
+    // ζ from the overshoot, os = exp(-ζπ/√(1-ζ²)). The floor keeps the system
+    // under-damped so the closed form stays finite; the overshoot 0.1% implies
+    // is invisible. Headroom below uses the raw value, not this clamped one.
+    readonly property real liftDamping: {
+        const l = Math.log(Math.max(0.001, Math.min(0.9, root.liftOvershoot)));
+        return -l / Math.sqrt(Math.PI * Math.PI + l * l);
+    }
+    readonly property real liftDampingRoot: Math.sqrt(1 - root.liftDamping * root.liftDamping)
+    // Natural frequencies (rad/s) that put the first peak of the rise at
+    // liftArriveMs and the lowest point of the release at liftReleaseMs:
+    // t_peak = π / (ω·√(1-ζ²)).
+    readonly property real liftRiseOmega: Math.PI / (root.liftArriveMs / 1000 * root.liftDampingRoot)
+    readonly property real liftReleaseOmega: Math.PI / (root.liftReleaseMs / 1000 * root.liftDampingRoot)
+    // This long after endMs the release is within 1% of rest (the
+    // oscillation's amplitude is bounded by e^(-ζωt)/√(1-ζ²)) and the envelope
+    // is snapped to exactly 0. Without the snap every sung word on the line
+    // would carry a sub-pixel y that changes on every frame, forever.
+    readonly property real liftSettleMs: 1000 * Math.log(100 / root.liftDampingRoot)
+        / (root.liftDamping * root.liftReleaseOmega)
+
+    // Unit step response of the under-damped second-order system, tau in ms.
+    function stepResponse(tauMs, omega) {
+        if (tauMs <= 0) {
+            return 0;
+        }
+        const tau = tauMs / 1000;
+        const z = root.liftDamping, q = root.liftDampingRoot;
+        return 1 - Math.exp(-z * omega * tau)
+            * (Math.cos(omega * q * tau) + (z / q) * Math.sin(omega * q * tau));
+    }
+
+    // One word's lift at lyric time t, in units of liftEm: 0 before startMs;
+    // the rise from startMs, held for as long as the word is sung (a word
+    // shorter than liftArriveMs is released part-way up); from endMs a release
+    // from wherever it was, discarding the rise's velocity; exactly 0 once
+    // settled. The release scales the step response instead of superposing a
+    // second one so that a short word cannot be driven under the baseline by
+    // a release that outruns its own rise.
+    function liftEnvelope(t, startMs, endMs) {
+        if (t < startMs) {
+            return 0;
+        }
+        if (t < endMs) {
+            return root.stepResponse(t - startMs, root.liftRiseOmega);
+        }
+        if (t >= endMs + root.liftSettleMs) {
+            return 0;
+        }
+        return root.stepResponse(endMs - startMs, root.liftRiseOmega)
+            * (1 - root.stepResponse(t - endMs, root.liftReleaseOmega));
+    }
+
     // Two overflow modes word rendering cannot take over, both falling back to
     // the whole-line path -- the same shape a source without word timings gets.
     //
@@ -53,12 +119,17 @@ Item {
 
     // Reserved above the text so a lifted word has somewhere to go: the item
     // clips, and at fontSize 34 the plain 1.25 line box leaves ~1.5px over the
-    // glyphs against a 0.14em (~4.8px) lift. Keyed on the lift setting alone,
-    // never on whether this song happens to carry words -- otherwise the text
-    // baseline would hop every time playback moved between a word-timed source
-    // and a plain one.
+    // glyphs against a 0.14em (~4.8px) lift whose spring peak is another 10%
+    // (~5.2px) on top -- hence the (1 + overshoot) factor, 6px at 34px where
+    // the settled lift alone would round to 5. Nothing is reserved below: the
+    // release dips ~10% of the lift under the baseline (~0.5px at 34px), which
+    // the line box's own bottom margin absorbs except at a 100% line height,
+    // where that clipping is accepted (decision 73). Keyed on the lift setting
+    // alone, never on whether this song happens to carry words -- otherwise
+    // the text baseline would hop every time playback moved between a
+    // word-timed source and a plain one.
     readonly property real liftHeadroom: root.liftEnabled && root.overflowMode !== "wrap"
-        ? Math.ceil(root.fontSize * root.liftEm)
+        ? Math.ceil(root.fontSize * root.liftEm * (1 + root.liftOvershoot))
         : 0
     readonly property real lineHeight: Math.ceil(fontSize * root.lineHeightFactor) + root.liftHeadroom
     implicitHeight: overflowMode === "wrap" ? Math.min(mainText.implicitHeight, lineHeight * 2) : lineHeight
@@ -293,24 +364,43 @@ Item {
                 width: glyph.implicitWidth
                 height: wordRow.height
 
-                // Zero-length tokens are benign in real data (trailing
-                // punctuation lands on one), so the divisor is floored rather
-                // than the token dropped.
-                readonly property real durationMs: Math.max(1, modelData.endMs - modelData.startMs)
-                readonly property real progress: Math.max(0, Math.min(1,
-                    (root.positionMs - modelData.startMs) / word.durationMs))
                 readonly property bool started: root.positionMs >= modelData.startMs
                 readonly property bool finished: root.positionMs >= modelData.endMs
-                readonly property bool active: word.started && !word.finished
 
-                // sin(p·π): zero at both ends, peak mid-word, so a word rises
-                // and settles without a step at either boundary.
-                readonly property real envelope: root.envelopesAnimate && word.active
-                    ? Math.sin(word.progress * Math.PI)
+                // Still moving: from its start until the release has settled,
+                // which runs on past endMs -- with adjacent words touching in
+                // 92.5% of real data, a median line has up to four words in
+                // flight at once and a fast passage many more. A time window
+                // rather than a threshold on the envelope's value, because the
+                // release crosses zero more than once and a value test would
+                // flip this at every crossing. Zero-length tokens (1.4% of
+                // real words, mostly trailing punctuation) never move -- the
+                // rise is released at 0, so the envelope is identically 0 --
+                // and are kept out so they hold nothing alive.
+                readonly property bool inFlight: root.envelopesAnimate && word.started
+                    && modelData.endMs > modelData.startMs
+                    && root.positionMs < modelData.endMs + root.liftSettleMs
+                // The halo's shorter window. By endMs + liftReleaseMs the
+                // release has crossed zero (at about 0.7 × liftReleaseMs) and
+                // the clipped glow never again exceeds about 1%, so a halo
+                // kept alive to the settle point would be an invisible
+                // MultiEffect for half its life. Still a window, not a
+                // threshold, for the reason above.
+                readonly property bool haloAlive: word.inFlight
+                    && root.positionMs < modelData.endMs + root.liftReleaseMs
+                // In units of liftEm: reaches 1 + liftOvershoot at the peak and
+                // dips under 0 once during the release.
+                readonly property real envelope: word.inFlight
+                    ? root.liftEnvelope(root.positionMs, modelData.startMs, modelData.endMs)
                     : 0
+                // The brightening and the halo take the envelope clipped to
+                // 0..1: the peak does not over-brighten, and the dip does not
+                // darken a word that has just been sung.
+                readonly property real glow: Math.max(0, Math.min(1, word.envelope))
                 // Colour switches for the whole word at its own start time and
-                // is not interpolated inside it; only the lift and the
-                // brightening move within a word.
+                // is not interpolated inside it; the lift and the brightening
+                // move within a word and go on moving after it -- a word
+                // already in the sung colour is still coming down.
                 readonly property color shade: word.finished
                     ? root.sungColor
                     : (word.started ? root.activeColor : root.unsungColor)
@@ -318,11 +408,14 @@ Item {
                     ? root.fontSize * root.liftEm * word.envelope
                     : 0
 
-                // Only ever one instance: the halo is built for the one word
-                // being sung and torn down when it is not. Off by default, and
-                // the config page says what it costs.
+                // Alive for as long as the halo can be seen, so it fades with
+                // the glyph instead of vanishing at endMs while the glyph is
+                // still coming down. No longer a single instance: a median
+                // line has two or three at once, a fast passage of 20-30 ms
+                // tokens a dozen or more, and there is no cap (decision 73).
+                // Off by default, and the config page says what it costs.
                 Loader {
-                    active: root.blurGlowEnabled && word.active
+                    active: root.blurGlowEnabled && word.haloAlive
                     anchors.fill: glyph
                     sourceComponent: Item {
                         // MultiEffect hides its source and maps it 1:1 onto its
@@ -353,7 +446,7 @@ Item {
                             blur: 1.0
                             blurMax: 24
                             brightness: root.brightnessEnabled ? root.brightnessStrength : 0
-                            opacity: word.envelope
+                            opacity: word.glow
                         }
                     }
                 }
@@ -368,7 +461,7 @@ Item {
                     height: word.height
                     text: word.modelData.text
                     color: root.brightnessEnabled
-                        ? root.brightened(word.shade, word.envelope * root.brightnessStrength)
+                        ? root.brightened(word.shade, word.glow * root.brightnessStrength)
                         : word.shade
                     font.family: Kirigami.Theme.defaultFont.family
                     font.pixelSize: root.wordPixelSize

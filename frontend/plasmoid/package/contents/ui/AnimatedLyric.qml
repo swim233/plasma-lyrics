@@ -117,10 +117,12 @@ Item {
         translationText: root.previousTranslation
         // With a fade or slide transition this block goes on holding its word
         // glyphs for the ~260 ms the animation lasts, which looks wrong in a
-        // screenshot and is not. positionMs is already frozen past this line's
-        // last word by the time the transition starts, so every glyph here is
-        // in its finished state and nothing is animating -- they are being
-        // faded out, not scanned. Removing them would cost the outgoing line
+        // screenshot and is not. positionMs is past this line's last word by
+        // the time the transition starts, so every glyph here is in the sung
+        // colour; the last word may still be coming down -- its spring release
+        // (LyricLine, decision 73) runs on for ~600 ms past endMs -- and that
+        // is the intended look, the outgoing line settling as it fades, not a
+        // glyph being scanned. Removing the words would cost the outgoing line
         // its colours mid-fade for no gain.
         words: root.previousWords
         textColor: root.textColor

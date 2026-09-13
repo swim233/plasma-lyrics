@@ -373,8 +373,9 @@ msgstr "光晕："
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:287
 msgid ""
-"Add a blurred halo. Costs noticeably more to draw than brightening alone."
-msgstr "叠加模糊光晕，绘制开销明显高于仅提亮。"
+"Add a blurred halo; fast passages show several at once. Costs noticeably "
+"more to draw than brightening alone."
+msgstr "叠加模糊光晕，快唱段会同时出现多个，开销明显高于仅提亮。"
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:294
 msgid "Track info"

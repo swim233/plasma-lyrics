@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-13 02:02+0800\n"
+"POT-Creation-Date: 2026-09-13 15:19+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -373,7 +373,8 @@ msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:306
 msgid ""
-"Add a blurred halo. Costs noticeably more to draw than brightening alone."
+"Add a blurred halo; fast passages show several at once. Costs noticeably "
+"more to draw than brightening alone."
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:313
