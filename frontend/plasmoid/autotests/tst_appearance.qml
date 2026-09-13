@@ -901,7 +901,19 @@ TestCase {
     function test_aLineTooLongToFitFallsBackToTheWholeLine() {
         const words = [];
         let text = "";
-        for (let i = 0; i < 22; ++i) {
+        // Sixty, where twenty-two is already over the threshold on a machine
+        // with a CJK font installed: the fallback is decided on
+        // `metrics.width * minimumPixelSize / fontSize <= width` (LyricLine's
+        // wordMode), so at width 300 and fontSize 34 the line has to measure
+        // wider than 510px. A container with no CJK font -- which is what the
+        // Debian CI job is, it carries DejaVu and nothing else -- draws every
+        // one of these as a narrow .notdef box instead of a full-width glyph,
+        // and twenty-two of those measure ~440px, short of the threshold, so
+        // the line still fit and this test failed there and nowhere else. The
+        // count is deliberately generous rather than tuned: what is being
+        // asserted is "no pixel size can make this fit", which must not turn
+        // on which fonts the machine running the suite happens to have.
+        for (let i = 0; i < 60; ++i) {
             words.push({ startMs: i * 200, endMs: (i + 1) * 200, text: "字" });
             text += "字";
         }
