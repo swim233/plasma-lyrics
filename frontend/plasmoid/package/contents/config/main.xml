@@ -42,7 +42,7 @@
     <!-- Off restores DESIGN.md decision 38's wakeup profile exactly: it empties
          the word Repeater's model, which is also what stops the per-frame
          FrameAnimation. No combination of the colour and effect settings below
-         substitutes for it -- three identical colours neutralise the look, but
+         substitutes for it: three identical colours neutralise the look, but
          the clock keeps running because nothing can tell it the colours match. -->
     <entry name="desktopWordByWord" type="Bool"><default>true</default></entry>
     <entry name="desktopWordUnsungColor" type="String"><default>#8cfffaf5</default></entry>
