@@ -71,4 +71,17 @@ if(BUILD_TESTING)
     set_tests_properties(tst_appearance PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;LC_ALL=C.UTF-8"
         FAIL_REGULAR_EXPRESSION "Binding loop")
+
+    # package/contents/config/main.xml is read by nothing else in this tree:
+    # qmllint never opens it and tst_appearance instantiates the config pages
+    # without a schema. KConfigLoader gives up silently at the first XML error
+    # and every later <entry> vanishes, so this is the only gate between an
+    # ill-formed comment and every panel key disappearing at runtime.
+    find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
+    add_executable(tst_configschema autotests/tst_configschema.cpp)
+    target_link_libraries(tst_configschema PRIVATE Qt6::Test)
+    target_compile_definitions(tst_configschema PRIVATE
+        PLASMOID_PACKAGE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/package")
+    add_test(NAME tst_configschema COMMAND tst_configschema)
+    set_tests_properties(tst_configschema PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 endif()
