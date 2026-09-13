@@ -2,7 +2,7 @@
 
 # 🎵 Plasma 6 桌面歌词
 
-**原生 Plasma 6 同步歌词部件 —— 跟随会话中任何 MPRIS 播放器，在桌面与面板上显示滚动歌词**
+**原生 Plasma 6 同步歌词部件 —— 跟随会话中任何 MPRIS 播放器，在桌面与面板上显示滚动歌词 支持逐字歌词**
 
 [![Release](https://img.shields.io/github/v/release/swim233/plasma-lyrics?include_prereleases&style=flat-square&logo=github&color=1D99F3)](https://github.com/swim233/plasma-lyrics/releases)
 [![CI](https://img.shields.io/github/actions/workflow/status/swim233/plasma-lyrics/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI)](https://github.com/swim233/plasma-lyrics/actions/workflows/ci.yml)
@@ -13,7 +13,8 @@
 [![Qt](https://img.shields.io/badge/Qt-6.6+-41CD52?style=flat-square&logo=qt&logoColor=white)](https://www.qt.io/)
 [![C++](https://img.shields.io/badge/C%2B%2B-20-00599C?style=flat-square&logo=c%2B%2B&logoColor=white)](https://isocpp.org/)
 
-<img width="961" height="409" alt="桌面歌词部件截图" src="https://github.com/user-attachments/assets/e66dc90e-1889-4dab-9531-fb7821eb6000" />
+<img width="1340" height="579" alt="image" src="https://github.com/user-attachments/assets/b44864cd-c000-46b3-baee-7949546c2dcf" />
+
 
 [English](README.en.md) · [更新日志](CHANGELOG.md) · [报告问题](https://github.com/swim233/plasma-lyrics/issues)
 
@@ -36,7 +37,7 @@
 - 🎤 **同步滚动歌词** —— 按行高亮，支持翻译行显示
 - 🔀 **多歌词源回退** —— 默认本地 → 网易云 → AMLL，可拖拽排序、逐源启停，也可为当前歌曲指定首选源或立即重搜
 - 📁 **本地歌词源** —— 优先读取本地音频同级 `.lrc`，也可按统一匹配规则扫描自选歌词目录
-- 📚 **AMLL TTML 支持** —— 保存逐词时间与来源信息；当前界面仍按行显示，不提供逐词高亮
+- 📚 **AMLL TTML 与QQ 音乐支持** —— 现支持逐字高亮与动画
 - 🪟 **全屏可见** —— 面板形态配合「窗口置于下方」，歌词在最大化窗口旁依然可见
 - 🎨 **外观自由定制** —— 底板样式（主题 / 纯色 / 无）、文字描边、字号、六档字重、颜色
 - 📏 **溢出策略** —— 自适应缩放 `fit` / 换行 `wrap` / 跑马灯 `marquee`
