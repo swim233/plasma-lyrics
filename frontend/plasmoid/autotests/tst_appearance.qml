@@ -550,7 +550,7 @@ TestCase {
     // The companion to the assertion above: without this, `!marqueeWanted` in
     // word mode would be satisfied by a property that is simply always false.
     function test_wholeLineMarqueeStillWantsToRun() {
-        const long = [];
+        const wordTimings = [];
         let text = "";
         for (let i = 0; i < 40; ++i) { text += "word" + i + " "; }
         const line = createTemporaryObject(wordLineComponent, this,
@@ -580,8 +580,8 @@ TestCase {
         //      makes marqueeWanted false for a second, unrelated reason.
         //      Waiting on marqueeWanted above works precisely because it is
         //      false at first and therefore does pump.
-        for (let i = 0; i < 40; ++i) { long.push({ startMs: i*100, endMs: (i+1)*100, text: "word" + i + " " }); }
-        line.words = long;
+        for (let i = 0; i < 40; ++i) { wordTimings.push({ startMs: i*100, endMs: (i+1)*100, text: "word" + i + " " }); }
+        line.words = wordTimings;
         tryVerify(() => line.wordMode);
         tryVerify(() => line.marqueeApplies);
         verify(!line.marqueeWanted);
@@ -730,14 +730,14 @@ TestCase {
     }
 
     function test_wordMarqueeKeepsTheCurrentWordVisible() {
-        const long = [];
+        const wordTimings = [];
         let text = "";
         for (let i = 0; i < 40; ++i) {
-            long.push({ startMs: i * 100, endMs: (i + 1) * 100, text: "word" + i + " " });
+            wordTimings.push({ startMs: i * 100, endMs: (i + 1) * 100, text: "word" + i + " " });
             text += "word" + i + " ";
         }
         const line = createTemporaryObject(wordLineComponent, this, {
-            lineText: text, words: long, overflowMode: "marquee", positionMs: 0
+            lineText: text, words: wordTimings, overflowMode: "marquee", positionMs: 0
         });
         verify(line !== null);
         // A Row lays its children out on the next polish, so the width this
@@ -765,14 +765,14 @@ TestCase {
     // The existing whole-line regression, repeated for the word path: leaving
     // marquee mode has to land back at zero there too.
     function test_wordScrollOffsetClearsWhenLeavingMarqueeMode() {
-        const long = [];
+        const wordTimings = [];
         let text = "";
         for (let i = 0; i < 40; ++i) {
-            long.push({ startMs: i * 100, endMs: (i + 1) * 100, text: "word" + i + " " });
+            wordTimings.push({ startMs: i * 100, endMs: (i + 1) * 100, text: "word" + i + " " });
             text += "word" + i + " ";
         }
         const line = createTemporaryObject(wordLineComponent, this, {
-            lineText: text, words: long, overflowMode: "marquee", positionMs: 3500
+            lineText: text, words: wordTimings, overflowMode: "marquee", positionMs: 3500
         });
         tryVerify(() => line.wordScrollOffset < 0);
         line.overflowMode = "fit";
