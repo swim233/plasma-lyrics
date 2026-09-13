@@ -117,24 +117,23 @@ Item {
         && (root.overflowMode === "marquee" || root.width <= 0
             || metrics.width * root.minimumPixelSize / root.fontSize <= root.width)
 
-    // Reserved above the text so a lifted word has somewhere to go: the item
-    // clips, and at fontSize 34 the plain 1.25 line box leaves ~1.5px over the
-    // glyphs against a 0.14em (~4.8px) lift whose spring peak is another 10%
+    // Reserved above the text so a lifted word has somewhere to go: at
+    // fontSize 34 the plain 1.25 line box leaves ~1.5px over the glyphs
+    // against a 0.14em (~4.8px) lift whose spring peak is another 10%
     // (~5.2px) on top -- hence the (1 + overshoot) factor, 6px at 34px where
-    // the settled lift alone would round to 5. Nothing is reserved below: the
-    // release dips ~10% of the lift under the baseline (~0.5px at 34px), which
-    // the line box's own bottom margin absorbs except at a 100% line height,
-    // where that clipping is accepted (decision 73). Keyed on the lift setting
-    // alone, never on whether this song happens to carry words -- otherwise
-    // the text baseline would hop every time playback moved between a
-    // word-timed source and a plain one.
+    // the settled lift alone would round to 5. Nothing is reserved below for
+    // the release's ~10% dip under the baseline (~0.5px at 34px); that is
+    // covered by glyphSpill below, alongside the font's own descent, not by
+    // a margin sized for the lift. Keyed on the lift setting alone, never on
+    // whether this song happens to carry words -- otherwise the text
+    // baseline would hop every time playback moved between a word-timed
+    // source and a plain one.
     readonly property real liftHeadroom: root.liftEnabled && root.overflowMode !== "wrap"
         ? Math.ceil(root.fontSize * root.liftEm * (1 + root.liftOvershoot))
         : 0
     readonly property real lineHeight: Math.ceil(fontSize * root.lineHeightFactor) + root.liftHeadroom
     implicitHeight: overflowMode === "wrap" ? Math.min(mainText.implicitHeight, lineHeight * 2) : lineHeight
     height: implicitHeight
-    clip: true
 
     readonly property int minimumPixelSize: Math.round(root.fontSize * 0.6)
 
@@ -157,6 +156,23 @@ Item {
         font.weight: root.fontWeight
         text: root.lineText
     }
+
+    // The font's own line height (ascent + descent + leading), measured
+    // rather than assumed: it runs well past fontSize × lineHeightFactor
+    // (Noto Sans CJK SC measures ~1.471em against a 1.25 line box), and
+    // AlignVCenter splits that excess evenly above and below the text box --
+    // the top half lands in blank space above the caps and is invisible, the
+    // bottom half is real ink (descenders) that clip would otherwise cut.
+    // glyphSpill is that bottom half, added on both edges of clipper below so
+    // the clip rectangle is exactly as tall as the glyphs need.
+    FontMetrics {
+        id: fontMetrics
+        font: metrics.font
+    }
+
+    readonly property real glyphSpill: Math.max(0,
+        (Math.ceil(fontMetrics.height) - (root.height - root.liftHeadroom)) / 2)
+    readonly property real contentTop: root.liftHeadroom + root.glyphSpill
 
     readonly property int wordPixelSize: {
         if (root.overflowMode !== "fit" || root.width <= 0 || metrics.width <= root.width) {
@@ -299,183 +315,198 @@ Item {
                        base.a + (1 - base.a) * t);
     }
 
-    Repeater {
-        model: root.strokeEnabled && !root.wordMode ? root.directions : []
-        delegate: Text {
-            required property var modelData
-            x: mainText.x + modelData[0]
-            y: mainText.y + modelData[1]
-            width: mainText.width
-            height: mainText.height
-            text: root.lineText
-            color: root.strokeColor
-            font: mainText.font
-            fontSizeMode: mainText.fontSizeMode
-            minimumPixelSize: mainText.minimumPixelSize
-            wrapMode: mainText.wrapMode
-            maximumLineCount: mainText.maximumLineCount
-            elide: mainText.elide
-            horizontalAlignment: mainText.horizontalAlignment
-            verticalAlignment: mainText.verticalAlignment
-        }
-    }
-
-    Text {
-        id: mainText
-        visible: !root.wordMode
-        x: root.marqueeApplies ? root.marqueeOffset : 0
-        y: root.liftHeadroom
-        width: root.overflowMode === "marquee" ? implicitWidth : root.width
-        height: root.height - root.liftHeadroom
-        text: root.lineText
-        color: root.textColor
-        // The family follows the Plasma font setting; size, weight and colour
-        // stay with the widget's own configuration, because lyrics sit on the
-        // wallpaper, where a theme colour is not guaranteed to be readable --
-        // DESIGN.md decision 30.
-        font.family: Kirigami.Theme.defaultFont.family
-        font.pixelSize: root.fontSize
-        font.weight: root.fontWeight
-        fontSizeMode: root.overflowMode === "fit" ? Text.HorizontalFit : Text.FixedSize
-        minimumPixelSize: root.minimumPixelSize
-        wrapMode: root.overflowMode === "wrap" ? Text.WordWrap : Text.NoWrap
-        maximumLineCount: root.overflowMode === "wrap" ? 2 : 1
-        elide: root.overflowMode === "fit" || root.overflowMode === "wrap" || root.overflowMode === "elide"
-            ? Text.ElideRight : Text.ElideNone
-        horizontalAlignment: root.overflowMode === "marquee" ? Text.AlignLeft : Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-    }
-
-    Row {
-        id: wordRow
-        visible: root.wordMode
-        x: root.marqueeApplies ? root.wordScrollOffset : Math.max(0, (root.width - width) / 2)
-        y: root.liftHeadroom
-        height: root.height - root.liftHeadroom
+    // Clips horizontally at exactly [0, root.width] -- unchanged from when
+    // root itself clipped, so marquee/fit/elide keep the pixel-for-pixel
+    // horizontal cutoff they depend on -- but grown by glyphSpill on the top
+    // and bottom edges so a glyph's full content box (including descenders)
+    // fits inside the clip rectangle instead of the old fixed-height text box.
+    Item {
+        id: clipper
+        objectName: "lineClipper"
+        x: 0
+        width: root.width
+        y: -root.glyphSpill
+        height: root.height + 2 * root.glyphSpill
+        clip: true
 
         Repeater {
-            id: wordRepeater
-            model: root.wordMode ? root.words : []
-
-            delegate: Item {
-                id: word
+            model: root.strokeEnabled && !root.wordMode ? root.directions : []
+            delegate: Text {
                 required property var modelData
+                x: mainText.x + modelData[0]
+                y: mainText.y + modelData[1]
+                width: mainText.width
+                height: mainText.height
+                text: root.lineText
+                color: root.strokeColor
+                font: mainText.font
+                fontSizeMode: mainText.fontSizeMode
+                minimumPixelSize: mainText.minimumPixelSize
+                wrapMode: mainText.wrapMode
+                maximumLineCount: mainText.maximumLineCount
+                elide: mainText.elide
+                horizontalAlignment: mainText.horizontalAlignment
+                verticalAlignment: mainText.verticalAlignment
+            }
+        }
 
-                width: glyph.implicitWidth
-                height: wordRow.height
+        Text {
+            id: mainText
+            visible: !root.wordMode
+            x: root.marqueeApplies ? root.marqueeOffset : 0
+            y: root.contentTop
+            width: root.overflowMode === "marquee" ? implicitWidth : root.width
+            height: root.height - root.liftHeadroom
+            text: root.lineText
+            color: root.textColor
+            // The family follows the Plasma font setting; size, weight and
+            // colour stay with the widget's own configuration, because
+            // lyrics sit on the wallpaper, where a theme colour is not
+            // guaranteed to be readable -- DESIGN.md decision 30.
+            font.family: Kirigami.Theme.defaultFont.family
+            font.pixelSize: root.fontSize
+            font.weight: root.fontWeight
+            fontSizeMode: root.overflowMode === "fit" ? Text.HorizontalFit : Text.FixedSize
+            minimumPixelSize: root.minimumPixelSize
+            wrapMode: root.overflowMode === "wrap" ? Text.WordWrap : Text.NoWrap
+            maximumLineCount: root.overflowMode === "wrap" ? 2 : 1
+            elide: root.overflowMode === "fit" || root.overflowMode === "wrap" || root.overflowMode === "elide"
+                ? Text.ElideRight : Text.ElideNone
+            horizontalAlignment: root.overflowMode === "marquee" ? Text.AlignLeft : Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
 
-                readonly property bool started: root.positionMs >= modelData.startMs
-                readonly property bool finished: root.positionMs >= modelData.endMs
+        Row {
+            id: wordRow
+            visible: root.wordMode
+            x: root.marqueeApplies ? root.wordScrollOffset : Math.max(0, (root.width - width) / 2)
+            y: root.contentTop
+            height: root.height - root.liftHeadroom
 
-                // Still moving: from its start until the release has settled,
-                // which runs on past endMs -- with adjacent words touching in
-                // 92.5% of real data, a median line has up to four words in
-                // flight at once and a fast passage many more. A time window
-                // rather than a threshold on the envelope's value, because the
-                // release crosses zero more than once and a value test would
-                // flip this at every crossing. Zero-length tokens (1.4% of
-                // real words, mostly trailing punctuation) never move -- the
-                // rise is released at 0, so the envelope is identically 0 --
-                // and are kept out so they hold nothing alive.
-                readonly property bool inFlight: root.envelopesAnimate && word.started
-                    && modelData.endMs > modelData.startMs
-                    && root.positionMs < modelData.endMs + root.liftSettleMs
-                // The halo's shorter window. By endMs + liftReleaseMs the
-                // release has crossed zero (at about 0.7 × liftReleaseMs) and
-                // the clipped glow never again exceeds about 1%, so a halo
-                // kept alive to the settle point would be an invisible
-                // MultiEffect for half its life. Still a window, not a
-                // threshold, for the reason above.
-                readonly property bool haloAlive: word.inFlight
-                    && root.positionMs < modelData.endMs + root.liftReleaseMs
-                // In units of liftEm: reaches 1 + liftOvershoot at the peak and
-                // dips under 0 once during the release.
-                readonly property real envelope: word.inFlight
-                    ? root.liftEnvelope(root.positionMs, modelData.startMs, modelData.endMs)
-                    : 0
-                // The brightening and the halo take the envelope clipped to
-                // 0..1: the peak does not over-brighten, and the dip does not
-                // darken a word that has just been sung.
-                readonly property real glow: Math.max(0, Math.min(1, word.envelope))
-                // Colour switches for the whole word at its own start time and
-                // is not interpolated inside it; the lift and the brightening
-                // move within a word and go on moving after it -- a word
-                // already in the sung colour is still coming down.
-                readonly property color shade: word.finished
-                    ? root.sungColor
-                    : (word.started ? root.activeColor : root.unsungColor)
-                readonly property real lift: root.liftEnabled
-                    ? root.fontSize * root.liftEm * word.envelope
-                    : 0
+            Repeater {
+                id: wordRepeater
+                model: root.wordMode ? root.words : []
 
-                // Alive for as long as the halo can be seen, so it fades with
-                // the glyph instead of vanishing at endMs while the glyph is
-                // still coming down. No longer a single instance: a median
-                // line has two or three at once, a fast passage of 20-30 ms
-                // tokens a dozen or more, and there is no cap (decision 73).
-                // Off by default, and the config page says what it costs.
-                Loader {
-                    active: root.blurGlowEnabled && word.haloAlive
-                    anchors.fill: glyph
-                    sourceComponent: Item {
-                        // MultiEffect hides its source and maps it 1:1 onto its
-                        // own geometry, so a halo wider than the glyph has to
-                        // come from a source that is already that wide -- both
-                        // autoPaddingEnabled and paddingRect were measured to
-                        // scale the glyph down instead of growing the sampled
-                        // area. Hence a padded copy of the word rather than the
-                        // glyph itself, which also leaves the crisp glyph free
-                        // to draw over the top.
-                        Item {
-                            id: haloSource
-                            anchors.fill: parent
-                            anchors.margins: -Math.round(root.wordPixelSize * 0.35)
-                            layer.enabled: true
-                            Text {
-                                anchors.centerIn: parent
-                                text: word.modelData.text
-                                color: word.shade
-                                font: glyph.font
+                delegate: Item {
+                    id: word
+                    required property var modelData
+
+                    width: glyph.implicitWidth
+                    height: wordRow.height
+
+                    readonly property bool started: root.positionMs >= modelData.startMs
+                    readonly property bool finished: root.positionMs >= modelData.endMs
+
+                    // Still moving: from its start until the release has settled,
+                    // which runs on past endMs -- with adjacent words touching in
+                    // 92.5% of real data, a median line has up to four words in
+                    // flight at once and a fast passage many more. A time window
+                    // rather than a threshold on the envelope's value, because the
+                    // release crosses zero more than once and a value test would
+                    // flip this at every crossing. Zero-length tokens (1.4% of
+                    // real words, mostly trailing punctuation) never move -- the
+                    // rise is released at 0, so the envelope is identically 0 --
+                    // and are kept out so they hold nothing alive.
+                    readonly property bool inFlight: root.envelopesAnimate && word.started
+                        && modelData.endMs > modelData.startMs
+                        && root.positionMs < modelData.endMs + root.liftSettleMs
+                    // The halo's shorter window. By endMs + liftReleaseMs the
+                    // release has crossed zero (at about 0.7 × liftReleaseMs) and
+                    // the clipped glow never again exceeds about 1%, so a halo
+                    // kept alive to the settle point would be an invisible
+                    // MultiEffect for half its life. Still a window, not a
+                    // threshold, for the reason above.
+                    readonly property bool haloAlive: word.inFlight
+                        && root.positionMs < modelData.endMs + root.liftReleaseMs
+                    // In units of liftEm: reaches 1 + liftOvershoot at the peak and
+                    // dips under 0 once during the release.
+                    readonly property real envelope: word.inFlight
+                        ? root.liftEnvelope(root.positionMs, modelData.startMs, modelData.endMs)
+                        : 0
+                    // The brightening and the halo take the envelope clipped to
+                    // 0..1: the peak does not over-brighten, and the dip does not
+                    // darken a word that has just been sung.
+                    readonly property real glow: Math.max(0, Math.min(1, word.envelope))
+                    // Colour switches for the whole word at its own start time and
+                    // is not interpolated inside it; the lift and the brightening
+                    // move within a word and go on moving after it -- a word
+                    // already in the sung colour is still coming down.
+                    readonly property color shade: word.finished
+                        ? root.sungColor
+                        : (word.started ? root.activeColor : root.unsungColor)
+                    readonly property real lift: root.liftEnabled
+                        ? root.fontSize * root.liftEm * word.envelope
+                        : 0
+
+                    // Alive for as long as the halo can be seen, so it fades with
+                    // the glyph instead of vanishing at endMs while the glyph is
+                    // still coming down. No longer a single instance: a median
+                    // line has two or three at once, a fast passage of 20-30 ms
+                    // tokens a dozen or more, and there is no cap (decision 73).
+                    // Off by default, and the config page says what it costs.
+                    Loader {
+                        active: root.blurGlowEnabled && word.haloAlive
+                        anchors.fill: glyph
+                        sourceComponent: Item {
+                            // MultiEffect hides its source and maps it 1:1 onto its
+                            // own geometry, so a halo wider than the glyph has to
+                            // come from a source that is already that wide -- both
+                            // autoPaddingEnabled and paddingRect were measured to
+                            // scale the glyph down instead of growing the sampled
+                            // area. Hence a padded copy of the word rather than the
+                            // glyph itself, which also leaves the crisp glyph free
+                            // to draw over the top.
+                            Item {
+                                id: haloSource
+                                anchors.fill: parent
+                                anchors.margins: -Math.round(root.wordPixelSize * 0.35)
+                                layer.enabled: true
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: word.modelData.text
+                                    color: word.shade
+                                    font: glyph.font
+                                }
+                            }
+                            MultiEffect {
+                                source: haloSource
+                                anchors.fill: haloSource
+                                autoPaddingEnabled: false
+                                blurEnabled: true
+                                blur: 1.0
+                                blurMax: 24
+                                brightness: root.brightnessEnabled ? root.brightnessStrength : 0
+                                opacity: word.glow
                             }
                         }
-                        MultiEffect {
-                            source: haloSource
-                            anchors.fill: haloSource
-                            autoPaddingEnabled: false
-                            blurEnabled: true
-                            blur: 1.0
-                            blurMax: 24
-                            brightness: root.brightnessEnabled ? root.brightnessStrength : 0
-                            opacity: word.glow
-                        }
                     }
-                }
 
-                Text {
-                    id: glyph
-                    // The whole-line Text and its stroke copies are Texts too,
-                    // so the QML tests need something that says "this is a word
-                    // glyph" rather than a shape check that also matches them.
-                    objectName: "lyricWord"
-                    y: -word.lift
-                    height: word.height
-                    text: word.modelData.text
-                    color: root.brightnessEnabled
-                        ? root.brightened(word.shade, word.glow * root.brightnessStrength)
-                        : word.shade
-                    font.family: Kirigami.Theme.defaultFont.family
-                    font.pixelSize: root.wordPixelSize
-                    font.weight: root.fontWeight
-                    // Per-word outlining uses Text's own, not the eight offset
-                    // copies the whole line uses. Measured on a 35-token CJK
-                    // line: eight copies per word is 316 Text items and 9.5 ms
-                    // to rebuild on every line change, against 2.7 ms for
-                    // this. The spike lands exactly on the line change, which
-                    // is the frame the eye is on. The outline it draws is
-                    // thinner than the eight-copy one.
-                    style: root.strokeEnabled ? Text.Outline : Text.Normal
-                    styleColor: root.strokeColor
-                    verticalAlignment: Text.AlignVCenter
+                    Text {
+                        id: glyph
+                        // The whole-line Text and its stroke copies are Texts too,
+                        // so the QML tests need something that says "this is a word
+                        // glyph" rather than a shape check that also matches them.
+                        objectName: "lyricWord"
+                        y: -word.lift
+                        height: word.height
+                        text: word.modelData.text
+                        color: root.brightnessEnabled
+                            ? root.brightened(word.shade, word.glow * root.brightnessStrength)
+                            : word.shade
+                        font.family: Kirigami.Theme.defaultFont.family
+                        font.pixelSize: root.wordPixelSize
+                        font.weight: root.fontWeight
+                        // Per-word outlining uses Text's own, not the eight offset
+                        // copies the whole line uses. Measured on a 35-token CJK
+                        // line: eight copies per word is 316 Text items and 9.5 ms
+                        // to rebuild on every line change, against 2.7 ms for
+                        // this. The spike lands exactly on the line change, which
+                        // is the frame the eye is on. The outline it draws is
+                        // thinner than the eight-copy one.
+                        style: root.strokeEnabled ? Text.Outline : Text.Normal
+                        styleColor: root.strokeColor
+                        verticalAlignment: Text.AlignVCenter
+                    }
                 }
             }
         }

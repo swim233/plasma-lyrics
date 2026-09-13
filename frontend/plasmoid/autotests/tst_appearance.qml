@@ -212,13 +212,26 @@ TestCase {
     }
 
     // The outline is drawn as eight offset copies of the same Text, so most
-    // font assertions have to look at every Text under the line, not just one.
+    // font assertions have to look at every Text under the line, not just
+    // one. LyricLine.qml wraps its whole-line Text and stroke copies in an
+    // inner `clipper` Item (objectName "lineClipper", one level below the
+    // line itself), so this explicitly steps through that one wrapper --
+    // not a full recursive descent -- and stops there: the word glyphs sit
+    // a Row and a delegate Item further down inside clipper, and this must
+    // not reach them (see wordTextsOf below, which is what does).
     function textChildrenOf(item) {
         const out = [];
         for (let i = 0; i < item.children.length; ++i) {
             const child = item.children[i];
             if (child.font !== undefined && child.text !== undefined) {
                 out.push(child);
+            } else if (child.objectName === "lineClipper") {
+                for (let j = 0; j < child.children.length; ++j) {
+                    const grandchild = child.children[j];
+                    if (grandchild.font !== undefined && grandchild.text !== undefined) {
+                        out.push(grandchild);
+                    }
+                }
             }
         }
         return out;
@@ -540,10 +553,11 @@ TestCase {
     ]
 
     function wordTextsOf(line) {
-        // Not textChildrenOf(): the word glyphs sit one Row and one delegate
-        // Item below the line, where that helper does not reach. Matching on
-        // objectName rather than on shape, because the whole-line Text and its
-        // eight stroke copies are Texts with the same properties.
+        // Not textChildrenOf(): the word glyphs sit a Row and a delegate Item
+        // below clipper (itself one level below the line), where that helper
+        // deliberately does not reach. Matching on objectName rather than on
+        // shape, because the whole-line Text and its eight stroke copies are
+        // Texts with the same properties.
         return findAll(line, o => o.objectName === "lyricWord");
     }
 
@@ -717,6 +731,134 @@ TestCase {
         verify(!line.wordMode);
         compare(line.liftHeadroom, Math.ceil(40 * line.liftEm * (1 + line.liftOvershoot)));
         compare(line.height, plainHeight + line.liftHeadroom);
+    }
+
+    // Finds the inner Item that carries the vertical clip (see LyricLine.qml)
+    // by its objectName, since it has no id visible from outside the file.
+    function clipperOf(line) {
+        const found = findAll(line, o => o.objectName === "lineClipper");
+        return found.length > 0 ? found[0] : null;
+    }
+
+    // The bug this guards against: a font whose measured line height runs
+    // past fontSize × lineHeightFactor (Noto Sans CJK SC does, by a wide
+    // margin; the plain Sans Serif this suite actually renders with does
+    // too, at roughly 1.38em) has its descenders clipped off, because
+    // AlignVCenter splits the overflow evenly above and below the
+    // fixed-height text box and only the top half is blank space. Nothing
+    // before this test asserted "glyphs are never clipped" at all, which is
+    // how the bug shipped.
+    //
+    // Grounded in mainText.contentHeight -- Qt's own measurement of the
+    // rendered glyph box, read off the real Text item via textChildrenOf()
+    // -- rather than in LyricLine's internal FontMetrics, which is not
+    // exposed as a property. This is the stronger check: it verifies against
+    // what Qt actually rendered, not against the same measurement the
+    // implementation used to size glyphSpill, so a mismatch between the two
+    // would still be caught.
+    //
+    // qa-1 caught this test passing vacuously on unfixed HEAD's shape (no
+    // clipper at all, glyphSpill forced to 0) because the line above -- the
+    // suite's default lineText at width 320 -- is long enough that "fit"
+    // (the default overflowMode) shrinks mainText to minimumPixelSize
+    // (round(40 × 0.6) = 24) to make it fit; contentHeight shrinks right
+    // along with it, so the fixed-height box always looked roomy enough
+    // regardless of whether glyphSpill did anything. Fixed by using a short
+    // line in a box wide enough that "fit" never engages, plus two premise
+    // assertions that fail loudly instead of letting that happen again
+    // silently: the font must render at its configured size, and the box
+    // must actually be tight enough to need the spill.
+    function test_glyphContentNeverClipsAtAnyLineHeight() {
+        const factors = [1.0, 1.25];
+        for (let i = 0; i < factors.length; ++i) {
+            const line = createTemporaryObject(lyricLineComponent, this,
+                { fontSize: 40, lineHeightFactor: factors[i], lineText: "abcgy", width: 400 });
+            verify(line !== null);
+            const clipper = clipperOf(line);
+            verify(clipper !== null);
+            const texts = textChildrenOf(line);
+            compare(texts.length, 1);
+            const mainText = texts[0];
+            // "abcgy" rather than a descender-free string: self-documents
+            // what this guards (g/y have descenders), though geometrically
+            // contentHeight comes from the font/pixel size, not the specific
+            // characters, so any non-empty string at this size would do.
+            //
+            // Premise 1: the line at width 400 must not have been shrunk by
+            // "fit" -- otherwise contentHeight shrinks too and the
+            // assertions below stop testing anything (qa-1's finding).
+            compare(mainText.font.pixelSize, line.fontSize);
+            // Premise 2: there must actually be something for glyphSpill to
+            // reserve room for, or the two assertions below pass vacuously.
+            verify(line.glyphSpill > 0);
+            // mainText is AlignVCenter within its own [y, y + height) box, so
+            // its actual rendered ink is centred inside that box too.
+            const inkTop = mainText.y + (mainText.height - mainText.contentHeight) / 2;
+            const inkBottom = inkTop + mainText.contentHeight;
+            // Both in clipper's own local frame, which is exactly the frame
+            // its clip rectangle applies in ([0, clipper.height)).
+            // 1.5px slop: mainText.contentHeight (QTextLayout's bounding
+            // rect) and the FontMetrics height glyphSpill is sized from can
+            // legitimately round a little differently for the same font.
+            verify(inkTop >= -1.5, `factor ${factors[i]}: inkTop ${inkTop}`);
+            verify(inkBottom <= clipper.height + 1.5,
+                `factor ${factors[i]}: inkBottom ${inkBottom} clipper.height ${clipper.height}`);
+        }
+    }
+
+    // Pins the geometry contract between clipper and glyphSpill -- clipper.y
+    // and clipper.height are wired directly off root.glyphSpill, so a
+    // refactor that breaks that wiring (e.g. a stray hardcoded margin, or an
+    // off-by-one in which side gets the spill) is caught here. This does NOT
+    // by itself prove glyphSpill's formula matches real glyph ink: it
+    // compares the implementation to itself, so a wrong formula and this
+    // assertion would agree with each other and both pass.
+    // test_glyphContentNeverClipsAtAnyLineHeight is what checks the formula
+    // against Qt's own rendered measurement instead.
+    function test_clipperGeometryTracksGlyphSpill() {
+        const line = createTemporaryObject(lyricLineComponent, this, { fontSize: 40 });
+        verify(line !== null);
+        const clipper = clipperOf(line);
+        verify(clipper !== null);
+        compare(clipper.x, 0);
+        compare(clipper.width, line.width);
+        compare(clipper.y, -line.glyphSpill);
+        compare(clipper.height, line.height + 2 * line.glyphSpill);
+        // Premise: glyphSpill is strictly positive in this suite's font at
+        // fontSize 40 × 1.25 (measured by qa-1 at ~2.5px, from the plain
+        // Sans Serif test environments render with, not from any CJK font --
+        // that font just happens to also overflow the 1.25 line box). Only
+        // guards this test's own geometry assertions above from turning
+        // vacuous if the suite's font ever stopped overflowing; it says
+        // nothing about whether glyphSpill's value is the *correct* one.
+        verify(line.glyphSpill > 0);
+    }
+
+    // "wrap" was called out as not needing a special case: root.height is
+    // already the natural (unclamped, or clamped to a generous 2 × lineHeight)
+    // wrapped height there, so glyphSpill's own Math.max(0, …) floor should
+    // land on 0 without any extra code -- this just confirms that.
+    function test_wrapOverflowNeedsNoGlyphSpill() {
+        const line = createTemporaryObject(lyricLineComponent, this,
+            { overflowMode: "wrap", fontSize: 40 });
+        verify(line !== null);
+        compare(line.glyphSpill, 0);
+    }
+
+    // Regression guard for the two invariants the fix must not disturb: the
+    // widget's own outer height (which LyricBlock/LyricsView lay out around)
+    // stays exactly lineHeight, and the clipper's horizontal extent stays
+    // pinned to [0, root.width] -- the same rectangle root itself used to
+    // clip at -- so marquee/fit/elide keep their pixel-for-pixel cutoff.
+    function test_clipperLeavesImplicitHeightAndHorizontalClipUnchanged() {
+        const line = createTemporaryObject(lyricLineComponent, this, { fontSize: 40 });
+        verify(line !== null);
+        compare(line.implicitHeight, line.lineHeight);
+        compare(line.height, line.lineHeight);
+        const clipper = clipperOf(line);
+        verify(clipper !== null);
+        compare(clipper.x, 0);
+        compare(clipper.width, line.width);
     }
 
     function test_liftNeverAppliesInAPanel() {
