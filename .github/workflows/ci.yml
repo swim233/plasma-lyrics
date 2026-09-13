@@ -32,6 +32,16 @@ jobs:
         with:
           fetch-depth: 0
 
+      # actions/checkout registers the workspace as a safe directory only in a
+      # temporary git config that it throws away when its own step ends, so
+      # every later step is back to git refusing a repository owned by another
+      # uid -- the runner creates the workspace as uid 1001 and this container
+      # runs as root. Any step that shells out to git needs this first.
+      # --system, not --global, so it also covers the makepkg step below, which
+      # clones the workspace as the unprivileged builder user.
+      - name: Trust the workspace checkout
+        run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
+
       # Regenerating and diffing catches a QML string edited without a
       # matching `sh messages.sh` re-run, and catches a keyword flag
       # dropping off messages.sh itself (as happened once with i18np --
@@ -148,7 +158,6 @@ jobs:
       - name: Build the Arch package
         run: |
           useradd -m builder
-          git config --system --add safe.directory "$GITHUB_WORKSPACE"
           install -d -o builder -g builder /work
           cp packaging/aur/PKGBUILD /work/
           sed -i "s|^source=.*|source=(\"\$pkgname::git+file://$GITHUB_WORKSPACE\")|" /work/PKGBUILD
