@@ -28,6 +28,13 @@ On a machine that also has the `plasma-lyrics-git` AUR package installed
 QtQuick/Kirigami, which `--bare` also drops) to get a result that matches
 CI, which never has that package installed.
 
+No `--` inside an XML comment in `frontend/plasmoid/package/contents/config/main.xml`
+(the XML spec forbids it). KConfigLoader's parser stops at the first error and
+returns without logging, so every `<entry>` after that point silently ceases to
+exist -- the applet reads `undefined`, the config dialog writes 0/false/"" back
+on Save, and the panel widget collapses to zero width. `tst_configschema` is the
+only check that opens this file; keep it passing.
+
 Every `add_test` must carry `ENVIRONMENT "LC_ALL=C.UTF-8"` (merge it into an
 existing `ENVIRONMENT` list rather than adding a second `set_tests_properties`,
 which would clobber the first). Without it each test binary emits Qt's
