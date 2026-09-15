@@ -12,7 +12,7 @@ panel; both are independently configurable.
 ## Build
 
 Requirements: CMake 3.24+, Qt 6, KDE Frameworks 6 (ECM and KI18n), Plasma 6,
-SQLite's Qt driver, and a C++20 compiler.
+SQLite's Qt driver, zlib development files, and a C++20 compiler.
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -20,9 +20,13 @@ cmake --build build
 DESTDIR="$PWD/staging" cmake --install build
 ```
 
-The top-level options `BUILD_DAEMON`, `BUILD_PLASMOID`,
-`BUILD_IMPORT_WAYLYRICS`, `ENABLE_PROVIDER_NETEASE`, and
-`ENABLE_PROVIDER_AMLL` can disable individual parts.
+The top-level options `BUILD_DAEMON`, `BUILD_PLASMOID`, and
+`BUILD_IMPORT_WAYLYRICS` can disable individual components. All lyric providers
+are always built; enable, disable, and reorder them in the Lyrics Sources settings.
+Setting the retired `ENABLE_PROVIDER_NETEASE`, `ENABLE_PROVIDER_AMLL`, or
+`ENABLE_PROVIDER_QQ` option to `OFF` now fails configuration. Remove these options
+from build arguments and existing CMake caches (clear cached values with
+`cmake -S . -B build -U 'ENABLE_PROVIDER_*'`).
 
 After installing the package, start the user service:
 

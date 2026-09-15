@@ -161,20 +161,9 @@ if(BUILD_TESTING)
     add_test(NAME tst_resolver COMMAND tst_resolver)
     set_tests_properties(tst_resolver PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
-    if(ENABLE_PROVIDER_AMLL)
-        set(_explain_expected_provider amll)
-    elseif(ENABLE_PROVIDER_NETEASE)
-        set(_explain_expected_provider netease)
-    else()
-        # LocalProvider::isConfigured() is unconditional and
-        # Config::providerOrder() always prepends "local", so "available
-        # providers" is never empty even with both network sources disabled.
-        set(_explain_expected_provider local)
-    endif()
     add_test(NAME explain-provider-selection
         COMMAND ${CMAKE_COMMAND}
             -DDAEMON=$<TARGET_FILE:plasma-lyricsd>
-            -DEXPECTED_PROVIDER=${_explain_expected_provider}
             -DCONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/explain-test-config
             -DCACHE_HOME=${CMAKE_CURRENT_BINARY_DIR}/explain-test-cache
             -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_explain_provider.cmake)

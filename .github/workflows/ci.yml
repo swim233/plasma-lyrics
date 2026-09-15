@@ -76,54 +76,6 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
-      # Nothing builds this configuration day to day, so it is the one that
-      # rots. ENABLE_PROVIDER_NETEASE=OFF flips a compile definition the rest
-      # of the tree reads.
-      - name: Build without the NetEase provider
-        run: |
-          cmake -S . -B build-no-net -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DENABLE_PROVIDER_NETEASE=OFF \
-            -DBUILD_TESTING=ON
-          cmake --build build-no-net
-          ctest --test-dir build-no-net --output-on-failure
-
-      - name: Build without the AMLL provider
-        run: |
-          cmake -S . -B build-no-amll -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DENABLE_PROVIDER_AMLL=OFF \
-            -DBUILD_TESTING=ON
-          cmake --build build-no-amll
-          ctest --test-dir build-no-amll --output-on-failure
-
-      # Also builds the tree without zlib, which only the QQ provider links.
-      # The "without any network provider" job below covers that too, but
-      # this one isolates it: there, a zlib-related break would be
-      # indistinguishable from a netease or amll one.
-      - name: Build without the QQ provider
-        run: |
-          cmake -S . -B build-no-qq -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DENABLE_PROVIDER_QQ=OFF \
-            -DBUILD_TESTING=ON
-          cmake --build build-no-qq
-          ctest --test-dir build-no-qq --output-on-failure
-
-      # None of the matrices above ever disables every network provider at
-      # once, so explain-provider-selection's "all off" branch (available
-      # providers: local) went unexercised by CI.
-      - name: Build without any network provider
-        run: |
-          cmake -S . -B build-no-providers -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DENABLE_PROVIDER_NETEASE=OFF \
-            -DENABLE_PROVIDER_AMLL=OFF \
-            -DENABLE_PROVIDER_QQ=OFF \
-            -DBUILD_TESTING=ON
-          cmake --build build-no-providers
-          ctest --test-dir build-no-providers --output-on-failure
-
       # Nothing else in this job asks GCC to actually warn -- the default
       # build above sets no warning flags -- so this is the only check that
       # would catch a new call site regressing back to positional aggregate

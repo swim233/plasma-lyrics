@@ -10,15 +10,9 @@
 #include "core/store/lyricstore.h"
 #include "daemon/src/mpris/mprismanager.h"
 #include "providers/local/localprovider.h"
-#ifdef PLASMA_LYRICS_HAVE_AMLL
 #include "providers/amll/amllprovider.h"
-#endif
-#ifdef PLASMA_LYRICS_HAVE_NETEASE
 #include "providers/netease/neteaseprovider.h"
-#endif
-#ifdef PLASMA_LYRICS_HAVE_QQ
 #include "providers/qq/qqprovider.h"
-#endif
 
 #include <QCommandLineParser>
 #include <QCoreApplication>
@@ -385,27 +379,15 @@ int main(int argc, char **argv)
         proxySummary = QStringLiteral("none");
     }
 
-#ifdef PLASMA_LYRICS_HAVE_NETEASE
     NeteaseProvider netease(config.neteaseBaseUrl(), config.networkTimeoutMs());
-#endif
-#ifdef PLASMA_LYRICS_HAVE_AMLL
     AmllProvider amll(config.amllIndexUrl(), config.amllContentBaseUrl(),
                       config.amllTimeoutMs(), {}, config.amllIndexMaxAgeSeconds());
-#endif
-#ifdef PLASMA_LYRICS_HAVE_QQ
     QqProvider qq(config.qqSearchBaseUrl(), config.qqLyricBaseUrl(), config.qqTimeoutMs());
-#endif
     LocalProvider local(config.localLyricsDirectory());
     QStringList supportedProviders{local.id()};
-#ifdef PLASMA_LYRICS_HAVE_NETEASE
     supportedProviders.append(netease.id());
-#endif
-#ifdef PLASMA_LYRICS_HAVE_AMLL
     supportedProviders.append(amll.id());
-#endif
-#ifdef PLASMA_LYRICS_HAVE_QQ
     supportedProviders.append(qq.id());
-#endif
     QList<Provider *> providers;
     QStringList enabledProviderOrder = config.enabledProviderOrder();
     if (proxyBlocksNetworkProviders) {
@@ -419,21 +401,15 @@ int main(int argc, char **argv)
         if (providerId == QStringLiteral("local") && local.isConfigured()) {
             providers.append(&local);
         }
-#ifdef PLASMA_LYRICS_HAVE_NETEASE
         if (providerId == QStringLiteral("netease") && netease.isConfigured()) {
             providers.append(&netease);
         }
-#endif
-#ifdef PLASMA_LYRICS_HAVE_AMLL
         if (providerId == QStringLiteral("amll") && amll.isConfigured()) {
             providers.append(&amll);
         }
-#endif
-#ifdef PLASMA_LYRICS_HAVE_QQ
         if (providerId == QStringLiteral("qq") && qq.isConfigured()) {
             providers.append(&qq);
         }
-#endif
     }
     if (providers.isEmpty()) {
         // Invalid URLs or a hand-edited enabled list must not leave the
@@ -461,21 +437,15 @@ int main(int argc, char **argv)
                     if (providerId == QStringLiteral("local") && local.isConfigured()) {
                         available.append(providerId);
                     }
-#ifdef PLASMA_LYRICS_HAVE_NETEASE
                     if (providerId == QStringLiteral("netease") && netease.isConfigured()) {
                         available.append(providerId);
                     }
-#endif
-#ifdef PLASMA_LYRICS_HAVE_AMLL
                     if (providerId == QStringLiteral("amll") && amll.isConfigured()) {
                         available.append(providerId);
                     }
-#endif
-#ifdef PLASMA_LYRICS_HAVE_QQ
                     if (providerId == QStringLiteral("qq") && qq.isConfigured()) {
                         available.append(providerId);
                     }
-#endif
                 }
                 QTextStream(stderr)
                     << "requested provider is unavailable: " << requestedProvider << Qt::endl

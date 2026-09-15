@@ -73,7 +73,7 @@ Release 同时提供 Arch 的 `.pkg.tar.zst` 与源码 tarball。
 ### 从源码构建
 
 需要 CMake 3.24+、Qt 6（≥ 6.6）、KDE Frameworks 6（ECM 与 KI18n）、Plasma 6、
-Qt SQLite 驱动与 C++20 编译器。
+Qt SQLite 驱动、zlib 开发文件与 C++20 编译器。
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -82,7 +82,10 @@ sudo cmake --install build
 ```
 
 顶层 CMake 选项可分别关闭各部分：`BUILD_DAEMON`、`BUILD_PLASMOID`、
-`BUILD_IMPORT_WAYLYRICS`、`ENABLE_PROVIDER_NETEASE`、`ENABLE_PROVIDER_AMLL`。
+`BUILD_IMPORT_WAYLYRICS`。全部歌词源固定编译，通过设置中的「歌词源」页启停和排序。
+旧的 `ENABLE_PROVIDER_NETEASE`、`ENABLE_PROVIDER_AMLL`、`ENABLE_PROVIDER_QQ`
+设为 `OFF` 会导致配置失败；请从构建参数和已有 CMake 缓存中移除这些选项
+（可用 `cmake -S . -B build -U 'ENABLE_PROVIDER_*'` 清理缓存）。
 
 ## 🚀 使用方式
 

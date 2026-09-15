@@ -7,9 +7,18 @@ include(CTest)
 option(BUILD_DAEMON "Build plasma-lyricsd" ON)
 option(BUILD_PLASMOID "Build the Plasma applet and QML module" ON)
 option(BUILD_IMPORT_WAYLYRICS "Build the one-shot waylyrics importer" ON)
-option(ENABLE_PROVIDER_NETEASE "Build the NetEase provider" ON)
-option(ENABLE_PROVIDER_AMLL "Build the AMLL TTML database provider" ON)
-option(ENABLE_PROVIDER_QQ "Build the QQ Music provider" ON)
+# Check both command-line values and old CMake caches before finding dependencies.
+foreach(_provider IN ITEMS NETEASE AMLL QQ)
+    set(_legacy_option "ENABLE_PROVIDER_${_provider}")
+    if(DEFINED ${_legacy_option} AND NOT ${_legacy_option})
+        message(FATAL_ERROR
+            "${_legacy_option}=OFF is no longer supported. All lyric providers are "
+            "always built. Remove this option from your build arguments and CMake "
+            "cache, then use the Lyrics Sources settings to disable providers at runtime.")
+    endif()
+endforeach()
+unset(_legacy_option)
+unset(_provider)
 
 if(BUILD_PLASMOID)
     find_package(ECM 6.0 REQUIRED NO_MODULE)
