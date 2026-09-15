@@ -764,12 +764,14 @@ TestCase {
     // (round(40 × 0.6) = 24) to make it fit; contentHeight shrinks right
     // along with it, so the fixed-height box always looked roomy enough
     // regardless of whether glyphSpill did anything. Fixed by using a short
-    // line in a box wide enough that "fit" never engages, plus two premise
-    // assertions that fail loudly instead of letting that happen again
-    // silently: the font must render at its configured size, and the box
-    // must actually be tight enough to need the spill.
+    // line in a box wide enough that "fit" never engages. The configured
+    // font size is checked for every factor; an additional 50% fixture
+    // proves that overflowing content is exercised even on platforms whose
+    // default font fits inside both production line heights.
     function test_glyphContentNeverClipsAtAnyLineHeight() {
-        const factors = [1.0, 1.25];
+        // The deliberately tight box guarantees an overflow case even when
+        // the platform font fits naturally at 100% or 125% (e.g. Debian).
+        const factors = [0.5, 1.0, 1.25];
         for (let i = 0; i < factors.length; ++i) {
             const line = createTemporaryObject(lyricLineComponent, this,
                 { fontSize: 40, lineHeightFactor: factors[i], lineText: "abcgy", width: 400 });
@@ -788,9 +790,12 @@ TestCase {
             // "fit" -- otherwise contentHeight shrinks too and the
             // assertions below stop testing anything (qa-1's finding).
             compare(mainText.font.pixelSize, line.fontSize);
-            // Premise 2: there must actually be something for glyphSpill to
-            // reserve room for, or the two assertions below pass vacuously.
-            verify(line.glyphSpill > 0);
+            // Prove the tight fixture really exercises clipping; production
+            // line heights may legitimately need no spill on a smaller font.
+            if (factors[i] === 0.5) {
+                verify(mainText.contentHeight > mainText.height + 3);
+                verify(line.glyphSpill > 0);
+            }
             // mainText is AlignVCenter within its own [y, y + height) box, so
             // its actual rendered ink is centred inside that box too.
             const inkTop = mainText.y + (mainText.height - mainText.contentHeight) / 2;
@@ -816,7 +821,8 @@ TestCase {
     // test_glyphContentNeverClipsAtAnyLineHeight is what checks the formula
     // against Qt's own rendered measurement instead.
     function test_clipperGeometryTracksGlyphSpill() {
-        const line = createTemporaryObject(lyricLineComponent, this, { fontSize: 40 });
+        const line = createTemporaryObject(lyricLineComponent, this,
+            { fontSize: 40, lineHeightFactor: 0.5 });
         verify(line !== null);
         const clipper = clipperOf(line);
         verify(clipper !== null);
@@ -824,13 +830,9 @@ TestCase {
         compare(clipper.width, line.width);
         compare(clipper.y, -line.glyphSpill);
         compare(clipper.height, line.height + 2 * line.glyphSpill);
-        // Premise: glyphSpill is strictly positive in this suite's font at
-        // fontSize 40 × 1.25 (measured by qa-1 at ~2.5px, from the plain
-        // Sans Serif test environments render with, not from any CJK font --
-        // that font just happens to also overflow the 1.25 line box). Only
-        // guards this test's own geometry assertions above from turning
-        // vacuous if the suite's font ever stopped overflowing; it says
-        // nothing about whether glyphSpill's value is the *correct* one.
+        // A deliberately tight fixture exercises nonzero margins without
+        // assuming the platform's default font overflows a 125% line box.
+        // The content test above independently checks the rendered bounds.
         verify(line.glyphSpill > 0);
     }
 
