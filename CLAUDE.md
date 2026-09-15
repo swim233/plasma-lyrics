@@ -96,6 +96,30 @@ build checks) to match, then tag `v<x.y.z>` on that commit. CI matches a
 section by the tag name followed by ` - `, so the heading and the tag must
 agree exactly.
 
-After pushing a release tag, push the `plasma-lyrics` package to AUR by
-hand. CI only generates and validates the PKGBUILD and `.SRCINFO`; it holds
-no AUR credentials.
+`packaging/aur/PKGBUILD` (the `-git` package) is the only hand-maintained
+PKGBUILD. `packaging/aur/generate.sh` derives the two release ones --
+`plasma-lyrics` by sed, so `build()`/`check()`/`package()` stay
+single-sourced, and `plasma-lyrics-bin` from a template with the `depends`
+array spliced in verbatim. Never edit a generated PKGBUILD: a second copy of
+`depends` is exactly how the released source package went four versions
+without the `zlib` the daemon links directly. Run the script locally to see
+what CI will produce.
+
+`packaging/aur/namcap-check.sh` runs namcap on the built *package* and fails
+on anything not on its allowlist. Do not point namcap at a PKGBUILD instead:
+a PKGBUILD carries no ELF data, so that form of the check cannot see a
+missing linkage at all, which is why the `zlib` gap survived a namcap that
+was already running. namcap's output depends on what is installed on the
+analysing machine -- in a bare container it resolves nothing and emits ~25
+"uninstalled dependency" lines -- so it is only meaningful in a job that has
+installed the package's `depends` first. Two findings are allowlisted, each
+with its reason in the script; a third means the build fails.
+
+After pushing a release tag, push both `plasma-lyrics` and
+`plasma-lyrics-bin` to AUR by hand, from the `plasma-lyrics-<version>-aur.tar.gz`
+release asset -- it holds one directory per package, each with its PKGBUILD
+and `.SRCINFO`, to be extracted into that package's own AUR clone. CI only
+generates and validates them; it holds no AUR credentials.
+`plasma-lyrics-bin`'s `source=` points at the
+`plasma-lyrics-<version>-x86_64-bin.tar.gz` asset, so that asset has to stay
+published for as long as that PKGBUILD is live.

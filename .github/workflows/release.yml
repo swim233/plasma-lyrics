@@ -150,75 +150,82 @@ jobs:
       - name: Create the build user
         run: useradd -m builder
 
-      # The tagged PKGBUILD is generated, not stored: keeping a second one in
-      # the repo means a pkgver and a checksum that are stale the moment they
-      # are committed.
-      # The tagged PKGBUILD is generated, not stored: keeping a second one in
-      # the repo means a pkgver and a checksum that are stale the moment they
-      # are committed.
-      - name: Generate the AUR PKGBUILD and .SRCINFO
+      # Both release PKGBUILDs are derived from packaging/aur/PKGBUILD, the
+      # only hand-maintained one, so their depends arrays cannot drift apart
+      # again. They already had: the released source package went four versions
+      # without the zlib the daemon links directly, because the second copy of
+      # the array lived in this file.
+      - name: Build the source package
         run: |
           V='${{ needs.prepare.outputs.version }}'
           TAG='${{ needs.prepare.outputs.tag }}'
-          URL='https://github.com/swim233/plasma-lyrics'
           TARBALL="plasma-lyrics-$V.tar.gz"
-          SUM=$(sha256sum "$TARBALL" | cut -d' ' -f1)
           install -d -o builder -g builder /aur
-          cp "$TARBALL" "/aur/plasma-lyrics-$V.tar.gz"
-          cat > /aur/PKGBUILD <<PKGBUILD
-          # Maintainer: swim <swim853279614@163.com>
-          pkgname=plasma-lyrics
-          pkgver=$V
-          pkgrel=1
-          pkgdesc='Native synchronized desktop lyrics widget for Plasma 6'
-          arch=('x86_64')
-          url='$URL'
-          license=('GPL-2.0-only')
-          depends=('plasma-workspace' 'libplasma' 'kirigami' 'ksvg' 'ki18n' 'kdeclarative'
-                   'qt6-base' 'qt6-declarative' 'glibc' 'libgcc' 'libstdc++')
-          makedepends=('cmake' 'ninja' 'extra-cmake-modules' 'gettext')
-          source=("\$pkgname-\$pkgver.tar.gz::$URL/releases/download/$TAG/$TARBALL")
-          sha256sums=('$SUM')
-
-          build() {
-            # None rather than Release: it leaves the compiler flags to
-            # makepkg.conf, so the package picks up Arch's hardening and
-            # debug-package settings instead of CMake's own -O3 -DNDEBUG.
-            cmake -S "\$pkgname-\$pkgver" -B build -G Ninja \\
-              -DCMAKE_BUILD_TYPE=None \\
-              -DCMAKE_INSTALL_PREFIX=/usr \\
-              -DBUILD_TESTING=ON
-            cmake --build build
-          }
-
-          check() {
-            ctest --test-dir build --output-on-failure
-          }
-
-          package() {
-            DESTDIR="\$pkgdir" cmake --install build
-          }
-          PKGBUILD
+          packaging/aur/generate.sh "$V" "$TAG" /aur \
+            "$(sha256sum "$TARBALL" | cut -d' ' -f1)"
+          # Named for the "::" target in source=, so makepkg builds from this
+          # copy instead of downloading an asset the publish job has not
+          # created yet. The bytes, and therefore the checksum, are the same.
+          cp "$TARBALL" "/aur/plasma-lyrics/plasma-lyrics-$V.tar.gz"
           chown -R builder:builder /aur
-          # Builds from the tarball sitting next to the PKGBUILD, so the
-          # checksum written above is the one that actually gets verified.
-          su builder -c 'cd /aur && makepkg --printsrcinfo > .SRCINFO && makepkg -f --noconfirm --nodeps'
-          namcap /aur/PKGBUILD || true
+          su builder -c 'cd /aur/plasma-lyrics && makepkg --printsrcinfo > .SRCINFO && makepkg -f --noconfirm --nodeps'
+
+      # The payload is makepkg's own $pkgdir, so plasma-lyrics-bin ships the
+      # exact bytes plasma-lyrics does, already stripped. A separate
+      # "cmake --install" would not be: that path skips makepkg's strip and
+      # would hand every -bin user the debug symbols.
+      - name: Build the binary package
+        run: |
+          V='${{ needs.prepare.outputs.version }}'
+          TAG='${{ needs.prepare.outputs.tag }}'
+          BIN="plasma-lyrics-$V-x86_64-bin.tar.gz"
+          tar -czf "/aur/$BIN" -C /aur/plasma-lyrics/pkg/plasma-lyrics usr
+          packaging/aur/generate.sh --bin "$V" "$TAG" /aur \
+            "$(sha256sum "/aur/$BIN" | cut -d' ' -f1)"
+          cp "/aur/$BIN" "/aur/plasma-lyrics-bin/plasma-lyrics-bin-$V.tar.gz"
+          chown -R builder:builder /aur
+          su builder -c 'cd /aur/plasma-lyrics-bin && makepkg --printsrcinfo > .SRCINFO && makepkg -f --noconfirm --nodeps'
+
+      # On the built packages, never on the PKGBUILDs: a PKGBUILD carries no
+      # ELF data, so "namcap PKGBUILD" cannot see a missing linkage at all.
+      # That blind spot is what let the missing zlib through.
+      - name: namcap
+        run: |
+          V='${{ needs.prepare.outputs.version }}'
+          packaging/aur/namcap-check.sh \
+            "/aur/plasma-lyrics/plasma-lyrics-$V-1-x86_64.pkg.tar.zst" \
+            "/aur/plasma-lyrics-bin/plasma-lyrics-bin-$V-1-x86_64.pkg.tar.zst"
+
+      # Proves every declared dependency names a package that exists and
+      # installs. It cannot catch an undeclared one -- this job has the depends
+      # installed already, and pacman would pull them in transitively in any
+      # case. Catching those is namcap's job, above.
+      - name: Install both packages
+        run: |
+          V='${{ needs.prepare.outputs.version }}'
+          pacman -U --noconfirm "/aur/plasma-lyrics-bin/plasma-lyrics-bin-$V-1-x86_64.pkg.tar.zst"
+          pacman -R --noconfirm plasma-lyrics-bin
+          pacman -U --noconfirm "/aur/plasma-lyrics/plasma-lyrics-$V-1-x86_64.pkg.tar.zst"
+          pacman -R --noconfirm plasma-lyrics
 
       - name: Collect
         run: |
+          V='${{ needs.prepare.outputs.version }}'
           mkdir -p out
-          # The container's makepkg.conf enables debug, which drops a separate
-          # multi-megabyte -debug- package next to the real one.
-          for f in /aur/*.pkg.tar.zst; do
-            case "$f" in *-debug-*) continue;; esac
-            cp "$f" out/
-          done
-          # Both files together, as a tarball: a shell glob skips .SRCINFO and
-          # it would be listed in SHA256SUMS as an asset nobody can download,
-          # while AUR needs the pair. Extract this into the AUR clone.
-          tar -czf "out/plasma-lyrics-${{ needs.prepare.outputs.version }}-aur.tar.gz" \
-            -C /aur PKGBUILD .SRCINFO
+          # Named explicitly rather than globbed: the container's makepkg.conf
+          # enables debug, which drops a separate multi-megabyte -debug-
+          # package next to the real one.
+          cp "/aur/plasma-lyrics/plasma-lyrics-$V-1-x86_64.pkg.tar.zst" out/
+          cp "/aur/plasma-lyrics-bin/plasma-lyrics-bin-$V-1-x86_64.pkg.tar.zst" out/
+          # plasma-lyrics-bin's source= points at this asset, so it has to be
+          # published alongside the packages.
+          cp "/aur/plasma-lyrics-$V-x86_64-bin.tar.gz" out/
+          # One tarball holding both package directories: AUR needs the
+          # PKGBUILD/.SRCINFO pair per package and a shell glob skips .SRCINFO.
+          # Extract each directory into its own AUR clone.
+          tar -czf "out/plasma-lyrics-$V-aur.tar.gz" -C /aur \
+            plasma-lyrics/PKGBUILD plasma-lyrics/.SRCINFO \
+            plasma-lyrics-bin/PKGBUILD plasma-lyrics-bin/.SRCINFO
 
       - uses: actions/upload-artifact@v7
         with:

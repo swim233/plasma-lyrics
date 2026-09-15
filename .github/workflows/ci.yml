@@ -42,6 +42,9 @@ jobs:
       - name: Trust the workspace checkout
         run: git config --system --add safe.directory "$GITHUB_WORKSPACE"
 
+      - name: Packaging checker regression tests
+        run: bash packaging/aur/test-namcap-check.sh
+
       # Regenerating and diffing catches a QML string edited without a
       # matching `sh messages.sh` re-run, and catches a keyword flag
       # dropping off messages.sh itself (as happened once with i18np --
@@ -163,7 +166,11 @@ jobs:
           sed -i "s|^source=.*|source=(\"\$pkgname::git+file://$GITHUB_WORKSPACE\")|" /work/PKGBUILD
           chown -R builder:builder /work
           su builder -c 'cd /work && makepkg -f --noconfirm --nodeps'
-          namcap /work/*.pkg.tar.zst || true
+          # On the package, never on the PKGBUILD, and no "|| true": a
+          # PKGBUILD carries no ELF data, so namcap cannot see a missing
+          # linkage in it, and a finding nobody fails on is a finding
+          # nobody reads.
+          packaging/aur/namcap-check.sh /work/*.pkg.tar.zst
 
       - uses: actions/upload-artifact@v7
         with:
