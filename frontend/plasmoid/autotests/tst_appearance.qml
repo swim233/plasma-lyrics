@@ -113,6 +113,37 @@ TestCase {
         LyricsConfig.ConfigPanelAppearance {}
     }
 
+    // An AppearanceSection inside a window that is actually shown, for the
+    // same reason windowedLineComponent above exists: Item.visible is
+    // ancestor-combined and reads false everywhere else in this suite, and
+    // QQuickLayouts skips invisible items -- so outside a shown window the
+    // FormLayout never lays its children out at all, Layout.maximumWidth is
+    // inert, and the width test below would pass vacuously (measured: the
+    // descriptions kept width == implicitWidth == 27349 and the page never
+    // moved, because they were not in the layout). The config pages above
+    // cannot stand in either: this suite never gives them a realistic width,
+    // so the section's implicitWidth there is a fraction of the real
+    // dialog's and the form lays out differently.
+    QtObject { id: stubFontSize; property int value: 34 }
+    QtObject { id: stubTranslation; property bool checked: true }
+    QtObject { id: stubTrackInfoFontSize; property int value: 18 }
+    Component {
+        id: windowedAppearanceSectionComponent
+        Window {
+            width: Kirigami.Units.gridUnit * 45
+            height: Kirigami.Units.gridUnit * 60
+            visible: true
+            property alias section: innerSection
+            LyricsConfig.AppearanceSection {
+                id: innerSection
+                width: Kirigami.Units.gridUnit * 39
+                fontSizeControl: stubFontSize
+                translationControl: stubTranslation
+                trackInfoFontSizeControl: stubTrackInfoFontSize
+            }
+        }
+    }
+
     Component {
         id: configTextComponent
         LyricsConfig.ConfigText {}
@@ -1738,5 +1769,56 @@ TestCase {
             { source: source, panelMode: true, panelWidth: 100 });
         verify(narrowView !== null);
         compare(narrowView.Layout.minimumWidth, Math.min(Kirigami.Units.gridUnit * 8, narrowView.panelWidth));
+    }
+
+    function test_aDescriptionCannotWidenTheConfigPage() {
+        // The bug this locks down: a QQC2.Label with wrapMode WordWrap still
+        // reports its *unwrapped* single-line width as implicitWidth, and
+        // Layout.fillWidth does not cap that -- it only lets the item grow.
+        // FormLayout then sizes itself to the widest child's preferred
+        // width, so lengthening a description sentence silently widened the
+        // whole config page: measured 761 -> 914 here, and 761 -> 938 on the
+        // shipped page, when two sentences wanting 790 and 806px landed over
+        // the 653px the controls themselves need. Nothing in this suite
+        // looked at layout geometry, so a full ctest run, qmllint and two
+        // review passes all went green on it -- it was found by opening the
+        // dialog.
+        //
+        // WHAT THIS DOES NOT DO, and why. The obvious test -- lengthen a
+        // description at runtime and assert the page does not move -- passes
+        // just as well with the bug fully present, measured: uncapped, the
+        // page sits at 914 for text repeated 1x, 40x and 720x alike. The
+        // page width is fixed at load time by the *declared* text; assigning
+        // `text` afterwards never moves it. A pixel budget is out too: every
+        // absolute width here scales with the platform font, which is what
+        // the line-height fixtures in this file had to be rewritten for.
+        // So this asserts the mechanism, with both clauses measured to
+        // discriminate: uncapped reads Infinity and takes the full content
+        // width (702 of 702), capped reads 432 and takes 432 of 702.
+        // Layout.preferredWidth: 0 does not substitute for the cap
+        // (measured: the page stayed at 938).
+        const win = createTemporaryObject(windowedAppearanceSectionComponent, this);
+        verify(win !== null);
+        const section = win.section;
+        verify(section !== null);
+        wait(150);
+
+        const descriptions = findAll(section, o => o.objectName === "formDescription");
+        // Two today. Asserted as non-empty rather than exactly two so adding
+        // a third description does not fail this, but deleting an
+        // objectName -- which would silently drop that label out of this
+        // check -- does.
+        verify(descriptions.length > 0);
+        verify(section.width > 0);
+
+        for (let i = 0; i < descriptions.length; ++i) {
+            const description = descriptions[i];
+            // Uncapped, this reads Infinity.
+            verify(description.Layout.maximumWidth < Infinity);
+            // And the cap has to be tight enough to matter: a description
+            // allowed the whole content width is back to being what the
+            // page sizes itself to.
+            verify(description.width < section.width);
+        }
     }
 }

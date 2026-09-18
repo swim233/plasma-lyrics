@@ -236,16 +236,33 @@ Kirigami.FormLayout {
         onToggled: root.wordByWordEdited(checked)
     }
     QQC2.Label {
+        // Named so the regression test can find these two without a shape
+        // check that would also match every other Label on the page, the
+        // same reason LyricLine.qml's word glyphs carry one.
+        objectName: "formDescription"
         Layout.fillWidth: true
+        // A wrapping Text still reports its *unwrapped* single-line width as
+        // implicitWidth, and Layout.fillWidth does not cap that -- it only
+        // lets the item grow. FormLayout then sizes itself to the widest
+        // child's preferred width, so a long enough sentence here silently
+        // widens the whole config page. Measured on this form: the two
+        // sentences below want 790 and 806px, against the 653px the rest of
+        // the page needs, and the page's implicitWidth went 761 -> 938
+        // (+23%) when they were added. Layout.preferredWidth: 0 does NOT
+        // help (measured: still 938); only an explicit cap does. 24 gridUnits
+        // keeps every description comfortably under the ~653px the controls
+        // themselves already need, so a control stays the binding constraint
+        // and no future wording change can move the page width again.
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 24
         wrapMode: Text.WordWrap
         // Was "Used only when the lyrics source provides word timings. Other
         // tracks keep showing one line at a time." -- true before this
-        // feature existed, wrong the moment "Simulate word timing" below is
+        // feature existed, wrong the moment "Simulate timing" below is
         // also on, since that is exactly the case it adds coverage for.
-        text: i18n("By default, only works when the lyrics source provides word timings. Turn on \"Simulate word timing\" below to also see it on tracks that don't.")
+        text: i18n("By default, only works when the lyrics source provides word timings. Turn on \"Simulate timing\" below to also see it on tracks that don't.")
     }
     QQC2.CheckBox {
-        Kirigami.FormData.label: i18n("Simulate word timing:")
+        Kirigami.FormData.label: i18n("Simulate timing:")
         visible: root.wordByWord
         enabled: root.wordByWord
         checked: root.syntheticWordByWord
@@ -253,7 +270,24 @@ Kirigami.FormLayout {
         onToggled: root.syntheticWordByWordEdited(checked)
     }
     QQC2.Label {
+        // Named so the regression test can find these two without a shape
+        // check that would also match every other Label on the page, the
+        // same reason LyricLine.qml's word glyphs carry one.
+        objectName: "formDescription"
         Layout.fillWidth: true
+        // A wrapping Text still reports its *unwrapped* single-line width as
+        // implicitWidth, and Layout.fillWidth does not cap that -- it only
+        // lets the item grow. FormLayout then sizes itself to the widest
+        // child's preferred width, so a long enough sentence here silently
+        // widens the whole config page. Measured on this form: the two
+        // sentences below want 790 and 806px, against the 653px the rest of
+        // the page needs, and the page's implicitWidth went 761 -> 938
+        // (+23%) when they were added. Layout.preferredWidth: 0 does NOT
+        // help (measured: still 938); only an explicit cap does. 24 gridUnits
+        // keeps every description comfortably under the ~653px the controls
+        // themselves already need, so a control stays the binding constraint
+        // and no future wording change can move the page width again.
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 24
         wrapMode: Text.WordWrap
         visible: root.wordByWord
         text: i18n("Keeps this animation running on every track instead of only the ones with real word timing, which costs more battery and CPU during playback.")
