@@ -181,6 +181,7 @@ TestCase {
             property string currentTranslation: ""
             property string currentRomanization: ""
             property var currentWords: []
+            property var currentSyntheticWords: []
             // LyricsView pulls the position per frame rather than binding to
             // it, so the stand-in needs the same invokable the real source
             // exposes; driving this by hand is also how the word tests step
@@ -994,6 +995,58 @@ TestCase {
         compare(view.wordClockRunning, true);
     }
 
+    // DESIGN.md's synthetic word-by-word decision: when the source has no
+    // real words for the current line and the synthetic switch is on,
+    // effectiveWords falls back to currentSyntheticWords and the fake words
+    // reach all the way down to real LyricLine.qml glyphs (objectName
+    // "lyricWord" -- the same delegate real word-by-word data renders
+    // through, since synthesis is required to reuse the render path
+    // untouched).
+    function test_syntheticWordsReachTheRendererWhenRealWordsAreAbsent() {
+        const source = createTemporaryObject(fakeSourceComponent, this,
+            { currentWords: [], currentSyntheticWords: twoWords });
+        const view = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: true, syntheticWordByWord: true });
+        verify(view !== null);
+        compare(view.effectiveWords.length, 2);
+        compare(view.wordClockRunning, true);
+        tryVerify(() => findAll(view, o => o.objectName === "lyricWord").length === 2);
+    }
+
+    // The synthetic switch never overrides real word data: LyricSource
+    // itself already guarantees currentSyntheticWords is empty whenever the
+    // document has real words anywhere, but effectiveWords' own
+    // `currentWords.length === 0` check is what actually protects a
+    // misbehaving or test-doubled source from ever letting synthetic words
+    // hide real ones.
+    function test_realWordsAreNeverReplacedBySyntheticOnes() {
+        const threeWords = [
+            { startMs: 0, endMs: 500, text: "aa" },
+            { startMs: 500, endMs: 1000, text: "bb" },
+            { startMs: 1000, endMs: 1500, text: "cc" }
+        ];
+        const source = createTemporaryObject(fakeSourceComponent, this,
+            { currentWords: twoWords, currentSyntheticWords: threeWords });
+        const view = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: true, syntheticWordByWord: true });
+        verify(view !== null);
+        compare(view.effectiveWords.length, 2);
+        compare(view.effectiveWords, twoWords);
+    }
+
+    // The switch itself gates whether currentSyntheticWords is ever read at
+    // all -- off means effectiveWords stays empty even on a wordless line,
+    // exactly like before this feature existed.
+    function test_syntheticWordByWordOffLeavesEffectiveWordsEmpty() {
+        const source = createTemporaryObject(fakeSourceComponent, this,
+            { currentWords: [], currentSyntheticWords: twoWords });
+        const view = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: true, syntheticWordByWord: false });
+        verify(view !== null);
+        compare(view.effectiveWords.length, 0);
+        compare(view.wordClockRunning, false);
+    }
+
     // wordClockRunning's second conjunct: a paused (or otherwise non-Playing)
     // track must not keep the frame-driven clock awake, even with words on
     // screen. Pins this independently of the first conjunct, which
@@ -1310,6 +1363,7 @@ TestCase {
         verify(panel !== undefined);
 
         desktop.wordByWordEdited(false);
+        desktop.syntheticWordByWordEdited(true);
         desktop.wordUnsungColorEdited("#11223344");
         desktop.wordActiveColorEdited("#55667788");
         desktop.wordSungColorEdited("#99aabbcc");
@@ -1322,6 +1376,7 @@ TestCase {
         desktop.secondLineColorEnabledEdited(true);
         desktop.secondLineColorEdited("#80ff0000");
         compare(desktopPage.cfg_desktopWordByWord, false);
+        compare(desktopPage.cfg_desktopWordByWordSynthetic, true);
         compare(desktopPage.cfg_desktopWordUnsungColor, "#11223344");
         compare(desktopPage.cfg_desktopWordActiveColor, "#55667788");
         compare(desktopPage.cfg_desktopWordSungColor, "#99aabbcc");
@@ -1340,10 +1395,13 @@ TestCase {
         compare(desktop.liftSupported, true);
 
         panel.wordActiveColorEdited("#cafebabe");
+        panel.syntheticWordByWordEdited(true);
         compare(panelPage.cfg_panelWordActiveColor, "#cafebabe");
+        compare(panelPage.cfg_panelWordByWordSynthetic, true);
         // Same crosstalk guard the other appearance tests apply: the two tabs
         // are separate page instances and must not reach into each other.
         compare(desktopPage.cfg_desktopWordActiveColor, "#55667788");
+        compare(desktopPage.cfg_desktopWordByWordSynthetic, true);
     }
 
     // DESIGN.md decision 69/73: below 125% line height, the previous line's

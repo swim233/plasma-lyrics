@@ -22,6 +22,7 @@ Kirigami.ScrollablePage {
     property int cfg_panelLineHeight
 
     property bool cfg_panelWordByWord
+    property bool cfg_panelWordByWordSynthetic
     property string cfg_panelWordUnsungColor
     property string cfg_panelWordActiveColor
     property string cfg_panelWordSungColor
@@ -92,6 +93,7 @@ Kirigami.ScrollablePage {
             wordLift: false
             wordLiftRowVisible: false
             wordByWord: page.cfg_panelWordByWord
+            syntheticWordByWord: page.cfg_panelWordByWordSynthetic
             wordUnsungColor: page.cfg_panelWordUnsungColor
             wordActiveColor: page.cfg_panelWordActiveColor
             wordSungColor: page.cfg_panelWordSungColor
@@ -103,6 +105,7 @@ Kirigami.ScrollablePage {
             onSecondLineColorEdited: value => page.cfg_panelSecondLineColor = value
             onLineHeightPercentEdited: value => page.cfg_panelLineHeight = value
             onWordByWordEdited: value => page.cfg_panelWordByWord = value
+            onSyntheticWordByWordEdited: value => page.cfg_panelWordByWordSynthetic = value
             onWordUnsungColorEdited: value => page.cfg_panelWordUnsungColor = value
             onWordActiveColorEdited: value => page.cfg_panelWordActiveColor = value
             onWordSungColorEdited: value => page.cfg_panelWordSungColor = value

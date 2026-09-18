@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-15 10:29+0800\n"
+"POT-Creation-Date: 2026-09-18 08:53+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -36,24 +36,24 @@ msgstr ""
 msgid "Lyrics Service"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:47
-#: frontend/plasmoid/package/contents/ui/main.qml:258
-#: frontend/plasmoid/package/contents/ui/main.qml:316
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:55
+#: frontend/plasmoid/package/contents/ui/main.qml:259
+#: frontend/plasmoid/package/contents/ui/main.qml:318
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:51
 msgid "No media is playing"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:81
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:89
 msgid "Searching for lyrics…"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:250
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:281
 msgid ""
 "The lyrics service stopped. Restart it with:\n"
 "systemctl --user restart plasma-lyricsd"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:251
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:282
 msgid ""
 "The lyrics service is not running. Start it with:\n"
 "systemctl --user enable --now plasma-lyricsd"
@@ -65,367 +65,383 @@ msgid "%1 — %2"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/main.qml:112
-#: frontend/plasmoid/package/contents/ui/main.qml:340
-#: frontend/qmlmodule/lyricsource.cpp:523
+#: frontend/plasmoid/package/contents/ui/main.qml:342
+#: frontend/qmlmodule/lyricsource.cpp:551
 msgid "Desktop Lyrics"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:261
-#: frontend/plasmoid/package/contents/ui/main.qml:319
+#: frontend/plasmoid/package/contents/ui/main.qml:262
+#: frontend/plasmoid/package/contents/ui/main.qml:321
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:57
 msgid "Lyrics not found"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:264
-#: frontend/plasmoid/package/contents/ui/main.qml:322
+#: frontend/plasmoid/package/contents/ui/main.qml:265
+#: frontend/plasmoid/package/contents/ui/main.qml:324
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:63
 msgid "This track has no lyrics"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:267
-#: frontend/plasmoid/package/contents/ui/main.qml:325
+#: frontend/plasmoid/package/contents/ui/main.qml:268
+#: frontend/plasmoid/package/contents/ui/main.qml:327
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:69
 msgid "Network error, cannot fetch lyrics"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:346
+#: frontend/plasmoid/package/contents/ui/main.qml:348
 msgid "Getting lyrics from %1…"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:350
+#: frontend/plasmoid/package/contents/ui/main.qml:352
 msgid "Current lyrics: %1 (temporary fallback)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:352
+#: frontend/plasmoid/package/contents/ui/main.qml:354
 msgid "Current lyrics: %1"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:354
+#: frontend/plasmoid/package/contents/ui/main.qml:356
 msgid "Current lyrics source: none"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:359
+#: frontend/plasmoid/package/contents/ui/main.qml:361
 msgid "Lyrics source: Automatic"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:367
+#: frontend/plasmoid/package/contents/ui/main.qml:369
 msgid "Prefer local files for this song"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:376
+#: frontend/plasmoid/package/contents/ui/main.qml:378
 msgid "Prefer NetEase for this song"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:385
+#: frontend/plasmoid/package/contents/ui/main.qml:387
 msgid "Prefer AMLL for this song"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:394
+#: frontend/plasmoid/package/contents/ui/main.qml:396
 msgid "Prefer QQ Music for this song"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:403
+#: frontend/plasmoid/package/contents/ui/main.qml:405
 msgid "Search for lyrics again"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:410
+#: frontend/plasmoid/package/contents/ui/main.qml:412
 msgid "Lyrics 0.5 s earlier (all songs)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:411
+#: frontend/plasmoid/package/contents/ui/main.qml:413
 msgid "Lyrics 0.5 s earlier"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:418
+#: frontend/plasmoid/package/contents/ui/main.qml:420
 msgid "Lyrics 0.5 s later (all songs)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:419
+#: frontend/plasmoid/package/contents/ui/main.qml:421
 msgid "Lyrics 0.5 s later"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:426
+#: frontend/plasmoid/package/contents/ui/main.qml:428
 msgid "Reset global lyric offset (%1 ms)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:427
+#: frontend/plasmoid/package/contents/ui/main.qml:429
 msgid "Reset lyric offset (%1 ms)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:109
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:114
 msgid "Background:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:110
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:186
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:218
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:115
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:191
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:223
 msgid "None"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:110
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:115
 msgid "Plasma theme"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:110
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:115
 msgid "Solid translucent color"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:115
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:120
 msgid "Background color:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:121
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:373
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:126
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:396
 msgid "Text color:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:126
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:348
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:131
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:371
 msgid "Font size:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:133
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:356
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:138
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:379
 msgid "Font weight:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:135
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:359
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:140
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:382
 msgctxt "@item:inlistbox font weight"
 msgid "Light"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:136
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:360
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:141
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:383
 msgctxt "@item:inlistbox font weight"
 msgid "Regular"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:137
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:361
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:142
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:384
 msgctxt "@item:inlistbox font weight"
 msgid "Medium"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:138
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:362
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:143
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:385
 msgctxt "@item:inlistbox font weight"
 msgid "Demi bold"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:139
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:363
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:144
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:386
 msgctxt "@item:inlistbox font weight"
 msgid "Bold"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:140
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:364
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:145
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:387
 msgctxt "@item:inlistbox font weight"
 msgid "Black"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:152
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:157
 msgid "Line height:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:171
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:176
 #, javascript-format
 msgctxt "@item:valuesuffix line height as a percentage of the font size"
 msgid "%1%"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:174
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:379
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:179
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:402
 msgid "Outline:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:179
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:385
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:184
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:408
 msgid "Outline color:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:185
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:190
 msgid "Second line:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:186
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:191
 msgid "Translation"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:186
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:191
 msgid "Romanization"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:198
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:203
 msgid "Second line color:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:200
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:205
 msgid "Set it separately from the lyric color"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:205
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:210
 msgid "Color:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:211
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:216
 msgid "Long lyrics:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:212
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:217
 msgid "Fit text"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:212
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:217
 msgid "Wrap to two lines"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:212
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:217
 msgid "Marquee"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:217
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:222
 msgid "Line transition:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:218
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:223
 msgid "Fade"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:218
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:223
 msgid "Slide up"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:225
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:230
 msgid "Word-by-word"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:228
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:233
 msgid "Word-by-word:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:229
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:234
 msgid "Highlight each word as it is sung"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:236
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:245
 msgid ""
-"Used only when the lyrics source provides word timings. Other tracks keep "
-"showing one line at a time."
+"By default, only works when the lyrics source provides word timings. Turn on "
+"\"Simulate word timing\" below to also see it on tracks that don't."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:240
-msgid "Upcoming words:"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:246
-msgid "Current word:"
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:248
+msgid "Simulate word timing:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:252
-msgid "Sung words:"
+msgid ""
+"Divide each line evenly across its characters when the track has no word "
+"timing at all"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:257
-msgid "Lift:"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:262
-msgid "Raise the word being sung"
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:259
+msgid ""
+"Keeps this animation running on every track instead of only the ones with "
+"real word timing, which costs more battery and CPU during playback."
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:263
+msgid "Upcoming words:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:269
+msgid "Current word:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:275
+msgid "Sung words:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:280
+msgid "Lift:"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:285
+msgid "Raise the word being sung"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:286
 msgid "Not available in a panel, which sets the widget height"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:267
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:290
 msgid "Lift height:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:304
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:327
 #, javascript-format
 msgctxt "@item:valuesuffix lift height as a percentage of the font size"
 msgid "%1%"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:307
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:330
 msgid "Brightening:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:309
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:332
 msgid "Brighten the word being sung"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:314
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:337
 msgid "Brightness:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:321
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:344
 #, javascript-format
 msgctxt "@item:valuesuffix how far the sung word is brightened"
 msgid "%1%"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:324
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:347
 msgid "Blurred glow:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:326
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:349
 msgid ""
 "Add a blurred halo; fast passages show several at once. Costs noticeably "
 "more to draw than brightening alone."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:333
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:356
 msgid "Track info"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:336
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:359
 msgid "Show track info:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:341
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:364
 msgid "Layout:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:343
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:366
 msgid "Single line"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:343
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:366
 msgid "Two lines"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:391
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:414
 msgid "Overflow:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:393
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:416
 msgid "Shrink to fit"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:393
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:416
 msgid "Truncate"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:23
-#: frontend/qmlmodule/lyricsource.cpp:140
+#: frontend/qmlmodule/lyricsource.cpp:141
 msgid "Local files"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:24
-#: frontend/qmlmodule/lyricsource.cpp:139
+#: frontend/qmlmodule/lyricsource.cpp:140
 msgid "NetEase"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:25
-#: frontend/qmlmodule/lyricsource.cpp:138
+#: frontend/qmlmodule/lyricsource.cpp:139
 msgid "AMLL"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:26
-#: frontend/qmlmodule/lyricsource.cpp:141
+#: frontend/qmlmodule/lyricsource.cpp:142
 msgid "QQ Music"
 msgstr ""
 
@@ -475,7 +491,7 @@ msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:172
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:191
-#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:184
+#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:187
 #: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:76
 msgid "%1 ms"
 msgstr ""
@@ -602,52 +618,52 @@ msgstr ""
 msgid "Save and restart service"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:68
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:69
+#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:69
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:70
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:36
 msgid ""
 "These settings apply to this widget only. Every Desktop Lyrics widget keeps "
 "its own copy."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:159
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:169
+#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:162
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:172
 msgid "Auto-hide"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:162
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:172
+#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:165
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:175
 msgid "Auto-hide:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:163
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:173
+#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:166
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:176
 msgid "Hide the widget when nothing is playing"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:168
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:178
+#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:171
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:181
 msgid "Delay:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:174
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:184
+#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:177
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:187
 msgid "%1 second"
 msgid_plural "%1 seconds"
 msgstr[0] ""
 msgstr[1] ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:177
+#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:180
 msgid "Fade duration:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:187
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:187
+#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:190
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:190
 msgid "Non-music media:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:189
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:189
+#: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:192
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:192
 msgid "Also hide while playing non-music media"
 msgstr ""
 
@@ -673,7 +689,7 @@ msgstr ""
 msgid "Offset:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:154
+#: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:157
 msgctxt "@label:spinbox"
 msgid "Width:"
 msgstr ""
@@ -710,47 +726,47 @@ msgstr ""
 msgid "Could not restart lyrics service: %1"
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:50
+#: frontend/qmlmodule/lyricsource.cpp:51
 msgid "No current song is available."
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:53
+#: frontend/qmlmodule/lyricsource.cpp:54
 msgid "The current song changed before the command was applied."
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:56
+#: frontend/qmlmodule/lyricsource.cpp:57
 msgid "The requested lyrics source is unavailable."
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:59
+#: frontend/qmlmodule/lyricsource.cpp:60
 msgid "Could not save the song's preferred lyrics source."
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:62
+#: frontend/qmlmodule/lyricsource.cpp:63
 msgid "Could not clear the song's preferred lyrics source."
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:65
+#: frontend/qmlmodule/lyricsource.cpp:66
 msgid "There are no lyrics to adjust for the current song."
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:68
+#: frontend/qmlmodule/lyricsource.cpp:69
 msgid "Could not save the lyric offset."
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:72
+#: frontend/qmlmodule/lyricsource.cpp:73
 msgid "Lyrics source command failed: %1"
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:142
+#: frontend/qmlmodule/lyricsource.cpp:143
 msgid "Waylyrics import"
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:143
+#: frontend/qmlmodule/lyricsource.cpp:144
 msgid "No lyrics source"
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:144
+#: frontend/qmlmodule/lyricsource.cpp:145
 msgid "Other lyrics source (%1)"
 msgstr ""
 

@@ -247,6 +247,7 @@ PlasmoidItem {
         secondLineColor: Plasmoid.configuration.panelSecondLineColor
         lineHeightPercent: Plasmoid.configuration.panelLineHeight
         wordByWord: Plasmoid.configuration.panelWordByWord
+        syntheticWordByWord: Plasmoid.configuration.panelWordByWordSynthetic
         wordUnsungColor: Plasmoid.configuration.panelWordUnsungColor
         wordActiveColor: Plasmoid.configuration.panelWordActiveColor
         wordSungColor: Plasmoid.configuration.panelWordSungColor
@@ -303,6 +304,7 @@ PlasmoidItem {
         // than sharing one constant -- DESIGN.md decision 69 has the reasoning.
         lineHeightMinPercent: 125
         wordByWord: Plasmoid.configuration.desktopWordByWord
+        syntheticWordByWord: Plasmoid.configuration.desktopWordByWordSynthetic
         wordUnsungColor: Plasmoid.configuration.desktopWordUnsungColor
         wordActiveColor: Plasmoid.configuration.desktopWordActiveColor
         wordSungColor: Plasmoid.configuration.desktopWordSungColor

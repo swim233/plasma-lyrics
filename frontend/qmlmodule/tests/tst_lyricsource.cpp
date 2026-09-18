@@ -101,6 +101,43 @@ private:
         QVERIFY(file.commit());
     }
 
+    // Writes an arbitrary multi-line document, positioned so `positionMs`
+    // (relative to the anchor below) lands inside whichever line the caller
+    // wants current. Used for the document-level (not line-level) synthetic
+    // word gate, which writeSnapshot()/writeWordSnapshot() above -- both
+    // single-line -- cannot exercise.
+    static void writeDocumentSnapshot(const QString &path, int seq, const LyricLines &lines)
+    {
+        QDir().mkpath(QFileInfo(path).absolutePath());
+        QJsonArray lineArray;
+        for (const auto &line : lines) {
+            lineArray.append(lineToJson(line));
+        }
+        const QJsonObject root{
+            {QStringLiteral("schema"), 1},
+            {QStringLiteral("seq"), seq},
+            {QStringLiteral("daemon"),
+             QJsonObject{{QStringLiteral("pid"), QCoreApplication::applicationPid()}}},
+            {QStringLiteral("track"),
+             QJsonObject{{QStringLiteral("fingerprint"), QStringLiteral("mediaSrc:test")},
+                         {QStringLiteral("title"), QStringLiteral("song")},
+                         {QStringLiteral("artists"), QJsonArray{QStringLiteral("artist")}}}},
+            {QStringLiteral("playback"),
+             QJsonObject{{QStringLiteral("status"), QStringLiteral("Playing")},
+                         {QStringLiteral("positionUs"), 1000000},
+                         {QStringLiteral("anchorMonotonicNs"), 1000000000LL},
+                         {QStringLiteral("rate"), 1.0}}},
+            {QStringLiteral("lyric"),
+             QJsonObject{{QStringLiteral("state"), QStringLiteral("ok")},
+                         {QStringLiteral("offsetMs"), 0},
+                         {QStringLiteral("availableProviders"), QJsonArray{}},
+                         {QStringLiteral("lines"), lineArray}}}};
+        QSaveFile file(path);
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        QVERIFY(file.commit());
+    }
+
 private Q_SLOTS:
     // providerDisplayName() goes through i18nd(), so the expected strings below
     // are only stable when the catalogue lookup is pinned to the source
@@ -208,6 +245,106 @@ private Q_SLOTS:
         writeWordSnapshot(path, 2, {});
         QTRY_COMPARE(source.currentText(), QStringLiteral("worded"));
         QVERIFY(source.currentWords().isEmpty());
+    }
+
+    void documentLevelGateSuppressesSynthesisWhenAnyLineHasRealWords()
+    {
+        // Synthesis is a document-level decision (DESIGN.md: 204/204 documents
+        // observed with any real word timings had them on *every* line, 0
+        // mixed documents), so a document that has real words on one line
+        // must not synthesize on another line of the same document just
+        // because that particular line happens to carry none itself.
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        LyricWord verseWord;
+        verseWord.startMs = 0;
+        verseWord.endMs = 999;
+        verseWord.text = QStringLiteral("verse");
+        LyricLine worded;
+        worded.startMs = 0;
+        worded.endMs = 999;
+        worded.text = QStringLiteral("verse");
+        worded.words = QList<LyricWord>{verseWord};
+        LyricLine wordless;
+        wordless.startMs = 1000;
+        wordless.endMs = 2000;
+        wordless.text = QStringLiteral("chorus");
+        writeDocumentSnapshot(path, 1, {worded, wordless});
+
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+
+        // positionUs (1000000) with a zero-elapsed clock lands positionMs at
+        // 1000, inside `wordless`, not `worded`.
+        QCOMPARE(source.currentText(), QStringLiteral("chorus"));
+        QVERIFY(source.currentWords().isEmpty());
+        QVERIFY(source.currentSyntheticWords().isEmpty());
+    }
+
+    void noRealWordsAnywhereSynthesizesWordsForTheCurrentLine()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        LyricLine first;
+        first.startMs = 0;
+        first.endMs = 999;
+        first.text = QStringLiteral("intro");
+        LyricLine second;
+        second.startMs = 1000;
+        second.endMs = 2000;
+        second.text = QStringLiteral("你好");
+        writeDocumentSnapshot(path, 1, {first, second});
+
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+
+        QCOMPARE(source.currentText(), QStringLiteral("你好"));
+        QVERIFY(source.currentWords().isEmpty());
+        const QVariantList synthetic = source.currentSyntheticWords();
+        QCOMPARE(synthetic.size(), 2);
+        QCOMPARE(synthetic.at(0).toMap().value(QStringLiteral("text")).toString(),
+                 QStringLiteral("你"));
+        QCOMPARE(synthetic.at(0).toMap().value(QStringLiteral("startMs")).toLongLong(), 1000);
+        QCOMPARE(synthetic.at(0).toMap().value(QStringLiteral("endMs")).toLongLong(), 1500);
+        QCOMPARE(synthetic.at(1).toMap().value(QStringLiteral("text")).toString(),
+                 QStringLiteral("好"));
+        QCOMPARE(synthetic.at(1).toMap().value(QStringLiteral("endMs")).toLongLong(), 2000);
+    }
+
+    void currentSyntheticWordsNotifiesOnCurrentLineChanged()
+    {
+        // currentSyntheticWords shares currentWords' NOTIFY signal (both are
+        // driven by the same current-line/document state), so a track change
+        // that flips the document-level gate has to both change the value
+        // and fire that signal -- not leave a stale QML binding showing
+        // synthetic words for a document that just gained real ones.
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        LyricLine wordless;
+        wordless.startMs = 1000;
+        wordless.endMs = 2000;
+        wordless.text = QStringLiteral("你好");
+        writeDocumentSnapshot(path, 1, {wordless});
+
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+        QCOMPARE(source.currentSyntheticWords().size(), 2);
+
+        QSignalSpy spy(&source, &LyricSource::currentLineChanged);
+        LyricWord word;
+        word.startMs = 1000;
+        word.endMs = 2000;
+        word.text = QStringLiteral("你好");
+        LyricLine worded;
+        worded.startMs = 1000;
+        worded.endMs = 2000;
+        worded.text = QStringLiteral("你好");
+        worded.words = QList<LyricWord>{word};
+        writeDocumentSnapshot(path, 2, {worded});
+
+        QTRY_VERIFY(source.currentSyntheticWords().isEmpty());
+        QVERIFY(spy.size() >= 1);
+        QCOMPARE(source.currentWords().size(), 1);
     }
 
     void romanizationRoundTripsFromTheSnapshot()

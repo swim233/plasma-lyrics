@@ -40,6 +40,10 @@ Kirigami.FormLayout {
     // disabled rather than pretending to store anything.
     property bool liftSupported: true
     property bool wordByWord: true
+    // DESIGN.md's synthetic word-by-word decision. Read-only pass-through
+    // like the other word-mode properties on this component; the page below
+    // owns the actual cfg_ binding.
+    property bool syntheticWordByWord: false
     // Computed by the page rather than as a conjunction here. Written inline
     // on this row's `visible`, any two-property conjunction sends Kirigami's
     // binding-loop detector into a loop -- reproduced by bisection: `true`,
@@ -79,6 +83,7 @@ Kirigami.FormLayout {
     signal lineHeightPercentEdited(int value)
 
     signal wordByWordEdited(bool value)
+    signal syntheticWordByWordEdited(bool value)
     signal wordUnsungColorEdited(string value)
     signal wordActiveColorEdited(string value)
     signal wordSungColorEdited(string value)
@@ -233,7 +238,25 @@ Kirigami.FormLayout {
     QQC2.Label {
         Layout.fillWidth: true
         wrapMode: Text.WordWrap
-        text: i18n("Used only when the lyrics source provides word timings. Other tracks keep showing one line at a time.")
+        // Was "Used only when the lyrics source provides word timings. Other
+        // tracks keep showing one line at a time." -- true before this
+        // feature existed, wrong the moment "Simulate word timing" below is
+        // also on, since that is exactly the case it adds coverage for.
+        text: i18n("By default, only works when the lyrics source provides word timings. Turn on \"Simulate word timing\" below to also see it on tracks that don't.")
+    }
+    QQC2.CheckBox {
+        Kirigami.FormData.label: i18n("Simulate word timing:")
+        visible: root.wordByWord
+        enabled: root.wordByWord
+        checked: root.syntheticWordByWord
+        text: i18n("Divide each line evenly across its characters when the track has no word timing at all")
+        onToggled: root.syntheticWordByWordEdited(checked)
+    }
+    QQC2.Label {
+        Layout.fillWidth: true
+        wrapMode: Text.WordWrap
+        visible: root.wordByWord
+        text: i18n("Keeps this animation running on every track instead of only the ones with real word timing, which costs more battery and CPU during playback.")
     }
     ColorField {
         visible: root.wordByWord

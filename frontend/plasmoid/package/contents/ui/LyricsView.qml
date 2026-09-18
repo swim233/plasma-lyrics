@@ -36,6 +36,14 @@ Item {
     property int lineHeightMinPercent: 100
 
     property bool wordByWord: true
+    // Off by default (DESIGN.md's synthetic word-by-word decision): when on,
+    // and only when the *whole* current document carries no real word
+    // timings, effectiveWords below reaches for source.currentSyntheticWords
+    // instead of source.currentWords. Gated on wordByWord itself -- reading
+    // the synthetic property with the master switch off would arm the
+    // per-frame clock (see wordClockRunning) for tracks that used to cost
+    // nothing at all.
+    property bool syntheticWordByWord: false
     property color wordUnsungColor: "#8cfffaf5"
     property color wordActiveColor: "#e6fffaf5"
     property color wordSungColor: "#c4fffaf5"
@@ -104,11 +112,24 @@ Item {
     // can show -- "Searching…", the idle text, a custom not-found message --
     // is plain text that merely occupies the same row, and handing it the
     // current line's timings would highlight fragments of it.
+    //
+    // root.source.currentSyntheticWords is read only when syntheticWordByWord
+    // is on AND currentWords is empty -- never merely because the switch is
+    // on. LyricSource itself already empties currentSyntheticWords for any
+    // document that has real words anywhere (its own document-level gate),
+    // so the `currentWords.length === 0` half here is belt-and-braces, not a
+    // second copy of that decision. What the ordering here actually buys is
+    // that the property is never even touched while the switch is off --
+    // reading it is what would otherwise justify computing synthetic timings
+    // for a track that used to cost nothing at all.
     readonly property var effectiveWords: root.wordByWord
         && root.effectiveText.length > 0
         && root.source.lyricState === "ok"
         && root.effectiveText === root.source.currentText
-        ? root.source.currentWords : []
+        ? (root.syntheticWordByWord && root.source.currentWords.length === 0
+            ? root.source.currentSyntheticWords
+            : root.source.currentWords)
+        : []
 
     // Word-level scanning is pulled per frame rather than pushed from a timer:
     // DESIGN.md decision 38 settled that a frame-driven source stops by itself
@@ -134,6 +155,16 @@ Item {
     // and it is why turning the effects off or setting three identical colours
     // is not a substitute. See DESIGN.md decision 38 for why the wakeup count,
     // not the per-frame cost, is the thing being protected here.
+    //
+    // syntheticWordByWord does not weaken this: effectiveWords only ever
+    // reads source.currentSyntheticWords inside the wordByWord-gated branch
+    // above, so turning wordByWord off silences the synthetic clock along
+    // with the real one regardless of what syntheticWordByWord itself is set
+    // to. What DOES change with this switch, independent of wordByWord, is
+    // the previously-free case: a track whose document has no real word
+    // timings used to leave this clock permanently disarmed (decision 38's
+    // "zero cost today" reasoning); with syntheticWordByWord on, such a
+    // track now arms it too.
     readonly property bool wordClockRunning: root.effectiveWords.length > 0
         && root.source.playbackStatus === "Playing"
         && (root.panelMode || root.shouldBeVisible)

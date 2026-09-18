@@ -2,6 +2,7 @@
 
 #include "core/lyric/lyricmodel.h"
 #include "core/lyric/timeline.h"
+#include "core/lyric/wordsynthesis.h"
 
 #include <QDir>
 #include <QDBusConnection>
@@ -197,6 +198,27 @@ QVariantList LyricSource::currentWords() const
     return words;
 }
 
+QVariantList LyricSource::currentSyntheticWords() const
+{
+    // Document-level gate: as long as any line in the whole document carries
+    // real words, every line -- including this one, even if it happens to
+    // have none itself (a purely instrumental line, say) -- stays on the
+    // real (empty) currentWords() path. Synthesis only ever kicks in for a
+    // document that has no word timings anywhere.
+    if (m_documentHasWords || m_currentLine < 0 || m_currentLine >= m_lines.size()) {
+        return {};
+    }
+    const auto synthesized = synthesizeWords(m_lines[m_currentLine]);
+    QVariantList words;
+    words.reserve(synthesized.size());
+    for (const auto &word : synthesized) {
+        words.append(QVariantMap{{QStringLiteral("startMs"), word.startMs},
+                                 {QStringLiteral("endMs"), word.endMs},
+                                 {QStringLiteral("text"), word.text}});
+    }
+    return words;
+}
+
 qint64 LyricSource::lyricPositionMs() const
 {
     return livePositionMs() - m_offsetMs;
@@ -372,6 +394,12 @@ void LyricSource::reloadImpl()
             m_lines.append(*line);
         }
     }
+    // Document-level, not line-level (see currentSyntheticWords()): a track
+    // with even one real-worded line never gets synthetic words on any of
+    // its other lines.
+    m_documentHasWords = std::any_of(m_lines.cbegin(), m_lines.cend(), [](const LyricLine &line) {
+        return line.words && !line.words->isEmpty();
+    });
 
     if (oldState != m_lyricState) Q_EMIT lyricStateChanged();
     if (oldPlayback != m_playbackStatus) Q_EMIT playbackChanged();

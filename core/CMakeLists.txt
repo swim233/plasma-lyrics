@@ -14,6 +14,8 @@ add_library(plasma_lyrics_core STATIC
     lyric/timeline.h
     lyric/ttmlparser.cpp
     lyric/ttmlparser.h
+    lyric/wordsynthesis.cpp
+    lyric/wordsynthesis.h
     match/matcher.cpp
     match/matcher.h
     store/lyricstore.cpp

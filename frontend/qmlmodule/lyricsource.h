@@ -26,6 +26,18 @@ class LyricSource : public QObject
     Q_PROPERTY(QString currentTranslation READ currentTranslation NOTIFY currentLineChanged)
     Q_PROPERTY(QString currentRomanization READ currentRomanization NOTIFY currentLineChanged)
     Q_PROPERTY(QVariantList currentWords READ currentWords NOTIFY currentLineChanged)
+    // Synthetic per-character words for the current line, populated only
+    // when the *whole document* -- every line, not just this one -- carries
+    // no real word timings (DESIGN.md's synthetic word-by-word decision:
+    // 204/204 documents with any real words had them on every line, 0 mixed
+    // documents observed). Empty whenever currentWords() is not. This is a
+    // second, independent read-only property rather than a fallback baked
+    // into currentWords() itself: main.qml shares one LyricSource instance
+    // between the desktop and panel representations (see main.qml's
+    // `LyricSource { id: lyricSource }`), so the synthetic-or-not choice
+    // cannot live as a writable property on this object -- it has to be
+    // made per-representation, in LyricsView.
+    Q_PROPERTY(QVariantList currentSyntheticWords READ currentSyntheticWords NOTIFY currentLineChanged)
     Q_PROPERTY(qint64 currentPositionMs READ currentPositionMs NOTIFY currentPositionChanged)
     Q_PROPERTY(int offsetMs READ offsetMs NOTIFY offsetChanged)
     Q_PROPERTY(bool canAdjustOffset READ canAdjustOffset NOTIFY canAdjustOffsetChanged)
@@ -58,6 +70,7 @@ public:
     QString currentTranslation() const;
     QString currentRomanization() const;
     QVariantList currentWords() const;
+    QVariantList currentSyntheticWords() const;
     qint64 currentPositionMs() const;
     int offsetMs() const;
     bool canAdjustOffset() const;
@@ -147,6 +160,10 @@ private:
     bool m_controlInProgress = false;
     QString m_controlError;
     PlasmaLyrics::LyricLines m_lines;
+    // Cached alongside m_lines rather than recomputed per call: it only
+    // needs to change when m_lines itself does, and currentSyntheticWords()
+    // is read every frame while the word clock is armed.
+    bool m_documentHasWords = false;
     qint64 m_positionUs = 0;
     qint64 m_anchorMonotonicNs = 0;
     double m_rate = 1.0;

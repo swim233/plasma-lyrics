@@ -43,8 +43,25 @@
          the word Repeater's model, which is also what stops the per-frame
          FrameAnimation. No combination of the colour and effect settings below
          substitutes for it: three identical colours neutralise the look, but
-         the clock keeps running because nothing can tell it the colours match. -->
+         the clock keeps running because nothing can tell it the colours match.
+         desktopWordByWordSynthetic below does not weaken this claim: it is only
+         ever consulted while this entry is true (see LyricsView.qml's
+         effectiveWords), so turning this off silences the synthesized clock
+         along with the real one no matter what the synthetic entry holds. What
+         it does change, independently of this entry, is the previously-free
+         case: a track whose document carries no real word timings used to
+         leave this clock permanently disarmed at zero cost; with the synthetic
+         entry on, such a track now arms it too. -->
     <entry name="desktopWordByWord" type="Bool"><default>true</default></entry>
+    <!-- DESIGN.md's synthetic word-by-word decision: fabricates a per-character
+         timeline, evenly dividing the line's own duration by character count,
+         for a document whose lyric source provides no word timings at all.
+         Document-level, not line-level (see LyricSource::currentSyntheticWords):
+         a document with real words on even one line never synthesizes on any
+         of its other lines. Off by default, unlike desktopWordByWord above
+         (which is opt-out): this one is opt-in, because it spends the wakeup
+         budget decision 38 exists to protect on tracks that cost nothing today. -->
+    <entry name="desktopWordByWordSynthetic" type="Bool"><default>false</default></entry>
     <entry name="desktopWordUnsungColor" type="String"><default>#8cfffaf5</default></entry>
     <entry name="desktopWordActiveColor" type="String"><default>#e6fffaf5</default></entry>
     <entry name="desktopWordSungColor" type="String"><default>#c4fffaf5</default></entry>
@@ -93,6 +110,8 @@
     <entry name="panelLineHeight" type="Int"><default>125</default></entry>
 
     <entry name="panelWordByWord" type="Bool"><default>true</default></entry>
+    <!-- See desktopWordByWordSynthetic's comment above; same decision, panel copy. -->
+    <entry name="panelWordByWordSynthetic" type="Bool"><default>false</default></entry>
     <entry name="panelWordUnsungColor" type="String"><default>#8cfffaf5</default></entry>
     <entry name="panelWordActiveColor" type="String"><default>#e6fffaf5</default></entry>
     <entry name="panelWordSungColor" type="String"><default>#c4fffaf5</default></entry>
