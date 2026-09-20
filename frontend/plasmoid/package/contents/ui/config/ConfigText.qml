@@ -33,7 +33,7 @@ Kirigami.ScrollablePage {
             Layout.fillWidth: true
             visible: true
             type: Kirigami.MessageType.Information
-            text: i18n("These settings apply to this widget only. Every Desktop Lyrics widget keeps its own copy.")
+            text: i18n("These settings affect this widget only; other widgets are not affected.")
         }
 
         Kirigami.FormLayout {
@@ -60,7 +60,7 @@ Kirigami.ScrollablePage {
             QQC2.TextField {
                 Kirigami.FormData.label: i18n("No lyrics text:")
                 text: page.cfg_noLyricText
-                placeholderText: i18n("This track has no lyrics")
+                placeholderText: i18n("Instrumental track, enjoy the music")
                 onTextEdited: page.cfg_noLyricText = text
             }
             QQC2.TextField {

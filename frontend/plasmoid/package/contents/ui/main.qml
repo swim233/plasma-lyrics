@@ -262,7 +262,7 @@ PlasmoidItem {
                                                i18n("Lyrics not found"))
         noLyricText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                               Plasmoid.configuration.noLyricText,
-                                              i18n("This track has no lyrics"))
+                                              i18n("Instrumental track, enjoy the music"))
         networkErrorText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                                    Plasmoid.configuration.networkErrorText,
                                                    i18n("Network error, cannot fetch lyrics"))
@@ -321,7 +321,7 @@ PlasmoidItem {
                                                i18n("Lyrics not found"))
         noLyricText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                               Plasmoid.configuration.noLyricText,
-                                              i18n("This track has no lyrics"))
+                                              i18n("Instrumental track, enjoy the music"))
         networkErrorText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                                    Plasmoid.configuration.networkErrorText,
                                                    i18n("Network error, cannot fetch lyrics"))

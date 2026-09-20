@@ -230,7 +230,7 @@ Kirigami.FormLayout {
         Kirigami.FormData.label: i18n("Word-by-word")
     }
     QQC2.CheckBox {
-        Kirigami.FormData.label: i18n("Word-by-word:")
+        Kirigami.FormData.label: i18n("Word-by-word lyrics:")
         text: i18n("Highlight each word as it is sung")
         checked: root.wordByWord
         onToggled: root.wordByWordEdited(checked)
@@ -245,28 +245,34 @@ Kirigami.FormLayout {
         // implicitWidth, and Layout.fillWidth does not cap that -- it only
         // lets the item grow. FormLayout then sizes itself to the widest
         // child's preferred width, so a long enough sentence here silently
-        // widens the whole config page. Measured on this form: the two
-        // sentences below want 790 and 806px, against the 653px the rest of
-        // the page needs, and the page's implicitWidth went 761 -> 938
-        // (+23%) when they were added. Layout.preferredWidth: 0 does NOT
-        // help (measured: still 938); only an explicit cap does. 24 gridUnits
-        // keeps every description comfortably under the ~653px the controls
-        // themselves already need, so a control stays the binding constraint
-        // and no future wording change can move the page width again.
+        // widens the whole config page. Measured on this form when these
+        // descriptions were added: the two sentences it held then wanted 790
+        // and 806px, against the 653px the rest of the page needs, and the
+        // page's implicitWidth went 761 -> 938 (+23%) when they were added.
+        // Layout.preferredWidth: 0 does NOT help (measured: still 938); only
+        // an explicit cap does. 24 gridUnits keeps every description
+        // comfortably under the ~653px the controls themselves already need,
+        // so a control stays the binding constraint and no future wording
+        // change can move the page width again.
         Layout.maximumWidth: Kirigami.Units.gridUnit * 24
         wrapMode: Text.WordWrap
-        // Was "Used only when the lyrics source provides word timings. Other
-        // tracks keep showing one line at a time." -- true before this
-        // feature existed, wrong the moment "Simulate timing" below is
-        // also on, since that is exactly the case it adds coverage for.
-        text: i18n("By default, only works when the lyrics source provides word timings. Turn on \"Simulate timing\" below to also see it on tracks that don't.")
+        // Same styling as the "Record debug details" description on the
+        // Lyrics Service page: this is secondary copy about the checkbox
+        // above it, not a control label.
+        color: Kirigami.Theme.disabledTextColor
+        font: Kirigami.Theme.smallFont
+        // Earlier wordings ("Used only when the lyrics source provides word
+        // timings.", then a pointer at "Simulate timing" below) described
+        // when the effect runs; this one names what the user has to do to
+        // get it -- pick a source that carries word timings.
+        text: i18n("Turn this on for word-by-word lyrics. The lyrics source has to support it (QQ Music and AMLL are the recommended first choices).")
     }
     QQC2.CheckBox {
         Kirigami.FormData.label: i18n("Simulate timing:")
         visible: root.wordByWord
         enabled: root.wordByWord
         checked: root.syntheticWordByWord
-        text: i18n("Divide each line evenly across its characters when the track has no word timing at all")
+        text: i18n("Turn on simulated word-by-word for lyrics sources that do not support it")
         onToggled: root.syntheticWordByWordEdited(checked)
     }
     QQC2.Label {
@@ -279,18 +285,23 @@ Kirigami.FormLayout {
         // implicitWidth, and Layout.fillWidth does not cap that -- it only
         // lets the item grow. FormLayout then sizes itself to the widest
         // child's preferred width, so a long enough sentence here silently
-        // widens the whole config page. Measured on this form: the two
-        // sentences below want 790 and 806px, against the 653px the rest of
-        // the page needs, and the page's implicitWidth went 761 -> 938
-        // (+23%) when they were added. Layout.preferredWidth: 0 does NOT
-        // help (measured: still 938); only an explicit cap does. 24 gridUnits
-        // keeps every description comfortably under the ~653px the controls
-        // themselves already need, so a control stays the binding constraint
-        // and no future wording change can move the page width again.
+        // widens the whole config page. Measured on this form when these
+        // descriptions were added: the two sentences it held then wanted 790
+        // and 806px, against the 653px the rest of the page needs, and the
+        // page's implicitWidth went 761 -> 938 (+23%) when they were added.
+        // Layout.preferredWidth: 0 does NOT help (measured: still 938); only
+        // an explicit cap does. 24 gridUnits keeps every description
+        // comfortably under the ~653px the controls themselves already need,
+        // so a control stays the binding constraint and no future wording
+        // change can move the page width again.
         Layout.maximumWidth: Kirigami.Units.gridUnit * 24
         wrapMode: Text.WordWrap
         visible: root.wordByWord
-        text: i18n("Keeps this animation running on every track instead of only the ones with real word timing, which costs more battery and CPU during playback.")
+        // Same styling as the "Record debug details" description on the
+        // Lyrics Service page, as above.
+        color: Kirigami.Theme.disabledTextColor
+        font: Kirigami.Theme.smallFont
+        text: i18n("With this on, the word-by-word effect is simulated from the line timings, so it is less accurate.")
     }
     ColorField {
         visible: root.wordByWord
@@ -380,7 +391,7 @@ Kirigami.FormLayout {
     QQC2.CheckBox {
         Kirigami.FormData.label: i18n("Blurred glow:")
         visible: root.wordByWord
-        text: i18n("Add a blurred halo; fast passages show several at once. Costs noticeably more to draw than brightening alone.")
+        text: i18n("Overlay a glow on the word-by-word lyrics for a more elegant look, at a slight performance cost.")
         checked: root.wordBlurGlow
         onToggled: root.wordBlurGlowEdited(checked)
     }

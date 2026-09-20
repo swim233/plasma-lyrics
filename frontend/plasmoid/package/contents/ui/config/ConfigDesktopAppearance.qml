@@ -66,7 +66,7 @@ Kirigami.ScrollablePage {
             Layout.fillWidth: true
             visible: true
             type: Kirigami.MessageType.Information
-            text: i18n("These settings apply to this widget only. Every Desktop Lyrics widget keeps its own copy.")
+            text: i18n("These settings affect this widget only; other widgets are not affected.")
         }
 
         AppearanceSection {
