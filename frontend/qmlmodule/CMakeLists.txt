@@ -10,6 +10,8 @@ ecm_add_qml_module(plasmalyricssource
 target_sources(plasmalyricssource PRIVATE
     backendconfig.cpp
     backendconfig.h
+    configchangelogger.cpp
+    configchangelogger.h
     frontendlogging.cpp
     frontendlogging.h
     globalconfig.cpp
@@ -72,6 +74,24 @@ if(BUILD_TESTING)
         add_test(NAME tst_globalconfig COMMAND tst_globalconfig)
     endif()
     set_tests_properties(tst_globalconfig PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
+
+    add_executable(tst_configchangelogger
+        tests/tst_configchangelogger.cpp
+        configchangelogger.cpp
+        frontendlogging.cpp
+        settingslog.cpp
+    )
+    target_include_directories(tst_configchangelogger PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(tst_configchangelogger PRIVATE
+        plasma_lyrics_core Qt6::Core Qt6::DBus Qt6::Qml Qt6::Test)
+    target_compile_options(tst_configchangelogger PRIVATE -Wno-missing-field-initializers)
+    if(DBUS_RUN_SESSION_EXECUTABLE)
+        add_test(NAME tst_configchangelogger
+                 COMMAND ${DBUS_RUN_SESSION_EXECUTABLE} -- $<TARGET_FILE:tst_configchangelogger>)
+    else()
+        add_test(NAME tst_configchangelogger COMMAND tst_configchangelogger)
+    endif()
+    set_tests_properties(tst_configchangelogger PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
     add_executable(tst_lyricsource
         tests/tst_lyricsource.cpp
