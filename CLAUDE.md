@@ -56,6 +56,17 @@ always has -- its only output is "Not installed yet, skipping"; a directory
 that has been installed from takes a different branch and prints nothing).
 The `sd_journal_send()` rationale above does not apply to it either way.
 
+A test that simulates a crashing child must kill it with `SIGKILL`
+(`kill -KILL $$` inside a `/bin/sh -c` command), never with a core-dumping
+signal such as `SIGSEGV` or `SIGABRT`. `QProcess` reports `CrashExit` for
+any signal death, so the test loses nothing. A core-dumping signal is piped
+by the kernel to `systemd-coredump` on every run, which stores a core, writes
+several journal entries and on Plasma also launches
+`drkonqi-coredump-processor`; `RLIMIT_CORE=0` in the child only drops the
+core file, the journal and DrKonqi traffic stay (confirmed: before
+`tst_backendconfig` switched to `SIGKILL` it left 832 `coredumpctl` entries
+in two weeks).
+
 Commit messages are in Chinese with an English Conventional Commits prefix:
 `type(scope): 中文主题`, where type is one of feat / fix / perf / docs /
 chore / merge. The subject states what was implemented or fixed and the new
