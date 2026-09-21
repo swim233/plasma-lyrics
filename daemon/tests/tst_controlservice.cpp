@@ -20,16 +20,24 @@ using namespace PlasmaLyrics;
 
 namespace {
 
-QStringList *capturedMessages = nullptr;
+struct CapturedMessage
+{
+    QtMsgType type;
+    QString text;
+};
+
+QList<CapturedMessage> *capturedMessages = nullptr;
 
 void captureMessages(QtMsgType type, const QMessageLogContext &, const QString &message)
 {
     if (capturedMessages && (type == QtInfoMsg || type == QtWarningMsg)) {
-        capturedMessages->append(message);
+        capturedMessages->append({type, message});
     }
 }
 
-// Mirrors tst_resolver.cpp's helper of the same name.
+// Mirrors tst_resolver.cpp's helper of the same name; extended with the
+// message's QtMsgType so tests can assert severity (info vs. warning), not
+// just text, for the Note* methods below.
 class MessageCapture
 {
 public:
@@ -45,10 +53,26 @@ public:
         qInstallMessageHandler(m_previous);
     }
 
-    const QStringList &messages() const { return m_messages; }
+    QStringList messages() const
+    {
+        QStringList result;
+        result.reserve(m_messages.size());
+        for (const auto &message : m_messages) {
+            result.append(message.text);
+        }
+        return result;
+    }
+
+    bool containsAt(QtMsgType type, const QString &text) const
+    {
+        return std::any_of(m_messages.cbegin(), m_messages.cend(),
+                           [type, &text](const CapturedMessage &message) {
+            return message.type == type && message.text == text;
+        });
+    }
 
 private:
-    QStringList m_messages;
+    QList<CapturedMessage> m_messages;
     QtMessageHandler m_previous;
 };
 
@@ -360,6 +384,134 @@ private Q_SLOTS:
             database.close();
         }
         QSqlDatabase::removeDatabase(connectionName);
+    }
+
+    void noteConfigChangeLogsWithoutAppletContext()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider local(QStringLiteral("local"));
+        Resolver resolver(store, {&local});
+        ControlService service(store, resolver, [] { return std::optional<MprisState>(); },
+                               [](const MprisState &, const QString &) {});
+
+        MessageCapture capture;
+        service.NoteConfigChange(QStringLiteral("ini"), QString(), QString(),
+                                 QStringLiteral("providers/enabled"),
+                                 QStringLiteral("local,netease"),
+                                 QStringLiteral("local,netease,qq"));
+        QVERIFY(capture.containsAt(QtInfoMsg,
+            QStringLiteral("config changed store=ini key=providers/enabled "
+                          "old=\"local,netease\" new=\"local,netease,qq\"")));
+    }
+
+    void noteConfigChangeLogsAppletContext()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider local(QStringLiteral("local"));
+        Resolver resolver(store, {&local});
+        ControlService service(store, resolver, [] { return std::optional<MprisState>(); },
+                               [](const MprisState &, const QString &) {});
+
+        MessageCapture capture;
+        service.NoteConfigChange(QStringLiteral("applet"), QStringLiteral("12"),
+                                 QStringLiteral("desktop"), QStringLiteral("desktopFontSize"),
+                                 QStringLiteral("34"), QStringLiteral("36"));
+        QVERIFY(capture.containsAt(QtInfoMsg,
+            QStringLiteral("config changed store=applet applet=12 form=desktop "
+                          "key=desktopFontSize old=\"34\" new=\"36\"")));
+    }
+
+    void noteSaveFailedLogsAtWarning()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider local(QStringLiteral("local"));
+        Resolver resolver(store, {&local});
+        ControlService service(store, resolver, [] { return std::optional<MprisState>(); },
+                               [](const MprisState &, const QString &) {});
+
+        MessageCapture capture;
+        service.NoteSaveFailed(QStringLiteral("db"), QStringLiteral("disk full"));
+        QVERIFY(capture.containsAt(QtWarningMsg,
+            QStringLiteral("config save failed store=db reason=\"disk full\"")));
+    }
+
+    void noteRestartRequestedLogsAtInfo()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider local(QStringLiteral("local"));
+        Resolver resolver(store, {&local});
+        ControlService service(store, resolver, [] { return std::optional<MprisState>(); },
+                               [](const MprisState &, const QString &) {});
+
+        MessageCapture capture;
+        service.NoteRestartRequested();
+        QVERIFY(capture.containsAt(QtInfoMsg, QStringLiteral("config restart requested")));
+    }
+
+    void noteRestartFinishedLogsResultAndSeverity()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider local(QStringLiteral("local"));
+        Resolver resolver(store, {&local});
+        ControlService service(store, resolver, [] { return std::optional<MprisState>(); },
+                               [](const MprisState &, const QString &) {});
+
+        {
+            MessageCapture capture;
+            service.NoteRestartFinished(true, QString());
+            QVERIFY(capture.containsAt(QtInfoMsg,
+                QStringLiteral("config restart finished result=ok")));
+        }
+        {
+            MessageCapture capture;
+            service.NoteRestartFinished(false,
+                                        QStringLiteral("restart command exited with code 1"));
+            QVERIFY(capture.containsAt(QtWarningMsg,
+                QStringLiteral("config restart finished result=failed "
+                              "error=\"restart command exited with code 1\"")));
+        }
+    }
+
+    void notesAreExportedOverTheSessionBus()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider local(QStringLiteral("local"));
+        Resolver resolver(store, {&local});
+        ControlService service(store, resolver, [] { return std::optional<MprisState>(); },
+                               [](const MprisState &, const QString &) {});
+        auto bus = QDBusConnection::sessionBus();
+        QVERIFY(bus.registerService(ControlService::serviceName()));
+        QVERIFY(bus.registerObject(ControlService::objectPath(), &service,
+                                   QDBusConnection::ExportAllSlots));
+        QDBusInterface interface(ControlService::serviceName(), ControlService::objectPath(),
+                                 ControlService::interfaceName(), bus);
+        QVERIFY(interface.isValid());
+
+        MessageCapture capture;
+        QDBusReply<void> changeCall = interface.call(
+            QStringLiteral("NoteConfigChange"), QStringLiteral("ini"), QString(), QString(),
+            QStringLiteral("providers/enabled"), QStringLiteral("local"),
+            QStringLiteral("local,qq"));
+        QVERIFY(changeCall.isValid());
+        QVERIFY(capture.containsAt(QtInfoMsg,
+            QStringLiteral("config changed store=ini key=providers/enabled "
+                          "old=\"local\" new=\"local,qq\"")));
+
+        QDBusReply<void> restartCall = interface.call(QStringLiteral("NoteRestartRequested"));
+        QVERIFY(restartCall.isValid());
+        QVERIFY(capture.containsAt(QtInfoMsg, QStringLiteral("config restart requested")));
     }
 };
 
