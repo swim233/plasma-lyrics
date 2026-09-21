@@ -1,5 +1,6 @@
 #include "controlservice.h"
 
+#include "core/log/configlog.h"
 #include "core/log/logformat.h"
 #include "core/store/lyricstore.h"
 #include "daemon/src/resolver.h"
@@ -211,6 +212,33 @@ QStringList ControlService::AvailableProviders() const
     qCInfo(lcDaemon).noquote() << QStringLiteral("control AvailableProviders result=%1")
                                       .arg(m_supportedProviders.join(QLatin1Char(',')));
     return m_supportedProviders;
+}
+
+void ControlService::NoteConfigChange(const QString &store, const QString &applet,
+                                      const QString &form, const QString &key,
+                                      const QString &oldValue, const QString &newValue)
+{
+    qCInfo(lcDaemon).noquote()
+        << configChangedLine({store, applet, form, key, oldValue, newValue});
+}
+
+void ControlService::NoteSaveFailed(const QString &store, const QString &reason)
+{
+    qCWarning(lcDaemon).noquote() << configSaveFailedLine(store, reason);
+}
+
+void ControlService::NoteRestartRequested()
+{
+    qCInfo(lcDaemon).noquote() << restartRequestedLine();
+}
+
+void ControlService::NoteRestartFinished(bool success, const QString &error)
+{
+    if (success) {
+        qCInfo(lcDaemon).noquote() << restartFinishedLine(success, error);
+    } else {
+        qCWarning(lcDaemon).noquote() << restartFinishedLine(success, error);
+    }
 }
 
 } // namespace PlasmaLyrics

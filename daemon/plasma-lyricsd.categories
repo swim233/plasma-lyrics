@@ -1,4 +1,5 @@
 plasmalyrics.daemon plasma-lyricsd: service lifecycle and control calls DEFAULT_SEVERITY [INFO]
+plasmalyrics.config plasma-lyrics applet: settings changes made in the configuration dialog DEFAULT_SEVERITY [INFO]
 plasmalyrics.resolver plasma-lyricsd: lyric resolution pipeline DEFAULT_SEVERITY [INFO]
 plasmalyrics.mpris plasma-lyricsd: MPRIS player discovery and state DEFAULT_SEVERITY [INFO]
 plasmalyrics.provider.netease plasma-lyricsd: NetEase Cloud Music provider requests DEFAULT_SEVERITY [INFO]

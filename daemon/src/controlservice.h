@@ -45,6 +45,19 @@ public Q_SLOTS:
     QString RefreshGlobalOffset();
     QStringList AvailableProviders() const;
 
+    // These exist so a settings change made in the frontend's configuration
+    // dialog also reaches the daemon's journal unit and log file, not just
+    // plasmashell's (core/log/configlog.h renders the identical line on both
+    // sides). The frontend sends them fire-and-forget with QDBus::NoBlock;
+    // the daemon deliberately trusts the caller rather than re-deriving the
+    // change from its own state (DESIGN.md decision 75 -- forging these
+    // lines was judged not worth a D-Bus design for a purely diagnostic log).
+    void NoteConfigChange(const QString &store, const QString &applet, const QString &form,
+                          const QString &key, const QString &oldValue, const QString &newValue);
+    void NoteSaveFailed(const QString &store, const QString &reason);
+    void NoteRestartRequested();
+    void NoteRestartFinished(bool success, const QString &error);
+
 private:
     std::optional<MprisState> checkedState(const QString &expectedFingerprint,
                                            QString *error) const;
