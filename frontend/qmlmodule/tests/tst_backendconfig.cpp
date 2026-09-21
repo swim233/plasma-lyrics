@@ -226,11 +226,31 @@ private Q_SLOTS:
         auto bus = QDBusConnection::sessionBus();
         bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
         bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
+        // A previous test's fire-and-forget QDBus::NoBlock report* call can
+        // still be in flight at this point even after that test's
+        // ScopedControlService drained and unregistered (see its comment
+        // above) -- reviewer-reproduced. With nothing registered at the
+        // path right now, any such straggler that arrives during this wait
+        // is answered with an error and consumed by the bus itself, rather
+        // than being queued for whatever this test is about to register at
+        // the same name/path.
+        QTest::qWait(20);
         QSettings settings(QSettings::IniFormat, QSettings::UserScope,
                            QStringLiteral("plasma-lyrics"),
                            QStringLiteral("plasma-lyricsd"));
         settings.clear();
         settings.sync();
+    }
+
+    void cleanup()
+    {
+        // Symmetric with init() above: drains this test's own stragglers
+        // (if any) right after it ends too, rather than leaving that
+        // entirely to the next test's init().
+        auto bus = QDBusConnection::sessionBus();
+        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
+        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
+        QTest::qWait(20);
     }
 
     void persistsProviderOrderAndAmllSettings()
@@ -889,6 +909,29 @@ private Q_SLOTS:
         QVERIFY(sawWarning);
     }
 
+    // Regression test for the cross-test D-Bus leak the reviewer found: a
+    // test that registers a fake and forwards changes, placed immediately
+    // before forwardsConfigChangesToDaemon() below, so that test's fresh
+    // fake would receive this one's fire-and-forget calls too if the
+    // isolation (ScopedControlService's drain-before-unregister plus the
+    // init()/cleanup() drains) ever regressed. Deliberately kept rather
+    // than removed once it passed, since it is the only test that would
+    // catch that regression.
+    void earlierForwardingTestDoesNotLeakIntoALaterOne()
+    {
+        FakeControlService service;
+        ScopedControlService scopedService(&service);
+        QVERIFY(scopedService.serviceRegistered());
+        QVERIFY(scopedService.objectRegistered());
+
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        config.setDebugLoggingEnabled(true);
+        config.setFileLoggingEnabled(true);
+        QVERIFY(config.save());
+
+        QTRY_COMPARE(service.configChanges.size(), 2);
+    }
+
     void forwardsConfigChangesToDaemon()
     {
         FakeControlService service;
@@ -901,25 +944,31 @@ private Q_SLOTS:
         config.setNetworkTimeoutMs(9000);
         QVERIFY(config.save());
 
-        QTRY_COMPARE(service.configChanges.size(), 2);
-        bool sawCredits = false;
-        bool sawTimeout = false;
+        // Waits for each specific call by its full field set (store/applet/
+        // form/key/old/new), not a bare count -- a stray call leaked in
+        // from another test would still leave the total at 2 if it happened
+        // to replace one of these, so the count alone would not catch it.
+        const auto hasCall = [&service](const QString &key, const QString &oldValue,
+                                        const QString &newValue) {
+            return std::any_of(service.configChanges.cbegin(), service.configChanges.cend(),
+                               [&](const FakeControlService::ConfigChangeCall &call) {
+                return call.store == QStringLiteral("ini") && call.applet.isEmpty()
+                    && call.form.isEmpty() && call.key == key && call.oldValue == oldValue
+                    && call.newValue == newValue;
+            });
+        };
+        QTRY_VERIFY(hasCall(QStringLiteral("lyrics/filterLeadingCredits"),
+                            QStringLiteral("true"), QStringLiteral("false")));
+        QTRY_VERIFY(hasCall(QStringLiteral("providers/netease/timeoutMs"),
+                            QStringLiteral("4000"), QStringLiteral("9000")));
+
+        // And nothing else -- catches a stray extra call (from this test's
+        // own bug or a leaked one) that a presence check alone would miss.
         for (const auto &call : service.configChanges) {
-            QCOMPARE(call.store, QStringLiteral("ini"));
-            QVERIFY(call.applet.isEmpty());
-            QVERIFY(call.form.isEmpty());
-            if (call.key == QStringLiteral("lyrics/filterLeadingCredits")) {
-                sawCredits = true;
-                QCOMPARE(call.oldValue, QStringLiteral("true"));
-                QCOMPARE(call.newValue, QStringLiteral("false"));
-            } else if (call.key == QStringLiteral("providers/netease/timeoutMs")) {
-                sawTimeout = true;
-                QCOMPARE(call.oldValue, QStringLiteral("4000"));
-                QCOMPARE(call.newValue, QStringLiteral("9000"));
-            }
+            QVERIFY(call.key == QStringLiteral("lyrics/filterLeadingCredits")
+                    || call.key == QStringLiteral("providers/netease/timeoutMs"));
         }
-        QVERIFY(sawCredits);
-        QVERIFY(sawTimeout);
+        QCOMPARE(service.configChanges.size(), 2);
     }
 
     void forwardsSaveFailedToDaemon()
@@ -934,9 +983,15 @@ private Q_SLOTS:
         config.setProxyUrl(QStringLiteral("not a url"));
         QVERIFY(!config.save());
 
-        QTRY_VERIFY(!service.saveFailedCalls.isEmpty());
-        QCOMPARE(service.saveFailedCalls.first().first, QStringLiteral("ini"));
-        QCOMPARE(service.saveFailedCalls.first().second, QStringLiteral("proxy-url-invalid"));
+        QTRY_VERIFY(std::any_of(service.saveFailedCalls.cbegin(), service.saveFailedCalls.cend(),
+                                [](const QPair<QString, QString> &call) {
+            return call.first == QStringLiteral("ini") && call.second == QStringLiteral("proxy-url-invalid");
+        }));
+        for (const auto &call : service.saveFailedCalls) {
+            QCOMPARE(call.first, QStringLiteral("ini"));
+            QCOMPARE(call.second, QStringLiteral("proxy-url-invalid"));
+        }
+        QCOMPARE(service.saveFailedCalls.size(), 1);
     }
 
     void restartReportsRequestedThenFinishedOnSuccess()
@@ -962,9 +1017,16 @@ private Q_SLOTS:
         }));
 
         QTRY_COMPARE(service.restartRequestedCalls, 1);
-        QTRY_VERIFY(!service.restartFinishedCalls.isEmpty());
-        QCOMPARE(service.restartFinishedCalls.first().first, true);
-        QCOMPARE(service.restartFinishedCalls.first().second, QString());
+        QTRY_VERIFY(std::any_of(service.restartFinishedCalls.cbegin(),
+                                service.restartFinishedCalls.cend(),
+                                [](const QPair<bool, QString> &call) {
+            return call.first && call.second.isEmpty();
+        }));
+        for (const auto &call : service.restartFinishedCalls) {
+            QVERIFY(call.first);
+            QVERIFY(call.second.isEmpty());
+        }
+        QCOMPARE(service.restartFinishedCalls.size(), 1);
     }
 
     void restartReportsRequestedThenFinishedOnFailure()
@@ -986,9 +1048,16 @@ private Q_SLOTS:
                 && entry.second.startsWith(QStringLiteral("config restart finished result=failed"));
         }));
 
-        QTRY_VERIFY(!service.restartFinishedCalls.isEmpty());
-        QCOMPARE(service.restartFinishedCalls.first().first, false);
-        QVERIFY(!service.restartFinishedCalls.first().second.isEmpty());
+        QTRY_VERIFY(std::any_of(service.restartFinishedCalls.cbegin(),
+                                service.restartFinishedCalls.cend(),
+                                [](const QPair<bool, QString> &call) {
+            return !call.first && !call.second.isEmpty();
+        }));
+        for (const auto &call : service.restartFinishedCalls) {
+            QVERIFY(!call.first);
+            QVERIFY(!call.second.isEmpty());
+        }
+        QCOMPARE(service.restartFinishedCalls.size(), 1);
     }
 
     void discoversAvailableProvidersFromDaemon()
