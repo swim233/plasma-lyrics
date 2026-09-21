@@ -2,6 +2,7 @@
 
 #include <QHash>
 #include <QObject>
+#include <QPointer>
 #include <QQmlEngine>
 #include <QQmlPropertyMap>
 #include <QString>
@@ -58,7 +59,14 @@ Q_SIGNALS:
 private:
     void onValueChanged(const QString &key, const QVariant &value);
 
-    QQmlPropertyMap *m_configuration = nullptr;
+    // QPointer rather than a raw pointer: nothing in main.qml destroys the
+    // map before this object today (Plasmoid.configuration outlives the
+    // applet), but there is no language guarantee of that, and a dangling
+    // pointer here would make setConfiguration() disconnect from -- or a
+    // still-pending signal deliver to -- freed memory. QPointer reads back
+    // as null once the map is destroyed, so that path degrades to "no
+    // configuration" instead of undefined behaviour.
+    QPointer<QQmlPropertyMap> m_configuration;
     uint m_appletId = 0;
     QString m_form;
     // Keyed by config key, value is the already-rendered string

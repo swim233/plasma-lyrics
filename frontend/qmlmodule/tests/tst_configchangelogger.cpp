@@ -2,7 +2,6 @@
 
 #include <QDBusConnection>
 #include <QQmlPropertyMap>
-#include <QStandardPaths>
 #include <QTest>
 
 #include <memory>
@@ -87,11 +86,6 @@ class ConfigChangeLoggerTest : public QObject
     Q_OBJECT
 
 private Q_SLOTS:
-    void initTestCase()
-    {
-        QStandardPaths::setTestModeEnabled(true);
-    }
-
     void init()
     {
         auto bus = QDBusConnection::sessionBus();
@@ -193,6 +187,38 @@ private Q_SLOTS:
 
         QCOMPARE(m_control.calls.at(1).oldValue, QStringLiteral("36"));
         QCOMPARE(m_control.calls.at(1).newValue, QStringLiteral("40"));
+    }
+
+    void survivesConfigurationDestroyedFromUnderneath()
+    {
+        auto *heapMap = QQmlPropertyMap::create();
+        heapMap->insert(QStringLiteral("desktopFontSize"), 34);
+
+        ConfigChangeLogger logger;
+        logger.setAppletId(12);
+        logger.setForm(QStringLiteral("desktop"));
+        logger.setConfiguration(heapMap);
+
+        // Nothing in main.qml destroys the map out from under the logger
+        // today, but the property is a plain pointer with no ownership
+        // contract, so this must not crash: the QPointer inside the logger
+        // is expected to read back as null once the map is gone, rather
+        // than leaving a dangling QQmlPropertyMap* for setConfiguration()
+        // to disconnect from or dereference.
+        delete heapMap;
+
+        // Clearing the configuration must not touch the freed map either.
+        logger.setConfiguration(nullptr);
+
+        std::unique_ptr<QQmlPropertyMap> replacement(QQmlPropertyMap::create());
+        replacement->insert(QStringLiteral("desktopFontSize"), 50);
+        logger.setConfiguration(replacement.get());
+
+        changeValue(replacement.get(), QStringLiteral("desktopFontSize"), 60);
+
+        QTRY_COMPARE(m_control.calls.size(), 1);
+        QCOMPARE(m_control.calls.first().oldValue, QStringLiteral("50"));
+        QCOMPARE(m_control.calls.first().newValue, QStringLiteral("60"));
     }
 
     void replacingConfigurationResnapshots()
