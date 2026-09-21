@@ -1,15 +1,47 @@
 #include "frontend/qmlmodule/globalconfig.h"
 
 #include "core/log/configlog.h"
+#include "core/store/lyricstore.h"
 #include "frontend/qmlmodule/settingslog.h"
 
 #include <QDBusConnection>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QPair>
 #include <QStandardPaths>
 #include <QTest>
-#include <algorithm>
 
 namespace {
+
+// GlobalConfig() always opens LyricStore at its default path (DESIGN.md
+// decision 41 -- unlike BackendConfig's tests, there is no per-test
+// QTemporaryDir override), and no other test binary in this repo touches
+// that path (it carries no RESOURCE_LOCK, unlike the shared ini file). That
+// makes it safe to substitute a directory for the database file for the
+// lifetime of one test: replaces any file there with an empty directory on
+// construction (so LyricStore::open()'s QSqlDatabase::open() fails) and
+// puts the path back to a clean slate on destruction, so later tests in
+// this binary see a fresh database again.
+class ScopedDatabasePathIsADirectory
+{
+public:
+    ScopedDatabasePathIsADirectory()
+        : m_path(PlasmaLyrics::LyricStore::defaultPath())
+    {
+        QFile::remove(m_path);
+        QDir().mkpath(QFileInfo(m_path).absolutePath());
+        QDir().mkdir(m_path);
+    }
+
+    ~ScopedDatabasePathIsADirectory()
+    {
+        QDir(m_path).removeRecursively();
+    }
+
+private:
+    QString m_path;
+};
 
 // Mirrors daemon/tests/tst_controlservice.cpp's helper of the same shape,
 // extended to also record severity (tst_backendconfig.cpp keeps its own
@@ -200,6 +232,31 @@ private Q_SLOTS:
         QVERIFY(control.callOrder.at(0).startsWith(QStringLiteral("NoteConfigChange:")));
         QVERIFY(control.callOrder.at(1).startsWith(QStringLiteral("NoteConfigChange:")));
         QCOMPARE(control.callOrder.at(2), QStringLiteral("RefreshGlobalOffset"));
+
+        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
+        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
+    }
+
+    void storeOpenFailureReportsDbOpenFailedAndDoesNotRefresh()
+    {
+        auto bus = QDBusConnection::sessionBus();
+        FakeOffsetControl control;
+        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
+        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
+                                   &control, QDBusConnection::ExportAllSlots));
+        ScopedDatabasePathIsADirectory blockStorePath;
+
+        GlobalConfig config;
+        MessageCapture capture;
+        QVERIFY(!config.save());
+        QCOMPARE(control.refreshCount, 0);
+        QVERIFY(control.configChanges.isEmpty());
+
+        QCOMPARE(capture.messages().size(), 1);
+        QCOMPARE(capture.messages().first().first, QtWarningMsg);
+        QCOMPARE(capture.messages().first().second,
+                 PlasmaLyrics::configSaveFailedLine(QStringLiteral("db"),
+                                                    QStringLiteral("db-open-failed")));
 
         bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
         bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
