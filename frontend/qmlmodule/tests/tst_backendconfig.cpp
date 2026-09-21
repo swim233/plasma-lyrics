@@ -158,6 +158,51 @@ public Q_SLOTS:
     }
 };
 
+// Registers a Control-interface fake on the session bus and guarantees it
+// is unregistered on scope exit -- including an early QVERIFY/QCOMPARE/
+// QTRY_* return from inside a test body, which a plain trailing
+// bus.unregisterObject()/unregisterService() pair does not survive. Without
+// this, a failed assertion between registration and that trailing call
+// skips it, leaving the connection's dispatch table pointing at the
+// FakeControlService instance that is about to be destroyed; a later test
+// registering its own fresh fake at the same well-known name/path can then
+// have some of ITS D-Bus traffic misrouted to (or answered by residue of)
+// the never-unregistered previous one -- reviewer-confirmed with a probe.
+// The destructor also pumps the event loop briefly before unregistering,
+// so a fire-and-forget QDBus::NoBlock call the test's own save()/
+// restartService() triggered -- which can still be in flight when the test
+// function returns -- gets delivered to THIS fake (about to be discarded
+// anyway) rather than leaking into whatever the next test registers.
+class ScopedControlService
+{
+public:
+    explicit ScopedControlService(QObject *service)
+        : m_bus(QDBusConnection::sessionBus())
+        , m_serviceRegistered(m_bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")))
+        , m_objectRegistered(m_bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
+                                                  service, QDBusConnection::ExportAllSlots))
+    {
+    }
+
+    ~ScopedControlService()
+    {
+        QTest::qWait(20);
+        m_bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
+        m_bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
+    }
+
+    ScopedControlService(const ScopedControlService &) = delete;
+    ScopedControlService &operator=(const ScopedControlService &) = delete;
+
+    bool serviceRegistered() const { return m_serviceRegistered; }
+    bool objectRegistered() const { return m_objectRegistered; }
+
+private:
+    QDBusConnection m_bus;
+    bool m_serviceRegistered;
+    bool m_objectRegistered;
+};
+
 BackendConfig shellConfig(const QString &command)
 {
     return BackendConfig(QStringLiteral("/bin/sh"),
@@ -560,11 +605,10 @@ private Q_SLOTS:
     // shown about a credentials-only change.
     void proxyUrlCredentialsOnlyChangeStillReportsAndForwardsAnIdenticalLine()
     {
-        auto bus = QDBusConnection::sessionBus();
         FakeControlService service;
-        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
-        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
-                                   &service, QDBusConnection::ExportAllSlots));
+        ScopedControlService scopedService(&service);
+        QVERIFY(scopedService.serviceRegistered());
+        QVERIFY(scopedService.objectRegistered());
 
         auto config = shellConfig(QStringLiteral("exit 0"));
         config.setProxyMode(QStringLiteral("manual"));
@@ -595,9 +639,6 @@ private Q_SLOTS:
             return call.key == QStringLiteral("network/proxyUrl") && call.oldValue == rendered
                 && call.newValue == rendered;
         }));
-
-        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
-        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
     }
 
     // DESIGN.md decision 75: every key save() writes must be independently
@@ -850,11 +891,10 @@ private Q_SLOTS:
 
     void forwardsConfigChangesToDaemon()
     {
-        auto bus = QDBusConnection::sessionBus();
         FakeControlService service;
-        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
-        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
-                                   &service, QDBusConnection::ExportAllSlots));
+        ScopedControlService scopedService(&service);
+        QVERIFY(scopedService.serviceRegistered());
+        QVERIFY(scopedService.objectRegistered());
 
         auto config = shellConfig(QStringLiteral("exit 0"));
         config.setFilterCredits(false);
@@ -880,18 +920,14 @@ private Q_SLOTS:
         }
         QVERIFY(sawCredits);
         QVERIFY(sawTimeout);
-
-        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
-        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
     }
 
     void forwardsSaveFailedToDaemon()
     {
-        auto bus = QDBusConnection::sessionBus();
         FakeControlService service;
-        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
-        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
-                                   &service, QDBusConnection::ExportAllSlots));
+        ScopedControlService scopedService(&service);
+        QVERIFY(scopedService.serviceRegistered());
+        QVERIFY(scopedService.objectRegistered());
 
         auto config = shellConfig(QStringLiteral("exit 0"));
         config.setProxyMode(QStringLiteral("manual"));
@@ -901,18 +937,14 @@ private Q_SLOTS:
         QTRY_VERIFY(!service.saveFailedCalls.isEmpty());
         QCOMPARE(service.saveFailedCalls.first().first, QStringLiteral("ini"));
         QCOMPARE(service.saveFailedCalls.first().second, QStringLiteral("proxy-url-invalid"));
-
-        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
-        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
     }
 
     void restartReportsRequestedThenFinishedOnSuccess()
     {
-        auto bus = QDBusConnection::sessionBus();
         FakeControlService service;
-        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
-        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
-                                   &service, QDBusConnection::ExportAllSlots));
+        ScopedControlService scopedService(&service);
+        QVERIFY(scopedService.serviceRegistered());
+        QVERIFY(scopedService.objectRegistered());
 
         auto config = shellConfig(QStringLiteral("exit 0"));
         QSignalSpy finished(&config, &BackendConfig::restartFinished);
@@ -933,18 +965,14 @@ private Q_SLOTS:
         QTRY_VERIFY(!service.restartFinishedCalls.isEmpty());
         QCOMPARE(service.restartFinishedCalls.first().first, true);
         QCOMPARE(service.restartFinishedCalls.first().second, QString());
-
-        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
-        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
     }
 
     void restartReportsRequestedThenFinishedOnFailure()
     {
-        auto bus = QDBusConnection::sessionBus();
         FakeControlService service;
-        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
-        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
-                                   &service, QDBusConnection::ExportAllSlots));
+        ScopedControlService scopedService(&service);
+        QVERIFY(scopedService.serviceRegistered());
+        QVERIFY(scopedService.objectRegistered());
 
         auto config = shellConfig(QStringLiteral("exit 23"));
         QSignalSpy finished(&config, &BackendConfig::restartFinished);
@@ -961,18 +989,14 @@ private Q_SLOTS:
         QTRY_VERIFY(!service.restartFinishedCalls.isEmpty());
         QCOMPARE(service.restartFinishedCalls.first().first, false);
         QVERIFY(!service.restartFinishedCalls.first().second.isEmpty());
-
-        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
-        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
     }
 
     void discoversAvailableProvidersFromDaemon()
     {
-        auto bus = QDBusConnection::sessionBus();
         FakeControlService service;
-        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
-        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
-                                   &service, QDBusConnection::ExportAllSlots));
+        ScopedControlService scopedService(&service);
+        QVERIFY(scopedService.serviceRegistered());
+        QVERIFY(scopedService.objectRegistered());
 
         auto config = shellConfig(QStringLiteral("exit 0"));
         QVERIFY(!config.providerDiscoveryFallback());
@@ -982,9 +1006,6 @@ private Q_SLOTS:
                  QStringLiteral("local"));
         QCOMPARE(entries.at(1).toMap().value(QStringLiteral("id")).toString(),
                  QStringLiteral("amll"));
-
-        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
-        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
     }
 
     void fallsBackWhenDaemonIsUnavailable()
@@ -1031,11 +1052,10 @@ private Q_SLOTS:
 
     void disabledAmllRemainsVisibleAndCanBeReenabledAfterRestart()
     {
-        auto bus = QDBusConnection::sessionBus();
         FakeControlService service;
-        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
-        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
-                                   &service, QDBusConnection::ExportAllSlots));
+        ScopedControlService scopedService(&service);
+        QVERIFY(scopedService.serviceRegistered());
+        QVERIFY(scopedService.objectRegistered());
 
         QStringList savedOrder;
         {
@@ -1068,9 +1088,6 @@ private Q_SLOTS:
                      QStringLiteral("amll"));
             QCOMPARE(entries.at(0).toMap().value(QStringLiteral("enabled")).toBool(), true);
         }
-
-        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
-        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
     }
 
     void reportsSuccessfulRestart()
