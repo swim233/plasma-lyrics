@@ -8,7 +8,6 @@
 #include <QDBusConnection>
 #include <QDBusInterface>
 #include <QDBusReply>
-#include <QPair>
 #include <QProcess>
 #include <QSettings>
 #include <QStandardPaths>
@@ -416,14 +415,23 @@ bool BackendConfig::save()
     // value the member about to be written renders to. Read before any
     // write below touches `config`, and compared once the sync below
     // succeeds -- a divergence becomes one `config changed` line each
-    // (DESIGN.md decision 75).
+    // (DESIGN.md decision 75). Whether a key changed is decided from the
+    // rendered forms for every key except network/proxyUrl (see below);
+    // the two are the same value for everything else, so this is also what
+    // gets reported.
     using PlasmaLyrics::renderConfigValue;
     using PlasmaLyrics::renderProxyUrlForLog;
-    QList<QPair<QString, QString>> before;
-    QList<QPair<QString, QString>> after;
+    struct PendingChange {
+        QString key;
+        QString oldRendered;
+        QString newRendered;
+        bool changed;
+    };
+    QList<PendingChange> pending;
     auto record = [&](const QString &key, const QVariant &oldValue, const QVariant &newValue) {
-        before.append({key, renderConfigValue(oldValue)});
-        after.append({key, renderConfigValue(newValue)});
+        const QString oldRendered = renderConfigValue(oldValue);
+        const QString newRendered = renderConfigValue(newValue);
+        pending.append({key, oldRendered, newRendered, oldRendered != newRendered});
     };
 
     const QStringList oldBlacklist = PlasmaLyrics::readStringListOrEmpty(
@@ -484,10 +492,21 @@ bool BackendConfig::save()
     record(QStringLiteral("network/proxyMode"),
            config.value(QStringLiteral("network/proxyMode"), QStringLiteral("none")), m_proxyMode);
     // network/proxyUrl may carry credentials, so it is rendered through
-    // renderProxyUrlForLog() rather than renderConfigValue() on both sides.
-    before.append({QStringLiteral("network/proxyUrl"),
-                   renderProxyUrlForLog(config.value(QStringLiteral("network/proxyUrl"), QString()).toString())});
-    after.append({QStringLiteral("network/proxyUrl"), renderProxyUrlForLog(m_proxyUrl)});
+    // renderProxyUrlForLog() rather than renderConfigValue() for the
+    // reported/forwarded old/new values. But that rendering hides
+    // credentials by design, so it cannot also be what decides whether the
+    // key changed: a credentials-only edit (same host:port) would then
+    // rewrite the ini file while reporting and forwarding nothing. Whether
+    // it changed is therefore decided from the RAW strings instead; the
+    // reported old/new values stay the redacted ones (identical to each
+    // other in that case, which is the point -- a change happened, but
+    // nothing more can be shown about it).
+    const QString oldProxyUrlRaw = config.value(QStringLiteral("network/proxyUrl"), QString()).toString();
+    const QString newProxyUrlRaw = m_proxyUrl;
+    pending.append({QStringLiteral("network/proxyUrl"),
+                    renderProxyUrlForLog(oldProxyUrlRaw),
+                    renderProxyUrlForLog(newProxyUrlRaw),
+                    oldProxyUrlRaw != newProxyUrlRaw});
 
     PlasmaLyrics::writeStringListOrEmpty(config, blacklistSetting(), list(m_serviceBlacklist));
     PlasmaLyrics::writeStringListOrEmpty(config, musicUrlPrefixesSetting(), list(m_musicUrlPrefixes));
@@ -524,14 +543,14 @@ bool BackendConfig::save()
                 : QStringLiteral("ini-format-error"));
         return false;
     }
-    for (qsizetype i = 0; i < before.size(); ++i) {
-        if (before.at(i).second != after.at(i).second) {
+    for (const auto &change : pending) {
+        if (change.changed) {
             PlasmaLyrics::reportConfigChange({.store = QStringLiteral("ini"),
                                               .applet = QString(),
                                               .form = QString(),
-                                              .key = before.at(i).first,
-                                              .oldValue = before.at(i).second,
-                                              .newValue = after.at(i).second});
+                                              .key = change.key,
+                                              .oldValue = change.oldRendered,
+                                              .newValue = change.newRendered});
         }
     }
     if (m_dirty) {
@@ -597,8 +616,12 @@ bool BackendConfig::restartService()
     }
     Q_EMIT restartStateChanged();
     Q_EMIT restartInProgressChanged();
-    m_restartProcess->start(m_restartProgram, m_restartArguments);
+    // Reported before start(), not after: start() can fail synchronously
+    // (an empty/invalid program name raises errorOccurred() before
+    // returning), which would otherwise let a "restart finished" line beat
+    // "restart requested" into the log.
     PlasmaLyrics::reportRestartRequested();
+    m_restartProcess->start(m_restartProgram, m_restartArguments);
     return true;
 }
 

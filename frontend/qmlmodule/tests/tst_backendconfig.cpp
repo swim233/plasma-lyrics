@@ -7,12 +7,20 @@
 #include <QDBusConnection>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QFileInfo>
 #include <QPair>
 #include <QSignalSpy>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTest>
 #include <algorithm>
+#include <functional>
+
+#include <unistd.h>
+
+// A data-driven test below feeds one of these through QTest's data table
+// per key save() writes, so it needs to be a registered meta type.
+Q_DECLARE_METATYPE(std::function<void(BackendConfig &)>)
 
 namespace {
 
@@ -41,6 +49,31 @@ void writeRawSettingsFileContents(const QByteArray &content)
     Q_ASSERT(opened);
     file.write(content);
 }
+
+// Temporarily strips write permission from a file, restoring the original
+// permissions on scope exit regardless of how the scope is left (including
+// an early QVERIFY return), so a failed assertion in the middle of a test
+// cannot leave the shared settings file read-only for whatever runs next.
+class ScopedReadOnlyFile
+{
+public:
+    explicit ScopedReadOnlyFile(QString path)
+        : m_path(std::move(path))
+        , m_original(QFileInfo(m_path).permissions())
+    {
+        QFile::setPermissions(m_path, QFileDevice::ReadOwner | QFileDevice::ReadGroup
+                                          | QFileDevice::ReadOther);
+    }
+
+    ~ScopedReadOnlyFile()
+    {
+        QFile::setPermissions(m_path, m_original);
+    }
+
+private:
+    QString m_path;
+    QFileDevice::Permissions m_original;
+};
 
 // Mirrors daemon/tests/tst_controlservice.cpp's helper of the same shape,
 // extended to also record severity: the config-change lines split between
@@ -518,6 +551,254 @@ private Q_SLOTS:
         QVERIFY(found);
     }
 
+    // Reviewer-confirmed bug: comparing the redacted renderings to decide
+    // whether network/proxyUrl changed missed a credentials-only edit
+    // entirely (same host:port -> same redacted string -> "unchanged"),
+    // even though the ini file was rewritten. The fix compares the raw
+    // strings instead, so this must still produce a line -- with an
+    // old/new that are identical once redacted, since nothing else can be
+    // shown about a credentials-only change.
+    void proxyUrlCredentialsOnlyChangeStillReportsAndForwardsAnIdenticalLine()
+    {
+        auto bus = QDBusConnection::sessionBus();
+        FakeControlService service;
+        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
+        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
+                                   &service, QDBusConnection::ExportAllSlots));
+
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        config.setProxyMode(QStringLiteral("manual"));
+        config.setProxyUrl(QStringLiteral("socks5://alice:pw1@host.example.test:1080"));
+        QVERIFY(config.save());
+
+        config.setProxyUrl(QStringLiteral("socks5://bob:pw2@host.example.test:1080"));
+        MessageCapture capture;
+        QVERIFY(config.save());
+
+        const QString rendered = QStringLiteral("socks5://host.example.test:1080");
+        QStringList proxyLines;
+        for (const auto &entry : capture.messages()) {
+            if (entry.second.startsWith(QStringLiteral("config changed"))
+                && entry.second.contains(QStringLiteral("key=network/proxyUrl"))) {
+                proxyLines.append(entry.second);
+            }
+        }
+        QCOMPARE(proxyLines.size(), 1);
+        QCOMPARE(proxyLines.first(),
+                 PlasmaLyrics::configChangedLine({.store = QStringLiteral("ini"),
+                                                  .key = QStringLiteral("network/proxyUrl"),
+                                                  .oldValue = rendered,
+                                                  .newValue = rendered}));
+
+        QTRY_VERIFY(std::any_of(service.configChanges.cbegin(), service.configChanges.cend(),
+                                [&rendered](const FakeControlService::ConfigChangeCall &call) {
+            return call.key == QStringLiteral("network/proxyUrl") && call.oldValue == rendered
+                && call.newValue == rendered;
+        }));
+
+        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
+        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
+    }
+
+    // DESIGN.md decision 75: every key save() writes must be independently
+    // covered by an exact-line assertion -- a probe that deleted the
+    // record() call for one key (players/blacklist) left this file green
+    // before this test existed. One row per key (two for each of the
+    // three-state keys, to also cover clearing to empty).
+    void singleKeyChangeReportsExactlyOneLine_data()
+    {
+        QTest::addColumn<QString>("key");
+        QTest::addColumn<QString>("expectedOld");
+        QTest::addColumn<QString>("expectedNew");
+        QTest::addColumn<std::function<void(BackendConfig &)>>("mutate");
+
+        using Mutator = std::function<void(BackendConfig &)>;
+
+        QTest::newRow("players/blacklist populated")
+            << QStringLiteral("players/blacklist")
+            << QStringLiteral("org.mpris.MediaPlayer2.kdeconnect.*")
+            << QStringLiteral("org.mpris.MediaPlayer2.custom.*")
+            << Mutator([](BackendConfig &c) {
+                   c.setServiceBlacklist(QStringLiteral("org.mpris.MediaPlayer2.custom.*"));
+               });
+        QTest::newRow("players/blacklist cleared to empty")
+            << QStringLiteral("players/blacklist")
+            << QStringLiteral("org.mpris.MediaPlayer2.kdeconnect.*")
+            << QString()
+            << Mutator([](BackendConfig &c) { c.setServiceBlacklist(QString()); });
+
+        QTest::newRow("filter/musicUrlPrefixes populated")
+            << QStringLiteral("filter/musicUrlPrefixes")
+            << QStringLiteral("https://music.163.com/,http://music.163.com/")
+            << QStringLiteral("https://example.invalid/")
+            << Mutator([](BackendConfig &c) {
+                   c.setMusicUrlPrefixes(QStringLiteral("https://example.invalid/"));
+               });
+        QTest::newRow("filter/musicUrlPrefixes cleared to empty")
+            << QStringLiteral("filter/musicUrlPrefixes")
+            << QStringLiteral("https://music.163.com/,http://music.163.com/")
+            << QString()
+            << Mutator([](BackendConfig &c) { c.setMusicUrlPrefixes(QString()); });
+
+        QTest::newRow("filter/metadataHeuristic")
+            << QStringLiteral("filter/metadataHeuristic")
+            << QStringLiteral("true")
+            << QStringLiteral("false")
+            << Mutator([](BackendConfig &c) { c.setMetadataHeuristic(false); });
+
+        QTest::newRow("filter/platforms narrowed")
+            << QStringLiteral("filter/platforms")
+            << QStringLiteral("netease,apple")
+            << QStringLiteral("apple")
+            << Mutator([](BackendConfig &c) { c.setPlatformNetease(false); });
+        QTest::newRow("filter/platforms cleared to empty")
+            << QStringLiteral("filter/platforms")
+            << QStringLiteral("netease,apple")
+            << QString()
+            << Mutator([](BackendConfig &c) {
+                   c.setPlatformNetease(false);
+                   c.setPlatformApple(false);
+               });
+
+        QTest::newRow("lyrics/filterLeadingCredits")
+            << QStringLiteral("lyrics/filterLeadingCredits")
+            << QStringLiteral("true")
+            << QStringLiteral("false")
+            << Mutator([](BackendConfig &c) { c.setFilterCredits(false); });
+
+        QTest::newRow("providers/netease/baseUrl")
+            << QStringLiteral("providers/netease/baseUrl")
+            << QStringLiteral("https://music.163.com")
+            << QStringLiteral("https://example.invalid")
+            << Mutator([](BackendConfig &c) {
+                   c.setNeteaseBaseUrl(QStringLiteral("https://example.invalid"));
+               });
+
+        QTest::newRow("providers/netease/timeoutMs")
+            << QStringLiteral("providers/netease/timeoutMs")
+            << QStringLiteral("4000")
+            << QStringLiteral("9000")
+            << Mutator([](BackendConfig &c) { c.setNetworkTimeoutMs(9000); });
+
+        QTest::newRow("providers/order")
+            << QStringLiteral("providers/order")
+            << QStringLiteral("local,netease,amll,qq")
+            << QStringLiteral("amll,local,netease,qq")
+            << Mutator([](BackendConfig &c) {
+                   c.setProviderOrder({QStringLiteral("amll"), QStringLiteral("local"),
+                                       QStringLiteral("netease"), QStringLiteral("qq")});
+               });
+
+        QTest::newRow("providers/enabled")
+            << QStringLiteral("providers/enabled")
+            << QStringLiteral("local,netease,amll,qq")
+            << QStringLiteral("local,amll")
+            << Mutator([](BackendConfig &c) {
+                   c.setEnabledProviders({QStringLiteral("local"), QStringLiteral("amll")});
+               });
+
+        const QString defaultLocalDirectory =
+            QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+                + QStringLiteral("/plasma-lyrics/lyrics");
+        QTest::newRow("providers/local/directory")
+            << QStringLiteral("providers/local/directory")
+            << defaultLocalDirectory
+            << QStringLiteral("/tmp/custom-lyrics")
+            << Mutator([](BackendConfig &c) {
+                   c.setLocalLyricsDirectory(QStringLiteral("/tmp/custom-lyrics"));
+               });
+
+        QTest::newRow("providers/amll/indexUrl")
+            << QStringLiteral("providers/amll/indexUrl")
+            << QStringLiteral("https://raw.githubusercontent.com/amll-dev/amll-ttml-db/main/"
+                              "metadata/raw-lyrics-index.jsonl")
+            << QStringLiteral("https://example.invalid/index.jsonl")
+            << Mutator([](BackendConfig &c) {
+                   c.setAmllIndexUrl(QStringLiteral("https://example.invalid/index.jsonl"));
+               });
+
+        QTest::newRow("providers/amll/contentBaseUrl")
+            << QStringLiteral("providers/amll/contentBaseUrl")
+            << QStringLiteral("https://raw.githubusercontent.com/amll-dev/amll-ttml-db/main/")
+            << QStringLiteral("https://example.invalid/content/")
+            << Mutator([](BackendConfig &c) {
+                   c.setAmllContentBaseUrl(QStringLiteral("https://example.invalid/content/"));
+               });
+
+        QTest::newRow("providers/amll/timeoutMs")
+            << QStringLiteral("providers/amll/timeoutMs")
+            << QStringLiteral("8000")
+            << QStringLiteral("12345")
+            << Mutator([](BackendConfig &c) { c.setAmllTimeoutMs(12345); });
+
+        QTest::newRow("providers/amll/indexRefreshHours")
+            << QStringLiteral("providers/amll/indexRefreshHours")
+            << QStringLiteral("24")
+            << QStringLiteral("36")
+            << Mutator([](BackendConfig &c) { c.setAmllIndexRefreshHours(36); });
+
+        QTest::newRow("logging/fileEnabled")
+            << QStringLiteral("logging/fileEnabled")
+            << QStringLiteral("false")
+            << QStringLiteral("true")
+            << Mutator([](BackendConfig &c) { c.setFileLoggingEnabled(true); });
+
+        const QString defaultLogFilePath =
+            QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+                + QStringLiteral("/plasma-lyrics/plasma-lyricsd.log");
+        QTest::newRow("logging/filePath")
+            << QStringLiteral("logging/filePath")
+            << defaultLogFilePath
+            << QStringLiteral("/tmp/custom.log")
+            << Mutator([](BackendConfig &c) { c.setLogFilePath(QStringLiteral("/tmp/custom.log")); });
+
+        QTest::newRow("logging/debug")
+            << QStringLiteral("logging/debug")
+            << QStringLiteral("false")
+            << QStringLiteral("true")
+            << Mutator([](BackendConfig &c) { c.setDebugLoggingEnabled(true); });
+
+        QTest::newRow("network/proxyMode")
+            << QStringLiteral("network/proxyMode")
+            << QStringLiteral("none")
+            << QStringLiteral("system")
+            << Mutator([](BackendConfig &c) { c.setProxyMode(QStringLiteral("system")); });
+
+        QTest::newRow("network/proxyUrl")
+            << QStringLiteral("network/proxyUrl")
+            << QString()
+            << QStringLiteral("socks5://127.0.0.1:1080")
+            << Mutator([](BackendConfig &c) {
+                   c.setProxyUrl(QStringLiteral("socks5://127.0.0.1:1080"));
+               });
+    }
+
+    void singleKeyChangeReportsExactlyOneLine()
+    {
+        QFETCH(QString, key);
+        QFETCH(QString, expectedOld);
+        QFETCH(QString, expectedNew);
+        QFETCH(std::function<void(BackendConfig &)>, mutate);
+
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        mutate(config);
+
+        MessageCapture capture;
+        QVERIFY(config.save());
+        QStringList changeLines;
+        for (const auto &entry : capture.messages()) {
+            if (entry.second.startsWith(QStringLiteral("config changed"))) {
+                changeLines.append(entry.second);
+            }
+        }
+        QCOMPARE(changeLines.size(), 1);
+        QCOMPARE(changeLines.first(),
+                 PlasmaLyrics::configChangedLine({.store = QStringLiteral("ini"),
+                                                  .key = key,
+                                                  .oldValue = expectedOld,
+                                                  .newValue = expectedNew}));
+    }
+
     void invalidManualProxyReportsSaveFailedAndNoChangeLines()
     {
         auto config = shellConfig(QStringLiteral("exit 0"));
@@ -531,6 +812,40 @@ private Q_SLOTS:
         QCOMPARE(capture.messages().first().second,
                  PlasmaLyrics::configSaveFailedLine(QStringLiteral("ini"),
                                                     QStringLiteral("proxy-url-invalid")));
+    }
+
+    void iniAccessErrorReportsSaveFailedAndNoChangeLines()
+    {
+        if (geteuid() == 0) {
+            QSKIP("root ignores file permissions, so this cannot force an access error");
+        }
+        // The file has to exist first: a fresh, still-missing ini file
+        // does not fail to sync just because its (non-existent) directory
+        // entry is unwritable in a way distinguishable from other causes.
+        {
+            auto config = shellConfig(QStringLiteral("exit 0"));
+            QVERIFY(config.save());
+        }
+        const QSettings probe(QSettings::IniFormat, QSettings::UserScope,
+                              QStringLiteral("plasma-lyrics"), QStringLiteral("plasma-lyricsd"));
+        ScopedReadOnlyFile readOnly(probe.fileName());
+
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        config.setFilterCredits(!config.filterCredits());
+
+        MessageCapture capture;
+        QVERIFY(!config.save());
+
+        bool sawWarning = false;
+        for (const auto &entry : capture.messages()) {
+            QVERIFY(!entry.second.startsWith(QStringLiteral("config changed")));
+            if (entry.second == PlasmaLyrics::configSaveFailedLine(
+                    QStringLiteral("ini"), QStringLiteral("ini-access-error"))) {
+                sawWarning = true;
+                QCOMPARE(entry.first, QtWarningMsg);
+            }
+        }
+        QVERIFY(sawWarning);
     }
 
     void forwardsConfigChangesToDaemon()
