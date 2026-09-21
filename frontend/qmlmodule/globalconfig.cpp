@@ -1,6 +1,7 @@
 #include "globalconfig.h"
 
 #include "core/store/lyricstore.h"
+#include "settingslog.h"
 
 #include <QDBusConnection>
 #include <QDBusMessage>
@@ -66,9 +67,15 @@ bool GlobalConfig::save()
 {
     LyricStore store;
     if (!store.open()) {
+        PlasmaLyrics::reportSaveFailed(QStringLiteral("db"), QStringLiteral("db-open-failed"));
         return false;
     }
+    // Read before writing: these are the "old" values a config-changed line
+    // reports below, not what load() last saw.
+    const bool oldEnabled = store.globalOffsetEnabled();
+    const int oldOffsetMs = store.globalOffsetMs();
     if (!store.setGlobalOffsetEnabled(m_enabled) || !store.setGlobalOffsetMs(m_offsetMs)) {
+        PlasmaLyrics::reportSaveFailed(QStringLiteral("db"), QStringLiteral("db-write-failed"));
         return false;
     }
     // Reflects the storage layer's own clamping rather than assuming it
@@ -80,6 +87,24 @@ bool GlobalConfig::save()
         m_unsavedChanges = false;
         Q_EMIT unsavedChangesChanged();
     }
+    if (oldEnabled != m_enabled) {
+        PlasmaLyrics::reportConfigChange({.store = QStringLiteral("db"),
+                                          .applet = QString(),
+                                          .form = QString(),
+                                          .key = QStringLiteral("globalOffsetEnabled"),
+                                          .oldValue = PlasmaLyrics::renderConfigValue(oldEnabled),
+                                          .newValue = PlasmaLyrics::renderConfigValue(m_enabled)});
+    }
+    if (oldOffsetMs != m_offsetMs) {
+        PlasmaLyrics::reportConfigChange({.store = QStringLiteral("db"),
+                                          .applet = QString(),
+                                          .form = QString(),
+                                          .key = QStringLiteral("globalOffsetMs"),
+                                          .oldValue = PlasmaLyrics::renderConfigValue(oldOffsetMs),
+                                          .newValue = PlasmaLyrics::renderConfigValue(m_offsetMs)});
+    }
+    // The change notes above must reach the daemon before this call, so a
+    // listener sees "what changed" before "the effective value changed".
     const auto refresh = QDBusMessage::createMethodCall(
         QStringLiteral("io.github.swim233.PlasmaLyrics"),
         QStringLiteral("/io/github/swim233/PlasmaLyrics"),
