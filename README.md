@@ -189,7 +189,7 @@ journalctl --user -u plasma-lyricsd.service -f
 歌词源时会列出可用来源。
 
 「歌词服务」设置页「诊断」下的「记录调试信息」开关（配置项 `logging/debug`，默认关闭）为以下
-六个分类打开 debug 级日志，重启服务后生效：
+七个分类打开 debug 级日志，重启服务后生效：
 
 | 分类 | 内容 |
 | --- | --- |
@@ -199,6 +199,7 @@ journalctl --user -u plasma-lyricsd.service -f
 | `plasmalyrics.provider.netease` | 网易云歌词源请求 |
 | `plasmalyrics.provider.amll` | AMLL TTML 数据库歌词源请求 |
 | `plasmalyrics.provider.local` | 本地歌词目录 |
+| `plasmalyrics.provider.qq` | QQ音乐歌词源请求 |
 
 开启全部分类的调试信息用设置页勾选框即可；只想临时调试某一个分类时，可用 `QT_LOGGING_RULES`
 环境变量单独控制，优先级高于该配置项。守护进程以 `systemd --user` 服务运行，环境变量要先经
@@ -213,7 +214,7 @@ systemctl --user unset-environment QT_LOGGING_RULES
 systemctl --user restart plasma-lyricsd
 ```
 
-安装 KDE 版部件（`BUILD_PLASMOID=ON`）后，这六个分类会出现在 `kdebugsettings` 中，可按分类
+安装 KDE 版部件（`BUILD_PLASMOID=ON`）后，这七个分类会出现在 `kdebugsettings` 中，可按分类
 单独开关，但仅在「记录调试信息」关闭时生效——该勾选框的优先级高于 kdebugsettings，开启时会
 覆盖在那里对单个分类的 debug 开关。
 
@@ -241,6 +242,19 @@ systemctl --user restart plasma-lyricsd
 | `clear-preferred` | 清除了当前曲目的首选歌词源 |
 
 开启「记录调试信息」后还会打印候选打分明细、缓存查找细节等 debug 级行。
+
+**设置变更日志**：「歌词服务」「全局设置」两页保存、桌面外观/面板外观/文本三页的每个设置项、
+以及「保存并重启服务」的请求与结果，都会各记一行，例如：
+
+```
+config changed store=db key=globalOffsetMs old="0" new="-300"
+config changed store=applet applet=12 form=desktop key=desktopFontSize old="34" new="36"
+```
+
+部件这一份落在 plasmashell 的日志里，用 `journalctl --user QT_CATEGORY=plasmalyrics.config`
+查看；守护进程会收到相同的一行并计入 `plasmalyrics.daemon`，因此同时出现在
+`journalctl --user -u plasma-lyricsd` 与可选的日志文件里——服务未运行时守护进程这一份不存在，
+只有部件那份。`network/proxyUrl` 一项记录时不带凭据。
 
 ## 🛠️ 开发检查
 
