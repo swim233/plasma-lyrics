@@ -5,6 +5,7 @@
 
 #include <QDBusConnection>
 #include <QDBusMessage>
+#include <QDebug>
 #include <QStringList>
 
 namespace PlasmaLyrics {
@@ -34,9 +35,18 @@ QString renderConfigValue(const QVariant &value)
         return value.toBool() ? QStringLiteral("true") : QStringLiteral("false");
     case QMetaType::QStringList:
         return value.toStringList().join(QLatin1Char(','));
-    default:
-        // QString verbatim; integral types render as decimal.
-        return value.toString();
+    default: {
+        // QString verbatim; integral types render as decimal. A type
+        // QVariant cannot stringify (a future Color or Font kcfg entry, a
+        // QVariantList) would otherwise render empty for both old and new
+        // and suppress the line entirely, so fall back to QDebug's rendering
+        // rather than lose the change.
+        QString text = value.toString();
+        if (text.isEmpty() && !value.isNull() && value.typeId() != QMetaType::QString) {
+            QDebug(&text).nospace() << value;
+        }
+        return text;
+    }
     }
 }
 

@@ -93,6 +93,17 @@ if(BUILD_TESTING)
     endif()
     set_tests_properties(tst_configchangelogger PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
+    add_executable(tst_settingslog
+        tests/tst_settingslog.cpp
+        frontendlogging.cpp
+        settingslog.cpp
+    )
+    target_include_directories(tst_settingslog PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(tst_settingslog PRIVATE plasma_lyrics_core Qt6::Core Qt6::DBus Qt6::Test)
+    target_compile_options(tst_settingslog PRIVATE -Wno-missing-field-initializers)
+    add_test(NAME tst_settingslog COMMAND tst_settingslog)
+    set_tests_properties(tst_settingslog PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
+
     add_executable(tst_lyricsource
         tests/tst_lyricsource.cpp
         lyricsource.cpp
