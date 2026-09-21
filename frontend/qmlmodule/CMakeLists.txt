@@ -10,10 +10,14 @@ ecm_add_qml_module(plasmalyricssource
 target_sources(plasmalyricssource PRIVATE
     backendconfig.cpp
     backendconfig.h
+    frontendlogging.cpp
+    frontendlogging.h
     globalconfig.cpp
     globalconfig.h
     lyricsource.cpp
     lyricsource.h
+    settingslog.cpp
+    settingslog.h
     visibilitypolicy.cpp
     visibilitypolicy.h
 )
@@ -29,6 +33,8 @@ if(BUILD_TESTING)
     add_executable(tst_backendconfig
         tests/tst_backendconfig.cpp
         backendconfig.cpp
+        frontendlogging.cpp
+        settingslog.cpp
         # Q24 / DESIGN.md decision 67 coverage needs the daemon's own
         # Config reading the same ini file BackendConfig::save() just
         # wrote, to prove the two sides agree on providers/order and
@@ -53,6 +59,8 @@ if(BUILD_TESTING)
     add_executable(tst_globalconfig
         tests/tst_globalconfig.cpp
         globalconfig.cpp
+        frontendlogging.cpp
+        settingslog.cpp
     )
     target_include_directories(tst_globalconfig PRIVATE ${CMAKE_SOURCE_DIR})
     target_link_libraries(tst_globalconfig PRIVATE plasma_lyrics_core Qt6::DBus Qt6::Qml Qt6::Test)
