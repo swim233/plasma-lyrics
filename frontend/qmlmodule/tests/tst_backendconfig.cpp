@@ -1208,7 +1208,11 @@ private Q_SLOTS:
 
     void reportsCrash()
     {
-        auto config = shellConfig(QStringLiteral("kill -SEGV $$"));
+        // SIGKILL, not a core-dumping signal such as SIGSEGV: QProcess reports
+        // CrashExit for any signal death, and a core-dumping one is piped to
+        // systemd-coredump (plus DrKonqi on Plasma) on every run, filling the
+        // developer's real journal. Rationale in CLAUDE.md.
+        auto config = shellConfig(QStringLiteral("kill -KILL $$"));
         QSignalSpy finished(&config, &BackendConfig::restartFinished);
         QVERIFY(config.restartService());
         QTRY_COMPARE(finished.size(), 1);
