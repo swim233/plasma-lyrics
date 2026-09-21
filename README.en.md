@@ -79,10 +79,14 @@ systemctl --user unset-environment QT_LOGGING_RULES
 systemctl --user restart plasma-lyricsd
 ```
 
-With the KDE package installed (`BUILD_PLASMOID=ON`), these seven categories also show up
-in `kdebugsettings` and can be toggled individually there, but only while "Record
-debug details" is off — that checkbox takes precedence over kdebugsettings and
-overrides its per-category debug toggle while it's on.
+With the KDE package installed (`BUILD_PLASMOID=ON`), `kdebugsettings` shows eight
+categories — the seven above plus the widget's own `plasmalyrics.config` (see
+"Settings change log" below). "Record debug details" only governs the seven
+above, and can be toggled individually there, but only while that checkbox is
+off — the checkbox takes precedence over kdebugsettings and overrides its
+per-category debug toggle while it's on. `plasmalyrics.config` is unaffected by
+that checkbox; it can only be toggled in `kdebugsettings` or via
+`QT_LOGGING_RULES` set in plasmashell's own environment.
 
 The line format depends on where the log goes. Under the systemd journal each line is `category message` — journald records the timestamp and level itself, so `journalctl` colours entries by level and `journalctl --user -u plasma-lyricsd -p 4` shows warnings and above. Run in a terminal the format is `[time] level category message`, coloured by level; redirected to a file or pipe it is the same text without colour. In all three forms, and in the log file, category names drop the `plasmalyrics.` prefix (`plasmalyrics.mpris` from the table above appears as `mpris`), but `QT_LOGGING_RULES` and `kdebugsettings` still need the full name. Every resolve is tagged
 with a `#number` prefix shared by all its log lines; gaps in the numbering are

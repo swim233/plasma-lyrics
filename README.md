@@ -214,9 +214,11 @@ systemctl --user unset-environment QT_LOGGING_RULES
 systemctl --user restart plasma-lyricsd
 ```
 
-安装 KDE 版部件（`BUILD_PLASMOID=ON`）后，这七个分类会出现在 `kdebugsettings` 中，可按分类
-单独开关，但仅在「记录调试信息」关闭时生效——该勾选框的优先级高于 kdebugsettings，开启时会
-覆盖在那里对单个分类的 debug 开关。
+安装 KDE 版部件（`BUILD_PLASMOID=ON`）后，`kdebugsettings` 中会出现八个分类——上表七个加上
+部件自己的 `plasmalyrics.config`（见下文「设置变更日志」）。「记录调试信息」只管上表这七个，
+可按分类单独开关，但仅在该勾选框关闭时生效——勾选框的优先级高于 kdebugsettings，开启时会
+覆盖在那里对单个分类的 debug 开关。`plasmalyrics.config` 不受这个开关影响，只能在
+`kdebugsettings` 里单独开关，或对 plasmashell 所在的环境设置 `QT_LOGGING_RULES`。
 
 **读日志**：输出形态取决于日志的去向。systemd journal 下每行是 `分类 内容`——时间与级别由 journald 自己记录，`journalctl` 因此按级别着色，`journalctl --user -u plasma-lyricsd -p 4` 可只看警告及以上；在终端直接运行时是 `[时间] 级别 分类 内容` 并按级别着色；重定向到文件或管道时同样是 `[时间] 级别 分类 内容`，不带颜色。三种形态与日志文件里分类名都省掉 `plasmalyrics.` 前缀（上表的 `plasmalyrics.mpris` 在日志里显示为 `mpris`），但 `QT_LOGGING_RULES` 与 `kdebugsettings` 仍须写完整名。每次歌词解析都以 `#编号` 开头关联同一次请求
 的全部日志行；编号不连续属正常现象：守护进程发现当前没有可解析的播放内容时（服务启动时无播放器、
