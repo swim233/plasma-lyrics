@@ -1,10 +1,13 @@
 #include "frontend/qmlmodule/backendconfig.h"
 
+#include "core/log/configlog.h"
 #include "daemon/src/config.h"
+#include "frontend/qmlmodule/settingslog.h"
 
 #include <QDBusConnection>
 #include <QElapsedTimer>
 #include <QFile>
+#include <QPair>
 #include <QSignalSpy>
 #include <QSettings>
 #include <QStandardPaths>
@@ -39,15 +42,86 @@ void writeRawSettingsFileContents(const QByteArray &content)
     file.write(content);
 }
 
+// Mirrors daemon/tests/tst_controlservice.cpp's helper of the same shape,
+// extended to also record severity: the config-change lines split between
+// qCInfo and qCWarning depending on which report* call produced them, and
+// several tests below need to tell the two apart.
+QList<QPair<QtMsgType, QString>> *capturedMessages = nullptr;
+
+void captureMessages(QtMsgType type, const QMessageLogContext &, const QString &message)
+{
+    if (capturedMessages && (type == QtInfoMsg || type == QtWarningMsg)) {
+        capturedMessages->append({type, message});
+    }
+}
+
+class MessageCapture
+{
+public:
+    MessageCapture()
+        : m_previous(qInstallMessageHandler(captureMessages))
+    {
+        capturedMessages = &m_messages;
+    }
+
+    ~MessageCapture()
+    {
+        capturedMessages = nullptr;
+        qInstallMessageHandler(m_previous);
+    }
+
+    const QList<QPair<QtMsgType, QString>> &messages() const { return m_messages; }
+
+private:
+    QList<QPair<QtMsgType, QString>> m_messages;
+    QtMessageHandler m_previous;
+};
+
 class FakeControlService final : public QObject
 {
     Q_OBJECT
     Q_CLASSINFO("D-Bus Interface", "io.github.swim233.PlasmaLyrics.Control")
 
+public:
+    struct ConfigChangeCall {
+        QString store;
+        QString applet;
+        QString form;
+        QString key;
+        QString oldValue;
+        QString newValue;
+    };
+
+    QList<ConfigChangeCall> configChanges;
+    QList<QPair<QString, QString>> saveFailedCalls;
+    int restartRequestedCalls = 0;
+    QList<QPair<bool, QString>> restartFinishedCalls;
+
 public Q_SLOTS:
     QStringList AvailableProviders() const
     {
         return {QStringLiteral("local"), QStringLiteral("amll")};
+    }
+
+    void NoteConfigChange(const QString &store, const QString &applet, const QString &form,
+                         const QString &key, const QString &oldValue, const QString &newValue)
+    {
+        configChanges.append({store, applet, form, key, oldValue, newValue});
+    }
+
+    void NoteSaveFailed(const QString &store, const QString &reason)
+    {
+        saveFailedCalls.append({store, reason});
+    }
+
+    void NoteRestartRequested()
+    {
+        ++restartRequestedCalls;
+    }
+
+    void NoteRestartFinished(bool success, const QString &error)
+    {
+        restartFinishedCalls.append({success, error});
     }
 };
 
@@ -382,6 +456,199 @@ private Q_SLOTS:
 
         config.setProxyMode(QStringLiteral("system"));
         QVERIFY(config.save());
+    }
+
+    // DESIGN.md decision 75: save() reports exactly the keys whose rendered
+    // value actually changed, and nothing for a no-op save.
+
+    void saveReportsOnlyTheKeysThatActuallyChanged()
+    {
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        config.setFilterCredits(false);
+        config.setNetworkTimeoutMs(9000);
+        QVERIFY(config.dirty());
+
+        MessageCapture capture;
+        QVERIFY(config.save());
+        QStringList changeLines;
+        for (const auto &entry : capture.messages()) {
+            if (entry.second.startsWith(QStringLiteral("config changed"))) {
+                changeLines.append(entry.second);
+            }
+        }
+        QCOMPARE(changeLines.size(), 2);
+        QVERIFY(changeLines.contains(PlasmaLyrics::configChangedLine(
+            {.store = QStringLiteral("ini"),
+             .key = QStringLiteral("lyrics/filterLeadingCredits"),
+             .oldValue = QStringLiteral("true"),
+             .newValue = QStringLiteral("false")})));
+        QVERIFY(changeLines.contains(PlasmaLyrics::configChangedLine(
+            {.store = QStringLiteral("ini"),
+             .key = QStringLiteral("providers/netease/timeoutMs"),
+             .oldValue = QStringLiteral("4000"),
+             .newValue = QStringLiteral("9000")})));
+
+        MessageCapture second;
+        QVERIFY(config.save());
+        for (const auto &entry : second.messages()) {
+            QVERIFY(!entry.second.startsWith(QStringLiteral("config changed")));
+        }
+    }
+
+    void proxyUrlWithCredentialsLogsOnlySchemeHostPort()
+    {
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        config.setProxyMode(QStringLiteral("manual"));
+        config.setProxyUrl(QStringLiteral("socks5://user:secret@proxy.example.test:1080"));
+
+        MessageCapture capture;
+        QVERIFY(config.save());
+
+        const QString rendered = QStringLiteral("socks5://proxy.example.test:1080");
+        bool found = false;
+        for (const auto &entry : capture.messages()) {
+            if (entry.second.startsWith(QStringLiteral("config changed"))
+                && entry.second.contains(QStringLiteral("key=network/proxyUrl"))) {
+                found = true;
+                QVERIFY(entry.second.contains(rendered));
+                QVERIFY(!entry.second.contains(QStringLiteral("secret")));
+                QVERIFY(!entry.second.contains(QStringLiteral("user")));
+            }
+        }
+        QVERIFY(found);
+    }
+
+    void invalidManualProxyReportsSaveFailedAndNoChangeLines()
+    {
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        config.setProxyMode(QStringLiteral("manual"));
+        config.setProxyUrl(QStringLiteral("not a url"));
+
+        MessageCapture capture;
+        QVERIFY(!config.save());
+        QCOMPARE(capture.messages().size(), 1);
+        QCOMPARE(capture.messages().first().first, QtWarningMsg);
+        QCOMPARE(capture.messages().first().second,
+                 PlasmaLyrics::configSaveFailedLine(QStringLiteral("ini"),
+                                                    QStringLiteral("proxy-url-invalid")));
+    }
+
+    void forwardsConfigChangesToDaemon()
+    {
+        auto bus = QDBusConnection::sessionBus();
+        FakeControlService service;
+        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
+        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
+                                   &service, QDBusConnection::ExportAllSlots));
+
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        config.setFilterCredits(false);
+        config.setNetworkTimeoutMs(9000);
+        QVERIFY(config.save());
+
+        QTRY_COMPARE(service.configChanges.size(), 2);
+        bool sawCredits = false;
+        bool sawTimeout = false;
+        for (const auto &call : service.configChanges) {
+            QCOMPARE(call.store, QStringLiteral("ini"));
+            QVERIFY(call.applet.isEmpty());
+            QVERIFY(call.form.isEmpty());
+            if (call.key == QStringLiteral("lyrics/filterLeadingCredits")) {
+                sawCredits = true;
+                QCOMPARE(call.oldValue, QStringLiteral("true"));
+                QCOMPARE(call.newValue, QStringLiteral("false"));
+            } else if (call.key == QStringLiteral("providers/netease/timeoutMs")) {
+                sawTimeout = true;
+                QCOMPARE(call.oldValue, QStringLiteral("4000"));
+                QCOMPARE(call.newValue, QStringLiteral("9000"));
+            }
+        }
+        QVERIFY(sawCredits);
+        QVERIFY(sawTimeout);
+
+        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
+        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
+    }
+
+    void forwardsSaveFailedToDaemon()
+    {
+        auto bus = QDBusConnection::sessionBus();
+        FakeControlService service;
+        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
+        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
+                                   &service, QDBusConnection::ExportAllSlots));
+
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        config.setProxyMode(QStringLiteral("manual"));
+        config.setProxyUrl(QStringLiteral("not a url"));
+        QVERIFY(!config.save());
+
+        QTRY_VERIFY(!service.saveFailedCalls.isEmpty());
+        QCOMPARE(service.saveFailedCalls.first().first, QStringLiteral("ini"));
+        QCOMPARE(service.saveFailedCalls.first().second, QStringLiteral("proxy-url-invalid"));
+
+        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
+        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
+    }
+
+    void restartReportsRequestedThenFinishedOnSuccess()
+    {
+        auto bus = QDBusConnection::sessionBus();
+        FakeControlService service;
+        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
+        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
+                                   &service, QDBusConnection::ExportAllSlots));
+
+        auto config = shellConfig(QStringLiteral("exit 0"));
+        QSignalSpy finished(&config, &BackendConfig::restartFinished);
+        MessageCapture capture;
+        QVERIFY(config.restartService());
+        QTRY_COMPARE(finished.size(), 1);
+
+        QVERIFY(!capture.messages().isEmpty());
+        QCOMPARE(capture.messages().first().first, QtInfoMsg);
+        QCOMPARE(capture.messages().first().second, PlasmaLyrics::restartRequestedLine());
+        QVERIFY(std::any_of(capture.messages().cbegin(), capture.messages().cend(),
+                            [](const QPair<QtMsgType, QString> &entry) {
+            return entry.first == QtInfoMsg
+                && entry.second == PlasmaLyrics::restartFinishedLine(true, QString());
+        }));
+
+        QTRY_COMPARE(service.restartRequestedCalls, 1);
+        QTRY_VERIFY(!service.restartFinishedCalls.isEmpty());
+        QCOMPARE(service.restartFinishedCalls.first().first, true);
+        QCOMPARE(service.restartFinishedCalls.first().second, QString());
+
+        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
+        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
+    }
+
+    void restartReportsRequestedThenFinishedOnFailure()
+    {
+        auto bus = QDBusConnection::sessionBus();
+        FakeControlService service;
+        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
+        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"),
+                                   &service, QDBusConnection::ExportAllSlots));
+
+        auto config = shellConfig(QStringLiteral("exit 23"));
+        QSignalSpy finished(&config, &BackendConfig::restartFinished);
+        MessageCapture capture;
+        QVERIFY(config.restartService());
+        QTRY_COMPARE(finished.size(), 1);
+
+        QVERIFY(std::any_of(capture.messages().cbegin(), capture.messages().cend(),
+                            [](const QPair<QtMsgType, QString> &entry) {
+            return entry.first == QtWarningMsg
+                && entry.second.startsWith(QStringLiteral("config restart finished result=failed"));
+        }));
+
+        QTRY_VERIFY(!service.restartFinishedCalls.isEmpty());
+        QCOMPARE(service.restartFinishedCalls.first().first, false);
+        QVERIFY(!service.restartFinishedCalls.first().second.isEmpty());
+
+        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
+        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
     }
 
     void discoversAvailableProvidersFromDaemon()

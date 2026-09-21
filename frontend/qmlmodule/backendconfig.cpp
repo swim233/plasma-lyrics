@@ -2,11 +2,13 @@
 
 #include "core/config/proxyspec.h"
 #include "core/config/stringlistsetting.h"
+#include "settingslog.h"
 
 #include <KLocalizedString>
 #include <QDBusConnection>
 #include <QDBusInterface>
 #include <QDBusReply>
+#include <QPair>
 #include <QProcess>
 #include <QSettings>
 #include <QStandardPaths>
@@ -395,12 +397,11 @@ bool BackendConfig::save()
     // leave every other pending change unsaved too, not just the proxy
     // fields, so a retry after fixing the address has nothing left stale.
     if (m_proxyMode == QStringLiteral("manual") && !proxyUrlError(m_proxyUrl).isEmpty()) {
+        PlasmaLyrics::reportSaveFailed(QStringLiteral("ini"), QStringLiteral("proxy-url-invalid"));
         return false;
     }
     auto config = settings();
-    PlasmaLyrics::writeStringListOrEmpty(config, blacklistSetting(), list(m_serviceBlacklist));
-    PlasmaLyrics::writeStringListOrEmpty(config, musicUrlPrefixesSetting(), list(m_musicUrlPrefixes));
-    config.setValue(QStringLiteral("filter/metadataHeuristic"), m_metadataHeuristic);
+
     QStringList platforms;
     if (m_platformNetease) {
         platforms.append(QStringLiteral("netease"));
@@ -408,6 +409,89 @@ bool BackendConfig::save()
     if (m_platformApple) {
         platforms.append(QStringLiteral("apple"));
     }
+
+    // Snapshot of every key this call is about to write: the value the
+    // CURRENT file holds (read with load()'s own helpers and defaults, so
+    // an in-between hand edit or daemon write is picked up) paired with the
+    // value the member about to be written renders to. Read before any
+    // write below touches `config`, and compared once the sync below
+    // succeeds -- a divergence becomes one `config changed` line each
+    // (DESIGN.md decision 75).
+    using PlasmaLyrics::renderConfigValue;
+    using PlasmaLyrics::renderProxyUrlForLog;
+    QList<QPair<QString, QString>> before;
+    QList<QPair<QString, QString>> after;
+    auto record = [&](const QString &key, const QVariant &oldValue, const QVariant &newValue) {
+        before.append({key, renderConfigValue(oldValue)});
+        after.append({key, renderConfigValue(newValue)});
+    };
+
+    const QStringList oldBlacklist = PlasmaLyrics::readStringListOrEmpty(
+        config, blacklistSetting(),
+        QStringList{QStringLiteral("org.mpris.MediaPlayer2.kdeconnect.*")});
+    const QStringList oldMusicUrlPrefixes = PlasmaLyrics::readStringListOrEmpty(
+        config, musicUrlPrefixesSetting(),
+        QStringList{QStringLiteral("https://music.163.com/"), QStringLiteral("http://music.163.com/")});
+    const QStringList oldPlatforms = PlasmaLyrics::readStringListOrEmpty(
+        config, platformsSetting(),
+        QStringList{QStringLiteral("netease"), QStringLiteral("apple")});
+    const QStringList oldProviderOrder = config.value(
+        QStringLiteral("providers/order"), defaultProviders()).toStringList();
+    const QStringList oldEnabledProviders = config.contains(QStringLiteral("providers/enabled"))
+        ? config.value(QStringLiteral("providers/enabled")).toStringList()
+        : oldProviderOrder;
+
+    record(QStringLiteral("players/blacklist"), oldBlacklist, list(m_serviceBlacklist));
+    record(QStringLiteral("filter/musicUrlPrefixes"), oldMusicUrlPrefixes, list(m_musicUrlPrefixes));
+    record(QStringLiteral("filter/metadataHeuristic"),
+           config.value(QStringLiteral("filter/metadataHeuristic"), true), m_metadataHeuristic);
+    record(QStringLiteral("filter/platforms"), oldPlatforms, platforms);
+    record(QStringLiteral("lyrics/filterLeadingCredits"),
+           config.value(QStringLiteral("lyrics/filterLeadingCredits"), true), m_filterCredits);
+    record(QStringLiteral("providers/netease/baseUrl"),
+           config.value(QStringLiteral("providers/netease/baseUrl"), QStringLiteral("https://music.163.com")),
+           m_neteaseBaseUrl);
+    record(QStringLiteral("providers/netease/timeoutMs"),
+           config.value(QStringLiteral("providers/netease/timeoutMs"), 4000), m_networkTimeoutMs);
+    record(QStringLiteral("providers/order"), oldProviderOrder, m_providerOrder);
+    record(QStringLiteral("providers/enabled"), oldEnabledProviders, m_enabledProviders);
+    record(QStringLiteral("providers/local/directory"),
+           config.value(QStringLiteral("providers/local/directory"),
+               QString(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+                   + QStringLiteral("/plasma-lyrics/lyrics"))),
+           m_localLyricsDirectory);
+    record(QStringLiteral("providers/amll/indexUrl"),
+           config.value(QStringLiteral("providers/amll/indexUrl"),
+               QStringLiteral("https://raw.githubusercontent.com/amll-dev/amll-ttml-db/main/metadata/raw-lyrics-index.jsonl")),
+           m_amllIndexUrl);
+    record(QStringLiteral("providers/amll/contentBaseUrl"),
+           config.value(QStringLiteral("providers/amll/contentBaseUrl"),
+               QStringLiteral("https://raw.githubusercontent.com/amll-dev/amll-ttml-db/main/")),
+           m_amllContentBaseUrl);
+    record(QStringLiteral("providers/amll/timeoutMs"),
+           config.value(QStringLiteral("providers/amll/timeoutMs"), 8000), m_amllTimeoutMs);
+    record(QStringLiteral("providers/amll/indexRefreshHours"),
+           config.value(QStringLiteral("providers/amll/indexRefreshHours"), 24), m_amllIndexRefreshHours);
+    record(QStringLiteral("logging/fileEnabled"),
+           config.value(QStringLiteral("logging/fileEnabled"), false), m_fileLoggingEnabled);
+    record(QStringLiteral("logging/filePath"),
+           config.value(QStringLiteral("logging/filePath"),
+               QString(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+                   + QStringLiteral("/plasma-lyrics/plasma-lyricsd.log"))),
+           m_logFilePath);
+    record(QStringLiteral("logging/debug"),
+           config.value(QStringLiteral("logging/debug"), false), m_debugLoggingEnabled);
+    record(QStringLiteral("network/proxyMode"),
+           config.value(QStringLiteral("network/proxyMode"), QStringLiteral("none")), m_proxyMode);
+    // network/proxyUrl may carry credentials, so it is rendered through
+    // renderProxyUrlForLog() rather than renderConfigValue() on both sides.
+    before.append({QStringLiteral("network/proxyUrl"),
+                   renderProxyUrlForLog(config.value(QStringLiteral("network/proxyUrl"), QString()).toString())});
+    after.append({QStringLiteral("network/proxyUrl"), renderProxyUrlForLog(m_proxyUrl)});
+
+    PlasmaLyrics::writeStringListOrEmpty(config, blacklistSetting(), list(m_serviceBlacklist));
+    PlasmaLyrics::writeStringListOrEmpty(config, musicUrlPrefixesSetting(), list(m_musicUrlPrefixes));
+    config.setValue(QStringLiteral("filter/metadataHeuristic"), m_metadataHeuristic);
     PlasmaLyrics::writeStringListOrEmpty(config, platformsSetting(), platforms);
     config.setValue(QStringLiteral("lyrics/filterLeadingCredits"), m_filterCredits);
     config.setValue(QStringLiteral("providers/netease/baseUrl"), m_neteaseBaseUrl);
@@ -434,7 +518,21 @@ bool BackendConfig::save()
     config.setValue(QStringLiteral("network/proxyUrl"), m_proxyUrl);
     config.sync();
     if (config.status() != QSettings::NoError) {
+        PlasmaLyrics::reportSaveFailed(QStringLiteral("ini"),
+            config.status() == QSettings::AccessError
+                ? QStringLiteral("ini-access-error")
+                : QStringLiteral("ini-format-error"));
         return false;
+    }
+    for (qsizetype i = 0; i < before.size(); ++i) {
+        if (before.at(i).second != after.at(i).second) {
+            PlasmaLyrics::reportConfigChange({.store = QStringLiteral("ini"),
+                                              .applet = QString(),
+                                              .form = QString(),
+                                              .key = before.at(i).first,
+                                              .oldValue = before.at(i).second,
+                                              .newValue = after.at(i).second});
+        }
     }
     if (m_dirty) {
         m_dirty = false;
@@ -500,6 +598,7 @@ bool BackendConfig::restartService()
     Q_EMIT restartStateChanged();
     Q_EMIT restartInProgressChanged();
     m_restartProcess->start(m_restartProgram, m_restartArguments);
+    PlasmaLyrics::reportRestartRequested();
     return true;
 }
 
@@ -515,4 +614,5 @@ void BackendConfig::finishRestart(RestartState state, const QString &error)
     Q_EMIT restartStateChanged();
     Q_EMIT restartInProgressChanged();
     Q_EMIT restartFinished(state == RestartSucceeded, error);
+    PlasmaLyrics::reportRestartFinished(state == RestartSucceeded, error);
 }
