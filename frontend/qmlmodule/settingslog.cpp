@@ -37,12 +37,17 @@ QString renderConfigValue(const QVariant &value)
         return value.toStringList().join(QLatin1Char(','));
     default: {
         // QString verbatim; integral types render as decimal. A type
-        // QVariant cannot stringify (a future Color or Font kcfg entry, a
-        // QVariantList) would otherwise render empty for both old and new
-        // and suppress the line entirely, so fall back to QDebug's rendering
-        // rather than lose the change.
+        // QVariant cannot convert to QString at all (a future Color or Font
+        // kcfg entry, a QVariantList) would otherwise render empty for both
+        // old and new and suppress the line entirely, so fall back to
+        // QDebug's rendering rather than lose the change. Types that merely
+        // stringify to an empty text (an empty QByteArray or QUrl) keep that
+        // empty rendering: for them "" is the faithful value, and a QDebug
+        // fallback would make an unchanged empty value look changed, and an
+        // invalid QVariant (an absent key) is likewise "" rather than
+        // "QVariant(Invalid)".
         QString text = value.toString();
-        if (text.isEmpty() && !value.isNull() && value.typeId() != QMetaType::QString) {
+        if (text.isEmpty() && value.isValid() && !value.canConvert<QString>()) {
             QDebug(&text).nospace() << value;
         }
         return text;

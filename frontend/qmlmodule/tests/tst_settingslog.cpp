@@ -2,6 +2,7 @@
 
 #include <QPoint>
 #include <QTest>
+#include <QUrl>
 
 using namespace PlasmaLyrics;
 
@@ -39,6 +40,18 @@ private Q_SLOTS:
         QVERIFY2(!rendered.isEmpty(), "a type QVariant::toString() cannot handle must not render empty");
         QVERIFY(rendered.contains(QStringLiteral("QPoint")));
         QCOMPARE(renderConfigValue(QVariant()), QString());
+        const QString list = renderConfigValue(QVariant(QVariantList{1, 2}));
+        QVERIFY2(!list.isEmpty(), "a QVariantList must not render empty either");
+    }
+
+    // Types that legitimately stringify to "" must stay "", or an unchanged
+    // empty value would render differently on the two sides of a compare
+    // and produce a spurious line.
+    void emptyStringifiableTypesRenderEmpty()
+    {
+        QCOMPARE(renderConfigValue(QVariant(QByteArray())), QString());
+        QCOMPARE(renderConfigValue(QVariant(QUrl())), QString());
+        QCOMPARE(renderConfigValue(QVariant(QByteArray("abc"))), QStringLiteral("abc"));
     }
 
     void proxyUrlNeverShowsCredentials()
