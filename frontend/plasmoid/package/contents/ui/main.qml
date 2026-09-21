@@ -112,6 +112,12 @@ PlasmoidItem {
     Plasmoid.title: i18n("Desktop Lyrics")
     preferredRepresentation: root.onDesktop ? fullRepresentation : compactRepresentation
 
+    ConfigChangeLogger {
+        configuration: Plasmoid.configuration
+        appletId: Plasmoid.id
+        form: root.onDesktop ? "desktop" : "panel"
+    }
+
     LyricSource {
         id: lyricSource
     }
