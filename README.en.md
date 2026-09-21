@@ -52,7 +52,7 @@ compiled and configured in the current build.
 
 The "Record debug details" checkbox under the "Lyrics Service" configuration
 page's Diagnostics section (`logging/debug`, off by default) turns on debug-level
-logging for six categories, effective after the service restarts:
+logging for seven categories, effective after the service restarts:
 
 | Category | Covers |
 | --- | --- |
@@ -62,6 +62,7 @@ logging for six categories, effective after the service restarts:
 | `plasmalyrics.provider.netease` | NetEase lyric source requests |
 | `plasmalyrics.provider.amll` | AMLL TTML database lyric source requests |
 | `plasmalyrics.provider.local` | The local lyrics directory |
+| `plasmalyrics.provider.qq` | QQ Music lyric source requests |
 
 That checkbox is the way to turn on every category at once; to debug a single
 category instead, use the `QT_LOGGING_RULES` environment variable, which takes
@@ -78,7 +79,7 @@ systemctl --user unset-environment QT_LOGGING_RULES
 systemctl --user restart plasma-lyricsd
 ```
 
-With the KDE package installed (`BUILD_PLASMOID=ON`), these categories also show up
+With the KDE package installed (`BUILD_PLASMOID=ON`), these seven categories also show up
 in `kdebugsettings` and can be toggled individually there, but only while "Record
 debug details" is off — that checkbox takes precedence over kdebugsettings and
 overrides its per-category debug toggle while it's on.
@@ -105,6 +106,23 @@ was cleared).
 
 With "Record debug details" on, this also prints debug-level lines such as
 per-candidate match scoring and cache-lookup details.
+
+**Settings change log**: saving either the "Lyrics Service" or the "Global settings"
+page, changing any setting on the Desktop appearance / Panel appearance / Text
+pages, and "Save and restart the service" and its outcome, each log one line,
+for example:
+
+```
+config changed store=db key=globalOffsetMs old="0" new="-300"
+config changed store=applet applet=12 form=desktop key=desktopFontSize old="34" new="36"
+```
+
+The widget's copy lands in plasmashell's own log; read it with
+`journalctl --user QT_CATEGORY=plasmalyrics.config`. The daemon receives the same
+line and logs it under `plasmalyrics.daemon`, so it also appears in
+`journalctl --user -u plasma-lyricsd` and the optional log file — while the service
+isn't running, only the widget's copy exists. `network/proxyUrl` is logged without
+credentials.
 
 Timing can be adjusted by 500 ms from the widget context menu, per song by
 default; the "Global settings" configuration tab can switch this to one
