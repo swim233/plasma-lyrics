@@ -431,7 +431,10 @@ bool BackendConfig::save()
     auto record = [&](const QString &key, const QVariant &oldValue, const QVariant &newValue) {
         const QString oldRendered = renderConfigValue(oldValue);
         const QString newRendered = renderConfigValue(newValue);
-        pending.append({key, oldRendered, newRendered, oldRendered != newRendered});
+        pending.append({.key = key,
+                        .oldRendered = oldRendered,
+                        .newRendered = newRendered,
+                        .changed = oldRendered != newRendered});
     };
 
     const QStringList oldBlacklist = PlasmaLyrics::readStringListOrEmpty(
@@ -503,10 +506,10 @@ bool BackendConfig::save()
     // nothing more can be shown about it).
     const QString oldProxyUrlRaw = config.value(QStringLiteral("network/proxyUrl"), QString()).toString();
     const QString newProxyUrlRaw = m_proxyUrl;
-    pending.append({QStringLiteral("network/proxyUrl"),
-                    renderProxyUrlForLog(oldProxyUrlRaw),
-                    renderProxyUrlForLog(newProxyUrlRaw),
-                    oldProxyUrlRaw != newProxyUrlRaw});
+    pending.append({.key = QStringLiteral("network/proxyUrl"),
+                    .oldRendered = renderProxyUrlForLog(oldProxyUrlRaw),
+                    .newRendered = renderProxyUrlForLog(newProxyUrlRaw),
+                    .changed = oldProxyUrlRaw != newProxyUrlRaw});
 
     PlasmaLyrics::writeStringListOrEmpty(config, blacklistSetting(), list(m_serviceBlacklist));
     PlasmaLyrics::writeStringListOrEmpty(config, musicUrlPrefixesSetting(), list(m_musicUrlPrefixes));
