@@ -13,7 +13,7 @@
 [![Qt](https://img.shields.io/badge/Qt-6.6+-41CD52?style=flat-square&logo=qt&logoColor=white)](https://www.qt.io/)
 [![C++](https://img.shields.io/badge/C%2B%2B-20-00599C?style=flat-square&logo=c%2B%2B&logoColor=white)](https://isocpp.org/)
 
-<img width="1340" height="579" alt="image" src="https://github.com/user-attachments/assets/b44864cd-c000-46b3-baee-7949546c2dcf" />
+<img width="1672" height="941" alt="image" src="https://github.com/user-attachments/assets/b764b95a-2f49-4f84-abc9-baaea75e92e1" />
 
 
 [English](README.en.md) · [更新日志](CHANGELOG.md) · [报告问题](https://github.com/swim233/plasma-lyrics/issues)
