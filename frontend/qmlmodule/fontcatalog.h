@@ -54,7 +54,9 @@ public:
     // The family's upright (non-italic) faces as [{weight: int, styleName:
     // string}], one entry per distinct weight, lightest first. `family` must
     // be a listed name (resolveFamily()'s result, or the Plasma font's
-    // family); empty list for an unknown family.
+    // family); empty list for an unknown family, and for Qt's generic "Sans
+    // Serif", "Serif" and "Monospace", which no font backs: their one
+    // synthetic 400 face would snap every stored weight to 400.
     Q_INVOKABLE QVariantList weights(const QString &family) const;
 
     // The weight from `available` (a weights() result) that the CSS Fonts

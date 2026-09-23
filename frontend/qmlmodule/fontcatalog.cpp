@@ -156,7 +156,7 @@ QVariantList FontCatalog::weights(const QString &family) const
     // for a name it only knows as an alias, and the Plasma font's family is
     // stored in whatever language it was picked in.
     const QString listed = resolveFamily(family);
-    if (listed.isEmpty()) {
+    if (listed.isEmpty() || !m_names.backed.contains(listed)) {
         return {};
     }
     QVariantList result;
