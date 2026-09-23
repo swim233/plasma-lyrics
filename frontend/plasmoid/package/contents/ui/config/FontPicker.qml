@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
+import QtQuick.Templates as T
 import org.kde.kirigami as Kirigami
 
 import "../FontPolicy.js" as FontPolicy
@@ -57,8 +58,7 @@ QQC2.ComboBox {
     readonly property string currentFamily: root.currentKind === "font"
         ? root.fontCatalog.resolveFamily(root.storedFamily)
         : ""
-    // What the closed box says, before displayText elides it to the box's
-    // width; how much of it fits depends on the fonts installed.
+    // What the closed box says, before the box elides it to its width.
     readonly property string currentLabel: root.entryText(root.currentKind,
         root.currentKind === "missing" ? root.storedFamily : root.currentFamily)
 
@@ -171,17 +171,52 @@ QQC2.ComboBox {
     wheelEnabled: false
     // The closed box shows the current choice in the family it stands for.
     font.family: root.renderFamily(root.currentKind, root.currentFamily)
-    // The style clips a label that does not fit rather than eliding it. The
-    // allowance is for the drop-down arrow, which the style draws inside
-    // the content area.
-    displayText: displayMetrics.elidedText
+    // Drawn by the field below rather than by the style. org.kde.desktop,
+    // the style plasmashell's config dialog uses, paints displayText from
+    // the combo box's background in the UI font whatever `font` says, and
+    // clips rather than elides it; left empty, it paints no text at all, and
+    // the accessible name is set explicitly instead.
+    displayText: ""
+    Accessible.name: root.currentLabel
 
-    TextMetrics {
-        id: displayMetrics
+    // A read-only TextField, the same type every style's own contentItem
+    // is: org.kde.desktop's text handles call TextInput functions on
+    // whatever the contentItem is, and log a TypeError for anything else.
+    // TextInput cannot elide, so the text is elided up front, measured in
+    // the same font it is drawn in.
+    contentItem: T.TextField {
+        id: closedField
+        objectName: "closedLabel"
+        // Zero, so the box's implicit size comes from the style and never
+        // from the name or the chosen family's line height; the layout
+        // sizes it.
+        implicitWidth: 0
+        implicitHeight: 0
+        padding: 0
+        // org.kde.desktop draws the drop-down arrow inside the content area
+        // and has no indicator item; styles that have one (Fusion, Basic)
+        // already leave room for it in the box's rightPadding.
+        rightPadding: root.indicator && root.indicator.width > 0
+            ? 0
+            : Kirigami.Units.gridUnit + Kirigami.Units.smallSpacing
+        // Not editable and never focused; presses go to the box.
+        enabled: false
+        readOnly: true
+        text: closedMetrics.elidedText
         font: root.font
-        text: root.currentLabel
-        elide: Text.ElideRight
-        elideWidth: Math.max(0, root.availableWidth - Kirigami.Units.gridUnit - Kirigami.Units.smallSpacing)
+        // The box's theme, not this field's: Kirigami gives a disabled
+        // item the disabled text colour.
+        color: root.enabled ? root.Kirigami.Theme.textColor : root.Kirigami.Theme.disabledTextColor
+        verticalAlignment: Text.AlignVCenter
+        background: null
+
+        TextMetrics {
+            id: closedMetrics
+            font: closedField.font
+            text: root.currentLabel
+            elide: Text.ElideRight
+            elideWidth: Math.max(0, closedField.width - closedField.leftPadding - closedField.rightPadding)
+        }
     }
 
     popup: QQC2.Popup {

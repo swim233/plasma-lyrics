@@ -299,15 +299,20 @@ TestCase {
         return picker.entryList.entries[picker.entryList.currentIndex];
     }
 
-    // The closed box's text. currentLabel is asserted exactly; displayText is
-    // it elided to the box's width, and how much fits depends on the fonts
-    // and style of the machine running this (CI's containers have few fonts
-    // and fall back to Fusion), so it is only checked to be the label or a
-    // cut-down form of it. Qt ends an elided string with U+2026, or with
-    // three dots when the font has no such glyph.
+    // The closed box's text: currentLabel, drawn by the box's own field in
+    // the box's font, with displayText left empty so that no style paints a
+    // second copy in the UI font. The field shows currentLabel elided to its
+    // width, and how much fits depends on the fonts of the machine running
+    // this (CI's containers have few), so the shown text is only checked to
+    // be the label or a cut-down form of it. Qt ends an elided string with
+    // U+2026, or with three dots when the font has no such glyph.
     function compareLabel(picker, label) {
         compare(picker.currentLabel, label);
-        const shown = picker.displayText;
+        compare(picker.displayText, "");
+        compare(picker.Accessible.name, label);
+        const closed = named(picker, "closedLabel");
+        compare(closed.font.family, picker.font.family);
+        const shown = closed.text;
         if (shown === label) {
             return;
         }
@@ -827,7 +832,9 @@ TestCase {
         const lyric = named(longName.section, "lyricFontPicker");
         compareLabel(lyric, longFamily);
         // Over 200 characters fit in 20 gridUnits in no font at all.
-        verify(lyric.displayText.length < longFamily.length);
+        const closed = named(lyric, "closedLabel");
+        verify(closed.text.length < longFamily.length);
+        verify(closed.width <= lyric.availableWidth);
     }
 
     // The pages are created the way the config dialog creates them: every
