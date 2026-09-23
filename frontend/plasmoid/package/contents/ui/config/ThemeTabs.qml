@@ -21,8 +21,11 @@ ColumnLayout {
     // <form>ColorSchemeMode as the dialog holds it, saved or not: the tab
     // labels and the hint follow a change right away.
     property string mode: "auto"
-    // The page's FormLayouts the mode row lines its label up with.
+    // The page's FormLayouts the mode row lines its label up with, and
+    // whether they are laid out in two columns: the page passes the form
+    // inside the frame's, so that every form on it switches at one width.
     property list<Item> twinFormLayouts
+    property bool wideMode: true
 
     signal modeEdited(string value)
     // The user confirmed replacing the set on screen with the other one;
@@ -48,6 +51,7 @@ ColumnLayout {
     Kirigami.FormLayout {
         Layout.fillWidth: true
         twinFormLayouts: root.twinFormLayouts
+        wideMode: root.wideMode
 
         QQC2.ComboBox {
             objectName: "themeModeComboBox"

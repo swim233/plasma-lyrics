@@ -2250,6 +2250,54 @@ TestCase {
         }
     }
 
+    // Every form on the page switches between one and two columns at the
+    // same page width, the one at which the form inside the frame does:
+    // the frame's padding makes that form the narrowest, so following it
+    // never puts two columns where they do not fit. The width is searched
+    // for rather than assumed, since it depends on the locale, the font and
+    // the style.
+    function test_everyFormSwitchesColumnsAtTheSameWidth() {
+        for (const form of ["desktop", "panel"]) {
+            const page = createWindowedPage(form, distinctConfiguration(form, "light"),
+                { width: Kirigami.Units.gridUnit * 80 });
+            const inside = sectionOf(page);
+            const outside = findAll(page, o => o.twinFormLayouts !== undefined
+                && o.syncDialog === undefined && o !== inside);
+            verify(outside.length >= 3, form);
+            const setWidth = width => {
+                page.width = width;
+                waitForRendering(page, 1000);
+                settle(inside);
+                outside.forEach(settle);
+            };
+
+            let wide = Kirigami.Units.gridUnit * 80;
+            let narrow = Kirigami.Units.gridUnit * 10;
+            setWidth(wide);
+            verify(inside.wideMode, form);
+            setWidth(narrow);
+            verify(!inside.wideMode, form);
+            while (wide - narrow > 1) {
+                const middle = Math.floor((wide + narrow) / 2);
+                setWidth(middle);
+                if (inside.wideMode) {
+                    wide = middle;
+                } else {
+                    narrow = middle;
+                }
+            }
+
+            setWidth(narrow);
+            verify(!inside.wideMode, form);
+            // Wider than the form inside, and on their own still two columns.
+            verify(outside.every(o => o.width > inside.width), form);
+            verify(outside.every(o => !o.wideMode), form);
+            setWidth(wide);
+            verify(inside.wideMode, form);
+            verify(outside.every(o => o.wideMode), form);
+        }
+    }
+
     function test_syncFromCopiesEveryKeyOfOneSetAndNothingElse() {
         for (const form of ["desktop", "panel"]) {
             for (const fromDark of [true, false]) {

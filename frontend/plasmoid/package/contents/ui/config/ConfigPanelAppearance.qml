@@ -150,6 +150,7 @@ Kirigami.ScrollablePage {
             formFactor: "panel"
             mode: page.cfg_panelColorSchemeMode
             twinFormLayouts: [appearanceSection]
+            wideMode: appearanceSection.wideMode
             onModeEdited: value => page.cfg_panelColorSchemeMode = value
             onSyncConfirmed: fromDark => page.syncFrom(fromDark)
 
@@ -224,10 +225,14 @@ Kirigami.ScrollablePage {
         }
 
         // The rest of the track info, shared by both sets and so outside
-        // the tabs.
+        // the tabs. Like every form outside the frame it takes wideMode from
+        // the one inside, which the frame's padding makes the narrowest: on
+        // their own, the forms would switch between one and two columns at
+        // different page widths.
         TrackInfoSection {
             Layout.fillWidth: true
             twinFormLayouts: [appearanceSection]
+            wideMode: appearanceSection.wideMode
             fontCatalog: FontCatalog
             lyricEffectiveFamily: page.lyricFamily
             lyricSetInEffect: page.editingSetInEffect
@@ -263,6 +268,7 @@ Kirigami.ScrollablePage {
         Kirigami.FormLayout {
             Layout.fillWidth: true
             twinFormLayouts: [appearanceSection]
+            wideMode: appearanceSection.wideMode
 
             QQC2.SpinBox {
                 Kirigami.FormData.label: i18nc("@label:spinbox", "Width:")
@@ -277,6 +283,7 @@ Kirigami.ScrollablePage {
         Kirigami.FormLayout {
             Layout.fillWidth: true
             twinFormLayouts: [appearanceSection]
+            wideMode: appearanceSection.wideMode
 
             Kirigami.Separator {
                 Kirigami.FormData.isSection: true
