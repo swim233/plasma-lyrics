@@ -3,7 +3,7 @@ import QtTest
 import "../package/contents/ui" as LyricsUi
 import "../package/contents/ui/ThemePolicy.js" as ThemePolicy
 
-// DESIGN.md decision 75: the light/dark appearance sets. ThemePolicy.js's key
+// DESIGN.md decision 76: the light/dark appearance sets. ThemePolicy.js's key
 // table and migration, AppearanceTheme's choice of set and its gate on
 // colour animation, and LyricsView's colour fade driven by that gate.
 TestCase {

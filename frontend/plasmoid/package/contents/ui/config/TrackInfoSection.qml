@@ -6,7 +6,7 @@ import org.kde.kirigami as Kirigami
 import "../FontPolicy.js" as FontPolicy
 
 // The track-info rows of an appearance page that both of its sets share
-// (DESIGN.md decision 75), a FormLayout of their own rather than the tail of
+// (DESIGN.md decision 76), a FormLayout of their own rather than the tail of
 // AppearanceSection's because they sit below the frame that holds the set
 // being edited. The three colour rows are AppearanceSection's, inside that
 // frame. The page lists AppearanceSection in this form's twinFormLayouts, so

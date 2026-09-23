@@ -1,6 +1,6 @@
 .pragma library
 
-// DESIGN.md decision 75: every instance keeps two sets of the appearance
+// DESIGN.md decision 76: every instance keeps two sets of the appearance
 // keys listed here, one for a dark colour scheme and one for a light one.
 // The dark set is the original <form><Suffix> key, the light set the
 // <form>Light<Suffix> key main.xml declares next to it. Everything the

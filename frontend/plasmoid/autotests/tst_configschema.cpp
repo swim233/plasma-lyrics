@@ -244,7 +244,7 @@ private Q_SLOTS:
                                 .arg(missing.join(QStringLiteral("\n  ")))));
     }
 
-    // DESIGN.md decision 75. The light set is read through keys built at run
+    // DESIGN.md decision 76. The light set is read through keys built at run
     // time (AppearanceTheme.value(), the pages' sync), which the scan above
     // cannot see, so ThemePolicy.js's table stands in for them: every suffix
     // it lists needs its dark key, with the default the table gives for it,
@@ -305,7 +305,7 @@ private Q_SLOTS:
         QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
     }
 
-    // DESIGN.md decision 75, main.qml's side. main.qml is a PlasmoidItem the
+    // DESIGN.md decision 76, main.qml's side. main.qml is a PlasmoidItem the
     // QML suite cannot instantiate, and qmllint cannot tell one key name from
     // another, so this reads its text. Each form factor has one
     // AppearanceTheme, id <form>Theme, over Plasmoid.configuration; every

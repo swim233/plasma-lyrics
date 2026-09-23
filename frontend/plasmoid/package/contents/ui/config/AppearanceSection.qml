@@ -67,7 +67,7 @@ Kirigami.FormLayout {
     property int wordBrightnessPercent: 60
     property bool wordBlurGlow: false
 
-    // DESIGN.md decision 75: the track info's colours come in a light and a
+    // DESIGN.md decision 76: the track info's colours come in a light and a
     // dark copy like every row above, so their three rows close this form;
     // TrackInfoSection holds the rest, which both sets share. showTrackInfo
     // hides these three, heading included, along with TrackInfoSection's.

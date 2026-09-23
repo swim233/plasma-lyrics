@@ -48,7 +48,7 @@ Kirigami.ScrollablePage {
     property string cfg_desktopTrackInfoStrokeColor
     property string cfg_desktopTrackInfoOverflow
 
-    // DESIGN.md decision 75: the mode that picks one of the two sets, and
+    // DESIGN.md decision 76: the mode that picks one of the two sets, and
     // the light copy of every key ThemePolicy.themedSuffixes("desktop")
     // lists; the keys above with those suffixes are the dark copies. One
     // property per key, as for the dark set: the config dialog loads and

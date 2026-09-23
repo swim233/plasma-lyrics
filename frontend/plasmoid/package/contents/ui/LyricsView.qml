@@ -91,7 +91,7 @@ Item {
     property color trackInfoStrokeColor: "#cc000000"
     property string trackInfoOverflow: "fit"
 
-    // DESIGN.md decision 75: main.qml turns this on only while the appearance
+    // DESIGN.md decision 76: main.qml turns this on only while the appearance
     // set in effect is switching (AppearanceTheme's `transitioning`), so the
     // colours below fade into the other set's and every other edit applies
     // at once. The Behaviors sit on this item's own colour properties rather

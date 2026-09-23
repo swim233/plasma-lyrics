@@ -16,7 +16,7 @@
          0/1 instances can be migrated into this shared version 2 policy. -->
     <entry name="emptyTextUseDefault" type="Bool"><default>true</default></entry>
     <entry name="textConfigVersion" type="Int"><default>0</default></entry>
-    <!-- DESIGN.md decision 75. 0 until ThemePolicy.migrateConfiguration has
+    <!-- DESIGN.md decision 76. 0 until ThemePolicy.migrateConfiguration has
          run once; see that function for what the first run copies. -->
     <entry name="themeConfigVersion" type="Int"><default>0</default></entry>
 
@@ -109,7 +109,7 @@
     <entry name="desktopHideAnimationMs" type="Int"><default>1000</default></entry>
     <entry name="desktopHideNonMusic" type="Bool"><default>true</default></entry>
 
-    <!-- DESIGN.md decision 75: auto follows the colour scheme the platform
+    <!-- DESIGN.md decision 76: auto follows the colour scheme the platform
          theme reports (Application.styleHints.colorScheme), light and dark
          pin one set. The desktopXxx keys above are the dark set; each
          desktopLightXxx below is the light copy of the key with the same

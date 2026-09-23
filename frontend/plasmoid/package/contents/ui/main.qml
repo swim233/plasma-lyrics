@@ -143,7 +143,7 @@ PlasmoidItem {
         delayMs: (root.onDesktop ? Plasmoid.configuration.desktopHideDelaySec : Plasmoid.configuration.panelHideDelaySec) * 1000
     }
 
-    // DESIGN.md decision 75: the appearance set each form factor renders
+    // DESIGN.md decision 76: the appearance set each form factor renders
     // with. Every themed key below is read as <form>Theme.value("<Suffix>"),
     // never as Plasmoid.configuration.<form><Suffix>, which would pin the
     // dark set; tst_configschema checks that, and that each view reads all of

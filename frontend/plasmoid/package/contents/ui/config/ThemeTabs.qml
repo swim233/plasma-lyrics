@@ -5,7 +5,7 @@ import org.kde.kirigami as Kirigami
 
 import "../ThemePolicy.js" as ThemePolicy
 
-// DESIGN.md decision 75: the theme mode row of an appearance page and, below
+// DESIGN.md decision 76: the theme mode row of an appearance page and, below
 // it, a [Light | Dark] tab bar standing on a frame, so the two read as one
 // tabbed control. The frame holds the rows that come in a light and a dark
 // copy -- the page's AppearanceSection, declared as this component's content

@@ -891,7 +891,7 @@ TestCase {
     }
 
     // Once for each set: the stored lyric font sits in the set the page
-    // opens on (DESIGN.md decision 75), which the mode picks; the other set
+    // opens on (DESIGN.md decision 76), which the mode picks; the other set
     // is left unset.
     function test_pagesCreatedWithStoredFontKeys(data) {
         for (const form of ["desktop", "panel"]) {

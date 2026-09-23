@@ -142,7 +142,7 @@ TestCase {
         return dialogWindow || { overlay: null };
     }
 
-    // A page opens on the tab of the set in effect (DESIGN.md decision 75),
+    // A page opens on the tab of the set in effect (DESIGN.md decision 76),
     // which in this suite, with no platform theme to report a colour
     // scheme, is the light one unless the mode pins dark. The tests written
     // against the original <form><Suffix> keys -- the dark set -- open the
@@ -456,7 +456,7 @@ TestCase {
         // to be "two sections on one page" is now two page instances, each
         // carrying exactly one AppearanceSection. Crossing the two only
         // shows up as "the panel setting moved the desktop widget". Opened
-        // on the Dark tab, whose keys are the original ones (decision 75).
+        // on the Dark tab, whose keys are the original ones (decision 76).
         const desktopPage = createDarkPage(configDesktopAppearanceComponent, "desktop");
         const panelPage = createDarkPage(configPanelAppearanceComponent, "panel");
         verify(desktopPage !== null);
@@ -1866,7 +1866,7 @@ TestCase {
         }
     }
 
-    // ---- light and dark sets (DESIGN.md decision 75) ----
+    // ---- light and dark sets (DESIGN.md decision 76) ----
 
     function pageComponent(form) {
         return form === "desktop" ? configDesktopAppearanceComponent : configPanelAppearanceComponent;

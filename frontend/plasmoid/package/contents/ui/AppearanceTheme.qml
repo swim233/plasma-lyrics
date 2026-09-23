@@ -3,7 +3,7 @@ import org.kde.kirigami as Kirigami
 
 import "ThemePolicy.js" as ThemePolicy
 
-// DESIGN.md decision 75: which of its two appearance sets one form factor
+// DESIGN.md decision 76: which of its two appearance sets one form factor
 // renders with, and whether colours should animate into it right now.
 // A component of its own rather than a few properties on main.qml, which is
 // a PlasmoidItem the QML test suite cannot instantiate.
