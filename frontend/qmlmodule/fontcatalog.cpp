@@ -64,6 +64,18 @@ bool coversOfferedScript(const QString &family)
     });
 }
 
+QList<FontMatching::Face> facesOf(const QString &listed)
+{
+    QList<FontMatching::Face> faces;
+    for (const QString &style : QFontDatabase::styles(listed)) {
+        // QFontDatabase::italic() is false for oblique faces; the style of
+        // the font it builds is not.
+        const bool upright = QFontDatabase::font(listed, style, 12).style() == QFont::StyleNormal;
+        faces.append({style, QFontDatabase::weight(listed, style), upright});
+    }
+    return faces;
+}
+
 } // namespace
 
 FontCatalog::FontCatalog(QObject *parent)
@@ -84,9 +96,12 @@ void FontCatalog::ensureBuilt() const
 
     // Qt's generic "Sans Serif", "Serif" and "Monospace" are not backed by any
     // font: each has one synthetic 400 face, so the weight list would offer
-    // nothing to choose from.
+    // nothing to choose from. A family with no upright face at all ("Nimbus
+    // Sans [URW ]" holds only the italics) would render slanted and offer no
+    // weight either.
     for (const QString &family : listed) {
-        if (m_names.backed.contains(family) && QFontDatabase::isScalable(family) && coversOfferedScript(family)) {
+        if (m_names.backed.contains(family) && QFontDatabase::isScalable(family) && coversOfferedScript(family)
+            && !FontMatching::uprightWeights(facesOf(family)).isEmpty()) {
             m_families.append(family);
         }
     }
@@ -144,15 +159,8 @@ QVariantList FontCatalog::weights(const QString &family) const
     if (listed.isEmpty()) {
         return {};
     }
-    QList<FontMatching::Face> faces;
-    for (const QString &style : QFontDatabase::styles(listed)) {
-        // QFontDatabase::italic() is false for oblique faces; the style of
-        // the font it builds is not.
-        const bool upright = QFontDatabase::font(listed, style, 12).style() == QFont::StyleNormal;
-        faces.append({style, QFontDatabase::weight(listed, style), upright});
-    }
     QVariantList result;
-    for (const FontMatching::Weight &face : FontMatching::uprightWeights(faces)) {
+    for (const FontMatching::Weight &face : FontMatching::uprightWeights(facesOf(listed))) {
         result.append(QVariantMap{{QStringLiteral("weight"), face.weight},
                                   {QStringLiteral("styleName"), face.styleName}});
     }

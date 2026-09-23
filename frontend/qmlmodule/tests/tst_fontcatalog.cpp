@@ -222,6 +222,14 @@ private Q_SLOTS:
         QVERIFY(FontMatching::uprightWeights({}).isEmpty());
     }
 
+    // families() leaves out a family this is empty for.
+    void uprightWeightsOfItalicOnlyFamilyIsEmpty()
+    {
+        // "Nimbus Sans [URW ]": the URW foundry ships only the italics.
+        QVERIFY(FontMatching::uprightWeights({{u8("Bold Italic"), 700, false}, {u8("Italic"), 400, false}})
+                    .isEmpty());
+    }
+
     // --- groupFamilyNames ---
 
     void groupFamilyNames()
@@ -528,8 +536,10 @@ private Q_SLOTS:
     {
         const FontCatalog catalog;
         for (const QString &family : catalog.families()) {
+            const QVariantList weights = catalog.weights(family);
+            QVERIFY2(!weights.isEmpty(), qPrintable(family));
             int previous = 0;
-            for (const QVariant &entry : catalog.weights(family)) {
+            for (const QVariant &entry : weights) {
                 const QVariantMap face = entry.toMap();
                 const int weight = face.value(QStringLiteral("weight")).toInt();
                 const QString style = face.value(QStringLiteral("styleName")).toString();

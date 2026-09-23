@@ -31,7 +31,9 @@ public:
     explicit FontCatalog(QObject *parent = nullptr);
 
     // Scalable families covering Latin or any of Simplified Chinese,
-    // Traditional Chinese, Japanese or Korean, sorted case-insensitively.
+    // Traditional Chinese, Japanese or Korean that have at least one upright
+    // face, so weights() is never empty for them; sorted case-insensitively.
+    // Qt's generic "Sans Serif", "Serif" and "Monospace" are not among them.
     Q_INVOKABLE QStringList families() const;
 
     // Every other name fontconfig knows `family` by (other languages), for
