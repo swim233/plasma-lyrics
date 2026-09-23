@@ -3,6 +3,8 @@ import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
 
+import "../FontPolicy.js" as FontPolicy
+
 // A bare FormLayout rather than a Card wrapping one: this section now lives
 // directly on its own config tab (DESIGN.md decision 40 split it out of the
 // combined appearance page), and the tab name in the sidebar already carries
@@ -18,6 +20,11 @@ Kirigami.FormLayout {
     property string textColor: "#fffaf5"
     property bool strokeEnabled: false
     property string strokeColor: "#cc000000"
+    // The FontCatalog singleton, passed in by the page rather than imported
+    // here so the tests can hand this a stand-in whose families do not
+    // depend on what the machine running them has installed.
+    required property var fontCatalog
+    property string fontFamily: ""
     property int fontWeight: Font.Normal
     property string overflowMode: "fit"
     property string animationMode: "slide"
@@ -62,6 +69,8 @@ Kirigami.FormLayout {
 
     property bool showTrackInfo: true
     property string trackInfoLayout: "single"
+    property bool trackInfoFontSameAsLyrics: true
+    property string trackInfoFontFamily: ""
     property int trackInfoFontWeight: Font.Normal
     property string trackInfoColor: "#b3fffaf5"
     property bool trackInfoStrokeEnabled: false
@@ -74,6 +83,7 @@ Kirigami.FormLayout {
     signal textColorEdited(string value)
     signal strokeEnabledEdited(bool value)
     signal strokeColorEdited(string value)
+    signal fontFamilyEdited(string value)
     signal fontWeightEdited(int value)
     signal overflowModeEdited(string value)
     signal animationModeEdited(string value)
@@ -95,20 +105,136 @@ Kirigami.FormLayout {
 
     signal showTrackInfoEdited(bool value)
     signal trackInfoLayoutEdited(string value)
+    signal trackInfoFontSameAsLyricsEdited(bool value)
+    signal trackInfoFontFamilyEdited(string value)
     signal trackInfoFontWeightEdited(int value)
     signal trackInfoColorEdited(string value)
     signal trackInfoStrokeEnabledEdited(bool value)
     signal trackInfoStrokeColorEdited(string value)
     signal trackInfoOverflowEdited(string value)
 
-    // Qt snaps a weight the family has no face for onto the nearest one it does
-    // have, so offering all nine standard steps would mostly produce duplicates.
-    // These six are the ones a typical family ships; the Plasma default here,
-    // Noto Sans CJK SC, has a real face for every one of them except DemiBold.
-    readonly property var fontWeightValues: [
-        Font.Light, Font.Normal, Font.Medium,
-        Font.DemiBold, Font.Bold, Font.Black
-    ]
+    // What each section renders in: FontPolicy.lyricFamily() and
+    // trackInfoFamily() of the same keys, the calls main.qml makes, so the
+    // weight rows below list the faces actually drawn. Computed by the page
+    // and passed in, the same remedy as wordLiftRowVisible above. Computed
+    // here from fontFamily and the track-info inputs instead, they loop,
+    // measured: tst_appearance.qml reported 10 "Binding loop" warnings on
+    // trackInfoEffectiveFamily, and tst_fontpicker.qml's
+    // test_pagesCreatedWithStoredFontKeys, which creates the pages the way
+    // the config dialog does, 6 on lyricEffectiveFamily and 10 on
+    // trackInfoEffectiveFamily. Computed by the page: 0 in both files. The
+    // loops appeared only for a stored value that differs from the default
+    // declared in this file: flipping trackInfoFontSameAsLyrics' default to
+    // false silenced tst_appearance.qml's 10, which is why
+    // test_pagesCreatedWithStoredFontKeys passes stored values, not none.
+    required property string lyricEffectiveFamily
+    required property string trackInfoEffectiveFamily
+    readonly property string systemFamily: Kirigami.Theme.defaultFont.family
+
+    function snappedWeight(family, storedWeight) {
+        return root.fontCatalog.snapWeight(root.fontCatalog.weights(family), storedWeight);
+    }
+
+    // A pick that moves a section onto another family also writes that
+    // section's weight, snapped onto one of the new family's real faces, so
+    // the stored weight is always one the family has. Only from these two
+    // handlers, never from a binding: the weight rows merely display the
+    // snapped value, for the reason lineHeightSpinBox's comment gives. Both
+    // capture what they compare against before emitting, since each emit
+    // flows back into this component's properties through the page.
+    function editLyricFamily(stored) {
+        const before = root.lyricEffectiveFamily;
+        const after = FontPolicy.lyricFamily(root.fontCatalog, stored, root.systemFamily);
+        const trackInfoFollows = root.trackInfoFontSameAsLyrics;
+        const lyricWeight = root.fontWeight;
+        const trackInfoWeight = root.trackInfoFontWeight;
+        root.fontFamilyEdited(stored);
+        if (after === before) {
+            return;
+        }
+        root.fontWeightEdited(root.snappedWeight(after, lyricWeight));
+        if (trackInfoFollows) {
+            root.trackInfoFontWeightEdited(root.snappedWeight(after, trackInfoWeight));
+        }
+    }
+
+    // "Same as lyrics" leaves trackInfoFontFamily as it is, so turning it
+    // back off restores the family chosen before.
+    function editTrackInfoFont(sameAsLyrics, stored) {
+        const before = root.trackInfoEffectiveFamily;
+        const after = FontPolicy.trackInfoFamily(root.fontCatalog, sameAsLyrics, stored,
+            root.lyricEffectiveFamily, root.systemFamily);
+        const trackInfoWeight = root.trackInfoFontWeight;
+        root.trackInfoFontSameAsLyricsEdited(sameAsLyrics);
+        if (!sameAsLyrics) {
+            root.trackInfoFontFamilyEdited(stored);
+        }
+        if (after !== before) {
+            root.trackInfoFontWeightEdited(root.snappedWeight(after, trackInfoWeight));
+        }
+    }
+
+    // The weight row for one section: the faces `family` really has,
+    // lightest first, so no entry is one fontconfig would have to synthesize.
+    // It shows the face FontPolicy.renderWeight() draws, which for a stored
+    // weight the family lacks is the nearest face it has -- displayed only;
+    // the stored value is written by a pick here or in the font picker
+    // above, never by this binding.
+    component WeightComboBox: QQC2.ComboBox {
+        id: weightBox
+
+        required property var fontCatalog
+        property string family
+        property int storedWeight: Font.Normal
+
+        signal weightPicked(int weight)
+
+        // weights() is empty for a family FontCatalog does not list, such
+        // as the generic "Sans Serif" the Plasma font reads as under the
+        // offscreen test platform; the one-entry list makes the row read as
+        // the stored weight then rather than as blank.
+        readonly property var faces: {
+            const listed = weightBox.fontCatalog.weights(weightBox.family);
+            return listed.length > 0 ? listed : [{ weight: weightBox.storedWeight, styleName: "" }];
+        }
+        readonly property int shownWeight: FontPolicy.renderWeight(weightBox.fontCatalog, weightBox.family, weightBox.storedWeight)
+
+        // The nine CSS weight names for the standard steps; any other
+        // weight is a face its designer named, so it keeps that name.
+        function label(face) {
+            switch (face.weight) {
+            case 100:
+                return i18nc("@item:inlistbox font weight", "Thin");
+            case 200:
+                return i18nc("@item:inlistbox font weight", "Extra light");
+            case 300:
+                return i18nc("@item:inlistbox font weight", "Light");
+            case 400:
+                return i18nc("@item:inlistbox font weight", "Regular");
+            case 500:
+                return i18nc("@item:inlistbox font weight", "Medium");
+            case 600:
+                return i18nc("@item:inlistbox font weight", "Demi bold");
+            case 700:
+                return i18nc("@item:inlistbox font weight", "Bold");
+            case 800:
+                return i18nc("@item:inlistbox font weight", "Extra bold");
+            case 900:
+                return i18nc("@item:inlistbox font weight", "Black");
+            default:
+                return face.styleName || String(face.weight);
+            }
+        }
+
+        // A family's own style names can be long; the cap keeps one from
+        // widening the page, as for the font picker.
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 14
+        model: weightBox.faces.map(face => weightBox.label(face))
+        currentIndex: weightBox.faces.findIndex(face => face.weight === weightBox.shownWeight)
+        // A single face leaves nothing to choose.
+        enabled: weightBox.faces.length > 1
+        onActivated: index => weightBox.weightPicked(weightBox.faces[index].weight)
+    }
 
     QQC2.ComboBox {
         Kirigami.FormData.label: i18n("Background:")
@@ -127,6 +253,19 @@ Kirigami.FormLayout {
         value: root.textColor
         onEdited: hexColor => root.textColorEdited(hexColor)
     }
+    FontPicker {
+        objectName: "lyricFontPicker"
+        Kirigami.FormData.label: i18n("Font:")
+        // Fills the column up to a cap rather than sizing to its text, the
+        // same mechanism formDescription below uses, so no family name can
+        // become what the page sizes itself to.
+        Layout.fillWidth: true
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 14
+        fontCatalog: root.fontCatalog
+        storedFamily: root.fontFamily
+        onFollowSystemPicked: root.editLyricFamily("")
+        onFamilyPicked: family => root.editLyricFamily(family)
+    }
     QQC2.SpinBox {
         Kirigami.FormData.label: i18n("Font size:")
         from: 10
@@ -134,23 +273,13 @@ Kirigami.FormLayout {
         value: root.fontSizeControl.value
         onValueModified: root.fontSizeControl.value = value
     }
-    QQC2.ComboBox {
+    WeightComboBox {
+        objectName: "lyricWeightComboBox"
         Kirigami.FormData.label: i18n("Font weight:")
-        model: [
-            i18nc("@item:inlistbox font weight", "Light"),
-            i18nc("@item:inlistbox font weight", "Regular"),
-            i18nc("@item:inlistbox font weight", "Medium"),
-            i18nc("@item:inlistbox font weight", "Demi bold"),
-            i18nc("@item:inlistbox font weight", "Bold"),
-            i18nc("@item:inlistbox font weight", "Black")
-        ]
-        currentIndex: {
-            const known = root.fontWeightValues.indexOf(root.fontWeight);
-            // Fall back to Regular rather than to index 0, so an unknown
-            // stored weight does not silently read as Light.
-            return known >= 0 ? known : root.fontWeightValues.indexOf(Font.Normal);
-        }
-        onActivated: root.fontWeightEdited(root.fontWeightValues[currentIndex])
+        fontCatalog: root.fontCatalog
+        family: root.lyricEffectiveFamily
+        storedWeight: root.fontWeight
+        onWeightPicked: weight => root.fontWeightEdited(weight)
     }
     QQC2.SpinBox {
         objectName: "lineHeightSpinBox"
@@ -412,6 +541,21 @@ Kirigami.FormLayout {
         currentIndex: ["single", "double"].indexOf(root.trackInfoLayout)
         onActivated: root.trackInfoLayoutEdited(["single", "double"][currentIndex])
     }
+    FontPicker {
+        objectName: "trackInfoFontPicker"
+        Kirigami.FormData.label: i18n("Font:")
+        visible: root.showTrackInfo
+        Layout.fillWidth: true
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 14
+        fontCatalog: root.fontCatalog
+        storedFamily: root.trackInfoFontFamily
+        offerSameAsLyrics: true
+        sameAsLyrics: root.trackInfoFontSameAsLyrics
+        lyricFamily: root.lyricEffectiveFamily
+        onSameAsLyricsPicked: root.editTrackInfoFont(true, root.trackInfoFontFamily)
+        onFollowSystemPicked: root.editTrackInfoFont(false, "")
+        onFamilyPicked: family => root.editTrackInfoFont(false, family)
+    }
     QQC2.SpinBox {
         Kirigami.FormData.label: i18n("Font size:")
         visible: root.showTrackInfo
@@ -420,22 +564,14 @@ Kirigami.FormLayout {
         value: root.trackInfoFontSizeControl.value
         onValueModified: root.trackInfoFontSizeControl.value = value
     }
-    QQC2.ComboBox {
+    WeightComboBox {
+        objectName: "trackInfoWeightComboBox"
         Kirigami.FormData.label: i18n("Font weight:")
         visible: root.showTrackInfo
-        model: [
-            i18nc("@item:inlistbox font weight", "Light"),
-            i18nc("@item:inlistbox font weight", "Regular"),
-            i18nc("@item:inlistbox font weight", "Medium"),
-            i18nc("@item:inlistbox font weight", "Demi bold"),
-            i18nc("@item:inlistbox font weight", "Bold"),
-            i18nc("@item:inlistbox font weight", "Black")
-        ]
-        currentIndex: {
-            const known = root.fontWeightValues.indexOf(root.trackInfoFontWeight);
-            return known >= 0 ? known : root.fontWeightValues.indexOf(Font.Normal);
-        }
-        onActivated: root.trackInfoFontWeightEdited(root.fontWeightValues[currentIndex])
+        fontCatalog: root.fontCatalog
+        family: root.trackInfoEffectiveFamily
+        storedWeight: root.trackInfoFontWeight
+        onWeightPicked: weight => root.trackInfoFontWeightEdited(weight)
     }
     ColorField {
         Kirigami.FormData.label: i18n("Text color:")

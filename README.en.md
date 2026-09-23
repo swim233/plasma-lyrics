@@ -12,7 +12,7 @@ panel; both are independently configurable.
 ## Build
 
 Requirements: CMake 3.24+, Qt 6, KDE Frameworks 6 (ECM and KI18n), Plasma 6,
-SQLite's Qt driver, zlib development files, and a C++20 compiler.
+SQLite's Qt driver, zlib and fontconfig development files, and a C++20 compiler.
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
