@@ -19,6 +19,12 @@ class Resolver : public QObject
 public:
     struct ResolveOptions {
         bool force = false;
+        // Only meaningful with force: a manual provider switch still answers
+        // from the chain head's own mapped cache or override without
+        // searching. The actual-result mapping, the fallback providers'
+        // caches and the failure cooldowns stay bypassed, and a miss runs
+        // the forced search chain.
+        bool preferCache = false;
         // Manual commands may keep an already displayed complete lyric while
         // the forced request runs. Carry the actual value instead of a bool so
         // Resolver can reject searching/error/empty snapshots and still emit
