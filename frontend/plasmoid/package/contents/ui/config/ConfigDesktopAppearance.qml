@@ -83,6 +83,13 @@ Kirigami.ScrollablePage {
     property bool cfg_desktopLightTrackInfoStroke
     property string cfg_desktopLightTrackInfoStrokeColor
 
+    // Whether the Plasma style is dark, which "Follow system" follows
+    // (DESIGN.md decision 76). Read once as the page opens, and from
+    // PlasmaStyle rather than Kirigami.Theme: in this dialog Kirigami.Theme
+    // reports the colour scheme. A property of the page so the tests can
+    // set it instead of reading the plasmarc of the machine they run on.
+    property bool styleDark: PlasmaStyle.isDark()
+
     // The set the tabs show and edit. AppearanceSection reads and writes it
     // through these two: themed("TextColor") is cfg_desktopTextColor on the
     // Dark tab and cfg_desktopLightTextColor on the Light tab. A property
@@ -157,6 +164,7 @@ Kirigami.ScrollablePage {
             id: themeTabs
             Layout.fillWidth: true
             formFactor: "desktop"
+            styleDark: page.styleDark
             mode: page.cfg_desktopColorSchemeMode
             twinFormLayouts: [appearanceSection]
             wideMode: appearanceSection.wideMode

@@ -2,7 +2,6 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
-import io.github.swim233.lyrics
 
 import "../ThemePolicy.js" as ThemePolicy
 
@@ -21,6 +20,8 @@ ColumnLayout {
     // <form>ColorSchemeMode as the dialog holds it, saved or not: the tab
     // labels and the hint follow a change right away.
     property string mode: "auto"
+    // Whether the Plasma style is dark; the page reads it (decision 76).
+    required property bool styleDark
     // The page's FormLayouts the mode row lines its label up with, and
     // whether they are laid out in two columns: the page passes the form
     // inside the frame's, so that every form on it switches at one width.
@@ -36,10 +37,6 @@ ColumnLayout {
     // A popup is no child item, so the tests reach it through this.
     readonly property alias syncDialog: syncDialog
 
-    // Whether the Plasma style is dark, read once as the page opens. Not
-    // Kirigami.Theme: in this dialog it reports the colour scheme, while the
-    // widget follows the Plasma style (decision 76).
-    property bool styleDark: PlasmaStyle.isDark()
     readonly property bool darkInEffect: ThemePolicy.isDark(root.styleDark, root.mode)
     readonly property bool editingDark: tabBar.currentIndex === 1
     readonly property string syncTitle: root.editingDark
@@ -67,13 +64,21 @@ ColumnLayout {
         QQC2.Label {
             // Styled, capped and named as AppearanceSection's formDescription
             // labels are; its comment has the measurements behind the cap.
+            // The cap alone is not enough here: the 24 gridUnits sit below
+            // what the controls need in English but above it in Chinese, and
+            // this sentence in Chinese is wider than the controls, which
+            // widened every form on the page by 35 px (489 -> 524, measured).
+            // A preferred width of 1 -- FormLayout ignores 0 -- leaves the
+            // column width to the controls; fillWidth still lets the text
+            // take all of it, up to the cap.
             objectName: "formDescription"
             Layout.fillWidth: true
+            Layout.preferredWidth: 1
             Layout.maximumWidth: Kirigami.Units.gridUnit * 24
             wrapMode: Text.WordWrap
             color: Kirigami.Theme.disabledTextColor
             font: Kirigami.Theme.smallFont
-            text: i18n("When following the system, the widget switches to the matching set of settings below whenever the system switches between light and dark.")
+            text: i18n("When following the system, the widget uses the set below that matches whether the Plasma style is light or dark.")
         }
     }
 
@@ -95,13 +100,13 @@ ColumnLayout {
 
             QQC2.TabButton {
                 text: root.darkInEffect
-                    ? i18nc("@title:tab light color scheme", "Light")
-                    : i18nc("@title:tab light color scheme, the set in effect", "Light (current)")
+                    ? i18nc("@title:tab light Plasma style", "Light")
+                    : i18nc("@title:tab light Plasma style, the set in effect", "Light (current)")
             }
             QQC2.TabButton {
                 text: root.darkInEffect
-                    ? i18nc("@title:tab dark color scheme, the set in effect", "Dark (current)")
-                    : i18nc("@title:tab dark color scheme", "Dark")
+                    ? i18nc("@title:tab dark Plasma style, the set in effect", "Dark (current)")
+                    : i18nc("@title:tab dark Plasma style", "Dark")
             }
         }
 
@@ -129,8 +134,8 @@ ColumnLayout {
                             return i18n("The theme mode is “Always dark”, so these settings are not used for now.");
                         }
                         return root.darkInEffect
-                            ? i18n("The system currently uses a dark color scheme. These settings take effect once it switches to a light one.")
-                            : i18n("The system currently uses a light color scheme. These settings take effect once it switches to a dark one.");
+                            ? i18n("The Plasma style is currently dark. These settings take effect once it switches to a light one.")
+                            : i18n("The Plasma style is currently light. These settings take effect once it switches to a dark one.");
                     }
                 }
 

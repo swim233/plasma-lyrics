@@ -79,6 +79,9 @@ Kirigami.ScrollablePage {
     property bool cfg_panelLightTrackInfoStroke
     property string cfg_panelLightTrackInfoStrokeColor
 
+    // Whether the Plasma style is dark, as on the desktop page.
+    property bool styleDark: PlasmaStyle.isDark()
+
     // The set the tabs show and edit, as on the desktop page.
     readonly property bool editingDark: themeTabs.editingDark
     readonly property string editingPrefix: "cfg_" + ThemePolicy.keyPrefix("panel", page.editingDark)
@@ -148,6 +151,7 @@ Kirigami.ScrollablePage {
             id: themeTabs
             Layout.fillWidth: true
             formFactor: "panel"
+            styleDark: page.styleDark
             mode: page.cfg_panelColorSchemeMode
             twinFormLayouts: [appearanceSection]
             wideMode: appearanceSection.wideMode

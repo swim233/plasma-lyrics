@@ -144,10 +144,9 @@ TestCase {
     }
 
     // A page opens on the tab of the set in effect (DESIGN.md decision 76),
-    // which in this suite, with no platform theme to report a colour
-    // scheme, is the light one unless the mode pins dark. The tests written
-    // against the original <form><Suffix> keys -- the dark set -- open the
-    // page pinned to dark.
+    // and without a mode it follows the Plasma style of the machine running
+    // the suite. The tests written against the original <form><Suffix> keys
+    // -- the dark set -- open the page pinned to dark.
     function createDarkPage(component, form, properties) {
         const props = Object.assign({}, properties || {});
         props["cfg_" + ThemePolicy.modeKey(form)] = "dark";
@@ -1887,8 +1886,11 @@ TestCase {
         return findAll(page, o => typeof o.trackInfoFontFamilyEdited === "function")[0];
     }
 
-    function modeProperties(form, mode) {
-        const props = {};
+    // The mode and, for "auto" to follow, whether the Plasma style is
+    // dark -- given rather than read by the page from the plasmarc of the
+    // machine running this. Light unless a test says otherwise.
+    function modeProperties(form, mode, styleDark) {
+        const props = { styleDark: styleDark === true };
         props["cfg_" + ThemePolicy.modeKey(form)] = mode;
         return props;
     }
@@ -2031,29 +2033,29 @@ TestCase {
 
     function test_theSetInEffectOpensAndIsMarkedCurrent_data() {
         return [
-            { tag: "auto", mode: "auto" },
-            { tag: "light", mode: "light" },
-            { tag: "dark", mode: "dark" }
+            { tag: "auto, light style", mode: "auto", styleDark: false, dark: false },
+            { tag: "auto, dark style", mode: "auto", styleDark: true, dark: true },
+            { tag: "light, light style", mode: "light", styleDark: false, dark: false },
+            { tag: "light, dark style", mode: "light", styleDark: true, dark: false },
+            { tag: "dark, light style", mode: "dark", styleDark: false, dark: true },
+            { tag: "dark, dark style", mode: "dark", styleDark: true, dark: true }
         ];
     }
 
-    // No platform theme reports a colour scheme to this suite, which "auto"
-    // reads as light; the expectation is computed rather than assumed, so a
-    // run under one that does still checks the right thing.
     function test_theSetInEffectOpensAndIsMarkedCurrent(data) {
-        const dark = ThemePolicy.isDark(PlasmaStyle.isDark(), data.mode);
         for (const form of ["desktop", "panel"]) {
-            const page = createTemporaryObject(pageComponent(form), this, modeProperties(form, data.mode));
+            const page = createTemporaryObject(pageComponent(form), this,
+                modeProperties(form, data.mode, data.styleDark));
             verify(page !== null, form);
             const tabBar = named(page, "themeTabBar");
-            compare(tabBar.currentIndex, dark ? 1 : 0, form);
-            compare(page.editingDark, dark, form);
-            compare(tabBar.itemAt(0).text, dark
-                ? i18nc("@title:tab light color scheme", "Light")
-                : i18nc("@title:tab light color scheme, the set in effect", "Light (current)"), form);
-            compare(tabBar.itemAt(1).text, dark
-                ? i18nc("@title:tab dark color scheme, the set in effect", "Dark (current)")
-                : i18nc("@title:tab dark color scheme", "Dark"), form);
+            compare(tabBar.currentIndex, data.dark ? 1 : 0, form);
+            compare(page.editingDark, data.dark, form);
+            compare(tabBar.itemAt(0).text, data.dark
+                ? i18nc("@title:tab light Plasma style", "Light")
+                : i18nc("@title:tab light Plasma style, the set in effect", "Light (current)"), form);
+            compare(tabBar.itemAt(1).text, data.dark
+                ? i18nc("@title:tab dark Plasma style, the set in effect", "Dark (current)")
+                : i18nc("@title:tab dark Plasma style", "Dark"), form);
         }
     }
 
@@ -2074,8 +2076,8 @@ TestCase {
             compare(combo.currentIndex, 2, form);
             compare(tabBar.currentIndex, 0, form);
             compare(page.editingDark, false, form);
-            compare(tabBar.itemAt(0).text, i18nc("@title:tab light color scheme", "Light"), form);
-            compare(tabBar.itemAt(1).text, i18nc("@title:tab dark color scheme, the set in effect", "Dark (current)"), form);
+            compare(tabBar.itemAt(0).text, i18nc("@title:tab light Plasma style", "Light"), form);
+            compare(tabBar.itemAt(1).text, i18nc("@title:tab dark Plasma style, the set in effect", "Dark (current)"), form);
 
             combo.activated(0);
             compare(page["cfg_" + ThemePolicy.modeKey(form)], "auto", form);
@@ -2083,10 +2085,17 @@ TestCase {
         }
     }
 
-    function test_theHintShowsOnlyOnTheTabNotInEffect() {
-        const systemDark = ThemePolicy.isDark(PlasmaStyle.isDark(), "auto");
+    function test_theHintShowsOnlyOnTheTabNotInEffect_data() {
+        return [
+            { tag: "light style", styleDark: false },
+            { tag: "dark style", styleDark: true }
+        ];
+    }
+
+    function test_theHintShowsOnlyOnTheTabNotInEffect(data) {
+        const styleDark = data.styleDark;
         for (const form of ["desktop", "panel"]) {
-            const page = createWindowedPage(form, modeProperties(form, "light"));
+            const page = createWindowedPage(form, modeProperties(form, "light", styleDark));
             const modeKey = "cfg_" + ThemePolicy.modeKey(form);
             const tabBar = named(page, "themeTabBar");
             const hint = named(page, "themeHint");
@@ -2103,12 +2112,12 @@ TestCase {
             compare(hint.text, i18n("The theme mode is “Always dark”, so these settings are not used for now."), form);
 
             page[modeKey] = "auto";
-            tabBar.currentIndex = systemDark ? 0 : 1;
+            tabBar.currentIndex = styleDark ? 0 : 1;
             verify(hint.visible, form);
-            compare(hint.text, systemDark
-                ? i18n("The system currently uses a dark color scheme. These settings take effect once it switches to a light one.")
-                : i18n("The system currently uses a light color scheme. These settings take effect once it switches to a dark one."), form);
-            tabBar.currentIndex = systemDark ? 1 : 0;
+            compare(hint.text, styleDark
+                ? i18n("The Plasma style is currently dark. These settings take effect once it switches to a light one.")
+                : i18n("The Plasma style is currently light. These settings take effect once it switches to a dark one."), form);
+            tabBar.currentIndex = styleDark ? 1 : 0;
             verify(!hint.visible, form);
         }
     }
@@ -2413,7 +2422,11 @@ TestCase {
 
     // The mode row's description is capped like AppearanceSection's (see
     // test_aDescriptionCannotWidenTheConfigPage for why the cap is the
-    // mechanism to check).
+    // mechanism to check), and has a positive preferred width, which is what
+    // FormLayout then sizes the column from instead of the text. The cap
+    // alone lets the Chinese text widen every form on the page (ThemeTabs.qml
+    // has the measurement); in this suite's English the cap is narrower than
+    // the controls, so only the mechanism can be checked here.
     function test_theModeDescriptionCannotWidenThePage() {
         for (const form of ["desktop", "panel"]) {
             const page = createWindowedPage(form, modeProperties(form, "auto"));
@@ -2425,6 +2438,8 @@ TestCase {
                 .filter(label => findAll(section, o => o === label).length === 0);
             compare(descriptions.length, 1, form);
             verify(descriptions[0].Layout.maximumWidth < Infinity, form);
+            verify(descriptions[0].Layout.preferredWidth > 0, form);
+            verify(descriptions[0].Layout.preferredWidth < descriptions[0].width, form);
             verify(descriptions[0].width < themeTabs.width, form);
         }
     }
