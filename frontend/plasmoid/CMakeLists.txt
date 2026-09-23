@@ -62,7 +62,7 @@ if(BUILD_TESTING)
     #
     # It is empty today: tst_appearance.qml's top-level declarations inside
     # the TestCase are Component blocks that only a test function creates,
-    # plus three binding-free QtObject stubs that emit nothing while loading.
+    # plus two binding-free QtObject stubs that emit nothing while loading.
     # Any other top-level item would open it, and adding a test file that
     # sorts earlier would move the uncovered region to that new file instead --
     # this is a property of load order, not of tst_appearance.qml.

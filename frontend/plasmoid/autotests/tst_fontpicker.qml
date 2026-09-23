@@ -6,6 +6,7 @@ import org.kde.kirigami as Kirigami
 import io.github.swim233.lyrics
 import "../package/contents/ui/config" as LyricsConfig
 import "../package/contents/ui/FontPolicy.js" as FontPolicy
+import "../package/contents/ui/ThemePolicy.js" as ThemePolicy
 
 // The font pickers and weight rows on the appearance pages. Everything below
 // runs against a stand-in catalog, so what is asserted does not depend on the
@@ -134,6 +135,9 @@ TestCase {
             property bool trackInfoFontSameAsLyrics: true
             property string trackInfoFontFamily: ""
             property int trackInfoFontWeight: 400
+            // Whether the sections show the set in effect (DESIGN.md
+            // decision 76); false stands for the other tab of the page.
+            property bool setInEffect: true
             // Every edit the section emitted, in order, as "key=value".
             property var edits: []
 
@@ -143,6 +147,7 @@ TestCase {
                 harness.trackInfoFontSameAsLyrics, harness.trackInfoFontFamily,
                 harness.lyricFamily, Kirigami.Theme.defaultFont.family)
             property alias section: section
+            property alias trackInfoSection: trackInfoSection
 
             function log(entry) {
                 harness.edits = harness.edits.concat([entry]);
@@ -156,43 +161,64 @@ TestCase {
             QtObject { id: stubTranslation; property bool checked: false }
             QtObject { id: stubTrackInfoFontSize; property int value: 18 }
 
-            LyricsConfig.AppearanceSection {
-                id: section
+            // The two sections one above the other, as on the pages.
+            ColumnLayout {
                 width: Kirigami.Units.gridUnit * 39
-                fontCatalog: harness.catalog
-                fontSizeControl: stubFontSize
-                translationControl: stubTranslation
-                trackInfoFontSizeControl: stubTrackInfoFontSize
-                wordByWord: false
-                showTrackInfo: true
 
-                fontFamily: harness.fontFamily
-                lyricEffectiveFamily: harness.lyricFamily
-                fontWeight: harness.fontWeight
-                trackInfoFontSameAsLyrics: harness.trackInfoFontSameAsLyrics
-                trackInfoFontFamily: harness.trackInfoFontFamily
-                trackInfoEffectiveFamily: harness.trackInfoFamily
-                trackInfoFontWeight: harness.trackInfoFontWeight
+                LyricsConfig.AppearanceSection {
+                    id: section
+                    fontCatalog: harness.catalog
+                    fontSizeControl: stubFontSize
+                    translationControl: stubTranslation
+                    wordByWord: false
 
-                onFontFamilyEdited: value => {
-                    harness.log("fontFamily=" + value);
-                    harness.fontFamily = value;
+                    fontFamily: harness.fontFamily
+                    lyricEffectiveFamily: harness.lyricFamily
+                    fontWeight: harness.fontWeight
+                    trackInfoFontSameAsLyrics: harness.trackInfoFontSameAsLyrics
+                    trackInfoFontWeight: harness.trackInfoFontWeight
+                    setInEffect: harness.setInEffect
+
+                    onFontFamilyEdited: value => {
+                        harness.log("fontFamily=" + value);
+                        harness.fontFamily = value;
+                    }
+                    onFontWeightEdited: value => {
+                        harness.log("fontWeight=" + value);
+                        harness.fontWeight = value;
+                    }
+                    onTrackInfoFontWeightEdited: value => {
+                        harness.log("trackInfoFontWeight=" + value);
+                        harness.trackInfoFontWeight = value;
+                    }
                 }
-                onFontWeightEdited: value => {
-                    harness.log("fontWeight=" + value);
-                    harness.fontWeight = value;
-                }
-                onTrackInfoFontSameAsLyricsEdited: value => {
-                    harness.log("trackInfoFontSameAsLyrics=" + value);
-                    harness.trackInfoFontSameAsLyrics = value;
-                }
-                onTrackInfoFontFamilyEdited: value => {
-                    harness.log("trackInfoFontFamily=" + value);
-                    harness.trackInfoFontFamily = value;
-                }
-                onTrackInfoFontWeightEdited: value => {
-                    harness.log("trackInfoFontWeight=" + value);
-                    harness.trackInfoFontWeight = value;
+
+                LyricsConfig.TrackInfoSection {
+                    id: trackInfoSection
+                    twinFormLayouts: [section]
+                    fontCatalog: harness.catalog
+                    trackInfoFontSizeControl: stubTrackInfoFontSize
+                    showTrackInfo: true
+
+                    lyricEffectiveFamily: harness.lyricFamily
+                    lyricSetInEffect: harness.setInEffect
+                    trackInfoFontSameAsLyrics: harness.trackInfoFontSameAsLyrics
+                    trackInfoFontFamily: harness.trackInfoFontFamily
+                    trackInfoEffectiveFamily: harness.trackInfoFamily
+                    trackInfoFontWeight: harness.trackInfoFontWeight
+
+                    onTrackInfoFontSameAsLyricsEdited: value => {
+                        harness.log("trackInfoFontSameAsLyrics=" + value);
+                        harness.trackInfoFontSameAsLyrics = value;
+                    }
+                    onTrackInfoFontFamilyEdited: value => {
+                        harness.log("trackInfoFontFamily=" + value);
+                        harness.trackInfoFontFamily = value;
+                    }
+                    onTrackInfoFontWeightEdited: value => {
+                        harness.log("trackInfoFontWeight=" + value);
+                        harness.trackInfoFontWeight = value;
+                    }
                 }
             }
         }
@@ -324,7 +350,7 @@ TestCase {
     function test_closedPickerShowsTheCurrentChoiceInItsOwnFamily() {
         const win = makeHarness({ fontFamily: "Beta Serif", trackInfoFontSameAsLyrics: true });
         const lyric = named(win.section, "lyricFontPicker");
-        const trackInfo = named(win.section, "trackInfoFontPicker");
+        const trackInfo = named(win.trackInfoSection, "trackInfoFontPicker");
         compareLabel(lyric, "Beta Serif");
         compare(lyric.font.family, "Beta Serif");
         // Indented like the text of a plain combo box of the same style.
@@ -367,7 +393,7 @@ TestCase {
         keyClick(Qt.Key_Escape);
         tryVerify(() => !lyric.popup.visible);
 
-        const trackInfo = named(win.section, "trackInfoFontPicker");
+        const trackInfo = named(win.trackInfoSection, "trackInfoFontPicker");
         openPicker(trackInfo);
         compare(kinds(trackInfo).slice(0, 3), ["same", "system", "font"]);
         compare(trackInfo.entryList.entries[0].text, "Same as lyrics");
@@ -390,7 +416,7 @@ TestCase {
         keyClick(Qt.Key_Escape);
         tryVerify(() => !lyric.popup.visible);
 
-        const trackInfo = named(win.section, "trackInfoFontPicker");
+        const trackInfo = named(win.trackInfoSection, "trackInfoFontPicker");
         openPicker(trackInfo);
         compare(highlighted(trackInfo).kind, "system");
         keyClick(Qt.Key_Escape);
@@ -428,7 +454,7 @@ TestCase {
         tryVerify(() => !lyric.popup.visible);
         compare(win.fontFamily, "Gone Sans");
 
-        const trackInfo = named(win.section, "trackInfoFontPicker");
+        const trackInfo = named(win.trackInfoSection, "trackInfoFontPicker");
         openPicker(trackInfo);
         compare(kinds(trackInfo).slice(0, 4), ["same", "system", "missing", "font"]);
         compare(highlighted(trackInfo).text, "Gone Mono (not installed)");
@@ -599,7 +625,7 @@ TestCase {
             trackInfoFontFamily: "Beta Serif",
             trackInfoFontWeight: 400
         });
-        const trackInfo = named(win.section, "trackInfoFontPicker");
+        const trackInfo = named(win.trackInfoSection, "trackInfoFontPicker");
 
         // "Same as lyrics" leaves the stored track-info family alone, so
         // turning it off again brings that family back.
@@ -653,7 +679,7 @@ TestCase {
             trackInfoFontWeight: 700
         });
         const lyricWeight = named(win.section, "lyricWeightComboBox");
-        const trackInfoWeight = named(win.section, "trackInfoWeightComboBox");
+        const trackInfoWeight = named(win.trackInfoSection, "trackInfoWeightComboBox");
         compare(lyricWeight.count, 1);
         compare(lyricWeight.currentText, "Regular");
         verify(!lyricWeight.enabled);
@@ -672,7 +698,7 @@ TestCase {
             trackInfoFontWeight: 500
         });
         const lyricWeight = named(win.section, "lyricWeightComboBox");
-        const trackInfoWeight = named(win.section, "trackInfoWeightComboBox");
+        const trackInfoWeight = named(win.trackInfoSection, "trackInfoWeightComboBox");
         // 700 is not a face of Beta Serif; the lightest heavier one is.
         compare(lyricWeight.currentText, "Extra bold");
         // 500 prefers the heaviest lighter face when none up to 500 exists.
@@ -708,7 +734,7 @@ TestCase {
         // 300/316/400/800.
         compare(win.edits, ["fontFamily=Beta Serif", "fontWeight=800", "trackInfoFontWeight=300"]);
         compare(named(win.section, "lyricWeightComboBox").currentText, "Extra bold");
-        compare(named(win.section, "trackInfoWeightComboBox").currentText, "Light");
+        compare(named(win.trackInfoSection, "trackInfoWeightComboBox").currentText, "Light");
     }
 
     function test_pickingALyricFamilyLeavesAnIndependentTrackInfoWeightAlone() {
@@ -746,7 +772,7 @@ TestCase {
         // Same for the track-info picker: turning "Same as lyrics" off in
         // favour of the family the lyrics already use.
         win.edits = [];
-        const trackInfo = named(win.section, "trackInfoFontPicker");
+        const trackInfo = named(win.trackInfoSection, "trackInfoFontPicker");
         openPicker(trackInfo);
         typeText("alpha");
         keyClick(Qt.Key_Return);
@@ -763,13 +789,63 @@ TestCase {
             trackInfoFontFamily: "Beta Serif",
             trackInfoFontWeight: 316
         });
-        const trackInfo = named(win.section, "trackInfoFontPicker");
+        const trackInfo = named(win.trackInfoSection, "trackInfoFontPicker");
         // Back to the lyric family: 316 is not an Alpha Sans face.
         openPicker(trackInfo);
         clickRow(trackInfo, 0);
         tryVerify(() => !trackInfo.popup.visible);
         compare(win.edits, ["trackInfoFontSameAsLyrics=true", "trackInfoFontWeight=300"]);
         compare(win.fontWeight, 300);
+    }
+
+    // The track-info weight is one key for both sets, and the track info
+    // renders in the lyric font of the set in effect only (DESIGN.md
+    // decision 76). A lyric pick on the other set's tab therefore writes
+    // that set's lyric weight and leaves the track-info weight as stored.
+    function test_aLyricPickOnTheSetNotInEffectLeavesTheTrackInfoWeight() {
+        const win = makeHarness({
+            fontFamily: "",
+            fontWeight: 700,
+            trackInfoFontSameAsLyrics: true,
+            trackInfoFontWeight: 200,
+            setInEffect: false
+        });
+        const lyric = named(win.section, "lyricFontPicker");
+        openPicker(lyric);
+        typeText("beta");
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !lyric.popup.visible);
+        compare(win.edits, ["fontFamily=Beta Serif", "fontWeight=800"]);
+        compare(win.trackInfoFontWeight, 200);
+    }
+
+    // The same for "Same as lyrics" in the track-info picker: on the other
+    // set's tab it moves the track info onto a lyric font it will not
+    // render in. A family of its own is what it renders in on either tab,
+    // so that pick still writes the weight.
+    function test_sameAsLyricsOnTheSetNotInEffectLeavesTheTrackInfoWeight() {
+        const win = makeHarness({
+            fontFamily: "Alpha Sans",
+            fontWeight: 300,
+            trackInfoFontSameAsLyrics: false,
+            trackInfoFontFamily: "Beta Serif",
+            trackInfoFontWeight: 316,
+            setInEffect: false
+        });
+        const trackInfo = named(win.trackInfoSection, "trackInfoFontPicker");
+        openPicker(trackInfo);
+        clickRow(trackInfo, 0);
+        tryVerify(() => !trackInfo.popup.visible);
+        compare(win.edits, ["trackInfoFontSameAsLyrics=true"]);
+        compare(win.trackInfoFontWeight, 316);
+
+        win.edits = [];
+        openPicker(trackInfo);
+        typeText("gamma");
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !trackInfo.popup.visible);
+        compare(win.edits, ["trackInfoFontSameAsLyrics=false", "trackInfoFontFamily=Gamma Mono",
+            "trackInfoFontWeight=400"]);
     }
 
     function test_aFamilyWithUnknownFacesOffersTheSixSteps() {
@@ -780,7 +856,7 @@ TestCase {
             trackInfoFontWeight: 800
         }, { systemFaces: [] });
         const lyricWeight = named(win.section, "lyricWeightComboBox");
-        const trackInfoWeight = named(win.section, "trackInfoWeightComboBox");
+        const trackInfoWeight = named(win.trackInfoSection, "trackInfoWeightComboBox");
         compare(lyricWeight.model, ["Light", "Regular", "Medium", "Demi bold", "Bold", "Black"]);
         verify(lyricWeight.enabled);
         compare(lyricWeight.currentText, "Bold");
@@ -814,7 +890,7 @@ TestCase {
         // an empty list they are what was stored.
         compare(win.edits, ["fontFamily=", "fontWeight=700", "trackInfoFontWeight=316"]);
         compare(named(win.section, "lyricWeightComboBox").currentText, "Bold");
-        compare(named(win.section, "trackInfoWeightComboBox").currentText, "316");
+        compare(named(win.trackInfoSection, "trackInfoWeightComboBox").currentText, "316");
     }
 
     function test_theFontControlsCannotWidenThePage() {
@@ -831,10 +907,16 @@ TestCase {
             ] }) });
         wait(100);
         compare(longName.section.implicitWidth, shortName.section.implicitWidth);
-        for (const objectName of ["lyricFontPicker", "trackInfoFontPicker", "lyricWeightComboBox", "trackInfoWeightComboBox"]) {
-            const control = named(longName.section, objectName);
-            verify(control.Layout.maximumWidth < Infinity, objectName);
-            verify(control.width <= control.Layout.maximumWidth, objectName);
+        compare(longName.trackInfoSection.implicitWidth, shortName.trackInfoSection.implicitWidth);
+        const controls = [
+            named(longName.section, "lyricFontPicker"),
+            named(longName.trackInfoSection, "trackInfoFontPicker"),
+            named(longName.section, "lyricWeightComboBox"),
+            named(longName.trackInfoSection, "trackInfoWeightComboBox")
+        ];
+        for (const control of controls) {
+            verify(control.Layout.maximumWidth < Infinity, control.objectName);
+            verify(control.width <= control.Layout.maximumWidth, control.objectName);
         }
         const lyric = named(longName.section, "lyricFontPicker");
         compareLabel(lyric, longFamily);
@@ -846,10 +928,11 @@ TestCase {
 
     // The pages are created the way the config dialog creates them: every
     // cfg_ value an initial property. This is the arrangement in which a
-    // derived family computed inside AppearanceSection loops (see its
-    // lyricEffectiveFamily), which the page tests in tst_appearance.qml,
-    // creating the pages with no properties, never exercised. A loop here
-    // fails ctest through FAIL_REGULAR_EXPRESSION, not through an assertion.
+    // derived family computed inside the sections loops (see
+    // AppearanceSection's lyricEffectiveFamily), which the page tests in
+    // tst_appearance.qml, creating the pages with no properties, never
+    // exercised. A loop here fails ctest through FAIL_REGULAR_EXPRESSION,
+    // not through an assertion.
     function test_pagesCreatedWithStoredFontKeys_data() {
         const listed = FontCatalog.families();
         const first = listed.length > 0 ? listed[0] : "";
@@ -862,52 +945,109 @@ TestCase {
         ];
     }
 
+    // Once for each set: the stored lyric font sits in the set the page
+    // opens on (DESIGN.md decision 76), which the mode picks; the other set
+    // is left unset.
     function test_pagesCreatedWithStoredFontKeys(data) {
         for (const form of ["desktop", "panel"]) {
+            for (const dark of [false, true]) {
+                const tag = form + (dark ? " dark" : " light");
+                const prefix = ThemePolicy.keyPrefix(form, dark);
+                const props = {};
+                props["cfg_" + ThemePolicy.modeKey(form)] = dark ? "dark" : "light";
+                props["cfg_" + prefix + "FontFamily"] = data.family;
+                props["cfg_" + prefix + "FontWeight"] = 700;
+                props["cfg_" + form + "ShowTrackInfo"] = true;
+                props["cfg_" + form + "TrackInfoFontSameAsLyrics"] = data.sameAsLyrics;
+                props["cfg_" + form + "TrackInfoFontFamily"] = data.trackInfoFamily;
+                props["cfg_" + form + "TrackInfoFontWeight"] = 300;
+                const page = createTemporaryObject(form === "desktop"
+                    ? configDesktopAppearanceComponent
+                    : configPanelAppearanceComponent, this, props);
+                verify(page !== null, tag);
+                compare(page.editingDark, dark, tag);
+                const section = findAll(page, o => typeof o.fontFamilyEdited === "function")[0];
+                verify(section !== undefined, tag);
+                const trackInfoSection = findAll(page, o => typeof o.trackInfoFontFamilyEdited === "function")[0];
+                verify(trackInfoSection !== undefined, tag);
+                compare(section.lyricEffectiveFamily,
+                    FontPolicy.lyricFamily(FontCatalog, data.family, systemFamily()), tag);
+                compare(trackInfoSection.lyricEffectiveFamily, section.lyricEffectiveFamily, tag);
+                compare(trackInfoSection.trackInfoEffectiveFamily,
+                    FontPolicy.trackInfoFamily(FontCatalog, data.sameAsLyrics, data.trackInfoFamily,
+                        section.lyricEffectiveFamily, systemFamily()), tag);
+                // Displaying the pages wrote nothing back.
+                compare(page["cfg_" + prefix + "FontFamily"], data.family, tag);
+                compare(page["cfg_" + prefix + "FontWeight"], 700, tag);
+                compare(page["cfg_" + form + "TrackInfoFontWeight"], 300, tag);
+            }
+        }
+    }
+
+    // "Same as lyrics" and the track-info weight row follow the lyric font
+    // of the set on screen, while the track-info keys themselves are one
+    // copy for both sets.
+    function test_trackInfoFollowsTheLyricFontOfTheSetOnScreen() {
+        const system = FontPolicy.lyricFamily(FontCatalog, "", systemFamily());
+        const other = FontCatalog.families().find(family => family !== system);
+        if (other === undefined) {
+            skip("needs an installed family other than the Plasma font");
+        }
+        const otherFamily = FontPolicy.lyricFamily(FontCatalog, other, systemFamily());
+        for (const form of ["desktop", "panel"]) {
             const props = {};
-            props["cfg_" + form + "FontFamily"] = data.family;
-            props["cfg_" + form + "FontWeight"] = 700;
+            props["cfg_" + form + "FontFamily"] = other;
+            props["cfg_" + form + "LightFontFamily"] = "";
             props["cfg_" + form + "ShowTrackInfo"] = true;
-            props["cfg_" + form + "TrackInfoFontSameAsLyrics"] = data.sameAsLyrics;
-            props["cfg_" + form + "TrackInfoFontFamily"] = data.trackInfoFamily;
-            props["cfg_" + form + "TrackInfoFontWeight"] = 300;
+            props["cfg_" + form + "TrackInfoFontSameAsLyrics"] = true;
+            props["cfg_" + ThemePolicy.modeKey(form)] = "light";
             const page = createTemporaryObject(form === "desktop"
                 ? configDesktopAppearanceComponent
                 : configPanelAppearanceComponent, this, props);
             verify(page !== null, form);
-            const section = findAll(page, o => typeof o.fontFamilyEdited === "function")[0];
-            verify(section !== undefined, form);
-            compare(section.lyricEffectiveFamily,
-                FontPolicy.lyricFamily(FontCatalog, data.family, systemFamily()), form);
-            compare(section.trackInfoEffectiveFamily,
-                FontPolicy.trackInfoFamily(FontCatalog, data.sameAsLyrics, data.trackInfoFamily,
-                    section.lyricEffectiveFamily, systemFamily()), form);
-            // Displaying the pages wrote nothing back.
-            compare(page["cfg_" + form + "FontFamily"], data.family, form);
-            compare(page["cfg_" + form + "FontWeight"], 700, form);
-            compare(page["cfg_" + form + "TrackInfoFontWeight"], 300, form);
+            const trackInfoSection = findAll(page, o => typeof o.trackInfoFontFamilyEdited === "function")[0];
+            const tabBar = named(page, "themeTabBar");
+            compare(tabBar.currentIndex, 0, form);
+            compare(trackInfoSection.trackInfoEffectiveFamily, system, form);
+            compare(named(page, "trackInfoWeightComboBox").family, system, form);
+            tabBar.currentIndex = 1;
+            compare(trackInfoSection.trackInfoEffectiveFamily, otherFamily, form);
+            compare(named(page, "trackInfoWeightComboBox").family, otherFamily, form);
+            // Switching tabs wrote nothing.
+            compare(page["cfg_" + form + "TrackInfoFontSameAsLyrics"], true, form);
+            compare(page["cfg_" + form + "LightFontFamily"], "", form);
         }
     }
 
     function test_fontEditsReachTheirOwnConfigProperties() {
-        const desktopPage = createTemporaryObject(configDesktopAppearanceComponent, this);
-        const panelPage = createTemporaryObject(configPanelAppearanceComponent, this);
+        // Pinned to dark, so the lyric font edits land on the original
+        // <form>FontFamily keys; which set an edit reaches is
+        // tst_appearance.qml's test_editsReachOnlyTheSetOnScreen.
+        const desktopPage = createTemporaryObject(configDesktopAppearanceComponent, this,
+            { cfg_desktopThemeMode: "dark" });
+        const panelPage = createTemporaryObject(configPanelAppearanceComponent, this,
+            { cfg_panelThemeMode: "dark" });
         const desktop = findAll(desktopPage, o => typeof o.fontFamilyEdited === "function")[0];
         const panel = findAll(panelPage, o => typeof o.fontFamilyEdited === "function")[0];
+        const desktopTrackInfo = findAll(desktopPage, o => typeof o.trackInfoFontFamilyEdited === "function")[0];
+        const panelTrackInfo = findAll(panelPage, o => typeof o.trackInfoFontFamilyEdited === "function")[0];
         verify(desktop !== undefined);
         verify(panel !== undefined);
+        verify(desktopTrackInfo !== undefined);
+        verify(panelTrackInfo !== undefined);
         verify(desktop.fontCatalog === FontCatalog);
+        verify(desktopTrackInfo.fontCatalog === FontCatalog);
 
         desktop.fontFamilyEdited("Desktop Family");
-        desktop.trackInfoFontSameAsLyricsEdited(true);
-        desktop.trackInfoFontFamilyEdited("Desktop Track Family");
+        desktopTrackInfo.trackInfoFontSameAsLyricsEdited(true);
+        desktopTrackInfo.trackInfoFontFamilyEdited("Desktop Track Family");
         compare(desktopPage.cfg_desktopFontFamily, "Desktop Family");
         compare(desktopPage.cfg_desktopTrackInfoFontSameAsLyrics, true);
         compare(desktopPage.cfg_desktopTrackInfoFontFamily, "Desktop Track Family");
 
         panel.fontFamilyEdited("Panel Family");
-        panel.trackInfoFontSameAsLyricsEdited(false);
-        panel.trackInfoFontFamilyEdited("Panel Track Family");
+        panelTrackInfo.trackInfoFontSameAsLyricsEdited(false);
+        panelTrackInfo.trackInfoFontFamilyEdited("Panel Track Family");
         compare(panelPage.cfg_panelFontFamily, "Panel Family");
         compare(panelPage.cfg_panelTrackInfoFontSameAsLyrics, false);
         compare(panelPage.cfg_panelTrackInfoFontFamily, "Panel Track Family");
