@@ -6,6 +6,7 @@ import org.kde.plasma.plasmoid
 
 import io.github.swim233.lyrics
 
+import "FontPolicy.js" as FontPolicy
 import "TextPolicy.js" as TextPolicy
 
 PlasmoidItem {
@@ -235,6 +236,7 @@ PlasmoidItem {
     }
 
     compactRepresentation: LyricsView {
+        id: compactView
         source: lyricSource
         plateMode: Plasmoid.configuration.panelPlateMode
         panelWidth: Plasmoid.configuration.panelWidth
@@ -243,8 +245,20 @@ PlasmoidItem {
         textColor: Plasmoid.configuration.panelTextColor
         strokeEnabled: Plasmoid.configuration.panelStroke
         strokeColor: Plasmoid.configuration.panelStrokeColor
+        // DESIGN.md decision 30. The stored family and weights are never
+        // written back. A family that is not installed renders in the Plasma
+        // font -- named explicitly, not left to fontconfig's substitution --
+        // and comes back by itself once it is reinstalled. Each weight is
+        // snapped to a real face of the family actually drawn, by the CSS
+        // weight-matching rule, so fontconfig never synthesizes bold. The
+        // track-info family and both weights read the lyric family off this
+        // item instead of resolving it a second time.
+        fontFamily: FontPolicy.lyricFamily(FontCatalog,
+                                           Plasmoid.configuration.panelFontFamily,
+                                           Kirigami.Theme.defaultFont.family)
         fontSize: Plasmoid.configuration.panelFontSize
-        fontWeight: Plasmoid.configuration.panelFontWeight
+        fontWeight: FontPolicy.renderWeight(FontCatalog, compactView.fontFamily,
+                                            Plasmoid.configuration.panelFontWeight)
         overflowMode: Plasmoid.configuration.panelOverflow
         animationMode: Plasmoid.configuration.panelAnimation
         showTranslation: Plasmoid.configuration.panelShowTranslation
@@ -275,8 +289,14 @@ PlasmoidItem {
         panelMode: true
         showTrackInfo: Plasmoid.configuration.panelShowTrackInfo
         trackInfoLayout: Plasmoid.configuration.panelTrackInfoLayout
+        trackInfoFontFamily: FontPolicy.trackInfoFamily(FontCatalog,
+                                                         Plasmoid.configuration.panelTrackInfoFontSameAsLyrics,
+                                                         Plasmoid.configuration.panelTrackInfoFontFamily,
+                                                         compactView.fontFamily,
+                                                         Kirigami.Theme.defaultFont.family)
         trackInfoFontSize: Plasmoid.configuration.panelTrackInfoFontSize
-        trackInfoFontWeight: Plasmoid.configuration.panelTrackInfoFontWeight
+        trackInfoFontWeight: FontPolicy.renderWeight(FontCatalog, compactView.trackInfoFontFamily,
+                                                     Plasmoid.configuration.panelTrackInfoFontWeight)
         trackInfoColor: Plasmoid.configuration.panelTrackInfoColor
         trackInfoStrokeEnabled: Plasmoid.configuration.panelTrackInfoStroke
         trackInfoStrokeColor: Plasmoid.configuration.panelTrackInfoStrokeColor
@@ -284,6 +304,7 @@ PlasmoidItem {
     }
 
     fullRepresentation: LyricsView {
+        id: fullView
         source: lyricSource
         plateMode: Plasmoid.configuration.desktopPlateMode
         ownsPlate: root.plateSelfDrawn
@@ -291,8 +312,13 @@ PlasmoidItem {
         textColor: Plasmoid.configuration.desktopTextColor
         strokeEnabled: Plasmoid.configuration.desktopStroke
         strokeColor: Plasmoid.configuration.desktopStrokeColor
+        // Same resolution as compactRepresentation's, over the desktop keys.
+        fontFamily: FontPolicy.lyricFamily(FontCatalog,
+                                           Plasmoid.configuration.desktopFontFamily,
+                                           Kirigami.Theme.defaultFont.family)
         fontSize: Plasmoid.configuration.desktopFontSize
-        fontWeight: Plasmoid.configuration.desktopFontWeight
+        fontWeight: FontPolicy.renderWeight(FontCatalog, fullView.fontFamily,
+                                            Plasmoid.configuration.desktopFontWeight)
         overflowMode: Plasmoid.configuration.desktopOverflow
         animationMode: Plasmoid.configuration.desktopAnimation
         showTranslation: Plasmoid.configuration.desktopShowTranslation
@@ -334,8 +360,14 @@ PlasmoidItem {
         panelMode: false
         showTrackInfo: Plasmoid.configuration.desktopShowTrackInfo
         trackInfoLayout: Plasmoid.configuration.desktopTrackInfoLayout
+        trackInfoFontFamily: FontPolicy.trackInfoFamily(FontCatalog,
+                                                         Plasmoid.configuration.desktopTrackInfoFontSameAsLyrics,
+                                                         Plasmoid.configuration.desktopTrackInfoFontFamily,
+                                                         fullView.fontFamily,
+                                                         Kirigami.Theme.defaultFont.family)
         trackInfoFontSize: Plasmoid.configuration.desktopTrackInfoFontSize
-        trackInfoFontWeight: Plasmoid.configuration.desktopTrackInfoFontWeight
+        trackInfoFontWeight: FontPolicy.renderWeight(FontCatalog, fullView.trackInfoFontFamily,
+                                                     Plasmoid.configuration.desktopTrackInfoFontWeight)
         trackInfoColor: Plasmoid.configuration.desktopTrackInfoColor
         trackInfoStrokeEnabled: Plasmoid.configuration.desktopTrackInfoStroke
         trackInfoStrokeColor: Plasmoid.configuration.desktopTrackInfoStrokeColor
