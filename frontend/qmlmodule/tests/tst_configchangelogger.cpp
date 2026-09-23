@@ -53,6 +53,18 @@ void changeValue(QQmlPropertyMap *map, const QString &key, const QVariant &value
     map->setProperty(key.toUtf8().constData(), value);
 }
 
+// QQmlPropertyMap::create() first appeared in Qt 6.11, which also deprecated
+// the public constructor. Debian 13 ships Qt 6.8, which has no create(), and
+// the -Werror CI build on Arch runs Qt 6.11+, where the constructor warns.
+QQmlPropertyMap *makePropertyMap()
+{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 11, 0)
+    return QQmlPropertyMap::create();
+#else
+    return new QQmlPropertyMap;
+#endif
+}
+
 } // namespace
 
 class FakeControl final : public QObject
@@ -104,7 +116,7 @@ private Q_SLOTS:
 
     void changedValueLogsAndForwards()
     {
-        std::unique_ptr<QQmlPropertyMap> map(QQmlPropertyMap::create());
+        std::unique_ptr<QQmlPropertyMap> map(makePropertyMap());
         map->insert(QStringLiteral("desktopFontSize"), 34);
 
         MessageCapture capture;
@@ -130,7 +142,7 @@ private Q_SLOTS:
 
     void identicalReassignmentProducesNothing()
     {
-        std::unique_ptr<QQmlPropertyMap> map(QQmlPropertyMap::create());
+        std::unique_ptr<QQmlPropertyMap> map(makePropertyMap());
         map->insert(QStringLiteral("desktopFontSize"), 34);
 
         MessageCapture capture;
@@ -150,7 +162,7 @@ private Q_SLOTS:
 
     void boolAndStringListRenderCorrectly()
     {
-        std::unique_ptr<QQmlPropertyMap> map(QQmlPropertyMap::create());
+        std::unique_ptr<QQmlPropertyMap> map(makePropertyMap());
         map->insert(QStringLiteral("desktopAutoHide"), false);
         map->insert(QStringLiteral("providers"), QStringList{QStringLiteral("a")});
 
@@ -172,7 +184,7 @@ private Q_SLOTS:
 
     void secondChangeUsesUpdatedSnapshot()
     {
-        std::unique_ptr<QQmlPropertyMap> map(QQmlPropertyMap::create());
+        std::unique_ptr<QQmlPropertyMap> map(makePropertyMap());
         map->insert(QStringLiteral("desktopFontSize"), 34);
 
         ConfigChangeLogger logger;
@@ -191,7 +203,7 @@ private Q_SLOTS:
 
     void survivesConfigurationDestroyedFromUnderneath()
     {
-        auto *heapMap = QQmlPropertyMap::create();
+        auto *heapMap = makePropertyMap();
         heapMap->insert(QStringLiteral("desktopFontSize"), 34);
 
         ConfigChangeLogger logger;
@@ -210,7 +222,7 @@ private Q_SLOTS:
         // Clearing the configuration must not touch the freed map either.
         logger.setConfiguration(nullptr);
 
-        std::unique_ptr<QQmlPropertyMap> replacement(QQmlPropertyMap::create());
+        std::unique_ptr<QQmlPropertyMap> replacement(makePropertyMap());
         replacement->insert(QStringLiteral("desktopFontSize"), 50);
         logger.setConfiguration(replacement.get());
 
@@ -223,10 +235,10 @@ private Q_SLOTS:
 
     void replacingConfigurationResnapshots()
     {
-        std::unique_ptr<QQmlPropertyMap> firstMap(QQmlPropertyMap::create());
+        std::unique_ptr<QQmlPropertyMap> firstMap(makePropertyMap());
         firstMap->insert(QStringLiteral("desktopFontSize"), 34);
 
-        std::unique_ptr<QQmlPropertyMap> secondMap(QQmlPropertyMap::create());
+        std::unique_ptr<QQmlPropertyMap> secondMap(makePropertyMap());
         secondMap->insert(QStringLiteral("desktopFontSize"), 100);
 
         ConfigChangeLogger logger;
