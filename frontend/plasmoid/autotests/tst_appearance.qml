@@ -127,7 +127,6 @@ TestCase {
     // dialog's and the form lays out differently.
     QtObject { id: stubFontSize; property int value: 34 }
     QtObject { id: stubTranslation; property bool checked: true }
-    QtObject { id: stubTrackInfoFontSize; property int value: 18 }
     Component {
         id: windowedAppearanceSectionComponent
         Window {
@@ -140,10 +139,8 @@ TestCase {
                 width: Kirigami.Units.gridUnit * 39
                 fontCatalog: FontCatalog
                 lyricEffectiveFamily: Kirigami.Theme.defaultFont.family
-                trackInfoEffectiveFamily: Kirigami.Theme.defaultFont.family
                 fontSizeControl: stubFontSize
                 translationControl: stubTranslation
-                trackInfoFontSizeControl: stubTrackInfoFontSize
             }
         }
     }
@@ -453,23 +450,28 @@ TestCase {
         const panelPage = createTemporaryObject(configPanelAppearanceComponent, this);
         const desktopSections = findAll(desktopPage, o => typeof o.textColorEdited === "function");
         const panelSections = findAll(panelPage, o => typeof o.textColorEdited === "function");
+        const desktopTrackInfo = findAll(desktopPage, o => typeof o.trackInfoColorEdited === "function");
+        const panelTrackInfo = findAll(panelPage, o => typeof o.trackInfoColorEdited === "function");
+        compare(desktopTrackInfo.length, 1);
+        compare(panelTrackInfo.length, 1);
         desktopPage.cfg_desktopTextColor = "#0f0f0f";
         // Background, text, outline, second line, the three word-state
-        // colours, track-info text, track-info outline -- in that order down
-        // the form. The track-info section took this from 3 rows to 5, and
-        // word-by-word from 5 to 9.
+        // colours -- in that order down the form -- and in TrackInfoSection
+        // the track-info text and outline. The track-info section took this
+        // from 3 rows to 5, and word-by-word from 5 to 9.
         const rows = findAll(desktopSections[0], o => typeof o.edited === "function");
-        compare(rows.length, 9);
+        compare(rows.length, 7);
         compare(rows[1].value, "#0f0f0f");
+        compare(findAll(desktopTrackInfo[0], o => typeof o.edited === "function").length, 2);
 
         // Same crosstalk bug test_sectionEditsReachTheirOwnConfigProperties
         // guards against, but for the new track-info keys, and now across
         // two separate page instances rather than two sections of one page.
         desktopPage.cfg_desktopTrackInfoColor = "#111111";
         panelPage.cfg_panelTrackInfoColor = "#222222";
-        compare(desktopSections[0].trackInfoColor, "#111111");
-        compare(panelSections[0].trackInfoColor, "#222222");
-        panelSections[0].trackInfoColorEdited("#333333");
+        compare(desktopTrackInfo[0].trackInfoColor, "#111111");
+        compare(panelTrackInfo[0].trackInfoColor, "#222222");
+        panelTrackInfo[0].trackInfoColorEdited("#333333");
         compare(panelPage.cfg_panelTrackInfoColor, "#333333");
         compare(desktopPage.cfg_desktopTrackInfoColor, "#111111");
     }

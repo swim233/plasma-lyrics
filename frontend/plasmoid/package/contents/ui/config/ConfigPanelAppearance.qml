@@ -45,9 +45,10 @@ Kirigami.ScrollablePage {
     property string cfg_panelTrackInfoStrokeColor
     property string cfg_panelTrackInfoOverflow
 
-    // The families the two sections render in, for AppearanceSection's
-    // weight rows. Computed here, from the plain cfg_ properties above,
-    // rather than inside AppearanceSection: see its lyricEffectiveFamily.
+    // The families the lyrics and the track info render in, for the weight
+    // rows of AppearanceSection and TrackInfoSection. Computed here, from the
+    // plain cfg_ properties above, rather than inside either section: see
+    // AppearanceSection's lyricEffectiveFamily.
     readonly property string lyricFamily: FontPolicy.lyricFamily(FontCatalog,
         page.cfg_panelFontFamily, Kirigami.Theme.defaultFont.family)
     readonly property string trackInfoFamily: FontPolicy.trackInfoFamily(FontCatalog,
@@ -140,11 +141,21 @@ Kirigami.ScrollablePage {
             onOverflowModeEdited: value => page.cfg_panelOverflow = value
             onAnimationModeEdited: value => page.cfg_panelAnimation = value
 
+            trackInfoFontSameAsLyrics: page.cfg_panelTrackInfoFontSameAsLyrics
+            trackInfoFontWeight: page.cfg_panelTrackInfoFontWeight
+            onTrackInfoFontWeightEdited: value => page.cfg_panelTrackInfoFontWeight = value
+        }
+
+        TrackInfoSection {
+            Layout.fillWidth: true
+            twinFormLayouts: [appearanceSection]
+            fontCatalog: FontCatalog
+            lyricEffectiveFamily: page.lyricFamily
+            trackInfoEffectiveFamily: page.trackInfoFamily
             showTrackInfo: page.cfg_panelShowTrackInfo
             trackInfoLayout: page.cfg_panelTrackInfoLayout
             trackInfoFontSameAsLyrics: page.cfg_panelTrackInfoFontSameAsLyrics
             trackInfoFontFamily: page.cfg_panelTrackInfoFontFamily
-            trackInfoEffectiveFamily: page.trackInfoFamily
             trackInfoFontWeight: page.cfg_panelTrackInfoFontWeight
             trackInfoColor: page.cfg_panelTrackInfoColor
             trackInfoStrokeEnabled: page.cfg_panelTrackInfoStroke

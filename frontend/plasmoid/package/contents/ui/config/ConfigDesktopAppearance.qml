@@ -47,9 +47,10 @@ Kirigami.ScrollablePage {
     property string cfg_desktopTrackInfoStrokeColor
     property string cfg_desktopTrackInfoOverflow
 
-    // The families the two sections render in, for AppearanceSection's
-    // weight rows. Computed here, from the plain cfg_ properties above,
-    // rather than inside AppearanceSection: see its lyricEffectiveFamily.
+    // The families the lyrics and the track info render in, for the weight
+    // rows of AppearanceSection and TrackInfoSection. Computed here, from the
+    // plain cfg_ properties above, rather than inside either section: see
+    // AppearanceSection's lyricEffectiveFamily.
     readonly property string lyricFamily: FontPolicy.lyricFamily(FontCatalog,
         page.cfg_desktopFontFamily, Kirigami.Theme.defaultFont.family)
     readonly property string trackInfoFamily: FontPolicy.trackInfoFamily(FontCatalog,
@@ -59,10 +60,10 @@ Kirigami.ScrollablePage {
     // DESIGN.md decision 40. Plain top-level properties rather than the
     // hidden-control-plus-alias dance the appearance keys above need: those
     // exist only because their actual SpinBox/CheckBox lives one component
-    // down, inside AppearanceSection, and a page-level "cfg_" property has to
-    // bind to it somehow. These four have no such child component to reach
-    // into -- the auto-hide FormLayout below is declared right here -- so a
-    // plain property is the whole story.
+    // down, inside AppearanceSection or TrackInfoSection, and a page-level
+    // "cfg_" property has to bind to it somehow. These four have no such
+    // child component to reach into -- the auto-hide FormLayout below is
+    // declared right here -- so a plain property is the whole story.
     property bool cfg_desktopAutoHide
     property int cfg_desktopHideDelaySec
     property int cfg_desktopHideAnimationMs
@@ -144,11 +145,21 @@ Kirigami.ScrollablePage {
             onOverflowModeEdited: value => page.cfg_desktopOverflow = value
             onAnimationModeEdited: value => page.cfg_desktopAnimation = value
 
+            trackInfoFontSameAsLyrics: page.cfg_desktopTrackInfoFontSameAsLyrics
+            trackInfoFontWeight: page.cfg_desktopTrackInfoFontWeight
+            onTrackInfoFontWeightEdited: value => page.cfg_desktopTrackInfoFontWeight = value
+        }
+
+        TrackInfoSection {
+            Layout.fillWidth: true
+            twinFormLayouts: [appearanceSection]
+            fontCatalog: FontCatalog
+            lyricEffectiveFamily: page.lyricFamily
+            trackInfoEffectiveFamily: page.trackInfoFamily
             showTrackInfo: page.cfg_desktopShowTrackInfo
             trackInfoLayout: page.cfg_desktopTrackInfoLayout
             trackInfoFontSameAsLyrics: page.cfg_desktopTrackInfoFontSameAsLyrics
             trackInfoFontFamily: page.cfg_desktopTrackInfoFontFamily
-            trackInfoEffectiveFamily: page.trackInfoFamily
             trackInfoFontWeight: page.cfg_desktopTrackInfoFontWeight
             trackInfoColor: page.cfg_desktopTrackInfoColor
             trackInfoStrokeEnabled: page.cfg_desktopTrackInfoStroke
