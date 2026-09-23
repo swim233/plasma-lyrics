@@ -19,6 +19,12 @@ QtObject {
     // the widget, where Kirigami reports the style's colours; this QtObject
     // has no Kirigami.Theme of its own to read.
     required property bool styleDark
+    // Whether the widget's root item has a parent; main.qml binds it. Until
+    // it has one styleDark is not the style's yet, so the theme does not
+    // settle at all, however many turns go by: a container that parents the
+    // item a turn after creating it would otherwise have the style's colour
+    // arrive as a switch. Parenting it calls holdStill() again.
+    property bool mounted: true
     // Kirigami scales its durations by the Plasma animation speed and makes
     // them 0 or 1 ms when animations are off -- the same test main.qml's
     // effectiveFadeMs applies to longDuration.
@@ -82,7 +88,7 @@ QtObject {
     }
     function settle() {
         theme.dark = theme.wantDark;
-        theme.settled = true;
+        theme.settled = theme.mounted;
     }
 
     Component.onCompleted: theme.holdStill()

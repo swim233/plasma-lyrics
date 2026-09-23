@@ -167,6 +167,14 @@ TestCase {
         return object;
     }
 
+    // Returns once every Qt.callLater queued before it has run: the engine
+    // runs them in the order they were queued, in one go.
+    function waitOneTurn() {
+        let ran = false;
+        Qt.callLater(() => { ran = true; });
+        tryVerify(() => ran);
+    }
+
     function test_themeStartsWithoutTransition() {
         const harness = createTemporaryObject(themeComponent, this, { styleDark: true });
         verify(harness !== null);
@@ -217,6 +225,29 @@ TestCase {
 
         tryCompare(harness.theme, "settled", true);
         harness.styleDark = false;
+        compare(harness.transitioningWhenDarkChanged, true);
+        compare(harness.theme.transitioning, true);
+    }
+
+    // main.qml binds `mounted` to the root item having a parent: without one
+    // styleDark is not the style's yet, and the theme must not settle on it
+    // however many turns go by.
+    function test_themeDoesNotSettleUnmounted() {
+        const harness = createSettled(themeComponent, { styleDark: true });
+        harness.theme.mounted = false;
+        harness.theme.holdStill();
+        waitOneTurn();
+        compare(harness.theme.settled, false);
+        harness.styleDark = false;
+        compare(harness.theme.dark, false);
+        compare(harness.transitioningWhenDarkChanged, false);
+        compare(harness.theme.transitioning, false);
+
+        harness.theme.mounted = true;
+        harness.theme.holdStill();
+        waitOneTurn();
+        compare(harness.theme.settled, true);
+        harness.styleDark = true;
         compare(harness.transitioningWhenDarkChanged, true);
         compare(harness.theme.transitioning, true);
     }

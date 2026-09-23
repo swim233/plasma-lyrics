@@ -157,12 +157,14 @@ PlasmoidItem {
         configuration: Plasmoid.configuration
         formFactor: "desktop"
         styleDark: root.plasmaStyleDark
+        mounted: root.parent !== null
     }
     AppearanceTheme {
         id: panelTheme
         configuration: Plasmoid.configuration
         formFactor: "panel"
         styleDark: root.plasmaStyleDark
+        mounted: root.parent !== null
     }
     // Inside the widget Kirigami.Theme carries the Plasma style's colours, not
     // the colour scheme's (checked with plasmoidviewer: breeze-dark under the
@@ -175,7 +177,8 @@ PlasmoidItem {
     readonly property bool plasmaStyleDark: ThemePolicy.isDarkBackground(Kirigami.Theme.backgroundColor)
     // Put into a container, taken out of one or moved to another: the style's
     // colour follows the new parent within this turn, and both themes let it
-    // arrive without a transition.
+    // arrive without a transition. Without a parent they do not settle at
+    // all (`mounted` above).
     onParentChanged: {
         desktopTheme.holdStill();
         panelTheme.holdStill();
