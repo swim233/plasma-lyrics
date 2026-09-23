@@ -349,9 +349,10 @@ private Q_SLOTS:
     // another, so this reads its text. Each form factor has one
     // AppearanceTheme, id <form>Theme, over Plasmoid.configuration and fed
     // the root's plasmaStyleDark -- Kirigami.Theme reports the Plasma style
-    // only on an Item of the widget, which a QtObject is not -- and held
-    // still by the root's own onParentChanged, the one place the style's
-    // colour arrives without the style having changed; every
+    // only on an Item of the widget, which a QtObject is not -- mounted only
+    // while the root has a parent, and held still by the root's own
+    // onParentChanged, the one place the style's colour arrives without the
+    // style having changed; every
     // value() call on it passes a literal suffix from that form's table; each
     // representation reads every suffix of its own form and nothing from the
     // other form's theme; and no themed key, dark or light, is read straight
@@ -378,6 +379,7 @@ private Q_SLOTS:
         const QRegularExpression formFactorLine(QStringLiteral("\\bformFactor:\\s*\"(\\w*)\""));
         const QRegularExpression configurationLine(QStringLiteral("\\bconfiguration:\\s*Plasmoid\\.configuration\\s*\\n"));
         const QRegularExpression styleDarkLine(QStringLiteral("\\bstyleDark:\\s*root\\.plasmaStyleDark\\s*\\n"));
+        const QRegularExpression mountedLine(QStringLiteral("\\bmounted:\\s*root\\.parent\\s*!==\\s*null\\s*\\n"));
         QStringList themeIds;
         for (auto it = themeDeclaration.globalMatch(main); it.hasNext();) {
             const QString block = braceBlock(main, it.next().capturedEnd() - 1);
@@ -391,6 +393,9 @@ private Q_SLOTS:
             }
             if (!styleDarkLine.match(block).hasMatch()) {
                 problems << QStringLiteral("%1: styleDark is not root.plasmaStyleDark").arg(id);
+            }
+            if (!mountedLine.match(block).hasMatch()) {
+                problems << QStringLiteral("%1: mounted is not root.parent !== null").arg(id);
             }
             themeIds << id;
         }
