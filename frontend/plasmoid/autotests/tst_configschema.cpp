@@ -349,7 +349,9 @@ private Q_SLOTS:
     // another, so this reads its text. Each form factor has one
     // AppearanceTheme, id <form>Theme, over Plasmoid.configuration and fed
     // the root's plasmaStyleDark -- Kirigami.Theme reports the Plasma style
-    // only on an Item of the widget, which a QtObject is not; every
+    // only on an Item of the widget, which a QtObject is not -- and held
+    // still by the root's own onParentChanged, the one place the style's
+    // colour arrives without the style having changed; every
     // value() call on it passes a literal suffix from that form's table; each
     // representation reads every suffix of its own form and nothing from the
     // other form's theme; and no themed key, dark or light, is read straight
@@ -394,6 +396,16 @@ private Q_SLOTS:
         }
         themeIds.sort();
         QCOMPARE(themeIds, QStringList({QStringLiteral("desktopTheme"), QStringLiteral("panelTheme")}));
+
+        // Four spaces: the PlasmoidItem's own handler, not a nested item's.
+        const QString parentHandler = QStringLiteral("\n    onParentChanged: {");
+        const qsizetype handlerAt = main.indexOf(parentHandler);
+        const QString handler = handlerAt < 0 ? QString() : braceBlock(main, handlerAt + parentHandler.size() - 1);
+        for (const QString &id : {QStringLiteral("desktopTheme"), QStringLiteral("panelTheme")}) {
+            if (!handler.contains(id + QStringLiteral(".holdStill();"))) {
+                problems << QStringLiteral("the root's onParentChanged does not call %1.holdStill()").arg(id);
+            }
+        }
 
         // Every call, literal argument or not, so a suffix built at run time
         // is reported rather than skipped.
