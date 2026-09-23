@@ -147,13 +147,16 @@ jobs:
       # inflate() linkage rather than one reached through Qt. Only this job has
       # to name it: Arch ships the headers in zlib itself, which is already in
       # base-devel's closure, so the Arch job never notices it is a dependency.
+      # libfontconfig-dev is the same case for the QML module's
+      # find_package(Fontconfig): a direct FcFontList() linkage, and on Arch
+      # the headers come with fontconfig itself, which qt6-base pulls in.
       - name: Install dependencies
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
             git ca-certificates cmake ninja-build g++ \
             extra-cmake-modules qt6-base-dev qt6-declarative-dev \
-            libkf6i18n-dev libplasma-dev gettext zlib1g-dev \
+            libkf6i18n-dev libplasma-dev gettext zlib1g-dev libfontconfig-dev \
             dbus-daemon libqt6sql6-sqlite \
             file appstream \
             qml6-module-org-kde-kirigami qml6-module-org-kde-ksvg \

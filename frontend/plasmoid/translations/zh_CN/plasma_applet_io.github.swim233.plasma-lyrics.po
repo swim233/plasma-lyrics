@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-23 18:40+0800\n"
+"POT-Creation-Date: 2026-09-23 18:46+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -32,18 +32,18 @@ msgstr "全局设置"
 msgid "Lyrics Service"
 msgstr "歌词服务"
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:55
-#: frontend/plasmoid/package/contents/ui/main.qml:265
-#: frontend/plasmoid/package/contents/ui/main.qml:324
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:61
+#: frontend/plasmoid/package/contents/ui/main.qml:279
+#: frontend/plasmoid/package/contents/ui/main.qml:350
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:51
 msgid "No media is playing"
 msgstr "当前未在播放"
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:89
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:96
 msgid "Searching for lyrics…"
 msgstr "搜索中…"
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:281
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:288
 msgid ""
 "The lyrics service stopped. Restart it with:\n"
 "systemctl --user restart plasma-lyricsd"
@@ -51,7 +51,7 @@ msgstr ""
 "歌词服务已停止。请用以下命令重启：\n"
 "systemctl --user restart plasma-lyricsd"
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:282
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:289
 msgid ""
 "The lyrics service is not running. Start it with:\n"
 "systemctl --user enable --now plasma-lyricsd"
@@ -59,96 +59,96 @@ msgstr ""
 "歌词服务未运行。请用以下命令启动：\n"
 "systemctl --user enable --now plasma-lyricsd"
 
-#: frontend/plasmoid/package/contents/ui/TrackInfo.qml:37
+#: frontend/plasmoid/package/contents/ui/TrackInfo.qml:39
 msgctxt "@info track info: %1 is the song title, %2 is the artist name(s)"
 msgid "%1 — %2"
 msgstr "%1 — %2"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:112
-#: frontend/plasmoid/package/contents/ui/main.qml:348
+#: frontend/plasmoid/package/contents/ui/main.qml:113
+#: frontend/plasmoid/package/contents/ui/main.qml:380
 #: frontend/qmlmodule/lyricsource.cpp:551
 msgid "Desktop Lyrics"
 msgstr "桌面歌词"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:268
-#: frontend/plasmoid/package/contents/ui/main.qml:327
+#: frontend/plasmoid/package/contents/ui/main.qml:282
+#: frontend/plasmoid/package/contents/ui/main.qml:353
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:57
 msgid "Lyrics not found"
 msgstr "暂无歌词"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:271
-#: frontend/plasmoid/package/contents/ui/main.qml:330
+#: frontend/plasmoid/package/contents/ui/main.qml:285
+#: frontend/plasmoid/package/contents/ui/main.qml:356
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:63
 msgid "Instrumental track, enjoy the music"
 msgstr "纯音乐，请欣赏"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:274
-#: frontend/plasmoid/package/contents/ui/main.qml:333
+#: frontend/plasmoid/package/contents/ui/main.qml:288
+#: frontend/plasmoid/package/contents/ui/main.qml:359
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:69
 msgid "Network error, cannot fetch lyrics"
 msgstr "网络错误，暂时无法获取"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:354
+#: frontend/plasmoid/package/contents/ui/main.qml:386
 msgid "Getting lyrics from %1…"
 msgstr "正在从 %1 获取歌词…"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:358
+#: frontend/plasmoid/package/contents/ui/main.qml:390
 msgid "Current lyrics: %1 (temporary fallback)"
 msgstr "当前歌词：%1（临时回退）"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:360
+#: frontend/plasmoid/package/contents/ui/main.qml:392
 msgid "Current lyrics: %1"
 msgstr "当前歌词：%1"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:362
+#: frontend/plasmoid/package/contents/ui/main.qml:394
 msgid "Current lyrics source: none"
 msgstr "当前歌词源：无"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:367
+#: frontend/plasmoid/package/contents/ui/main.qml:399
 msgid "Lyrics source: Automatic"
 msgstr "歌词源：自动"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:375
+#: frontend/plasmoid/package/contents/ui/main.qml:407
 msgid "Prefer local files for this song"
 msgstr "此歌曲首选本地文件"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:384
+#: frontend/plasmoid/package/contents/ui/main.qml:416
 msgid "Prefer NetEase for this song"
 msgstr "此歌曲首选网易云"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:393
+#: frontend/plasmoid/package/contents/ui/main.qml:425
 msgid "Prefer AMLL for this song"
 msgstr "此歌曲首选 AMLL"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:402
+#: frontend/plasmoid/package/contents/ui/main.qml:434
 msgid "Prefer QQ Music for this song"
 msgstr "此歌曲首选 QQ音乐"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:411
+#: frontend/plasmoid/package/contents/ui/main.qml:443
 msgid "Search for lyrics again"
 msgstr "重新搜索歌词"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:418
+#: frontend/plasmoid/package/contents/ui/main.qml:450
 msgid "Lyrics 0.5 s earlier (all songs)"
 msgstr "歌词提前 0.5 秒（所有歌曲）"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:419
+#: frontend/plasmoid/package/contents/ui/main.qml:451
 msgid "Lyrics 0.5 s earlier"
 msgstr "歌词提前 0.5 秒"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:426
+#: frontend/plasmoid/package/contents/ui/main.qml:458
 msgid "Lyrics 0.5 s later (all songs)"
 msgstr "歌词延后 0.5 秒（所有歌曲）"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:427
+#: frontend/plasmoid/package/contents/ui/main.qml:459
 msgid "Lyrics 0.5 s later"
 msgstr "歌词延后 0.5 秒"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:434
+#: frontend/plasmoid/package/contents/ui/main.qml:466
 msgid "Reset global lyric offset (%1 ms)"
 msgstr "重置全局歌词偏移（%1 毫秒）"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:435
+#: frontend/plasmoid/package/contents/ui/main.qml:467
 msgid "Reset lyric offset (%1 ms)"
 msgstr "重置歌词偏移（%1 毫秒）"
 

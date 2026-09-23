@@ -9,6 +9,13 @@ Item {
     property color textColor: "white"
     property bool strokeEnabled: false
     property color strokeColor: "black"
+    // Already resolved by main.qml through FontPolicy.js: an installed family
+    // exactly as FontCatalog lists it, never "" and never a stored name that
+    // is not installed -- either would leave the choice to fontconfig's
+    // substitution. The whole-line Text, the word glyphs and the TextMetrics
+    // that sizes both read this one property, so what is measured is what
+    // is drawn.
+    property string fontFamily: Kirigami.Theme.defaultFont.family
     property int fontSize: 34
     property int fontWeight: Font.Normal
     property string overflowMode: "fit"
@@ -151,7 +158,10 @@ Item {
     // on for the line as a whole.
     TextMetrics {
         id: metrics
-        font.family: Kirigami.Theme.defaultFont.family
+        // Non-visual, so absent from `children`; the tests find it by name
+        // among `resources`.
+        objectName: "lineMetrics"
+        font.family: root.fontFamily
         font.pixelSize: root.fontSize
         font.weight: root.fontWeight
         text: root.lineText
@@ -359,11 +369,12 @@ Item {
             height: root.height - root.liftHeadroom
             text: root.lineText
             color: root.textColor
-            // The family follows the Plasma font setting; size, weight and
-            // colour stay with the widget's own configuration, because
-            // lyrics sit on the wallpaper, where a theme colour is not
-            // guaranteed to be readable -- DESIGN.md decision 30.
-            font.family: Kirigami.Theme.defaultFont.family
+            // Family, size, weight and colour are all the widget's own
+            // configuration; the family defaults to the Plasma font. The
+            // colour in particular never follows the theme, because lyrics
+            // sit on the wallpaper, where a theme colour is not guaranteed
+            // to be readable -- DESIGN.md decision 30.
+            font.family: root.fontFamily
             font.pixelSize: root.fontSize
             font.weight: root.fontWeight
             fontSizeMode: root.overflowMode === "fit" ? Text.HorizontalFit : Text.FixedSize
@@ -493,7 +504,7 @@ Item {
                         color: root.brightnessEnabled
                             ? root.brightened(word.shade, word.glow * root.brightnessStrength)
                             : word.shade
-                        font.family: Kirigami.Theme.defaultFont.family
+                        font.family: root.fontFamily
                         font.pixelSize: root.wordPixelSize
                         font.weight: root.fontWeight
                         // Per-word outlining uses Text's own, not the eight offset
