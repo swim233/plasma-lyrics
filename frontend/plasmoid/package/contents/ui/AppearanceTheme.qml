@@ -43,14 +43,20 @@ QtObject {
         return theme.configuration[theme.prefix + suffix];
     }
 
-    property bool completed: false
+    // False from holdStill() until the next turn of the event loop; until
+    // then `dark` follows wantDark without a transition.
+    property bool settled: false
     property Timer settleTimer: Timer {
         interval: theme.transitionMs
         onTriggered: theme.transitioning = false
     }
 
     onWantDarkChanged: {
-        if (!theme.completed || theme.wantDark === theme.dark) {
+        if (!theme.settled) {
+            theme.dark = theme.wantDark;
+            return;
+        }
+        if (theme.wantDark === theme.dark) {
             return;
         }
         if (theme.transitionMs > 1) {
@@ -60,10 +66,24 @@ QtObject {
         theme.dark = theme.wantDark;
     }
 
-    // The set in effect at startup is simply there: plasmashell starting up
-    // is not a switch.
-    Component.onCompleted: {
+    // styleDark is only right on an item that has a parent: the widget's
+    // Kirigami.Theme has no style to inherit before that, and plasmoidviewer
+    // reports #000000 -- dark, whatever the style -- until Plasma parents
+    // the root item, with the style's colour arriving in the same turn of
+    // the event loop (in a panel, a millisecond after the parent itself).
+    // So main.qml calls this whenever the root item's parent changes, and
+    // whatever styleDark does for the rest of that turn is it settling, not
+    // a switch. It also runs on creation: plasmashell starting up is not a
+    // switch either.
+    function holdStill() {
+        theme.settled = false;
         theme.dark = theme.wantDark;
-        theme.completed = true;
+        Qt.callLater(theme.settle);
     }
+    function settle() {
+        theme.dark = theme.wantDark;
+        theme.settled = true;
+    }
+
+    Component.onCompleted: theme.holdStill()
 }

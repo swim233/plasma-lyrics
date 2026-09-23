@@ -158,6 +158,15 @@ TestCase {
         }
     }
 
+    // AppearanceTheme counts switches only from the turn of the event loop
+    // after its creation; a test that switches has to wait that turn out.
+    function createSettled(component, properties) {
+        const object = createTemporaryObject(component, this, properties);
+        verify(object !== null);
+        tryCompare(object.theme, "settled", true);
+        return object;
+    }
+
     function test_themeStartsWithoutTransition() {
         const harness = createTemporaryObject(themeComponent, this, { styleDark: true });
         verify(harness !== null);
@@ -170,8 +179,50 @@ TestCase {
         compare(light.textColor, "#1f1b16");
     }
 
+    // An applet's Kirigami.Theme reads #000000 until Plasma parents the item,
+    // which happens in the same turn of the event loop as its creation
+    // (measured with plasmoidviewer). styleDark changing then is the style
+    // settling, not a switch.
+    function test_themeStyleSettlingIsNotASwitch() {
+        const harness = createTemporaryObject(themeComponent, this, { styleDark: true });
+        compare(harness.theme.settled, false);
+        harness.styleDark = false;
+        compare(harness.theme.dark, false);
+        compare(harness.transitioningWhenDarkChanged, false);
+        compare(harness.theme.transitioning, false);
+        compare(harness.textColor, "#1f1b16");
+        tryCompare(harness.theme, "settled", true);
+        compare(harness.theme.dark, false);
+
+        harness.styleDark = true;
+        compare(harness.transitioningWhenDarkChanged, true);
+    }
+
+    // main.qml calls holdStill() whenever the widget's root item changes
+    // parent -- the same #000000-then-style's-colour sequence as at startup.
+    function test_themeHoldsStillForOneTurn() {
+        const harness = createSettled(themeComponent, { styleDark: true });
+        tryCompare(harness.theme, "transitioning", false);
+        const changes = harness.darkChanges;
+
+        harness.theme.holdStill();
+        compare(harness.theme.settled, false);
+        harness.styleDark = false;
+        compare(harness.theme.dark, false);
+        compare(harness.transitioningWhenDarkChanged, false);
+        harness.styleDark = true;
+        compare(harness.theme.dark, true);
+        compare(harness.theme.transitioning, false);
+        compare(harness.darkChanges, changes + 2);
+
+        tryCompare(harness.theme, "settled", true);
+        harness.styleDark = false;
+        compare(harness.transitioningWhenDarkChanged, true);
+        compare(harness.theme.transitioning, true);
+    }
+
     function test_themeSwitchArmsTransitionFirst() {
-        const harness = createTemporaryObject(themeComponent, this, { transitionMs: 150 });
+        const harness = createSettled(themeComponent, { transitionMs: 150 });
         compare(harness.theme.dark, false);
         harness.styleDark = true;
         compare(harness.theme.dark, true);
@@ -185,7 +236,7 @@ TestCase {
     }
 
     function test_themeModePinsASet() {
-        const harness = createTemporaryObject(themeComponent, this,
+        const harness = createSettled(themeComponent,
             { styleDark: true, desktopColorSchemeMode: "light" });
         compare(harness.theme.dark, false);
         harness.styleDark = false;
@@ -198,7 +249,7 @@ TestCase {
     }
 
     function test_themeSwitchesInstantlyWithAnimationsOff() {
-        const harness = createTemporaryObject(themeComponent, this, { transitionMs: 1 });
+        const harness = createSettled(themeComponent, { transitionMs: 1 });
         harness.styleDark = true;
         compare(harness.theme.dark, true);
         compare(harness.transitioningWhenDarkChanged, false);
@@ -206,7 +257,7 @@ TestCase {
     }
 
     function test_themeEditOfSetInEffectDoesNotTransition() {
-        const harness = createTemporaryObject(themeComponent, this);
+        const harness = createSettled(themeComponent);
         harness.desktopLightTextColor = "#003366";
         compare(harness.textColor, "#003366");
         compare(harness.theme.transitioning, false);
@@ -351,8 +402,7 @@ TestCase {
     }
 
     function test_wiredViewFadesOnlyWhenTheSetSwitches() {
-        const wired = createTemporaryObject(wiredViewComponent, this);
-        verify(wired !== null);
+        const wired = createSettled(wiredViewComponent);
         const view = wired.view;
         // Starting up is not a switch.
         verify(Qt.colorEqual(view.textColor, "#1f1b16"));
@@ -373,10 +423,19 @@ TestCase {
     }
 
     function test_wiredViewSwitchesAtOnceWithAnimationsOff() {
-        const wired = createTemporaryObject(wiredViewComponent, this, { transitionMs: 1 });
+        const wired = createSettled(wiredViewComponent, { transitionMs: 1 });
         wired.styleDark = true;
         compare(wired.view.animateColors, false);
         verify(Qt.colorEqual(wired.view.textColor, "#fffaf5"));
         compare(wired.view.plateMode, "ksvg");
+    }
+
+    function test_wiredViewDoesNotFadeWhileTheStyleSettles() {
+        const wired = createTemporaryObject(wiredViewComponent, this, { styleDark: true });
+        verify(Qt.colorEqual(wired.view.textColor, "#fffaf5"));
+        wired.styleDark = false;
+        compare(wired.view.animateColors, false);
+        verify(Qt.colorEqual(wired.view.textColor, "#1f1b16"));
+        compare(wired.view.plateMode, "solid");
     }
 }

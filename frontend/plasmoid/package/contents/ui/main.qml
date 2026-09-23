@@ -146,9 +146,10 @@ PlasmoidItem {
     // DESIGN.md decision 76: the appearance set each form factor renders
     // with. Every themed key below is read as <form>Theme.value("<Suffix>"),
     // never as Plasmoid.configuration.<form><Suffix>, which would pin the
-    // dark set; tst_configschema checks that, and that each view reads all of
-    // its form's suffixes from its own form's theme. At the root for the
-    // reason VisibilityPolicy gives above: a theme recreated inside a
+    // dark set; tst_configschema checks that, that each view reads all of its
+    // form's suffixes from its own form's theme, and the three lines each
+    // theme is declared with below. At the root for the reason
+    // VisibilityPolicy gives above: a theme recreated inside a
     // representation's Loader would drop a transition in progress, and
     // activePlateMode needs one outside either representation anyway.
     AppearanceTheme {
@@ -167,8 +168,18 @@ PlasmoidItem {
     // the colour scheme's (checked with plasmoidviewer: breeze-dark under the
     // BreezeLight scheme reports #202326 here), so "auto" follows what draws
     // the plate and the panel. Read on this Item: the AppearanceTheme
-    // QtObjects have no Kirigami.Theme of their own.
+    // QtObjects have no Kirigami.Theme of their own. It reads #000000,
+    // whatever the style, until Plasma parents this item, and from then on
+    // follows a style change as it happens, with the same value here as in
+    // either representation.
     readonly property bool plasmaStyleDark: ThemePolicy.isDarkBackground(Kirigami.Theme.backgroundColor)
+    // Put into a container, taken out of one or moved to another: the style's
+    // colour follows the new parent within this turn, and both themes let it
+    // arrive without a transition.
+    onParentChanged: {
+        desktopTheme.holdStill();
+        panelTheme.holdStill();
+    }
 
     // Gates the desktop fade Behavior (see LyricsView's `animationsArmed`):
     // true forever after the first determination, never reset. Deliberately
