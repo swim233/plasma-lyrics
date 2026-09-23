@@ -1,4 +1,5 @@
 import QtQuick
+import org.kde.kirigami as Kirigami
 
 Item {
     id: root
@@ -15,6 +16,9 @@ Item {
                                             root.textColor.b, 0.68)
     property bool strokeEnabled: false
     property color strokeColor: "black"
+    // The second line shares the lyric's family: it is part of the lyric,
+    // not track info.
+    property string fontFamily: Kirigami.Theme.defaultFont.family
     property int fontSize: 34
     property int fontWeight: Font.Normal
     property string overflowMode: "fit"
@@ -43,6 +47,7 @@ Item {
         textColor: root.textColor
         strokeEnabled: root.strokeEnabled
         strokeColor: root.strokeColor
+        fontFamily: root.fontFamily
         fontSize: root.fontSize
         fontWeight: root.fontWeight
         overflowMode: root.overflowMode
@@ -73,6 +78,7 @@ Item {
         textColor: root.secondLineColor
         strokeEnabled: root.strokeEnabled
         strokeColor: root.strokeColor
+        fontFamily: root.fontFamily
         fontSize: root.fontSize
         fontWeight: root.fontWeight
         overflowMode: root.overflowMode
