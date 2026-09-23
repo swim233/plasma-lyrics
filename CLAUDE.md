@@ -138,7 +138,7 @@ published for as long as that PKGBUILD is live.
 ## Agent team workflow
 
 Sizeable features are split by the lead into independent tasks with
-disjoint file sets. Each task gets its own `dev` agent (sonnet) working in
+disjoint file sets. Each task gets its own `dev` agent (opus) working in
 its own git worktree under `/home/swim/code/desktop_lyrics-wt/<name>` on a
 `feat/<name>` branch, all tasks running in parallel. Groundwork that several
 tasks depend on is written by the lead first and committed on a base branch
