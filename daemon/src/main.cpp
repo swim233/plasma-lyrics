@@ -664,7 +664,8 @@ int main(int argc, char **argv)
         resolver.resolve(*state, QStringLiteral("replay"));
     });
 
-    const auto forceResolve = [&](const MprisState &state, const QString &trigger) {
+    const auto forceResolve = [&](const MprisState &state, const QString &trigger,
+                                  ControlService::CachePolicy cache) {
         std::optional<ResolvedLyric> existing;
         if (resolved.state == QStringLiteral("ok") && resolved.ref
             && !resolved.document.lines.isEmpty()) {
@@ -689,7 +690,10 @@ int main(int argc, char **argv)
         resolved.availableProviders = available;
         resolved.switchingProvider = resolved.effectivePreferredProvider;
         publish(state, resolved);
-        resolver.resolve(state, {.force = true, .existing = std::move(existing), .trigger = trigger});
+        resolver.resolve(state, {.force = true,
+                                 .preferCache = cache == ControlService::CachePolicy::PreferCached,
+                                 .existing = std::move(existing),
+                                 .trigger = trigger});
     };
     const auto republishCurrent = [&] {
         const auto state = manager.activeState();

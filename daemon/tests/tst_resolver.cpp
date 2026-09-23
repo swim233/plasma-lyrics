@@ -1019,6 +1019,186 @@ private Q_SLOTS:
         QVERIFY(retained.switchingProvider.isEmpty());
     }
 
+    // "此歌曲首选 X" while another provider's lyric is displayed: X already has
+    // this song mapped and cached, so the switch shows that cache. Both
+    // providers fail if searched, which would also push the result off X.
+    void providerSwitchShowsTheChosenProvidersCacheWithoutSearching()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider netease(QStringLiteral("netease"), QStringLiteral("unexpected search"));
+        TestProvider qq(QStringLiteral("qq"), QStringLiteral("unexpected search"));
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:switch-to-cached");
+        state.title = QStringLiteral("song");
+        const TrackRef qqRef{qq.id(), QStringLiteral("600095621"), 1.0};
+        const LyricDocument qqDocument{{{0, 1000, QStringLiteral("qq line"),
+                                         std::nullopt, std::nullopt}}, 0, false};
+        const TrackRef neteaseRef{netease.id(), QStringLiteral("2734680748"), 1.0};
+        const LyricDocument neteaseDocument{{{0, 1000, QStringLiteral("netease line"),
+                                              std::nullopt, std::nullopt}}, 0, false};
+        QVERIFY(store.putLyric(qqRef, qqDocument));
+        QVERIFY(store.mapFingerprint(state.fingerprint, qqRef));
+        QVERIFY(store.putLyric(neteaseRef, neteaseDocument));
+        QVERIFY(store.mapFingerprint(state.fingerprint, neteaseRef));
+        QVERIFY(store.setPreferredProvider(state.fingerprint, qq.id()));
+        Resolver resolver(store, {&netease, &qq});
+        QList<ResolvedLyric> emissions;
+        connect(&resolver, &Resolver::resolved, this,
+                [&](const QString &, const ResolvedLyric &resolved) {
+                    emissions.append(resolved);
+                });
+        const ResolvedLyric existing{QStringLiteral("ok"), neteaseRef, neteaseDocument};
+
+        resolver.resolve(state, {.force = true, .preferCache = true, .existing = existing,
+                                 .trigger = QStringLiteral("set-preferred")});
+
+        QCOMPARE(emissions.size(), 1);
+        const auto &result = emissions.first();
+        QCOMPARE(result.state, QStringLiteral("ok"));
+        QCOMPARE(result.ref->provider, qq.id());
+        QCOMPARE(result.ref->trackId, qqRef.trackId);
+        QCOMPARE(result.document.lines.first().text, QStringLiteral("qq line"));
+        QCOMPARE(result.preferredProvider, qq.id());
+        QCOMPARE(result.effectivePreferredProvider, qq.id());
+        QVERIFY(!result.temporaryFallback);
+        QVERIFY(result.switchingProvider.isEmpty());
+        QCOMPARE(netease.searchCount(), 0);
+        QCOMPARE(qq.searchCount(), 0);
+        QCOMPARE(store.refForFingerprint(state.fingerprint)->provider, qq.id());
+    }
+
+    // "歌词源：自动" after a manual switch to netease: the global chain head
+    // (qq) still has this song cached from before the switch.
+    void restoringAutomaticShowsTheChainHeadsCacheWithoutSearching()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider qq(QStringLiteral("qq"), QStringLiteral("rate limited"));
+        TestProvider netease(QStringLiteral("netease"), QStringLiteral("unexpected search"));
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:restore-automatic");
+        state.title = QStringLiteral("song");
+        const TrackRef qqRef{qq.id(), QStringLiteral("600095621"), 1.0};
+        const LyricDocument qqDocument{{{0, 1000, QStringLiteral("qq line"),
+                                         std::nullopt, std::nullopt}}, 0, false};
+        const TrackRef neteaseRef{netease.id(), QStringLiteral("2734680748"), 1.0};
+        const LyricDocument neteaseDocument{{{0, 1000, QStringLiteral("netease line"),
+                                              std::nullopt, std::nullopt}}, 0, false};
+        QVERIFY(store.putLyric(qqRef, qqDocument));
+        QVERIFY(store.mapFingerprint(state.fingerprint, qqRef));
+        QVERIFY(store.putLyric(neteaseRef, neteaseDocument));
+        QVERIFY(store.mapFingerprint(state.fingerprint, neteaseRef));
+        Resolver resolver(store, {&qq, &netease});
+        QList<ResolvedLyric> emissions;
+        connect(&resolver, &Resolver::resolved, this,
+                [&](const QString &, const ResolvedLyric &resolved) {
+                    emissions.append(resolved);
+                });
+        const ResolvedLyric existing{QStringLiteral("ok"), neteaseRef, neteaseDocument};
+
+        DebugLoggingScope debugScope;
+        MessageCapture capture;
+        resolver.resolve(state, {.force = true, .preferCache = true, .existing = existing,
+                                 .trigger = QStringLiteral("clear-preferred")});
+
+        QCOMPARE(emissions.size(), 1);
+        const auto &result = emissions.first();
+        QCOMPARE(result.state, QStringLiteral("ok"));
+        QCOMPARE(result.ref->provider, qq.id());
+        QCOMPARE(result.document.lines.first().text, QStringLiteral("qq line"));
+        QVERIFY(result.preferredProvider.isEmpty());
+        QCOMPARE(result.effectivePreferredProvider, qq.id());
+        QVERIFY(!result.temporaryFallback);
+        QVERIFY(result.switchingProvider.isEmpty());
+        QCOMPARE(qq.searchCount(), 0);
+        QCOMPARE(netease.searchCount(), 0);
+        QCOMPARE(store.refForFingerprint(state.fingerprint)->provider, qq.id());
+        const QStringList messages = capture.messages();
+        QVERIFY(logged(messages, QStringLiteral("resolve: trigger=clear-preferred")));
+        QVERIFY(logged(messages, QStringLiteral("cache hit: qq/600095621 lines=1")));
+        QVERIFY(logged(messages, QStringLiteral("state=ok from=cache source=qq/600095621 lines=1")));
+        QVERIFY(!logged(messages, QStringLiteral("retained:")));
+        QVERIFY(!logged(messages, QStringLiteral("cache miss")));
+    }
+
+    void providerSwitchWithoutACachedLyricSearchesDespiteACooldown()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider netease(QStringLiteral("netease"));
+        TestProvider qq(QStringLiteral("qq"));
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:switch-to-uncached");
+        state.title = QStringLiteral("song");
+        const TrackRef neteaseRef{netease.id(), QStringLiteral("2734680748"), 1.0};
+        const LyricDocument neteaseDocument{{{0, 1000, QStringLiteral("netease line"),
+                                              std::nullopt, std::nullopt}}, 0, false};
+        QVERIFY(store.putLyric(neteaseRef, neteaseDocument));
+        QVERIFY(store.mapFingerprint(state.fingerprint, neteaseRef));
+        QVERIFY(store.recordProviderMiss(state.fingerprint, qq.id(),
+                                         QStringLiteral("search-error"), qq.cacheVersion()));
+        QVERIFY(store.setPreferredProvider(state.fingerprint, qq.id()));
+        Resolver resolver(store, {&netease, &qq});
+        const ResolvedLyric existing{QStringLiteral("ok"), neteaseRef, neteaseDocument};
+
+        const auto result = resolveSynchronously(
+            resolver, state, {.force = true, .preferCache = true, .existing = existing,
+                              .trigger = QStringLiteral("set-preferred")});
+
+        QCOMPARE(result.state, QStringLiteral("ok"));
+        QCOMPARE(result.ref->provider, qq.id());
+        QCOMPARE(result.document.lines.first().text, QStringLiteral("line"));
+        QVERIFY(!result.temporaryFallback);
+        QCOMPARE(qq.searchCount(), 1);
+        QCOMPARE(netease.searchCount(), 0);
+    }
+
+    void providerSwitchPrefersANonEmptyOverrideOverTheCache()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        QTemporaryDir overridesDirectory;
+        QVERIFY(overridesDirectory.isValid());
+        TestProvider netease(QStringLiteral("netease"), QStringLiteral("unexpected search"));
+        TestProvider qq(QStringLiteral("qq"), QStringLiteral("unexpected search"));
+        MprisState state;
+        state.music = true;
+        state.fingerprint = QStringLiteral("mediaSrc:switch-to-override");
+        state.title = QStringLiteral("song");
+        const TrackRef qqRef{qq.id(), QStringLiteral("600095621"), 1.0};
+        QVERIFY(store.putLyric(qqRef, LyricDocument{{{0, 1000, QStringLiteral("qq line"),
+                                                       std::nullopt, std::nullopt}}, 0, false}));
+        QVERIFY(store.mapFingerprint(state.fingerprint, qqRef));
+        QVERIFY(store.setPreferredProvider(state.fingerprint, qq.id()));
+        QFile file(overridesDirectory.filePath(QStringLiteral("qq:600095621.lrc")));
+        QVERIFY(file.open(QIODevice::WriteOnly));
+        QVERIFY(file.write("[00:01.000]override line\n") > 0);
+        file.close();
+        Resolver resolver(store, {&netease, &qq}, true, nullptr, overridesDirectory.path());
+
+        MessageCapture capture;
+        const auto result = resolveSynchronously(
+            resolver, state, {.force = true, .preferCache = true,
+                              .trigger = QStringLiteral("set-preferred")});
+
+        QCOMPARE(result.state, QStringLiteral("ok"));
+        QCOMPARE(result.ref->provider, qq.id());
+        QCOMPARE(result.document.lines.first().text, QStringLiteral("override line"));
+        QVERIFY(!result.temporaryFallback);
+        QCOMPARE(netease.searchCount(), 0);
+        QCOMPARE(qq.searchCount(), 0);
+        QVERIFY(logged(capture.messages(),
+                       QStringLiteral("state=ok from=override source=qq/600095621")));
+    }
+
     void cachedFallbackStaysVisibleWhilePreferredProviderRetries()
     {
         QTemporaryDir directory;

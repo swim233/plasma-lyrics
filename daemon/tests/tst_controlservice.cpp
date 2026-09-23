@@ -122,7 +122,8 @@ private Q_SLOTS:
         int publications = 0;
         std::optional<MprisState> current;
         ControlService service(store, resolver, [&] { return current; },
-                               [](const MprisState &, const QString &) {}, {}, [&] { ++publications; });
+                               [](const MprisState &, const QString &,
+                                  ControlService::CachePolicy) {}, {}, [&] { ++publications; });
 
         QCOMPARE(service.AdjustOffset(QString(), 500), QString());
         QCOMPARE(store.globalOffsetMs(), 500);
@@ -151,7 +152,7 @@ private Q_SLOTS:
         current.title = QStringLiteral("song");
         ControlService service(
             store, resolver, [&] { return std::optional<MprisState>(current); },
-            [](const MprisState &, const QString &) {}, {}, {},
+            [](const MprisState &, const QString &, ControlService::CachePolicy) {}, {}, {},
             {QStringLiteral("local"), QStringLiteral("netease"), QStringLiteral("amll")});
 
         QCOMPARE(service.AvailableProviders(),
@@ -177,11 +178,14 @@ private Q_SLOTS:
         int requests = 0;
         int publications = 0;
         QStringList triggers;
+        QList<ControlService::CachePolicy> policies;
         const TrackRef currentRef{QStringLiteral("netease"), QStringLiteral("id"), 1.0};
         ControlService service(store, resolver, [&] { return std::optional<MprisState>(current); },
-                               [&](const MprisState &, const QString &trigger) {
+                               [&](const MprisState &, const QString &trigger,
+                                   ControlService::CachePolicy cache) {
                                    ++requests;
                                    triggers.append(trigger);
+                                   policies.append(cache);
                                },
                                [&] { return std::optional<TrackRef>(currentRef); },
                                [&] { ++publications; });
@@ -213,6 +217,7 @@ private Q_SLOTS:
                  std::optional<QString>(QStringLiteral("amll")));
         QCOMPARE(requests, 1);
         QCOMPARE(triggers.last(), QStringLiteral("set-preferred"));
+        QCOMPARE(policies.last(), ControlService::CachePolicy::PreferCached);
 
         QDBusReply<QString> unavailable = interface.call(
             QStringLiteral("SetPreferredProvider"), current.fingerprint, QStringLiteral("missing"));
@@ -226,6 +231,7 @@ private Q_SLOTS:
         QCOMPARE(research.value(), QString());
         QCOMPARE(requests, 2);
         QCOMPARE(triggers.last(), QStringLiteral("research"));
+        QCOMPARE(policies.last(), ControlService::CachePolicy::Bypass);
 
         QDBusReply<QString> clear = interface.call(
             QStringLiteral("ClearPreferredProvider"), current.fingerprint);
@@ -234,6 +240,7 @@ private Q_SLOTS:
         QVERIFY(!store.preferredProvider(current.fingerprint));
         QCOMPARE(requests, 3);
         QCOMPARE(triggers.last(), QStringLiteral("clear-preferred"));
+        QCOMPARE(policies.last(), ControlService::CachePolicy::PreferCached);
 
         QDBusReply<QString> adjustOne = interface.call(
             QStringLiteral("AdjustOffset"), current.fingerprint, 500);
@@ -278,11 +285,16 @@ private Q_SLOTS:
         int requests = 0;
         int publications = 0;
         QHash<QString, int> triggerCounts;
+        QHash<QString, int> preferCachedCounts;
         const TrackRef currentRef{QStringLiteral("netease"), QStringLiteral("id"), 1.0};
         ControlService service(store, resolver, [&] { return std::optional<MprisState>(current); },
-                               [&](const MprisState &, const QString &trigger) {
+                               [&](const MprisState &, const QString &trigger,
+                                   ControlService::CachePolicy cache) {
                                    ++requests;
                                    ++triggerCounts[trigger];
+                                   if (cache == ControlService::CachePolicy::PreferCached) {
+                                       ++preferCachedCounts[trigger];
+                                   }
                                },
                                [&] { return std::optional<TrackRef>(currentRef); },
                                [&] { ++publications; });
@@ -342,6 +354,9 @@ private Q_SLOTS:
         QCOMPARE(triggerCounts.value(QStringLiteral("set-preferred")), 20);
         QCOMPARE(triggerCounts.value(QStringLiteral("clear-preferred")), 20);
         QCOMPARE(triggerCounts.value(QStringLiteral("research")), 20);
+        QCOMPARE(preferCachedCounts.value(QStringLiteral("set-preferred")), 20);
+        QCOMPARE(preferCachedCounts.value(QStringLiteral("clear-preferred")), 20);
+        QCOMPARE(preferCachedCounts.value(QStringLiteral("research")), 0);
     }
 
     void preferenceWriteFailureIsReturnedWithoutStartingAResolve()
@@ -357,7 +372,8 @@ private Q_SLOTS:
         current.title = QStringLiteral("song");
         int requests = 0;
         ControlService service(store, resolver, [&] { return std::optional<MprisState>(current); },
-                               [&](const MprisState &, const QString &) { ++requests; });
+                               [&](const MprisState &, const QString &,
+                                   ControlService::CachePolicy) { ++requests; });
         const QString connectionName = QStringLiteral("control-fault-%1")
             .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
         {
@@ -397,7 +413,8 @@ private Q_SLOTS:
         TestProvider local(QStringLiteral("local"));
         Resolver resolver(store, {&local});
         ControlService service(store, resolver, [] { return std::optional<MprisState>(); },
-                               [](const MprisState &, const QString &) {});
+                               [](const MprisState &, const QString &,
+                                  ControlService::CachePolicy) {});
 
         MessageCapture capture;
         service.NoteConfigChange(QStringLiteral("ini"), QString(), QString(),
@@ -417,7 +434,8 @@ private Q_SLOTS:
         TestProvider local(QStringLiteral("local"));
         Resolver resolver(store, {&local});
         ControlService service(store, resolver, [] { return std::optional<MprisState>(); },
-                               [](const MprisState &, const QString &) {});
+                               [](const MprisState &, const QString &,
+                                  ControlService::CachePolicy) {});
 
         MessageCapture capture;
         service.NoteConfigChange(QStringLiteral("applet"), QStringLiteral("12"),
@@ -436,7 +454,8 @@ private Q_SLOTS:
         TestProvider local(QStringLiteral("local"));
         Resolver resolver(store, {&local});
         ControlService service(store, resolver, [] { return std::optional<MprisState>(); },
-                               [](const MprisState &, const QString &) {});
+                               [](const MprisState &, const QString &,
+                                  ControlService::CachePolicy) {});
 
         MessageCapture capture;
         service.NoteSaveFailed(QStringLiteral("db"), QStringLiteral("disk full"));
@@ -452,7 +471,8 @@ private Q_SLOTS:
         TestProvider local(QStringLiteral("local"));
         Resolver resolver(store, {&local});
         ControlService service(store, resolver, [] { return std::optional<MprisState>(); },
-                               [](const MprisState &, const QString &) {});
+                               [](const MprisState &, const QString &,
+                                  ControlService::CachePolicy) {});
 
         MessageCapture capture;
         service.NoteRestartRequested();
@@ -467,7 +487,8 @@ private Q_SLOTS:
         TestProvider local(QStringLiteral("local"));
         Resolver resolver(store, {&local});
         ControlService service(store, resolver, [] { return std::optional<MprisState>(); },
-                               [](const MprisState &, const QString &) {});
+                               [](const MprisState &, const QString &,
+                                  ControlService::CachePolicy) {});
 
         {
             MessageCapture capture;
@@ -493,7 +514,8 @@ private Q_SLOTS:
         TestProvider local(QStringLiteral("local"));
         Resolver resolver(store, {&local});
         ControlService service(store, resolver, [] { return std::optional<MprisState>(); },
-                               [](const MprisState &, const QString &) {});
+                               [](const MprisState &, const QString &,
+                                  ControlService::CachePolicy) {});
         auto bus = QDBusConnection::sessionBus();
         QVERIFY(bus.registerService(ControlService::serviceName()));
         QVERIFY(bus.registerObject(ControlService::objectPath(), &service,
