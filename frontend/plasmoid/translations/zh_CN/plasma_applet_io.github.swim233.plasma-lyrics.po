@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-23 22:57+0800\n"
+"POT-Creation-Date: 2026-09-23 23:57+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -33,8 +33,8 @@ msgid "Lyrics Service"
 msgstr "歌词服务"
 
 #: frontend/plasmoid/package/contents/ui/LyricsView.qml:61
-#: frontend/plasmoid/package/contents/ui/main.qml:300
-#: frontend/plasmoid/package/contents/ui/main.qml:375
+#: frontend/plasmoid/package/contents/ui/main.qml:308
+#: frontend/plasmoid/package/contents/ui/main.qml:383
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:51
 msgid "No media is playing"
 msgstr "当前未在播放"
@@ -65,90 +65,90 @@ msgid "%1 — %2"
 msgstr "%1 — %2"
 
 #: frontend/plasmoid/package/contents/ui/main.qml:114
-#: frontend/plasmoid/package/contents/ui/main.qml:407
+#: frontend/plasmoid/package/contents/ui/main.qml:415
 #: frontend/qmlmodule/lyricsource.cpp:551
 msgid "Desktop Lyrics"
 msgstr "桌面歌词"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:303
-#: frontend/plasmoid/package/contents/ui/main.qml:378
+#: frontend/plasmoid/package/contents/ui/main.qml:311
+#: frontend/plasmoid/package/contents/ui/main.qml:386
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:57
 msgid "Lyrics not found"
 msgstr "暂无歌词"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:306
-#: frontend/plasmoid/package/contents/ui/main.qml:381
+#: frontend/plasmoid/package/contents/ui/main.qml:314
+#: frontend/plasmoid/package/contents/ui/main.qml:389
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:63
 msgid "Instrumental track, enjoy the music"
 msgstr "纯音乐，请欣赏"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:309
-#: frontend/plasmoid/package/contents/ui/main.qml:384
+#: frontend/plasmoid/package/contents/ui/main.qml:317
+#: frontend/plasmoid/package/contents/ui/main.qml:392
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:69
 msgid "Network error, cannot fetch lyrics"
 msgstr "网络错误，暂时无法获取"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:413
+#: frontend/plasmoid/package/contents/ui/main.qml:421
 msgid "Getting lyrics from %1…"
 msgstr "正在从 %1 获取歌词…"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:417
+#: frontend/plasmoid/package/contents/ui/main.qml:425
 msgid "Current lyrics: %1 (temporary fallback)"
 msgstr "当前歌词：%1（临时回退）"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:419
+#: frontend/plasmoid/package/contents/ui/main.qml:427
 msgid "Current lyrics: %1"
 msgstr "当前歌词：%1"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:421
+#: frontend/plasmoid/package/contents/ui/main.qml:429
 msgid "Current lyrics source: none"
 msgstr "当前歌词源：无"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:426
+#: frontend/plasmoid/package/contents/ui/main.qml:434
 msgid "Lyrics source: Automatic"
 msgstr "歌词源：自动"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:434
+#: frontend/plasmoid/package/contents/ui/main.qml:442
 msgid "Prefer local files for this song"
 msgstr "此歌曲首选本地文件"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:443
+#: frontend/plasmoid/package/contents/ui/main.qml:451
 msgid "Prefer NetEase for this song"
 msgstr "此歌曲首选网易云"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:452
+#: frontend/plasmoid/package/contents/ui/main.qml:460
 msgid "Prefer AMLL for this song"
 msgstr "此歌曲首选 AMLL"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:461
+#: frontend/plasmoid/package/contents/ui/main.qml:469
 msgid "Prefer QQ Music for this song"
 msgstr "此歌曲首选 QQ音乐"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:470
+#: frontend/plasmoid/package/contents/ui/main.qml:478
 msgid "Search for lyrics again"
 msgstr "重新搜索歌词"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:477
+#: frontend/plasmoid/package/contents/ui/main.qml:485
 msgid "Lyrics 0.5 s earlier (all songs)"
 msgstr "歌词提前 0.5 秒（所有歌曲）"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:478
+#: frontend/plasmoid/package/contents/ui/main.qml:486
 msgid "Lyrics 0.5 s earlier"
 msgstr "歌词提前 0.5 秒"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:485
+#: frontend/plasmoid/package/contents/ui/main.qml:493
 msgid "Lyrics 0.5 s later (all songs)"
 msgstr "歌词延后 0.5 秒（所有歌曲）"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:486
+#: frontend/plasmoid/package/contents/ui/main.qml:494
 msgid "Lyrics 0.5 s later"
 msgstr "歌词延后 0.5 秒"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:493
+#: frontend/plasmoid/package/contents/ui/main.qml:501
 msgid "Reset global lyric offset (%1 ms)"
 msgstr "重置全局歌词偏移（%1 毫秒）"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:494
+#: frontend/plasmoid/package/contents/ui/main.qml:502
 msgid "Reset lyric offset (%1 ms)"
 msgstr "重置歌词偏移（%1 毫秒）"
 
@@ -684,84 +684,84 @@ msgstr "歌词服务已重启。"
 msgid "Could not restart lyrics service: %1"
 msgstr "无法重启歌词服务：%1"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:38
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:43
 msgctxt "@action:button"
 msgid "Sync from light theme"
 msgstr "从亮色主题同步"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:39
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:44
 msgctxt "@action:button"
 msgid "Sync from dark theme"
 msgstr "从暗色主题同步"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:49
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:54
 msgid "Theme mode:"
 msgstr "主题模式："
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:51
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:56
 msgctxt "@item:inlistbox theme mode"
 msgid "Follow system"
 msgstr "跟随系统"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:52
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:57
 msgctxt "@item:inlistbox theme mode"
 msgid "Always light"
 msgstr "始终亮色"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:53
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:58
 msgctxt "@item:inlistbox theme mode"
 msgid "Always dark"
 msgstr "始终暗色"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:67
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:72
 msgid ""
 "When following the system, the widget switches to the matching set of "
 "settings below whenever the system switches between light and dark."
 msgstr "跟随系统时，系统切换亮色或暗色，部件随之换用下面对应的一套设置。"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:89
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:94
 msgctxt "@title:tab light color scheme"
 msgid "Light"
 msgstr "亮色"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:90
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:95
 msgctxt "@title:tab light color scheme, the set in effect"
 msgid "Light (current)"
 msgstr "亮色（当前）"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:94
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:99
 msgctxt "@title:tab dark color scheme, the set in effect"
 msgid "Dark (current)"
 msgstr "暗色（当前）"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:95
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:100
 msgctxt "@title:tab dark color scheme"
 msgid "Dark"
 msgstr "暗色"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:117
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:122
 msgid ""
 "The theme mode is “Always light”, so these settings are not used for now."
 msgstr "主题模式为「始终亮色」，这套设置目前不会生效。"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:120
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:125
 msgid ""
 "The theme mode is “Always dark”, so these settings are not used for now."
 msgstr "主题模式为「始终暗色」，这套设置目前不会生效。"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:123
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:128
 msgid ""
 "The system currently uses a dark color scheme. These settings take effect "
 "once it switches to a light one."
 msgstr "系统当前为暗色，这套设置在系统切换到亮色后生效。"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:124
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:129
 msgid ""
 "The system currently uses a light color scheme. These settings take effect "
 "once it switches to a dark one."
 msgstr "系统当前为亮色，这套设置在系统切换到暗色后生效。"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:152
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:157
 msgid ""
 "This replaces the %1 setting of the dark theme with that of the light theme. "
 "Nothing is saved until you click Apply or OK."
@@ -772,7 +772,7 @@ msgstr[0] ""
 "将用亮色主题的 %1 项设置覆盖暗色主题的对应设置，点击「应用」或「确定」后才会"
 "保存。"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:155
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:160
 msgid ""
 "This replaces the %1 setting of the light theme with that of the dark theme. "
 "Nothing is saved until you click Apply or OK."
@@ -783,12 +783,12 @@ msgstr[0] ""
 "将用暗色主题的 %1 项设置覆盖亮色主题的对应设置，点击「应用」或「确定」后才会"
 "保存。"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:161
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:166
 msgctxt "@action:button"
 msgid "Sync"
 msgstr "同步"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:169
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:174
 msgctxt "@action:button"
 msgid "Cancel"
 msgstr "取消"

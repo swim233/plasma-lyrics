@@ -313,7 +313,7 @@ private Q_SLOTS:
     // representation reads every suffix of its own form and nothing from the
     // other form's theme; and no themed key, dark or light, is read straight
     // off Plasmoid.configuration, which would render that one set whatever
-    // the colour scheme.
+    // the Plasma style.
     void mainReadsThemedKeysThroughItsTheme()
     {
         const QList<ThemedKey> table = themeTable();

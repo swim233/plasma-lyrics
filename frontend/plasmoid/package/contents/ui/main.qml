@@ -155,12 +155,20 @@ PlasmoidItem {
         id: desktopTheme
         configuration: Plasmoid.configuration
         formFactor: "desktop"
+        styleDark: root.plasmaStyleDark
     }
     AppearanceTheme {
         id: panelTheme
         configuration: Plasmoid.configuration
         formFactor: "panel"
+        styleDark: root.plasmaStyleDark
     }
+    // Inside the widget Kirigami.Theme carries the Plasma style's colours, not
+    // the colour scheme's (checked with plasmoidviewer: breeze-dark under the
+    // BreezeLight scheme reports #202326 here), so "auto" follows what draws
+    // the plate and the panel. Read on this Item: the AppearanceTheme
+    // QtObjects have no Kirigami.Theme of their own.
+    readonly property bool plasmaStyleDark: ThemePolicy.isDarkBackground(Kirigami.Theme.backgroundColor)
 
     // Gates the desktop fade Behavior (see LyricsView's `animationsArmed`):
     // true forever after the first determination, never reset. Deliberately

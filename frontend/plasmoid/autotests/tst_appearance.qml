@@ -2040,7 +2040,7 @@ TestCase {
     // reads as light; the expectation is computed rather than assumed, so a
     // run under one that does still checks the right thing.
     function test_theSetInEffectOpensAndIsMarkedCurrent(data) {
-        const dark = ThemePolicy.isDark(Application.styleHints.colorScheme, data.mode);
+        const dark = ThemePolicy.isDark(PlasmaStyle.isDark(), data.mode);
         for (const form of ["desktop", "panel"]) {
             const page = createTemporaryObject(pageComponent(form), this, modeProperties(form, data.mode));
             verify(page !== null, form);
@@ -2083,7 +2083,7 @@ TestCase {
     }
 
     function test_theHintShowsOnlyOnTheTabNotInEffect() {
-        const systemDark = ThemePolicy.isDark(Application.styleHints.colorScheme, "auto");
+        const systemDark = ThemePolicy.isDark(PlasmaStyle.isDark(), "auto");
         for (const form of ["desktop", "panel"]) {
             const page = createWindowedPage(form, modeProperties(form, "light"));
             const modeKey = "cfg_" + ThemePolicy.modeKey(form);

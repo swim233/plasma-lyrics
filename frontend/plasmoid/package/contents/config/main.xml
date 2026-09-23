@@ -109,16 +109,17 @@
     <entry name="desktopHideAnimationMs" type="Int"><default>1000</default></entry>
     <entry name="desktopHideNonMusic" type="Bool"><default>true</default></entry>
 
-    <!-- DESIGN.md decision 76: auto follows the colour scheme the platform
-         theme reports (Application.styleHints.colorScheme), light and dark
-         pin one set. The desktopXxx keys above are the dark set; each
+    <!-- DESIGN.md decision 76: auto follows whether the Plasma style, which
+         draws the plate and the panel, is light or dark; light and dark pin
+         one set. The desktopXxx keys above are the dark set; each
          desktopLightXxx below is the light copy of the key with the same
          suffix, read instead of it while the light set is in effect.
          ThemePolicy.js lists the suffixes that have a copy. The light
-         defaults put warm near black ink, at the dark set's alphas, on a
-         light plate. Brightening is off because it fades a word toward
-         opaque white, which on dark ink makes the word being sung the
-         palest one on the line. -->
+         defaults put warm near black ink, at the dark set's alphas, on the
+         plate a light style draws; the solid plate and outline turn white.
+         Brightening is off because it fades a word toward opaque white,
+         which on dark ink makes the word being sung the palest one on the
+         line. -->
     <entry name="desktopColorSchemeMode" type="String"><default>auto</default></entry>
     <entry name="desktopLightPlateMode" type="String"><default>ksvg</default></entry>
     <entry name="desktopLightSolidColor" type="String"><default>#99ffffff</default></entry>

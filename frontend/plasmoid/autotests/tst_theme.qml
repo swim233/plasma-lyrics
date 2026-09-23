@@ -63,18 +63,24 @@ TestCase {
 
     function test_isDark_data() {
         return [
-            { tag: "auto, dark scheme", scheme: Qt.ColorScheme.Dark, mode: "auto", dark: true },
-            { tag: "auto, light scheme", scheme: Qt.ColorScheme.Light, mode: "auto", dark: false },
-            { tag: "auto, unknown scheme", scheme: Qt.ColorScheme.Unknown, mode: "auto", dark: false },
-            { tag: "light pinned, dark scheme", scheme: Qt.ColorScheme.Dark, mode: "light", dark: false },
-            { tag: "dark pinned, light scheme", scheme: Qt.ColorScheme.Light, mode: "dark", dark: true },
-            { tag: "dark pinned, unknown scheme", scheme: Qt.ColorScheme.Unknown, mode: "dark", dark: true },
-            { tag: "unrecognised mode follows the scheme", scheme: Qt.ColorScheme.Dark, mode: "sepia", dark: true },
+            { tag: "auto, dark style", styleDark: true, mode: "auto", dark: true },
+            { tag: "auto, light style", styleDark: false, mode: "auto", dark: false },
+            { tag: "light pinned, dark style", styleDark: true, mode: "light", dark: false },
+            { tag: "dark pinned, light style", styleDark: false, mode: "dark", dark: true },
+            { tag: "unrecognised mode follows the style", styleDark: true, mode: "sepia", dark: true },
         ];
     }
     function test_isDark(data) {
-        compare(ThemePolicy.colorSchemeDark, Qt.ColorScheme.Dark);
-        compare(ThemePolicy.isDark(data.scheme, data.mode), data.dark);
+        compare(ThemePolicy.isDark(data.styleDark, data.mode), data.dark);
+    }
+
+    // The window backgrounds plasmoidviewer reported for breeze-dark and for
+    // BreezeLight, and the two sides of qGray() == 192.
+    function test_isDarkBackground() {
+        compare(ThemePolicy.isDarkBackground(Qt.color("#202326")), true);
+        compare(ThemePolicy.isDarkBackground(Qt.color("#eff0f1")), false);
+        compare(ThemePolicy.isDarkBackground(Qt.rgba(192 / 255, 192 / 255, 192 / 255, 1)), false);
+        compare(ThemePolicy.isDarkBackground(Qt.rgba(191 / 255, 191 / 255, 191 / 255, 1)), true);
     }
 
     function test_migrationKeepsLightDefaultsOfUntouchedSets() {
@@ -132,7 +138,7 @@ TestCase {
             property string desktopColorSchemeMode: "auto"
             property string desktopTextColor: "#fffaf5"
             property string desktopLightTextColor: "#1f1b16"
-            property int scheme: Qt.ColorScheme.Light
+            property bool styleDark: false
             property int transitionMs: 400
             // What `transitioning` read at the moment `dark` changed, i.e.
             // what a Behavior's `enabled` would see when its colour updates.
@@ -141,7 +147,7 @@ TestCase {
             property LyricsUi.AppearanceTheme theme: LyricsUi.AppearanceTheme {
                 configuration: harness
                 formFactor: "desktop"
-                colorScheme: harness.scheme
+                styleDark: harness.styleDark
                 transitionMs: harness.transitionMs
                 onDarkChanged: {
                     harness.transitioningWhenDarkChanged = transitioning;
@@ -153,13 +159,13 @@ TestCase {
     }
 
     function test_themeStartsWithoutTransition() {
-        const harness = createTemporaryObject(themeComponent, this, { scheme: Qt.ColorScheme.Dark });
+        const harness = createTemporaryObject(themeComponent, this, { styleDark: true });
         verify(harness !== null);
         compare(harness.theme.dark, true);
         compare(harness.theme.transitioning, false);
         compare(harness.textColor, "#fffaf5");
 
-        const light = createTemporaryObject(themeComponent, this, { scheme: Qt.ColorScheme.Unknown });
+        const light = createTemporaryObject(themeComponent, this, { styleDark: false });
         compare(light.theme.dark, false);
         compare(light.textColor, "#1f1b16");
     }
@@ -167,23 +173,23 @@ TestCase {
     function test_themeSwitchArmsTransitionFirst() {
         const harness = createTemporaryObject(themeComponent, this, { transitionMs: 150 });
         compare(harness.theme.dark, false);
-        harness.scheme = Qt.ColorScheme.Dark;
+        harness.styleDark = true;
         compare(harness.theme.dark, true);
         compare(harness.transitioningWhenDarkChanged, true);
         compare(harness.textColor, "#fffaf5");
         tryCompare(harness.theme, "transitioning", false, 1000);
 
-        harness.scheme = Qt.ColorScheme.Light;
+        harness.styleDark = false;
         compare(harness.transitioningWhenDarkChanged, true);
         compare(harness.textColor, "#1f1b16");
     }
 
     function test_themeModePinsASet() {
         const harness = createTemporaryObject(themeComponent, this,
-            { scheme: Qt.ColorScheme.Dark, desktopColorSchemeMode: "light" });
+            { styleDark: true, desktopColorSchemeMode: "light" });
         compare(harness.theme.dark, false);
-        harness.scheme = Qt.ColorScheme.Light;
-        harness.scheme = Qt.ColorScheme.Dark;
+        harness.styleDark = false;
+        harness.styleDark = true;
         compare(harness.darkChanges, 0);
         // Changing the mode is a switch like any other.
         harness.desktopColorSchemeMode = "auto";
@@ -193,7 +199,7 @@ TestCase {
 
     function test_themeSwitchesInstantlyWithAnimationsOff() {
         const harness = createTemporaryObject(themeComponent, this, { transitionMs: 1 });
-        harness.scheme = Qt.ColorScheme.Dark;
+        harness.styleDark = true;
         compare(harness.theme.dark, true);
         compare(harness.transitioningWhenDarkChanged, false);
         compare(harness.theme.transitioning, false);
@@ -310,7 +316,7 @@ TestCase {
         id: wiredViewComponent
         Item {
             id: wired
-            property int scheme: Qt.ColorScheme.Light
+            property bool styleDark: false
             property int transitionMs: 150
             readonly property QtObject configuration: QtObject {
                 property string desktopColorSchemeMode: "auto"
@@ -327,7 +333,7 @@ TestCase {
                 id: desktopTheme
                 configuration: wired.configuration
                 formFactor: "desktop"
-                colorScheme: wired.scheme
+                styleDark: wired.styleDark
                 transitionMs: wired.transitionMs
             }
             LyricsUi.LyricsView {
@@ -352,7 +358,7 @@ TestCase {
         verify(Qt.colorEqual(view.textColor, "#1f1b16"));
         compare(view.plateMode, "solid");
 
-        wired.scheme = Qt.ColorScheme.Dark;
+        wired.styleDark = true;
         compare(view.animateColors, true);
         verify(!Qt.colorEqual(view.textColor, "#fffaf5"), "the text colour did not fade");
         compare(view.plateMode, "ksvg");
@@ -368,7 +374,7 @@ TestCase {
 
     function test_wiredViewSwitchesAtOnceWithAnimationsOff() {
         const wired = createTemporaryObject(wiredViewComponent, this, { transitionMs: 1 });
-        wired.scheme = Qt.ColorScheme.Dark;
+        wired.styleDark = true;
         compare(wired.view.animateColors, false);
         verify(Qt.colorEqual(wired.view.textColor, "#fffaf5"));
         compare(wired.view.plateMode, "ksvg");

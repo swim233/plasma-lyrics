@@ -1,7 +1,7 @@
 .pragma library
 
 // DESIGN.md decision 76: every instance keeps two sets of the appearance
-// keys listed here, one for a dark colour scheme and one for a light one.
+// keys listed here, one for a dark Plasma style and one for a light one.
 // The dark set is the original <form><Suffix> key, the light set the
 // <form>Light<Suffix> key main.xml declares next to it. Everything the
 // appearance pages show that is not in this table -- the rest of the track
@@ -92,21 +92,29 @@ function modeKey(formFactor) {
     return formFactor + "ColorSchemeMode";
 }
 
-// Qt.ColorScheme.Dark. A .pragma library script cannot see the enum, so
-// tst_theme checks this against it from the QML side.
-var colorSchemeDark = 2;
+// Whether a background colour is a dark one: qGray() below 192, the rule
+// plasma-integration's KHintsSettings::determineColorScheme() and
+// xdg-desktop-portal-kde's readFdoColorScheme() apply to the window
+// background. main.qml gives it Kirigami.Theme.backgroundColor, which inside
+// the widget is the Plasma style's (decision 76); PlasmaStyle::isDark(), for
+// the config pages, applies the same rule in C++.
+function isDarkBackground(color) {
+    const gray = Math.floor((Math.round(color.r * 255) * 11
+                             + Math.round(color.g * 255) * 16
+                             + Math.round(color.b * 255) * 5) / 32);
+    return gray < 192;
+}
 
 // "light" and "dark" pin a set; anything else, "auto" included, follows the
-// colour scheme. Qt.ColorScheme.Unknown -- no platform theme reports one --
-// reads as light, the freedesktop convention for "no preference".
-function isDark(colorScheme, mode) {
+// Plasma style: `styleDark` is whether it is a dark one.
+function isDark(styleDark, mode) {
     if (mode === "dark") {
         return true;
     }
     if (mode === "light") {
         return false;
     }
-    return colorScheme === colorSchemeDark;
+    return styleDark === true;
 }
 
 // Colours compare case-insensitively: a hand-edited "#FFFAF5" is the
@@ -121,7 +129,7 @@ function isDefaultValue(value, defaultValue) {
 // Version 1 creates the light set. A form factor whose dark set has any key
 // off its default had its look chosen before the light set existed, so the
 // whole set is copied across and the instance looks the same under either
-// colour scheme. An untouched set -- which is also what a freshly added
+// Plasma style. An untouched set -- which is also what a freshly added
 // instance has -- keeps the light defaults from main.xml. Whole sets, never
 // key by key: a custom colour next to a light default of its neighbour would
 // be a combination nobody picked.

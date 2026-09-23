@@ -26,6 +26,8 @@ target_sources(plasmalyricssource PRIVATE
     globalconfig.h
     lyricsource.cpp
     lyricsource.h
+    plasmastyle.cpp
+    plasmastyle.h
     settingslog.cpp
     settingslog.h
     visibilitypolicy.cpp
@@ -138,6 +140,18 @@ if(BUILD_TESTING)
     add_test(NAME tst_fontcatalog COMMAND tst_fontcatalog)
     # QFontDatabase needs a QGuiApplication, and so a platform plugin.
     set_tests_properties(tst_fontcatalog PROPERTIES
+        ENVIRONMENT "LC_ALL=C.UTF-8;QT_QPA_PLATFORM=offscreen")
+
+    add_executable(tst_plasmastyle
+        tests/tst_plasmastyle.cpp
+        plasmastyle.cpp
+    )
+    target_include_directories(tst_plasmastyle PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(tst_plasmastyle PRIVATE Qt6::Gui Qt6::Qml Qt6::Test)
+    target_compile_options(tst_plasmastyle PRIVATE -Wno-missing-field-initializers)
+    add_test(NAME tst_plasmastyle COMMAND tst_plasmastyle)
+    # QGuiApplication::palette() needs a platform plugin.
+    set_tests_properties(tst_plasmastyle PROPERTIES
         ENVIRONMENT "LC_ALL=C.UTF-8;QT_QPA_PLATFORM=offscreen")
 
     add_executable(tst_visibilitypolicy

@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import io.github.swim233.lyrics
 
 import "../ThemePolicy.js" as ThemePolicy
 
@@ -32,7 +33,11 @@ ColumnLayout {
     // A popup is no child item, so the tests reach it through this.
     readonly property alias syncDialog: syncDialog
 
-    readonly property bool darkInEffect: ThemePolicy.isDark(Application.styleHints.colorScheme, root.mode)
+    // Whether the Plasma style is dark, read once as the page opens. Not
+    // Kirigami.Theme: in this dialog it reports the colour scheme, while the
+    // widget follows the Plasma style (decision 76).
+    property bool styleDark: PlasmaStyle.isDark()
+    readonly property bool darkInEffect: ThemePolicy.isDark(root.styleDark, root.mode)
     readonly property bool editingDark: tabBar.currentIndex === 1
     readonly property string syncTitle: root.editingDark
         ? i18nc("@action:button", "Sync from light theme")

@@ -14,13 +14,17 @@ QtObject {
     required property var configuration
     // "desktop" or "panel": the key prefix, not Plasmoid.formFactor.
     required property string formFactor
-    property int colorScheme: Application.styleHints.colorScheme
+    // Whether the Plasma style -- what draws the "ksvg" plate and the panel
+    // -- is a dark one. main.qml derives it from Kirigami.Theme on an Item of
+    // the widget, where Kirigami reports the style's colours; this QtObject
+    // has no Kirigami.Theme of its own to read.
+    required property bool styleDark
     // Kirigami scales its durations by the Plasma animation speed and makes
     // them 0 or 1 ms when animations are off -- the same test main.qml's
     // effectiveFadeMs applies to longDuration.
     property int transitionMs: Kirigami.Units.veryLongDuration
 
-    readonly property bool wantDark: ThemePolicy.isDark(theme.colorScheme,
+    readonly property bool wantDark: ThemePolicy.isDark(theme.styleDark,
         theme.configuration[ThemePolicy.modeKey(theme.formFactor)])
     // Follows wantDark by assignment, never by a binding: a switch has to set
     // `transitioning` first, so that every colour depending on `dark` sees it
