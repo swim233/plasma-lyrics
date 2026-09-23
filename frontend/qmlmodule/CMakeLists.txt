@@ -12,6 +12,8 @@ target_sources(plasmalyricssource PRIVATE
     backendconfig.h
     configchangelogger.cpp
     configchangelogger.h
+    fontcatalog.cpp
+    fontcatalog.h
     frontendlogging.cpp
     frontendlogging.h
     globalconfig.cpp
@@ -24,7 +26,7 @@ target_sources(plasmalyricssource PRIVATE
     visibilitypolicy.h
 )
 target_include_directories(plasmalyricssource PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(plasmalyricssource PRIVATE plasma_lyrics_core Qt6::Core Qt6::DBus Qt6::Qml Qt6::Sql KF6::I18n)
+target_link_libraries(plasmalyricssource PRIVATE plasma_lyrics_core Qt6::Core Qt6::DBus Qt6::Gui Qt6::Qml Qt6::Sql KF6::I18n)
 
 ecm_finalize_qml_module(plasmalyricssource DESTINATION ${KDE_INSTALL_QMLDIR})
 install(TARGETS plasmalyricssource ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
