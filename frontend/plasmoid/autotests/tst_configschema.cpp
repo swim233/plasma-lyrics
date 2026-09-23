@@ -86,6 +86,65 @@ QHash<QString, SchemaEntry> parsedEntries(const QByteArray &xml)
     return entries;
 }
 
+// One row of ThemePolicy.js's darkDefaults table: a suffix of one form
+// factor and its dark key's default, unquoted.
+struct ThemedKey {
+    QString form;
+    QString suffix;
+    QString defaultValue;
+};
+
+// The darkDefaults table, read line by line between its marker comments --
+// the layout ThemePolicy.js promises to keep. Empty when the markers are gone.
+QList<ThemedKey> themeTable()
+{
+    const QString policy = QString::fromUtf8(readAll(packageDir + QStringLiteral("/contents/ui/ThemePolicy.js")));
+    const qsizetype begin = policy.indexOf(QStringLiteral("// BEGIN darkDefaults"));
+    const qsizetype end = policy.indexOf(QStringLiteral("// END darkDefaults"));
+    if (begin < 0 || end <= begin) {
+        return {};
+    }
+
+    const QRegularExpression formLine(QStringLiteral("^ {4}(desktop|panel): \\{$"));
+    const QRegularExpression suffixLine(QStringLiteral("^ {8}([A-Za-z]+): (.+),$"));
+    QList<ThemedKey> table;
+    QString form;
+    const QStringList lines = policy.mid(begin, end - begin).split(QLatin1Char('\n'));
+    for (const QString &line : lines) {
+        if (const auto match = formLine.match(line); match.hasMatch()) {
+            form = match.captured(1);
+            continue;
+        }
+        const auto match = suffixLine.match(line);
+        if (!match.hasMatch() || form.isEmpty()) {
+            continue;
+        }
+        QString value = match.captured(2);
+        if (value.size() >= 2 && value.startsWith(QLatin1Char('"')) && value.endsWith(QLatin1Char('"'))) {
+            value = value.mid(1, value.size() - 2);
+        }
+        table.append({form, match.captured(1), value});
+    }
+    return table;
+}
+
+// The `{ ... }` block whose opening brace is at `open`, braces included, or
+// empty when it never closes. Plain counting, which a brace inside a string
+// or comment would throw off -- main.qml has none, and one would make the
+// test that reads the block fail rather than pass.
+QString braceBlock(const QString &text, qsizetype open)
+{
+    int depth = 0;
+    for (qsizetype i = open; i >= 0 && i < text.size(); ++i) {
+        if (text.at(i) == QLatin1Char('{')) {
+            ++depth;
+        } else if (text.at(i) == QLatin1Char('}') && --depth == 0) {
+            return text.mid(open, i - open + 1);
+        }
+    }
+    return {};
+}
+
 QStringList filesUnder(const QString &dir, const QStringList &nameFilters)
 {
     QStringList result;
@@ -196,32 +255,15 @@ private Q_SLOTS:
         const QHash<QString, SchemaEntry> entries = parsedEntries(readAll(schemaPath()));
         QVERIFY(!entries.isEmpty());
 
-        const QString policyPath = packageDir + QStringLiteral("/contents/ui/ThemePolicy.js");
-        const QString policy = QString::fromUtf8(readAll(policyPath));
-        const qsizetype begin = policy.indexOf(QStringLiteral("// BEGIN darkDefaults"));
-        const qsizetype end = policy.indexOf(QStringLiteral("// END darkDefaults"));
-        QVERIFY2(begin >= 0 && end > begin, "ThemePolicy.js lost its darkDefaults markers");
+        const QList<ThemedKey> table = themeTable();
+        QVERIFY2(!table.isEmpty(), "ThemePolicy.js lost its darkDefaults markers");
 
-        const QRegularExpression formLine(QStringLiteral("^ {4}(desktop|panel): \\{$"));
-        const QRegularExpression suffixLine(QStringLiteral("^ {8}([A-Za-z]+): (.+),$"));
         QHash<QString, QStringList> suffixes;
         QStringList problems;
-        QString form;
-        const QStringList lines = policy.mid(begin, end - begin).split(QLatin1Char('\n'));
-        for (const QString &line : lines) {
-            if (const auto match = formLine.match(line); match.hasMatch()) {
-                form = match.captured(1);
-                continue;
-            }
-            const auto match = suffixLine.match(line);
-            if (!match.hasMatch() || form.isEmpty()) {
-                continue;
-            }
-            const QString suffix = match.captured(1);
-            QString value = match.captured(2);
-            if (value.size() >= 2 && value.startsWith(QLatin1Char('"')) && value.endsWith(QLatin1Char('"'))) {
-                value = value.mid(1, value.size() - 2);
-            }
+        for (const ThemedKey &row : table) {
+            const QString &form = row.form;
+            const QString &suffix = row.suffix;
+            const QString &value = row.defaultValue;
             suffixes[form] << suffix;
 
             const QString darkKey = form + suffix;
@@ -260,6 +302,118 @@ private Q_SLOTS:
             }
         }
 
+        QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
+    }
+
+    // DESIGN.md decision 75, main.qml's side. main.qml is a PlasmoidItem the
+    // QML suite cannot instantiate, and qmllint cannot tell one key name from
+    // another, so this reads its text. Each form factor has one
+    // AppearanceTheme, id <form>Theme, over Plasmoid.configuration; every
+    // value() call on it passes a literal suffix from that form's table; each
+    // representation reads every suffix of its own form and nothing from the
+    // other form's theme; and no themed key, dark or light, is read straight
+    // off Plasmoid.configuration, which would render that one set whatever
+    // the colour scheme.
+    void mainReadsThemedKeysThroughItsTheme()
+    {
+        const QList<ThemedKey> table = themeTable();
+        QVERIFY(!table.isEmpty());
+        QHash<QString, QStringList> suffixes;
+        QSet<QString> themedKeys;
+        for (const ThemedKey &row : table) {
+            suffixes[row.form] << row.suffix;
+            themedKeys << row.form + row.suffix << row.form + QStringLiteral("Light") + row.suffix;
+        }
+
+        const QString mainPath = packageDir + QStringLiteral("/contents/ui/main.qml");
+        const QString main = QString::fromUtf8(readAll(mainPath));
+        QVERIFY2(!main.isEmpty(), qPrintable(QStringLiteral("cannot read %1").arg(mainPath)));
+        QStringList problems;
+
+        const QRegularExpression themeDeclaration(QStringLiteral("\\bAppearanceTheme\\s*\\{"));
+        const QRegularExpression idLine(QStringLiteral("\\bid:\\s*(\\w+)"));
+        const QRegularExpression formFactorLine(QStringLiteral("\\bformFactor:\\s*\"(\\w*)\""));
+        const QRegularExpression configurationLine(QStringLiteral("\\bconfiguration:\\s*Plasmoid\\.configuration\\s*\\n"));
+        QStringList themeIds;
+        for (auto it = themeDeclaration.globalMatch(main); it.hasNext();) {
+            const QString block = braceBlock(main, it.next().capturedEnd() - 1);
+            const QString id = idLine.match(block).captured(1);
+            const QString form = formFactorLine.match(block).captured(1);
+            if (id != form + QStringLiteral("Theme")) {
+                problems << QStringLiteral("AppearanceTheme id \"%1\" with formFactor \"%2\"").arg(id, form);
+            }
+            if (!configurationLine.match(block).hasMatch()) {
+                problems << QStringLiteral("%1: configuration is not Plasmoid.configuration").arg(id);
+            }
+            themeIds << id;
+        }
+        themeIds.sort();
+        QCOMPARE(themeIds, QStringList({QStringLiteral("desktopTheme"), QStringLiteral("panelTheme")}));
+
+        // Every call, literal argument or not, so a suffix built at run time
+        // is reported rather than skipped.
+        const QRegularExpression valueCall(QStringLiteral("\\b(desktop|panel)Theme\\.value\\(([^)]*)\\)"));
+        const QRegularExpression literalSuffix(QStringLiteral("^\"([A-Za-z]+)\"$"));
+        for (auto it = valueCall.globalMatch(main); it.hasNext();) {
+            const auto call = it.next();
+            const auto suffix = literalSuffix.match(call.captured(2));
+            if (!suffix.hasMatch()) {
+                problems << QStringLiteral("%1: not a literal suffix").arg(call.captured(0));
+            } else if (!suffixes.value(call.captured(1)).contains(suffix.captured(1))) {
+                problems << QStringLiteral("%1: no such suffix in the %2 table").arg(call.captured(0), call.captured(1));
+            }
+        }
+
+        struct Representation {
+            QString property;
+            QString form;
+            QString otherForm;
+        };
+        const Representation representations[] = {
+            {QStringLiteral("compactRepresentation"), QStringLiteral("panel"), QStringLiteral("desktop")},
+            {QStringLiteral("fullRepresentation"), QStringLiteral("desktop"), QStringLiteral("panel")},
+        };
+        for (const Representation &representation : representations) {
+            const QString opening = representation.property + QStringLiteral(": LyricsView {");
+            const qsizetype at = main.indexOf(opening);
+            const QString block = at < 0 ? QString() : braceBlock(main, at + opening.size() - 1);
+            if (block.isEmpty()) {
+                problems << QStringLiteral("no complete \"%1\" block").arg(opening);
+                continue;
+            }
+            QSet<QString> read;
+            for (auto it = valueCall.globalMatch(block); it.hasNext();) {
+                const auto call = it.next();
+                if (call.captured(1) == representation.form) {
+                    read << literalSuffix.match(call.captured(2)).captured(1);
+                }
+            }
+            for (const QString &suffix : suffixes.value(representation.form)) {
+                if (!read.contains(suffix)) {
+                    problems << QStringLiteral("%1 never reads %2Theme.value(\"%3\")")
+                                    .arg(representation.property, representation.form, suffix);
+                }
+            }
+            if (block.contains(representation.otherForm + QStringLiteral("Theme."))) {
+                problems << QStringLiteral("%1 reads %2Theme").arg(representation.property, representation.otherForm);
+            }
+            for (const QString &wiring : {QStringLiteral("animateColors: %1Theme.transitioning\n"),
+                                          QStringLiteral("colorTransitionMs: %1Theme.transitionMs\n")}) {
+                if (!block.contains(wiring.arg(representation.form))) {
+                    problems << QStringLiteral("%1 lacks \"%2\"").arg(representation.property, wiring.arg(representation.form).trimmed());
+                }
+            }
+        }
+
+        const QRegularExpression configurationRead(QStringLiteral("\\bPlasmoid\\.configuration\\.([A-Za-z_][A-Za-z0-9_]*)"));
+        for (auto it = configurationRead.globalMatch(main); it.hasNext();) {
+            const QString key = it.next().captured(1);
+            if (themedKeys.contains(key)) {
+                problems << QStringLiteral("Plasmoid.configuration.%1: read past the theme").arg(key);
+            }
+        }
+
+        problems.removeDuplicates();
         QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
     }
 };

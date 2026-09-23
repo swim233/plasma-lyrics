@@ -8,14 +8,15 @@ import io.github.swim233.lyrics
 
 import "FontPolicy.js" as FontPolicy
 import "TextPolicy.js" as TextPolicy
+import "ThemePolicy.js" as ThemePolicy
 
 PlasmoidItem {
     id: root
 
     readonly property bool onDesktop: Plasmoid.formFactor === PlasmaCore.Types.Planar
     readonly property string activePlateMode: root.onDesktop
-        ? Plasmoid.configuration.desktopPlateMode
-        : Plasmoid.configuration.panelPlateMode
+        ? desktopTheme.value("PlateMode")
+        : panelTheme.value("PlateMode")
 
     readonly property bool activeAutoHide: root.onDesktop
         ? Plasmoid.configuration.desktopAutoHide
@@ -142,6 +143,25 @@ PlasmoidItem {
         delayMs: (root.onDesktop ? Plasmoid.configuration.desktopHideDelaySec : Plasmoid.configuration.panelHideDelaySec) * 1000
     }
 
+    // DESIGN.md decision 75: the appearance set each form factor renders
+    // with. Every themed key below is read as <form>Theme.value("<Suffix>"),
+    // never as Plasmoid.configuration.<form><Suffix>, which would pin the
+    // dark set; tst_configschema checks that, and that each view reads all of
+    // its form's suffixes from its own form's theme. At the root for the
+    // reason VisibilityPolicy gives above: a theme recreated inside a
+    // representation's Loader would drop a transition in progress, and
+    // activePlateMode needs one outside either representation anyway.
+    AppearanceTheme {
+        id: desktopTheme
+        configuration: Plasmoid.configuration
+        formFactor: "desktop"
+    }
+    AppearanceTheme {
+        id: panelTheme
+        configuration: Plasmoid.configuration
+        formFactor: "panel"
+    }
+
     // Gates the desktop fade Behavior (see LyricsView's `animationsArmed`):
     // true forever after the first determination, never reset. Deliberately
     // NOT a direct binding on lyricSource.determined -- see below.
@@ -192,6 +212,7 @@ PlasmoidItem {
 
     Component.onCompleted: {
         TextPolicy.migrateConfiguration(Plasmoid.configuration);
+        ThemePolicy.migrateConfiguration(Plasmoid.configuration);
         root.updatePlateOwner();
         if (!root.onDesktop) {
             root.updateStatus();
@@ -238,13 +259,13 @@ PlasmoidItem {
     compactRepresentation: LyricsView {
         id: compactView
         source: lyricSource
-        plateMode: Plasmoid.configuration.panelPlateMode
+        plateMode: panelTheme.value("PlateMode")
         panelWidth: Plasmoid.configuration.panelWidth
         ownsPlate: root.plateSelfDrawn
-        solidColor: Plasmoid.configuration.panelSolidColor
-        textColor: Plasmoid.configuration.panelTextColor
-        strokeEnabled: Plasmoid.configuration.panelStroke
-        strokeColor: Plasmoid.configuration.panelStrokeColor
+        solidColor: panelTheme.value("SolidColor")
+        textColor: panelTheme.value("TextColor")
+        strokeEnabled: panelTheme.value("Stroke")
+        strokeColor: panelTheme.value("StrokeColor")
         // DESIGN.md decision 30. The stored family and weights are never
         // written back. A family that is not installed renders in the Plasma
         // font -- named explicitly, not left to fontconfig's substitution --
@@ -254,26 +275,26 @@ PlasmoidItem {
         // track-info family and both weights read the lyric family off this
         // item instead of resolving it a second time.
         fontFamily: FontPolicy.lyricFamily(FontCatalog,
-                                           Plasmoid.configuration.panelFontFamily,
+                                           panelTheme.value("FontFamily"),
                                            Kirigami.Theme.defaultFont.family)
-        fontSize: Plasmoid.configuration.panelFontSize
+        fontSize: panelTheme.value("FontSize")
         fontWeight: FontPolicy.renderWeight(FontCatalog, compactView.fontFamily,
-                                            Plasmoid.configuration.panelFontWeight)
-        overflowMode: Plasmoid.configuration.panelOverflow
-        animationMode: Plasmoid.configuration.panelAnimation
-        showTranslation: Plasmoid.configuration.panelShowTranslation
-        secondLineSource: Plasmoid.configuration.panelSecondLineSource
-        secondLineColorEnabled: Plasmoid.configuration.panelSecondLineColorEnabled
-        secondLineColor: Plasmoid.configuration.panelSecondLineColor
-        lineHeightPercent: Plasmoid.configuration.panelLineHeight
-        wordByWord: Plasmoid.configuration.panelWordByWord
-        syntheticWordByWord: Plasmoid.configuration.panelWordByWordSynthetic
-        wordUnsungColor: Plasmoid.configuration.panelWordUnsungColor
-        wordActiveColor: Plasmoid.configuration.panelWordActiveColor
-        wordSungColor: Plasmoid.configuration.panelWordSungColor
-        wordBrightness: Plasmoid.configuration.panelWordBrightness
-        wordBrightnessPercent: Plasmoid.configuration.panelWordBrightnessPercent
-        wordBlurGlow: Plasmoid.configuration.panelWordBlurGlow
+                                            panelTheme.value("FontWeight"))
+        overflowMode: panelTheme.value("Overflow")
+        animationMode: panelTheme.value("Animation")
+        showTranslation: panelTheme.value("ShowTranslation")
+        secondLineSource: panelTheme.value("SecondLineSource")
+        secondLineColorEnabled: panelTheme.value("SecondLineColorEnabled")
+        secondLineColor: panelTheme.value("SecondLineColor")
+        lineHeightPercent: panelTheme.value("LineHeight")
+        wordByWord: panelTheme.value("WordByWord")
+        syntheticWordByWord: panelTheme.value("WordByWordSynthetic")
+        wordUnsungColor: panelTheme.value("WordUnsungColor")
+        wordActiveColor: panelTheme.value("WordActiveColor")
+        wordSungColor: panelTheme.value("WordSungColor")
+        wordBrightness: panelTheme.value("WordBrightness")
+        wordBrightnessPercent: panelTheme.value("WordBrightnessPercent")
+        wordBlurGlow: panelTheme.value("WordBlurGlow")
         idleText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                            Plasmoid.configuration.idleText,
                                            i18n("No media is playing"))
@@ -297,35 +318,39 @@ PlasmoidItem {
         trackInfoFontSize: Plasmoid.configuration.panelTrackInfoFontSize
         trackInfoFontWeight: FontPolicy.renderWeight(FontCatalog, compactView.trackInfoFontFamily,
                                                      Plasmoid.configuration.panelTrackInfoFontWeight)
-        trackInfoColor: Plasmoid.configuration.panelTrackInfoColor
-        trackInfoStrokeEnabled: Plasmoid.configuration.panelTrackInfoStroke
-        trackInfoStrokeColor: Plasmoid.configuration.panelTrackInfoStrokeColor
+        trackInfoColor: panelTheme.value("TrackInfoColor")
+        trackInfoStrokeEnabled: panelTheme.value("TrackInfoStroke")
+        trackInfoStrokeColor: panelTheme.value("TrackInfoStrokeColor")
         trackInfoOverflow: Plasmoid.configuration.panelTrackInfoOverflow
+        // Colours fade only while the set in effect switches, never when one
+        // of its own colours is edited.
+        animateColors: panelTheme.transitioning
+        colorTransitionMs: panelTheme.transitionMs
     }
 
     fullRepresentation: LyricsView {
         id: fullView
         source: lyricSource
-        plateMode: Plasmoid.configuration.desktopPlateMode
+        plateMode: desktopTheme.value("PlateMode")
         ownsPlate: root.plateSelfDrawn
-        solidColor: Plasmoid.configuration.desktopSolidColor
-        textColor: Plasmoid.configuration.desktopTextColor
-        strokeEnabled: Plasmoid.configuration.desktopStroke
-        strokeColor: Plasmoid.configuration.desktopStrokeColor
-        // Same resolution as compactRepresentation's, over the desktop keys.
+        solidColor: desktopTheme.value("SolidColor")
+        textColor: desktopTheme.value("TextColor")
+        strokeEnabled: desktopTheme.value("Stroke")
+        strokeColor: desktopTheme.value("StrokeColor")
+        // Same resolution as compactRepresentation's, over the desktop set.
         fontFamily: FontPolicy.lyricFamily(FontCatalog,
-                                           Plasmoid.configuration.desktopFontFamily,
+                                           desktopTheme.value("FontFamily"),
                                            Kirigami.Theme.defaultFont.family)
-        fontSize: Plasmoid.configuration.desktopFontSize
+        fontSize: desktopTheme.value("FontSize")
         fontWeight: FontPolicy.renderWeight(FontCatalog, fullView.fontFamily,
-                                            Plasmoid.configuration.desktopFontWeight)
-        overflowMode: Plasmoid.configuration.desktopOverflow
-        animationMode: Plasmoid.configuration.desktopAnimation
-        showTranslation: Plasmoid.configuration.desktopShowTranslation
-        secondLineSource: Plasmoid.configuration.desktopSecondLineSource
-        secondLineColorEnabled: Plasmoid.configuration.desktopSecondLineColorEnabled
-        secondLineColor: Plasmoid.configuration.desktopSecondLineColor
-        lineHeightPercent: Plasmoid.configuration.desktopLineHeight
+                                            desktopTheme.value("FontWeight"))
+        overflowMode: desktopTheme.value("Overflow")
+        animationMode: desktopTheme.value("Animation")
+        showTranslation: desktopTheme.value("ShowTranslation")
+        secondLineSource: desktopTheme.value("SecondLineSource")
+        secondLineColorEnabled: desktopTheme.value("SecondLineColorEnabled")
+        secondLineColor: desktopTheme.value("SecondLineColor")
+        lineHeightPercent: desktopTheme.value("LineHeight")
         // DESIGN.md decision 69/73: the desktop form factor cannot go below
         // 125% -- below it, the previous line's descenders can reach into
         // the next line's ink. The panel (compactRepresentation above)
@@ -335,16 +360,16 @@ PlasmoidItem {
         // lineHeightMin: 125 override in ConfigDesktopAppearance.qml rather
         // than sharing one constant -- DESIGN.md decision 69 has the reasoning.
         lineHeightMinPercent: 125
-        wordByWord: Plasmoid.configuration.desktopWordByWord
-        syntheticWordByWord: Plasmoid.configuration.desktopWordByWordSynthetic
-        wordUnsungColor: Plasmoid.configuration.desktopWordUnsungColor
-        wordActiveColor: Plasmoid.configuration.desktopWordActiveColor
-        wordSungColor: Plasmoid.configuration.desktopWordSungColor
-        wordLift: Plasmoid.configuration.desktopWordLift
-        wordLiftPercent: Plasmoid.configuration.desktopWordLiftPercent
-        wordBrightness: Plasmoid.configuration.desktopWordBrightness
-        wordBrightnessPercent: Plasmoid.configuration.desktopWordBrightnessPercent
-        wordBlurGlow: Plasmoid.configuration.desktopWordBlurGlow
+        wordByWord: desktopTheme.value("WordByWord")
+        syntheticWordByWord: desktopTheme.value("WordByWordSynthetic")
+        wordUnsungColor: desktopTheme.value("WordUnsungColor")
+        wordActiveColor: desktopTheme.value("WordActiveColor")
+        wordSungColor: desktopTheme.value("WordSungColor")
+        wordLift: desktopTheme.value("WordLift")
+        wordLiftPercent: desktopTheme.value("WordLiftPercent")
+        wordBrightness: desktopTheme.value("WordBrightness")
+        wordBrightnessPercent: desktopTheme.value("WordBrightnessPercent")
+        wordBlurGlow: desktopTheme.value("WordBlurGlow")
         idleText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                            Plasmoid.configuration.idleText,
                                            i18n("No media is playing"))
@@ -368,10 +393,12 @@ PlasmoidItem {
         trackInfoFontSize: Plasmoid.configuration.desktopTrackInfoFontSize
         trackInfoFontWeight: FontPolicy.renderWeight(FontCatalog, fullView.trackInfoFontFamily,
                                                      Plasmoid.configuration.desktopTrackInfoFontWeight)
-        trackInfoColor: Plasmoid.configuration.desktopTrackInfoColor
-        trackInfoStrokeEnabled: Plasmoid.configuration.desktopTrackInfoStroke
-        trackInfoStrokeColor: Plasmoid.configuration.desktopTrackInfoStrokeColor
+        trackInfoColor: desktopTheme.value("TrackInfoColor")
+        trackInfoStrokeEnabled: desktopTheme.value("TrackInfoStroke")
+        trackInfoStrokeColor: desktopTheme.value("TrackInfoStrokeColor")
         trackInfoOverflow: Plasmoid.configuration.desktopTrackInfoOverflow
+        animateColors: desktopTheme.transitioning
+        colorTransitionMs: desktopTheme.transitionMs
         shouldBeVisible: visibilityPolicy.shouldBeVisible
         animationsArmed: root.desktopAnimationsArmed
         hideAnimationMs: root.effectiveFadeMs

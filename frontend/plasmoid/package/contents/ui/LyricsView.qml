@@ -91,6 +91,54 @@ Item {
     property color trackInfoStrokeColor: "#cc000000"
     property string trackInfoOverflow: "fit"
 
+    // DESIGN.md decision 75: main.qml turns this on only while the appearance
+    // set in effect is switching (AppearanceTheme's `transitioning`), so the
+    // colours below fade into the other set's and every other edit applies
+    // at once. The Behaviors sit on this item's own colour properties rather
+    // than on each word: everything drawn reads its colour from one of them,
+    // effectiveSecondLineColor included. Nothing that is not a colour
+    // animates -- the plate mode, stroke switches and fonts switch
+    // immediately.
+    property bool animateColors: false
+    property int colorTransitionMs: Kirigami.Units.veryLongDuration
+
+    Behavior on solidColor {
+        enabled: root.animateColors
+        ColorAnimation { duration: root.colorTransitionMs }
+    }
+    Behavior on textColor {
+        enabled: root.animateColors
+        ColorAnimation { duration: root.colorTransitionMs }
+    }
+    Behavior on strokeColor {
+        enabled: root.animateColors
+        ColorAnimation { duration: root.colorTransitionMs }
+    }
+    Behavior on secondLineColor {
+        enabled: root.animateColors
+        ColorAnimation { duration: root.colorTransitionMs }
+    }
+    Behavior on wordUnsungColor {
+        enabled: root.animateColors
+        ColorAnimation { duration: root.colorTransitionMs }
+    }
+    Behavior on wordActiveColor {
+        enabled: root.animateColors
+        ColorAnimation { duration: root.colorTransitionMs }
+    }
+    Behavior on wordSungColor {
+        enabled: root.animateColors
+        ColorAnimation { duration: root.colorTransitionMs }
+    }
+    Behavior on trackInfoColor {
+        enabled: root.animateColors
+        ColorAnimation { duration: root.colorTransitionMs }
+    }
+    Behavior on trackInfoStrokeColor {
+        enabled: root.animateColors
+        ColorAnimation { duration: root.colorTransitionMs }
+    }
+
     readonly property string effectiveText: {
         if (!source.serviceAvailable || source.stale) return "";
         if (source.lyricState === "searching") return i18n("Searching for lyrics…");
