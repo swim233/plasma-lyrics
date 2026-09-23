@@ -327,6 +327,10 @@ TestCase {
         const trackInfo = named(win.section, "trackInfoFontPicker");
         compareLabel(lyric, "Beta Serif");
         compare(lyric.font.family, "Beta Serif");
+        // Indented like the text of a plain combo box of the same style.
+        const weight = named(win.section, "lyricWeightComboBox");
+        compare(lyric.leftPadding + named(lyric, "closedLabel").leftPadding,
+            weight.leftPadding + weight.contentItem.leftPadding);
         // "Same as lyrics" is drawn in what it stands for.
         compareLabel(trackInfo, "Same as lyrics");
         compare(trackInfo.font.family, "Beta Serif");

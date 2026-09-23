@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-23 19:30+0800\n"
+"POT-Creation-Date: 2026-09-23 19:48+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -741,11 +741,11 @@ msgstr ""
 msgid "%1 (not installed)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:252
+#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:266
 msgid "Search fonts"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:346
+#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:360
 msgid "No matching fonts"
 msgstr ""
 
