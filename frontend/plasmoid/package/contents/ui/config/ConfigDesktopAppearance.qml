@@ -5,6 +5,7 @@ import org.kde.kirigami as Kirigami
 import io.github.swim233.lyrics
 
 import "../FontPolicy.js" as FontPolicy
+import "../ThemePolicy.js" as ThemePolicy
 
 Kirigami.ScrollablePage {
     id: page
@@ -47,11 +48,75 @@ Kirigami.ScrollablePage {
     property string cfg_desktopTrackInfoStrokeColor
     property string cfg_desktopTrackInfoOverflow
 
-    // The families the two sections render in, for AppearanceSection's
-    // weight rows. Computed here, from the plain cfg_ properties above,
-    // rather than inside AppearanceSection: see its lyricEffectiveFamily.
+    // DESIGN.md decision 75: the mode that picks one of the two sets, and
+    // the light copy of every key ThemePolicy.themedSuffixes("desktop")
+    // lists; the keys above with those suffixes are the dark copies. One
+    // property per key, as for the dark set: the config dialog loads and
+    // saves only the cfg_ properties a page declares.
+    property string cfg_desktopColorSchemeMode
+    property string cfg_desktopLightPlateMode
+    property string cfg_desktopLightSolidColor
+    property string cfg_desktopLightTextColor
+    property bool cfg_desktopLightStroke
+    property string cfg_desktopLightStrokeColor
+    property string cfg_desktopLightFontFamily
+    property alias cfg_desktopLightFontSize: desktopLightFontSize.value
+    property int cfg_desktopLightFontWeight
+    property string cfg_desktopLightOverflow
+    property string cfg_desktopLightAnimation
+    property alias cfg_desktopLightShowTranslation: desktopLightTranslation.checked
+    property string cfg_desktopLightSecondLineSource
+    property bool cfg_desktopLightSecondLineColorEnabled
+    property string cfg_desktopLightSecondLineColor
+    property int cfg_desktopLightLineHeight
+    property bool cfg_desktopLightWordByWord
+    property bool cfg_desktopLightWordByWordSynthetic
+    property string cfg_desktopLightWordUnsungColor
+    property string cfg_desktopLightWordActiveColor
+    property string cfg_desktopLightWordSungColor
+    property bool cfg_desktopLightWordLift
+    property int cfg_desktopLightWordLiftPercent
+    property bool cfg_desktopLightWordBrightness
+    property int cfg_desktopLightWordBrightnessPercent
+    property bool cfg_desktopLightWordBlurGlow
+    property string cfg_desktopLightTrackInfoColor
+    property bool cfg_desktopLightTrackInfoStroke
+    property string cfg_desktopLightTrackInfoStrokeColor
+
+    // The set the tabs show and edit. AppearanceSection reads and writes it
+    // through these two: themed("TextColor") is cfg_desktopTextColor on the
+    // Dark tab and cfg_desktopLightTextColor on the Light tab. A property
+    // looked up by name is a binding dependency like any other, so a
+    // binding over themed() follows both the tab and the key.
+    readonly property bool editingDark: themeTabs.editingDark
+    readonly property string editingPrefix: "cfg_" + ThemePolicy.keyPrefix("desktop", page.editingDark)
+
+    function themed(suffix) {
+        return page[page.editingPrefix + suffix];
+    }
+
+    function editThemed(suffix, value) {
+        page[page.editingPrefix + suffix] = value;
+    }
+
+    // Copies every key of the set `dark` names over the other set. Only the
+    // values the dialog holds change; Apply or OK saves them like any other
+    // edit. ThemeTabs calls this once the user confirms.
+    function syncFrom(dark) {
+        const from = "cfg_" + ThemePolicy.keyPrefix("desktop", dark);
+        const to = "cfg_" + ThemePolicy.keyPrefix("desktop", !dark);
+        for (const suffix of ThemePolicy.themedSuffixes("desktop")) {
+            page[to + suffix] = page[from + suffix];
+        }
+    }
+
+    // The families the lyrics and the track info render in, for the weight
+    // rows of AppearanceSection and TrackInfoSection. Computed here, from the
+    // plain cfg_ properties above, rather than inside either section: see
+    // AppearanceSection's lyricEffectiveFamily. The lyric font is the one of
+    // the set on screen, and so is the track info's "Same as lyrics".
     readonly property string lyricFamily: FontPolicy.lyricFamily(FontCatalog,
-        page.cfg_desktopFontFamily, Kirigami.Theme.defaultFont.family)
+        page.themed("FontFamily"), Kirigami.Theme.defaultFont.family)
     readonly property string trackInfoFamily: FontPolicy.trackInfoFamily(FontCatalog,
         page.cfg_desktopTrackInfoFontSameAsLyrics, page.cfg_desktopTrackInfoFontFamily,
         page.lyricFamily, Kirigami.Theme.defaultFont.family)
@@ -59,10 +124,10 @@ Kirigami.ScrollablePage {
     // DESIGN.md decision 40. Plain top-level properties rather than the
     // hidden-control-plus-alias dance the appearance keys above need: those
     // exist only because their actual SpinBox/CheckBox lives one component
-    // down, inside AppearanceSection, and a page-level "cfg_" property has to
-    // bind to it somehow. These four have no such child component to reach
-    // into -- the auto-hide FormLayout below is declared right here -- so a
-    // plain property is the whole story.
+    // down, inside AppearanceSection or TrackInfoSection, and a page-level
+    // "cfg_" property has to bind to it somehow. These four have no such
+    // child component to reach into -- the auto-hide FormLayout below is
+    // declared right here -- so a plain property is the whole story.
     property bool cfg_desktopAutoHide
     property int cfg_desktopHideDelaySec
     property int cfg_desktopHideAnimationMs
@@ -84,75 +149,102 @@ Kirigami.ScrollablePage {
             text: i18n("These settings affect this widget only; other widgets are not affected.")
         }
 
-        AppearanceSection {
-            id: appearanceSection
+        ThemeTabs {
+            id: themeTabs
             Layout.fillWidth: true
-            plateMode: page.cfg_desktopPlateMode
-            solidColor: page.cfg_desktopSolidColor
-            textColor: page.cfg_desktopTextColor
-            strokeEnabled: page.cfg_desktopStroke
-            strokeColor: page.cfg_desktopStrokeColor
-            fontCatalog: FontCatalog
-            fontFamily: page.cfg_desktopFontFamily
-            lyricEffectiveFamily: page.lyricFamily
-            fontWeight: page.cfg_desktopFontWeight
-            overflowMode: page.cfg_desktopOverflow
-            animationMode: page.cfg_desktopAnimation
-            fontSizeControl: desktopFontSize
-            translationControl: desktopTranslation
-            secondLineSource: page.cfg_desktopSecondLineSource
-            secondLineColorEnabled: page.cfg_desktopSecondLineColorEnabled
-            secondLineColor: page.cfg_desktopSecondLineColor
-            lineHeightPercent: page.cfg_desktopLineHeight
-            // Kept as a literal, matching main.qml's fullRepresentation
-            // lineHeightMinPercent: 125 override rather than sharing one
-            // constant -- DESIGN.md decision 69 has the reasoning.
-            lineHeightMin: 125
-            liftSupported: true
-            wordByWord: page.cfg_desktopWordByWord
-            syntheticWordByWord: page.cfg_desktopWordByWordSynthetic
-            wordUnsungColor: page.cfg_desktopWordUnsungColor
-            wordActiveColor: page.cfg_desktopWordActiveColor
-            wordSungColor: page.cfg_desktopWordSungColor
-            wordLift: page.cfg_desktopWordLift
-            wordLiftRowVisible: page.cfg_desktopWordByWord && page.cfg_desktopWordLift
-            wordLiftPercent: page.cfg_desktopWordLiftPercent
-            wordBrightness: page.cfg_desktopWordBrightness
-            wordBrightnessPercent: page.cfg_desktopWordBrightnessPercent
-            wordBlurGlow: page.cfg_desktopWordBlurGlow
-            onSecondLineSourceEdited: value => page.cfg_desktopSecondLineSource = value
-            onSecondLineColorEnabledEdited: value => page.cfg_desktopSecondLineColorEnabled = value
-            onSecondLineColorEdited: value => page.cfg_desktopSecondLineColor = value
-            onLineHeightPercentEdited: value => page.cfg_desktopLineHeight = value
-            onWordByWordEdited: value => page.cfg_desktopWordByWord = value
-            onSyntheticWordByWordEdited: value => page.cfg_desktopWordByWordSynthetic = value
-            onWordUnsungColorEdited: value => page.cfg_desktopWordUnsungColor = value
-            onWordActiveColorEdited: value => page.cfg_desktopWordActiveColor = value
-            onWordSungColorEdited: value => page.cfg_desktopWordSungColor = value
-            onWordLiftEdited: value => page.cfg_desktopWordLift = value
-            onWordLiftPercentEdited: value => page.cfg_desktopWordLiftPercent = value
-            onWordBrightnessEdited: value => page.cfg_desktopWordBrightness = value
-            onWordBrightnessPercentEdited: value => page.cfg_desktopWordBrightnessPercent = value
-            onWordBlurGlowEdited: value => page.cfg_desktopWordBlurGlow = value
-            onPlateModeEdited: value => page.cfg_desktopPlateMode = value
-            onSolidColorEdited: value => page.cfg_desktopSolidColor = value
-            onTextColorEdited: value => page.cfg_desktopTextColor = value
-            onStrokeEnabledEdited: value => page.cfg_desktopStroke = value
-            onStrokeColorEdited: value => page.cfg_desktopStrokeColor = value
-            onFontFamilyEdited: value => page.cfg_desktopFontFamily = value
-            onFontWeightEdited: value => page.cfg_desktopFontWeight = value
-            onOverflowModeEdited: value => page.cfg_desktopOverflow = value
-            onAnimationModeEdited: value => page.cfg_desktopAnimation = value
+            formFactor: "desktop"
+            mode: page.cfg_desktopColorSchemeMode
+            twinFormLayouts: [appearanceSection]
+            onModeEdited: value => page.cfg_desktopColorSchemeMode = value
+            onSyncConfirmed: fromDark => page.syncFrom(fromDark)
 
+            AppearanceSection {
+                id: appearanceSection
+                Layout.fillWidth: true
+                plateMode: page.themed("PlateMode")
+                solidColor: page.themed("SolidColor")
+                textColor: page.themed("TextColor")
+                strokeEnabled: page.themed("Stroke")
+                strokeColor: page.themed("StrokeColor")
+                fontCatalog: FontCatalog
+                fontFamily: page.themed("FontFamily")
+                lyricEffectiveFamily: page.lyricFamily
+                fontWeight: page.themed("FontWeight")
+                overflowMode: page.themed("Overflow")
+                animationMode: page.themed("Animation")
+                fontSizeControl: page.editingDark ? desktopFontSize : desktopLightFontSize
+                translationControl: page.editingDark ? desktopTranslation : desktopLightTranslation
+                secondLineSource: page.themed("SecondLineSource")
+                secondLineColorEnabled: page.themed("SecondLineColorEnabled")
+                secondLineColor: page.themed("SecondLineColor")
+                lineHeightPercent: page.themed("LineHeight")
+                // Kept as a literal, matching main.qml's fullRepresentation
+                // lineHeightMinPercent: 125 override rather than sharing one
+                // constant -- DESIGN.md decision 69 has the reasoning.
+                lineHeightMin: 125
+                liftSupported: true
+                wordByWord: page.themed("WordByWord")
+                syntheticWordByWord: page.themed("WordByWordSynthetic")
+                wordUnsungColor: page.themed("WordUnsungColor")
+                wordActiveColor: page.themed("WordActiveColor")
+                wordSungColor: page.themed("WordSungColor")
+                wordLift: page.themed("WordLift")
+                wordLiftRowVisible: page.themed("WordByWord") && page.themed("WordLift")
+                wordLiftPercent: page.themed("WordLiftPercent")
+                wordBrightness: page.themed("WordBrightness")
+                wordBrightnessPercent: page.themed("WordBrightnessPercent")
+                wordBlurGlow: page.themed("WordBlurGlow")
+                onSecondLineSourceEdited: value => page.editThemed("SecondLineSource", value)
+                onSecondLineColorEnabledEdited: value => page.editThemed("SecondLineColorEnabled", value)
+                onSecondLineColorEdited: value => page.editThemed("SecondLineColor", value)
+                onLineHeightPercentEdited: value => page.editThemed("LineHeight", value)
+                onWordByWordEdited: value => page.editThemed("WordByWord", value)
+                onSyntheticWordByWordEdited: value => page.editThemed("WordByWordSynthetic", value)
+                onWordUnsungColorEdited: value => page.editThemed("WordUnsungColor", value)
+                onWordActiveColorEdited: value => page.editThemed("WordActiveColor", value)
+                onWordSungColorEdited: value => page.editThemed("WordSungColor", value)
+                onWordLiftEdited: value => page.editThemed("WordLift", value)
+                onWordLiftPercentEdited: value => page.editThemed("WordLiftPercent", value)
+                onWordBrightnessEdited: value => page.editThemed("WordBrightness", value)
+                onWordBrightnessPercentEdited: value => page.editThemed("WordBrightnessPercent", value)
+                onWordBlurGlowEdited: value => page.editThemed("WordBlurGlow", value)
+                onPlateModeEdited: value => page.editThemed("PlateMode", value)
+                onSolidColorEdited: value => page.editThemed("SolidColor", value)
+                onTextColorEdited: value => page.editThemed("TextColor", value)
+                onStrokeEnabledEdited: value => page.editThemed("Stroke", value)
+                onStrokeColorEdited: value => page.editThemed("StrokeColor", value)
+                onFontFamilyEdited: value => page.editThemed("FontFamily", value)
+                onFontWeightEdited: value => page.editThemed("FontWeight", value)
+                onOverflowModeEdited: value => page.editThemed("Overflow", value)
+                onAnimationModeEdited: value => page.editThemed("Animation", value)
+
+                showTrackInfo: page.cfg_desktopShowTrackInfo
+                trackInfoColor: page.themed("TrackInfoColor")
+                trackInfoStrokeEnabled: page.themed("TrackInfoStroke")
+                trackInfoStrokeColor: page.themed("TrackInfoStrokeColor")
+                onTrackInfoColorEdited: value => page.editThemed("TrackInfoColor", value)
+                onTrackInfoStrokeEnabledEdited: value => page.editThemed("TrackInfoStroke", value)
+                onTrackInfoStrokeColorEdited: value => page.editThemed("TrackInfoStrokeColor", value)
+                // Shared by both sets: see editLyricFamily.
+                trackInfoFontSameAsLyrics: page.cfg_desktopTrackInfoFontSameAsLyrics
+                trackInfoFontWeight: page.cfg_desktopTrackInfoFontWeight
+                onTrackInfoFontWeightEdited: value => page.cfg_desktopTrackInfoFontWeight = value
+            }
+        }
+
+        // The rest of the track info, shared by both sets and so outside
+        // the tabs.
+        TrackInfoSection {
+            Layout.fillWidth: true
+            twinFormLayouts: [appearanceSection]
+            fontCatalog: FontCatalog
+            lyricEffectiveFamily: page.lyricFamily
+            trackInfoEffectiveFamily: page.trackInfoFamily
             showTrackInfo: page.cfg_desktopShowTrackInfo
             trackInfoLayout: page.cfg_desktopTrackInfoLayout
             trackInfoFontSameAsLyrics: page.cfg_desktopTrackInfoFontSameAsLyrics
             trackInfoFontFamily: page.cfg_desktopTrackInfoFontFamily
-            trackInfoEffectiveFamily: page.trackInfoFamily
             trackInfoFontWeight: page.cfg_desktopTrackInfoFontWeight
-            trackInfoColor: page.cfg_desktopTrackInfoColor
-            trackInfoStrokeEnabled: page.cfg_desktopTrackInfoStroke
-            trackInfoStrokeColor: page.cfg_desktopTrackInfoStrokeColor
             trackInfoOverflow: page.cfg_desktopTrackInfoOverflow
             trackInfoFontSizeControl: desktopTrackInfoFontSize
             onShowTrackInfoEdited: value => page.cfg_desktopShowTrackInfo = value
@@ -160,14 +252,13 @@ Kirigami.ScrollablePage {
             onTrackInfoFontSameAsLyricsEdited: value => page.cfg_desktopTrackInfoFontSameAsLyrics = value
             onTrackInfoFontFamilyEdited: value => page.cfg_desktopTrackInfoFontFamily = value
             onTrackInfoFontWeightEdited: value => page.cfg_desktopTrackInfoFontWeight = value
-            onTrackInfoColorEdited: value => page.cfg_desktopTrackInfoColor = value
-            onTrackInfoStrokeEnabledEdited: value => page.cfg_desktopTrackInfoStroke = value
-            onTrackInfoStrokeColorEdited: value => page.cfg_desktopTrackInfoStrokeColor = value
             onTrackInfoOverflowEdited: value => page.cfg_desktopTrackInfoOverflow = value
         }
 
         QQC2.SpinBox { id: desktopFontSize; visible: false }
+        QQC2.SpinBox { id: desktopLightFontSize; visible: false }
         QQC2.CheckBox { id: desktopTranslation; visible: false }
+        QQC2.CheckBox { id: desktopLightTranslation; visible: false }
         QQC2.SpinBox { id: desktopTrackInfoFontSize; visible: false }
 
         // A second top-level form rather than a section grafted onto

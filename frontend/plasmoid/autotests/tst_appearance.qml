@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import QtTest
 import QtQuick.Window
@@ -8,6 +9,7 @@ import io.github.swim233.lyrics
 import "../package/contents/ui" as LyricsUi
 import "../package/contents/ui/config" as LyricsConfig
 import "../package/contents/ui/TextPolicy.js" as TextPolicy
+import "../package/contents/ui/ThemePolicy.js" as ThemePolicy
 
 // A QML binding loop is never a QtTest failure: it is only a warning, so
 // this binary's own exit code is 0 and its own Totals line reports 0 failed
@@ -114,6 +116,46 @@ TestCase {
         LyricsConfig.ConfigPanelAppearance {}
     }
 
+    // A shown window for a page, for the tests that need Item.visible or a
+    // click: the page is created into its contentItem. `overlay` is for
+    // applicationWindow() below.
+    Component {
+        id: pageWindowComponent
+        Window {
+            readonly property Item overlay: QQC2.Overlay.overlay
+            width: Kirigami.Units.gridUnit * 38
+            height: Kirigami.Units.gridUnit * 34
+            visible: true
+        }
+    }
+
+    // Kirigami.Dialog parents itself to applicationWindow().overlay, which
+    // the config dialog provides (AppletConfiguration.qml defines
+    // applicationWindow() for the pages it loads). Without one, the sync
+    // dialog falls back to the item it is declared in, and opening it there
+    // reported binding loops on its y. The window is the one
+    // createWindowedPage() made last; a page outside a window gets no
+    // overlay, and its dialog is never opened.
+    property Window dialogWindow: null
+
+    function applicationWindow() {
+        return dialogWindow || { overlay: null };
+    }
+
+    // A page opens on the tab of the set in effect (DESIGN.md decision 75),
+    // which in this suite, with no platform theme to report a colour
+    // scheme, is the light one unless the mode pins dark. The tests written
+    // against the original <form><Suffix> keys -- the dark set -- open the
+    // page pinned to dark.
+    function createDarkPage(component, form, properties) {
+        const props = Object.assign({}, properties || {});
+        props["cfg_" + ThemePolicy.modeKey(form)] = "dark";
+        const page = createTemporaryObject(component, this, props);
+        verify(page !== null, form);
+        compare(page.editingDark, true, form);
+        return page;
+    }
+
     // An AppearanceSection inside a window that is actually shown, for the
     // same reason windowedLineComponent above exists: Item.visible is
     // ancestor-combined and reads false everywhere else in this suite, and
@@ -127,7 +169,6 @@ TestCase {
     // dialog's and the form lays out differently.
     QtObject { id: stubFontSize; property int value: 34 }
     QtObject { id: stubTranslation; property bool checked: true }
-    QtObject { id: stubTrackInfoFontSize; property int value: 18 }
     Component {
         id: windowedAppearanceSectionComponent
         Window {
@@ -140,10 +181,8 @@ TestCase {
                 width: Kirigami.Units.gridUnit * 39
                 fontCatalog: FontCatalog
                 lyricEffectiveFamily: Kirigami.Theme.defaultFont.family
-                trackInfoEffectiveFamily: Kirigami.Theme.defaultFont.family
                 fontSizeControl: stubFontSize
                 translationControl: stubTranslation
-                trackInfoFontSizeControl: stubTrackInfoFontSize
             }
         }
     }
@@ -416,9 +455,10 @@ TestCase {
         // Decision 40 put desktop and panel on separate tabs, so what used
         // to be "two sections on one page" is now two page instances, each
         // carrying exactly one AppearanceSection. Crossing the two only
-        // shows up as "the panel setting moved the desktop widget".
-        const desktopPage = createTemporaryObject(configDesktopAppearanceComponent, this);
-        const panelPage = createTemporaryObject(configPanelAppearanceComponent, this);
+        // shows up as "the panel setting moved the desktop widget". Opened
+        // on the Dark tab, whose keys are the original ones (decision 75).
+        const desktopPage = createDarkPage(configDesktopAppearanceComponent, "desktop");
+        const panelPage = createDarkPage(configPanelAppearanceComponent, "panel");
         verify(desktopPage !== null);
         verify(panelPage !== null);
         const desktopSections = findAll(desktopPage, o => typeof o.textColorEdited === "function");
@@ -449,8 +489,8 @@ TestCase {
     }
 
     function test_configValueReachesTheColorRow() {
-        const desktopPage = createTemporaryObject(configDesktopAppearanceComponent, this);
-        const panelPage = createTemporaryObject(configPanelAppearanceComponent, this);
+        const desktopPage = createDarkPage(configDesktopAppearanceComponent, "desktop");
+        const panelPage = createDarkPage(configPanelAppearanceComponent, "panel");
         const desktopSections = findAll(desktopPage, o => typeof o.textColorEdited === "function");
         const panelSections = findAll(panelPage, o => typeof o.textColorEdited === "function");
         desktopPage.cfg_desktopTextColor = "#0f0f0f";
@@ -1390,8 +1430,8 @@ TestCase {
     }
 
     function test_wordSettingsReachTheirOwnConfigProperties() {
-        const desktopPage = createTemporaryObject(configDesktopAppearanceComponent, this);
-        const panelPage = createTemporaryObject(configPanelAppearanceComponent, this);
+        const desktopPage = createDarkPage(configDesktopAppearanceComponent, "desktop");
+        const panelPage = createDarkPage(configPanelAppearanceComponent, "panel");
         const desktop = findAll(desktopPage, o => typeof o.wordActiveColorEdited === "function")[0];
         const panel = findAll(panelPage, o => typeof o.wordActiveColorEdited === "function")[0];
         verify(desktop !== undefined);
@@ -1823,6 +1863,483 @@ TestCase {
             // allowed the whole content width is back to being what the
             // page sizes itself to.
             verify(description.width < section.width);
+        }
+    }
+
+    // ---- light and dark sets (DESIGN.md decision 75) ----
+
+    function pageComponent(form) {
+        return form === "desktop" ? configDesktopAppearanceComponent : configPanelAppearanceComponent;
+    }
+
+    function named(root, objectName) {
+        const found = findAll(root, o => o.objectName === objectName);
+        compare(found.length, 1, objectName);
+        return found[0];
+    }
+
+    function sectionOf(page) {
+        return findAll(page, o => typeof o.textColorEdited === "function")[0];
+    }
+
+    function trackInfoSectionOf(page) {
+        return findAll(page, o => typeof o.trackInfoFontFamilyEdited === "function")[0];
+    }
+
+    function modeProperties(form, mode) {
+        const props = {};
+        props["cfg_" + ThemePolicy.modeKey(form)] = mode;
+        return props;
+    }
+
+    // Waits until `item` stops moving, as tst_fontpicker.qml's settle()
+    // does before a click: FormLayout lays its rows out from zero-interval
+    // timers.
+    function settle(item) {
+        let last = "";
+        tryVerify(() => {
+            const corner = item.mapToItem(null, 0, 0);
+            const now = [corner.x, corner.y, item.width, item.height].join(",");
+            const unchanged = now === last;
+            last = now;
+            return unchanged;
+        });
+    }
+
+    // Scrolls the page so that `item` is in view, for a click on it.
+    function scrollIntoView(page, item) {
+        const flickable = page.flickable;
+        const top = item.mapToItem(flickable.contentItem, 0, 0).y;
+        flickable.contentY = Math.max(0, Math.min(top - Kirigami.Units.gridUnit * 2,
+            flickable.contentHeight - flickable.height));
+        settle(item);
+    }
+
+    function createWindowedPage(form, properties, windowProperties) {
+        const win = createTemporaryObject(pageWindowComponent, this, windowProperties || {});
+        verify(win !== null);
+        dialogWindow = win;
+        const props = Object.assign({ width: win.width, height: win.height }, properties || {});
+        const page = createTemporaryObject(pageComponent(form), win.contentItem, props);
+        verify(page !== null, form);
+        tryVerify(() => page.visible);
+        return page;
+    }
+
+    // Every key of both sets with a value of its own, the two sets apart
+    // from each other and from the shared keys, which get values of their
+    // own too. Within the hidden SpinBoxes' default 0-99 range.
+    function distinctConfiguration(form, mode) {
+        const props = modeProperties(form, mode);
+        const suffixes = ThemePolicy.themedSuffixes(form);
+        for (let i = 0; i < suffixes.length; ++i) {
+            const suffix = suffixes[i];
+            for (const dark of [false, true]) {
+                const kind = typeof ThemePolicy.darkDefaults[form][suffix];
+                let value;
+                if (kind === "boolean") {
+                    value = dark;
+                } else if (kind === "number") {
+                    value = (dark ? 40 : 10) + i;
+                } else if (suffix.endsWith("Color")) {
+                    value = (dark ? "#cc" : "#33") + ("000000" + (i * 4097).toString(16)).slice(-6);
+                } else {
+                    value = (dark ? "dark" : "light") + suffix;
+                }
+                props["cfg_" + ThemePolicy.keyPrefix(form, dark) + suffix] = value;
+            }
+        }
+        const shared = {
+            ShowTrackInfo: true,
+            TrackInfoLayout: "double",
+            TrackInfoFontSameAsLyrics: false,
+            TrackInfoFontFamily: "Shared Family",
+            TrackInfoFontSize: 21,
+            TrackInfoFontWeight: 600,
+            TrackInfoOverflow: "elide",
+            AutoHide: true,
+            HideDelaySec: 9,
+            HideNonMusic: false
+        };
+        if (form === "desktop") {
+            shared.HideAnimationMs = 450;
+        } else {
+            shared.Width = 333;
+        }
+        for (const key of Object.keys(shared)) {
+            props["cfg_" + form + key] = shared[key];
+        }
+        return props;
+    }
+
+    // What shows each themed key on AppearanceSection and the signal an edit
+    // of it emits -- or, for the two keys the section writes through a
+    // hidden control on the page, that control.
+    readonly property var themedRows: ({
+        PlateMode: { property: "plateMode", signal: "plateModeEdited" },
+        SolidColor: { property: "solidColor", signal: "solidColorEdited" },
+        TextColor: { property: "textColor", signal: "textColorEdited" },
+        Stroke: { property: "strokeEnabled", signal: "strokeEnabledEdited" },
+        StrokeColor: { property: "strokeColor", signal: "strokeColorEdited" },
+        FontFamily: { property: "fontFamily", signal: "fontFamilyEdited" },
+        FontSize: { control: "fontSizeControl", controlProperty: "value" },
+        FontWeight: { property: "fontWeight", signal: "fontWeightEdited" },
+        Overflow: { property: "overflowMode", signal: "overflowModeEdited" },
+        Animation: { property: "animationMode", signal: "animationModeEdited" },
+        ShowTranslation: { control: "translationControl", controlProperty: "checked" },
+        SecondLineSource: { property: "secondLineSource", signal: "secondLineSourceEdited" },
+        SecondLineColorEnabled: { property: "secondLineColorEnabled", signal: "secondLineColorEnabledEdited" },
+        SecondLineColor: { property: "secondLineColor", signal: "secondLineColorEdited" },
+        LineHeight: { property: "lineHeightPercent", signal: "lineHeightPercentEdited" },
+        WordByWord: { property: "wordByWord", signal: "wordByWordEdited" },
+        WordByWordSynthetic: { property: "syntheticWordByWord", signal: "syntheticWordByWordEdited" },
+        WordUnsungColor: { property: "wordUnsungColor", signal: "wordUnsungColorEdited" },
+        WordActiveColor: { property: "wordActiveColor", signal: "wordActiveColorEdited" },
+        WordSungColor: { property: "wordSungColor", signal: "wordSungColorEdited" },
+        WordLift: { property: "wordLift", signal: "wordLiftEdited" },
+        WordLiftPercent: { property: "wordLiftPercent", signal: "wordLiftPercentEdited" },
+        WordBrightness: { property: "wordBrightness", signal: "wordBrightnessEdited" },
+        WordBrightnessPercent: { property: "wordBrightnessPercent", signal: "wordBrightnessPercentEdited" },
+        WordBlurGlow: { property: "wordBlurGlow", signal: "wordBlurGlowEdited" },
+        TrackInfoColor: { property: "trackInfoColor", signal: "trackInfoColorEdited" },
+        TrackInfoStroke: { property: "trackInfoStrokeEnabled", signal: "trackInfoStrokeEnabledEdited" },
+        TrackInfoStrokeColor: { property: "trackInfoStrokeColor", signal: "trackInfoStrokeColorEdited" }
+    })
+
+    // The config dialog loads and saves exactly the cfg_ properties a page
+    // declares (AppletConfiguration.qml checks `"cfg_" + key in page` and
+    // hasOwnProperty()), so a light key left undeclared is one the Light tab
+    // could show but never store.
+    function test_pagesDeclareBothSetsAndTheMode() {
+        for (const form of ["desktop", "panel"]) {
+            const page = createTemporaryObject(pageComponent(form), this);
+            verify(page !== null, form);
+            const suffixes = ThemePolicy.themedSuffixes(form);
+            compare(suffixes.length, form === "desktop" ? 28 : 26, form);
+            const keys = ["cfg_" + ThemePolicy.modeKey(form)];
+            for (const suffix of suffixes) {
+                keys.push("cfg_" + ThemePolicy.keyPrefix(form, false) + suffix);
+                keys.push("cfg_" + ThemePolicy.keyPrefix(form, true) + suffix);
+            }
+            for (const key of keys) {
+                verify(key in page, key);
+                verify(page.hasOwnProperty(key), key);
+            }
+        }
+    }
+
+    function test_theSetInEffectOpensAndIsMarkedCurrent_data() {
+        return [
+            { tag: "auto", mode: "auto" },
+            { tag: "light", mode: "light" },
+            { tag: "dark", mode: "dark" }
+        ];
+    }
+
+    // No platform theme reports a colour scheme to this suite, which "auto"
+    // reads as light; the expectation is computed rather than assumed, so a
+    // run under one that does still checks the right thing.
+    function test_theSetInEffectOpensAndIsMarkedCurrent(data) {
+        const dark = ThemePolicy.isDark(Application.styleHints.colorScheme, data.mode);
+        for (const form of ["desktop", "panel"]) {
+            const page = createTemporaryObject(pageComponent(form), this, modeProperties(form, data.mode));
+            verify(page !== null, form);
+            const tabBar = named(page, "themeTabBar");
+            compare(tabBar.currentIndex, dark ? 1 : 0, form);
+            compare(page.editingDark, dark, form);
+            compare(tabBar.itemAt(0).text, dark
+                ? i18nc("@title:tab light color scheme", "Light")
+                : i18nc("@title:tab light color scheme, the set in effect", "Light (current)"), form);
+            compare(tabBar.itemAt(1).text, dark
+                ? i18nc("@title:tab dark color scheme, the set in effect", "Dark (current)")
+                : i18nc("@title:tab dark color scheme", "Dark"), form);
+        }
+    }
+
+    // The mark follows the mode the dialog holds, saved or not; the tab
+    // stays where it is, so the rows being edited do not change under the
+    // user.
+    function test_changingTheModeMovesTheMarkNotTheTab() {
+        for (const form of ["desktop", "panel"]) {
+            const page = createTemporaryObject(pageComponent(form), this, modeProperties(form, "light"));
+            verify(page !== null, form);
+            const tabBar = named(page, "themeTabBar");
+            const combo = named(page, "themeModeComboBox");
+            compare(combo.currentIndex, 1, form);
+            compare(tabBar.currentIndex, 0, form);
+
+            combo.activated(2);
+            compare(page["cfg_" + ThemePolicy.modeKey(form)], "dark", form);
+            compare(combo.currentIndex, 2, form);
+            compare(tabBar.currentIndex, 0, form);
+            compare(page.editingDark, false, form);
+            compare(tabBar.itemAt(0).text, i18nc("@title:tab light color scheme", "Light"), form);
+            compare(tabBar.itemAt(1).text, i18nc("@title:tab dark color scheme, the set in effect", "Dark (current)"), form);
+
+            combo.activated(0);
+            compare(page["cfg_" + ThemePolicy.modeKey(form)], "auto", form);
+            compare(tabBar.currentIndex, 0, form);
+        }
+    }
+
+    function test_theHintShowsOnlyOnTheTabNotInEffect() {
+        const systemDark = ThemePolicy.isDark(Application.styleHints.colorScheme, "auto");
+        for (const form of ["desktop", "panel"]) {
+            const page = createWindowedPage(form, modeProperties(form, "light"));
+            const modeKey = "cfg_" + ThemePolicy.modeKey(form);
+            const tabBar = named(page, "themeTabBar");
+            const hint = named(page, "themeHint");
+            compare(tabBar.currentIndex, 0, form);
+            verify(!hint.visible, form);
+            tabBar.currentIndex = 1;
+            verify(hint.visible, form);
+            compare(hint.text, i18n("The theme mode is “Always light”, so these settings are not used for now."), form);
+
+            page[modeKey] = "dark";
+            verify(!hint.visible, form);
+            tabBar.currentIndex = 0;
+            verify(hint.visible, form);
+            compare(hint.text, i18n("The theme mode is “Always dark”, so these settings are not used for now."), form);
+
+            page[modeKey] = "auto";
+            tabBar.currentIndex = systemDark ? 0 : 1;
+            verify(hint.visible, form);
+            compare(hint.text, systemDark
+                ? i18n("The system currently uses a dark color scheme. These settings take effect once it switches to a light one.")
+                : i18n("The system currently uses a light color scheme. These settings take effect once it switches to a dark one."), form);
+            tabBar.currentIndex = systemDark ? 1 : 0;
+            verify(!hint.visible, form);
+        }
+    }
+
+    // Every themed key, edited the way its row edits it, on each tab: the
+    // edit reaches the set on screen and leaves the other set alone, and the
+    // row shows the set on screen. A themed key with no row here fails, so
+    // a key added to ThemePolicy.js has to be wired up on both pages.
+    function test_editsReachOnlyTheSetOnScreen() {
+        for (const form of ["desktop", "panel"]) {
+            for (const dark of [false, true]) {
+                const tag = form + (dark ? " dark" : " light");
+                const page = createTemporaryObject(pageComponent(form), this,
+                    distinctConfiguration(form, dark ? "dark" : "light"));
+                verify(page !== null, tag);
+                compare(page.editingDark, dark, tag);
+                const section = sectionOf(page);
+                for (const suffix of ThemePolicy.themedSuffixes(form)) {
+                    const row = themedRows[suffix];
+                    verify(row !== undefined, suffix);
+                    const key = "cfg_" + ThemePolicy.keyPrefix(form, dark) + suffix;
+                    const otherKey = "cfg_" + ThemePolicy.keyPrefix(form, !dark) + suffix;
+                    const other = page[otherKey];
+                    let value;
+                    if (typeof page[key] === "boolean") {
+                        value = !page[key];
+                    } else if (typeof page[key] === "number") {
+                        value = page[key] + 7;
+                    } else {
+                        value = suffix.endsWith("Color") ? "#12345678" : "edited" + suffix;
+                    }
+                    if (row.control !== undefined) {
+                        // What the section's own SpinBox or combo box does.
+                        section[row.control][row.controlProperty] = value;
+                    } else {
+                        section[row.signal](value);
+                        compare(section[row.property], value, key);
+                    }
+                    compare(page[key], value, key);
+                    compare(page[otherKey], other, otherKey);
+                }
+
+                // The other tab shows the other set, untouched.
+                named(page, "themeTabBar").currentIndex = dark ? 0 : 1;
+                compare(page.editingDark, !dark, tag);
+                for (const suffix of ThemePolicy.themedSuffixes(form)) {
+                    const row = themedRows[suffix];
+                    const otherKey = "cfg_" + ThemePolicy.keyPrefix(form, !dark) + suffix;
+                    const shown = row.control !== undefined
+                        ? section[row.control][row.controlProperty]
+                        : section[row.property];
+                    compare(shown, page[otherKey], otherKey);
+                }
+            }
+        }
+    }
+
+    // The rest of the track info is one copy for both sets: its rows sit
+    // outside the tabs and read and write the same keys on either tab.
+    function test_sharedTrackInfoRowsIgnoreTheTab() {
+        for (const form of ["desktop", "panel"]) {
+            const page = createTemporaryObject(pageComponent(form), this,
+                distinctConfiguration(form, "light"));
+            verify(page !== null, form);
+            const themeTabs = findAll(page, o => o.syncDialog !== undefined)[0];
+            const section = sectionOf(page);
+            const trackInfo = trackInfoSectionOf(page);
+            verify(findAll(themeTabs, o => o === section).length === 1, form);
+            verify(findAll(themeTabs, o => o === trackInfo).length === 0, form);
+            const tabBar = named(page, "themeTabBar");
+            const key = name => "cfg_" + form + name;
+
+            compare(tabBar.currentIndex, 0, form);
+            for (const index of [0, 1]) {
+                tabBar.currentIndex = index;
+                const tag = form + " tab " + index;
+                compare(trackInfo.showTrackInfo, true, tag);
+                compare(section.showTrackInfo, true, tag);
+                compare(trackInfo.trackInfoLayout, "double", tag);
+                compare(trackInfo.trackInfoFontFamily, "Shared Family", tag);
+                compare(trackInfo.trackInfoFontSizeControl.value, 21, tag);
+                compare(section.trackInfoFontSameAsLyrics, false, tag);
+            }
+
+            // An edit on one tab is what the other tab shows. The weight is
+            // also written by the lyric font pick, from AppearanceSection.
+            tabBar.currentIndex = 0;
+            trackInfo.trackInfoOverflowEdited("fit");
+            section.trackInfoFontWeightEdited(300);
+            compare(page[key("TrackInfoOverflow")], "fit", form);
+            compare(page[key("TrackInfoFontWeight")], 300, form);
+            tabBar.currentIndex = 1;
+            compare(trackInfo.trackInfoOverflow, "fit", form);
+            compare(trackInfo.trackInfoFontWeight, 300, form);
+            compare(section.trackInfoFontWeight, 300, form);
+            trackInfo.trackInfoLayoutEdited("single");
+            section.trackInfoFontWeightEdited(700);
+            compare(page[key("TrackInfoLayout")], "single", form);
+            compare(page[key("TrackInfoFontWeight")], 700, form);
+            tabBar.currentIndex = 0;
+            compare(trackInfo.trackInfoLayout, "single", form);
+            compare(trackInfo.trackInfoFontWeight, 700, form);
+        }
+    }
+
+    function test_syncFromCopiesEveryKeyOfOneSetAndNothingElse() {
+        for (const form of ["desktop", "panel"]) {
+            for (const fromDark of [true, false]) {
+                const tag = form + (fromDark ? " from dark" : " from light");
+                const props = distinctConfiguration(form, "light");
+                const page = createTemporaryObject(pageComponent(form), this, props);
+                verify(page !== null, tag);
+                const tabBar = named(page, "themeTabBar");
+                const from = "cfg_" + ThemePolicy.keyPrefix(form, fromDark);
+                const to = "cfg_" + ThemePolicy.keyPrefix(form, !fromDark);
+                const suffixes = ThemePolicy.themedSuffixes(form);
+
+                page.syncFrom(fromDark);
+                for (const suffix of suffixes) {
+                    compare(page[to + suffix], props[from + suffix], to + suffix);
+                    compare(page[from + suffix], props[from + suffix], from + suffix);
+                }
+                // The shared keys and the mode are as they were: exactly the
+                // copied keys changed.
+                const changed = Object.keys(props).filter(key => page[key] !== props[key]);
+                compare(changed.length, suffixes.length, tag);
+                compare(tabBar.currentIndex, 0, tag);
+            }
+        }
+    }
+
+    // The button only asks; the copy happens when the user confirms, and
+    // Cancel leaves both sets as they were.
+    function test_theSyncButtonCopiesOnlyOnceConfirmed() {
+        for (const form of ["desktop", "panel"]) {
+            for (const dark of [false, true]) {
+                const tag = form + (dark ? " dark" : " light");
+                const props = distinctConfiguration(form, dark ? "dark" : "light");
+                const page = createWindowedPage(form, props);
+                const themeTabs = findAll(page, o => o.syncDialog !== undefined)[0];
+                const dialog = themeTabs.syncDialog;
+                const button = named(page, "themeSyncButton");
+                const suffixes = ThemePolicy.themedSuffixes(form);
+                const from = "cfg_" + ThemePolicy.keyPrefix(form, !dark);
+                const to = "cfg_" + ThemePolicy.keyPrefix(form, dark);
+                const unchanged = () => Object.keys(props).every(key => page[key] === props[key]);
+
+                compare(button.text, dark
+                    ? i18nc("@action:button", "Sync from light theme")
+                    : i18nc("@action:button", "Sync from dark theme"), tag);
+                settle(button);
+                scrollIntoView(page, button);
+                // Where Kirigami puts it in the config dialog.
+                compare(dialog.parent, dialogWindow.overlay, tag);
+                mouseClick(button);
+                tryVerify(() => dialog.opened);
+                compare(dialog.title, button.text, tag);
+                verify(dialog.subtitle.indexOf(String(suffixes.length)) >= 0, dialog.subtitle);
+                verify(unchanged(), tag);
+
+                dialog.customFooterActions[1].trigger();
+                tryVerify(() => !dialog.visible);
+                verify(unchanged(), tag);
+
+                mouseClick(button);
+                tryVerify(() => dialog.opened);
+                dialog.customFooterActions[0].trigger();
+                tryVerify(() => !dialog.visible);
+                for (const suffix of suffixes) {
+                    compare(page[to + suffix], props[from + suffix], to + suffix);
+                    compare(page[from + suffix], props[from + suffix], from + suffix);
+                }
+                compare(named(page, "themeTabBar").currentIndex, dark ? 1 : 0, tag);
+            }
+        }
+    }
+
+    // The "Track info colors" rows go with the rest of the track info: hidden,
+    // heading included, while the track info is off.
+    function test_trackInfoColorsHideWithTheTrackInfo() {
+        for (const form of ["desktop", "panel"]) {
+            const props = distinctConfiguration(form, "light");
+            props["cfg_" + form + "LightTrackInfoStroke"] = true;
+            const page = createWindowedPage(form, props);
+            const section = sectionOf(page);
+            const heading = named(section, "trackInfoColorsSeparator");
+            const colorRows = findAll(section, o => typeof o.edited === "function");
+            const trackInfoRows = colorRows.slice(-2);
+            verify(heading.visible, form);
+            verify(trackInfoRows.every(row => row.visible), form);
+
+            page["cfg_" + form + "ShowTrackInfo"] = false;
+            verify(!heading.visible, form);
+            verify(trackInfoRows.every(row => !row.visible), form);
+        }
+    }
+
+    // The rows inside the frame share the label and field columns of the
+    // forms outside it: the frame's padding is the same on both sides, and
+    // twinFormLayouts gives every form the same column widths. Wide enough
+    // for the two-column layout in any locale and font.
+    function test_theFormsInsideAndOutsideTheFrameLineUp() {
+        for (const form of ["desktop", "panel"]) {
+            const props = distinctConfiguration(form, "auto");
+            const page = createWindowedPage(form, props, { width: Kirigami.Units.gridUnit * 80 });
+            const inside = named(page, "lyricFontPicker");
+            const outside = [named(page, "themeModeComboBox"), named(page, "trackInfoFontPicker")];
+            settle(inside);
+            outside.forEach(settle);
+            verify(sectionOf(page).wideMode, form);
+            const x = inside.mapToItem(null, 0, 0).x;
+            for (const item of outside) {
+                fuzzyCompare(item.mapToItem(null, 0, 0).x, x, 1, item.objectName);
+            }
+        }
+    }
+
+    // The mode row's description is capped like AppearanceSection's (see
+    // test_aDescriptionCannotWidenTheConfigPage for why the cap is the
+    // mechanism to check).
+    function test_theModeDescriptionCannotWidenThePage() {
+        for (const form of ["desktop", "panel"]) {
+            const page = createWindowedPage(form, modeProperties(form, "auto"));
+            const themeTabs = findAll(page, o => o.syncDialog !== undefined)[0];
+            wait(150);
+            // AppearanceSection's own are inside the frame.
+            const section = sectionOf(page);
+            const descriptions = findAll(themeTabs, o => o.objectName === "formDescription")
+                .filter(label => findAll(section, o => o === label).length === 0);
+            compare(descriptions.length, 1, form);
+            verify(descriptions[0].Layout.maximumWidth < Infinity, form);
+            verify(descriptions[0].width < themeTabs.width, form);
         }
     }
 }
