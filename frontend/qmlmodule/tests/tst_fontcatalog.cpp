@@ -552,6 +552,23 @@ private Q_SLOTS:
         }
     }
 
+    // A Plasma font set to one of Qt's generic names keeps its stored weight:
+    // Qt's one synthetic 400 face is not offered. Debian's CI container has
+    // "Sans Serif" as its default font.
+    void installedGenericFamiliesHaveNoWeights()
+    {
+        const FontCatalog catalog;
+        const QStringList all = QFontDatabase::families();
+        for (const char *generic : {"Sans Serif", "Serif", "Monospace"}) {
+            if (!all.contains(u8(generic))) {
+                continue;
+            }
+            QCOMPARE(catalog.resolveFamily(u8(generic)), u8(generic));
+            QVERIFY2(catalog.weights(u8(generic)).isEmpty(), generic);
+            QCOMPARE(catalog.snapWeight(catalog.weights(u8(generic)), 700), 700);
+        }
+    }
+
     void installedSearch()
     {
         const FontCatalog catalog;
