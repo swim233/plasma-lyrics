@@ -1024,9 +1024,9 @@ TestCase {
         // <form>FontFamily keys; which set an edit reaches is
         // tst_appearance.qml's test_editsReachOnlyTheSetOnScreen.
         const desktopPage = createTemporaryObject(configDesktopAppearanceComponent, this,
-            { cfg_desktopColorSchemeMode: "dark" });
+            { cfg_desktopThemeMode: "dark" });
         const panelPage = createTemporaryObject(configPanelAppearanceComponent, this,
-            { cfg_panelColorSchemeMode: "dark" });
+            { cfg_panelThemeMode: "dark" });
         const desktop = findAll(desktopPage, o => typeof o.fontFamilyEdited === "function")[0];
         const panel = findAll(panelPage, o => typeof o.fontFamilyEdited === "function")[0];
         const desktopTrackInfo = findAll(desktopPage, o => typeof o.trackInfoFontFamilyEdited === "function")[0];

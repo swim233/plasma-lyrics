@@ -296,7 +296,7 @@ private Q_SLOTS:
                 }
             }
         }
-        for (const QString &key : {QStringLiteral("desktopColorSchemeMode"), QStringLiteral("panelColorSchemeMode")}) {
+        for (const QString &key : {QStringLiteral("desktopThemeMode"), QStringLiteral("panelThemeMode")}) {
             if (entries.value(key).defaultValue != QLatin1String("auto")) {
                 problems << QStringLiteral("%1: missing or not defaulting to auto").arg(key);
             }

@@ -17,7 +17,7 @@ ColumnLayout {
 
     // "desktop" or "panel": the key prefix, not Plasmoid.formFactor.
     required property string formFactor
-    // <form>ColorSchemeMode as the dialog holds it, saved or not: the tab
+    // <form>ThemeMode as the dialog holds it, saved or not: the tab
     // labels and the hint follow a change right away.
     property string mode: "auto"
     // Whether the Plasma style is dark; the page reads it (decision 76).

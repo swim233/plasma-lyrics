@@ -120,7 +120,7 @@
          Brightening is off because it fades a word toward opaque white,
          which on dark ink makes the word being sung the palest one on the
          line. -->
-    <entry name="desktopColorSchemeMode" type="String"><default>auto</default></entry>
+    <entry name="desktopThemeMode" type="String"><default>auto</default></entry>
     <entry name="desktopLightPlateMode" type="String"><default>ksvg</default></entry>
     <entry name="desktopLightSolidColor" type="String"><default>#99ffffff</default></entry>
     <entry name="desktopLightTextColor" type="String"><default>#1f1b16</default></entry>
@@ -196,7 +196,7 @@
 
     <!-- See the desktopLight block above; same decision, panel copy, minus
          the two lift keys the panel does not have. -->
-    <entry name="panelColorSchemeMode" type="String"><default>auto</default></entry>
+    <entry name="panelThemeMode" type="String"><default>auto</default></entry>
     <entry name="panelLightPlateMode" type="String"><default>ksvg</default></entry>
     <entry name="panelLightSolidColor" type="String"><default>#99ffffff</default></entry>
     <entry name="panelLightTextColor" type="String"><default>#1f1b16</default></entry>

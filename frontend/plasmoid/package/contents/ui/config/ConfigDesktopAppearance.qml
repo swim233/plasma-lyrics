@@ -53,7 +53,7 @@ Kirigami.ScrollablePage {
     // lists; the keys above with those suffixes are the dark copies. One
     // property per key, as for the dark set: the config dialog loads and
     // saves only the cfg_ properties a page declares.
-    property string cfg_desktopColorSchemeMode
+    property string cfg_desktopThemeMode
     property string cfg_desktopLightPlateMode
     property string cfg_desktopLightSolidColor
     property string cfg_desktopLightTextColor
@@ -165,10 +165,10 @@ Kirigami.ScrollablePage {
             Layout.fillWidth: true
             formFactor: "desktop"
             styleDark: page.styleDark
-            mode: page.cfg_desktopColorSchemeMode
+            mode: page.cfg_desktopThemeMode
             twinFormLayouts: [appearanceSection]
             wideMode: appearanceSection.wideMode
-            onModeEdited: value => page.cfg_desktopColorSchemeMode = value
+            onModeEdited: value => page.cfg_desktopThemeMode = value
             onSyncConfirmed: fromDark => page.syncFrom(fromDark)
 
             AppearanceSection {

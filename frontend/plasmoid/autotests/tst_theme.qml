@@ -58,7 +58,7 @@ TestCase {
         }
         compare(ThemePolicy.keyPrefix("desktop", true), "desktop");
         compare(ThemePolicy.keyPrefix("panel", false), "panelLight");
-        compare(ThemePolicy.modeKey("panel"), "panelColorSchemeMode");
+        compare(ThemePolicy.modeKey("panel"), "panelThemeMode");
     }
 
     function test_isDark_data() {
@@ -135,7 +135,7 @@ TestCase {
         id: themeComponent
         QtObject {
             id: harness
-            property string desktopColorSchemeMode: "auto"
+            property string desktopThemeMode: "auto"
             property string desktopTextColor: "#fffaf5"
             property string desktopLightTextColor: "#1f1b16"
             property bool styleDark: false
@@ -237,13 +237,13 @@ TestCase {
 
     function test_themeModePinsASet() {
         const harness = createSettled(themeComponent,
-            { styleDark: true, desktopColorSchemeMode: "light" });
+            { styleDark: true, desktopThemeMode: "light" });
         compare(harness.theme.dark, false);
         harness.styleDark = false;
         harness.styleDark = true;
         compare(harness.darkChanges, 0);
         // Changing the mode is a switch like any other.
-        harness.desktopColorSchemeMode = "auto";
+        harness.desktopThemeMode = "auto";
         compare(harness.theme.dark, true);
         compare(harness.transitioningWhenDarkChanged, true);
     }
@@ -370,7 +370,7 @@ TestCase {
             property bool styleDark: false
             property int transitionMs: 150
             readonly property QtObject configuration: QtObject {
-                property string desktopColorSchemeMode: "auto"
+                property string desktopThemeMode: "auto"
                 property string desktopPlateMode: "ksvg"
                 property string desktopLightPlateMode: "solid"
                 property string desktopTextColor: "#fffaf5"

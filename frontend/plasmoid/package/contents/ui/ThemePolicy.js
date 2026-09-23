@@ -89,7 +89,7 @@ function keyPrefix(formFactor, dark) {
 }
 
 function modeKey(formFactor) {
-    return formFactor + "ColorSchemeMode";
+    return formFactor + "ThemeMode";
 }
 
 // Whether a background colour is a dark one: qGray() below 192, the rule
