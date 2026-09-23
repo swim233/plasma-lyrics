@@ -7,7 +7,9 @@ player. Browser playback through `plasma-browser-integration` and local MPRIS
 players are supported. Lyrics use local files first, then NetEase and AMLL TTML DB
 by default; sources can be reordered, enabled individually, and preferred per song. A persistent track-info row above the lyrics shows
 the current title and artist, on by default on the desktop and off in the
-panel; both are independently configurable.
+panel; both are independently configurable. Each widget keeps a light and a
+dark set of appearance settings and follows the system colour scheme, or
+stays on one set.
 
 ## Build
 
