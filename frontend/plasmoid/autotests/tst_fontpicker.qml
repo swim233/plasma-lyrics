@@ -77,13 +77,19 @@ TestCase {
                 }
                 return catalog.aliases[stored] || "";
             }
+            // Every standard step, unless a test sets this to [] to stand
+            // for a Plasma font set to one of Qt's generic names, whose faces
+            // the real catalog does not know.
+            property var systemFaces: {
+                const all = [];
+                for (let weight = 100; weight <= 900; weight += 100) {
+                    all.push({ weight: weight, styleName: "Face" + weight });
+                }
+                return all;
+            }
             function weights(family) {
                 if (family === catalog.systemFamily) {
-                    const all = [];
-                    for (let weight = 100; weight <= 900; weight += 100) {
-                        all.push({ weight: weight, styleName: "Face" + weight });
-                    }
-                    return all;
+                    return catalog.systemFaces;
                 }
                 return catalog.faces[family] || [];
             }
@@ -293,15 +299,20 @@ TestCase {
         return picker.entryList.entries[picker.entryList.currentIndex];
     }
 
-    // The closed box's text. currentLabel is asserted exactly; displayText is
-    // it elided to the box's width, and how much fits depends on the fonts
-    // and style of the machine running this (CI's containers have few fonts
-    // and fall back to Fusion), so it is only checked to be the label or a
-    // cut-down form of it. Qt ends an elided string with U+2026, or with
-    // three dots when the font has no such glyph.
+    // The closed box's text: currentLabel, drawn by the box's own field in
+    // the box's font, with displayText left empty so that no style paints a
+    // second copy in the UI font. The field shows currentLabel elided to its
+    // width, and how much fits depends on the fonts of the machine running
+    // this (CI's containers have few), so the shown text is only checked to
+    // be the label or a cut-down form of it. Qt ends an elided string with
+    // U+2026, or with three dots when the font has no such glyph.
     function compareLabel(picker, label) {
         compare(picker.currentLabel, label);
-        const shown = picker.displayText;
+        compare(picker.displayText, "");
+        compare(picker.Accessible.name, label);
+        const closed = named(picker, "closedLabel");
+        compare(closed.font.family, picker.font.family);
+        const shown = closed.text;
         if (shown === label) {
             return;
         }
@@ -509,6 +520,9 @@ TestCase {
         const index = lyric.entryList.currentIndex;
         const row = lyric.entryList.itemAtIndex(index);
         verify(row !== null);
+        // The row's own text is not drawn (its contentItem is), but it is
+        // what a screen reader reads out.
+        compare(row.text, "Beta Serif");
         const texts = findAll(row, o => o.text !== undefined && o.font !== undefined).map(o => o.text);
         verify(texts.includes("Beta Serif"), texts);
         verify(texts.includes("Beta Antiqua, ベータ明朝"), texts);
@@ -754,6 +768,51 @@ TestCase {
         compare(win.fontWeight, 300);
     }
 
+    function test_aFamilyWithUnknownFacesOffersTheSixSteps() {
+        const win = makeHarness({
+            fontFamily: "",
+            fontWeight: 700,
+            trackInfoFontSameAsLyrics: true,
+            trackInfoFontWeight: 800
+        }, { systemFaces: [] });
+        const lyricWeight = named(win.section, "lyricWeightComboBox");
+        const trackInfoWeight = named(win.section, "trackInfoWeightComboBox");
+        compare(lyricWeight.model, ["Light", "Regular", "Medium", "Demi bold", "Bold", "Black"]);
+        verify(lyricWeight.enabled);
+        compare(lyricWeight.currentText, "Bold");
+        // A stored weight that is none of the six is listed in its place,
+        // so the row never reads as a weight other than the one drawn.
+        compare(trackInfoWeight.model, ["Light", "Regular", "Medium", "Demi bold", "Bold", "Extra bold", "Black"]);
+        compare(trackInfoWeight.currentText, "Extra bold");
+        win.fontWeight = 450;
+        compare(lyricWeight.model, ["Light", "Regular", "450", "Medium", "Demi bold", "Bold", "Black"]);
+        compare(lyricWeight.currentText, "450");
+        compare(win.edits, []);
+
+        lyricWeight.activated(3);
+        compare(win.edits, ["fontWeight=500"]);
+        compare(lyricWeight.model, ["Light", "Regular", "Medium", "Demi bold", "Bold", "Black"]);
+        compare(lyricWeight.currentText, "Medium");
+    }
+
+    function test_movingOntoAFamilyWithUnknownFacesKeepsTheStoredWeights() {
+        const win = makeHarness({
+            fontFamily: "Beta Serif",
+            fontWeight: 700,
+            trackInfoFontSameAsLyrics: true,
+            trackInfoFontWeight: 316
+        }, { systemFaces: [] });
+        const lyric = named(win.section, "lyricFontPicker");
+        openPicker(lyric);
+        clickRow(lyric, 0);
+        tryVerify(() => !lyric.popup.visible);
+        // The family changed, so both weights are written, but snapped onto
+        // an empty list they are what was stored.
+        compare(win.edits, ["fontFamily=", "fontWeight=700", "trackInfoFontWeight=316"]);
+        compare(named(win.section, "lyricWeightComboBox").currentText, "Bold");
+        compare(named(win.section, "trackInfoWeightComboBox").currentText, "316");
+    }
+
     function test_theFontControlsCannotWidenThePage() {
         // The page sizes itself to its widest row (AppearanceSection's
         // formDescription comment has the measurements). Neither picker
@@ -775,8 +834,10 @@ TestCase {
         }
         const lyric = named(longName.section, "lyricFontPicker");
         compareLabel(lyric, longFamily);
-        // Over 200 characters fit in 14 gridUnits in no font at all.
-        verify(lyric.displayText.length < longFamily.length);
+        // Over 200 characters fit in 20 gridUnits in no font at all.
+        const closed = named(lyric, "closedLabel");
+        verify(closed.text.length < longFamily.length);
+        verify(closed.width <= lyric.availableWidth);
     }
 
     // The pages are created the way the config dialog creates them: every
