@@ -16,6 +16,7 @@
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
+#include <QHash>
 #include <QRegularExpression>
 #include <QSet>
 #include <QTest>
@@ -58,6 +59,31 @@ QStringList parsedEntryNames(const QByteArray &xml, bool *hadError, QString *err
     *errorText = reader.errorString();
     *errorLine = reader.lineNumber();
     return names;
+}
+
+struct SchemaEntry {
+    QString type;
+    QString defaultValue;
+};
+
+QHash<QString, SchemaEntry> parsedEntries(const QByteArray &xml)
+{
+    QHash<QString, SchemaEntry> entries;
+    QXmlStreamReader reader(xml);
+    QString current;
+    while (!reader.atEnd()) {
+        reader.readNext();
+        if (!reader.isStartElement()) {
+            continue;
+        }
+        if (reader.name() == QLatin1String("entry")) {
+            current = reader.attributes().value(QLatin1String("name")).toString();
+            entries.insert(current, {reader.attributes().value(QLatin1String("type")).toString(), QString()});
+        } else if (reader.name() == QLatin1String("default") && !current.isEmpty()) {
+            entries[current].defaultValue = reader.readElementText();
+        }
+    }
+    return entries;
 }
 
 QStringList filesUnder(const QString &dir, const QStringList &nameFilters)
@@ -157,6 +183,84 @@ private Q_SLOTS:
         QVERIFY2(missing.isEmpty(),
                  qPrintable(QStringLiteral("referenced but not declared in main.xml:\n  %1")
                                 .arg(missing.join(QStringLiteral("\n  ")))));
+    }
+
+    // DESIGN.md decision 75. The light set is read through keys built at run
+    // time (AppearanceTheme.value(), the pages' sync), which the scan above
+    // cannot see, so ThemePolicy.js's table stands in for them: every suffix
+    // it lists needs its dark key, with the default the table gives for it,
+    // and a light key of the same type; and no light key may exist without a
+    // suffix in the table.
+    void themeTableMatchesSchema()
+    {
+        const QHash<QString, SchemaEntry> entries = parsedEntries(readAll(schemaPath()));
+        QVERIFY(!entries.isEmpty());
+
+        const QString policyPath = packageDir + QStringLiteral("/contents/ui/ThemePolicy.js");
+        const QString policy = QString::fromUtf8(readAll(policyPath));
+        const qsizetype begin = policy.indexOf(QStringLiteral("// BEGIN darkDefaults"));
+        const qsizetype end = policy.indexOf(QStringLiteral("// END darkDefaults"));
+        QVERIFY2(begin >= 0 && end > begin, "ThemePolicy.js lost its darkDefaults markers");
+
+        const QRegularExpression formLine(QStringLiteral("^ {4}(desktop|panel): \\{$"));
+        const QRegularExpression suffixLine(QStringLiteral("^ {8}([A-Za-z]+): (.+),$"));
+        QHash<QString, QStringList> suffixes;
+        QStringList problems;
+        QString form;
+        const QStringList lines = policy.mid(begin, end - begin).split(QLatin1Char('\n'));
+        for (const QString &line : lines) {
+            if (const auto match = formLine.match(line); match.hasMatch()) {
+                form = match.captured(1);
+                continue;
+            }
+            const auto match = suffixLine.match(line);
+            if (!match.hasMatch() || form.isEmpty()) {
+                continue;
+            }
+            const QString suffix = match.captured(1);
+            QString value = match.captured(2);
+            if (value.size() >= 2 && value.startsWith(QLatin1Char('"')) && value.endsWith(QLatin1Char('"'))) {
+                value = value.mid(1, value.size() - 2);
+            }
+            suffixes[form] << suffix;
+
+            const QString darkKey = form + suffix;
+            const QString lightKey = form + QStringLiteral("Light") + suffix;
+            if (!entries.contains(darkKey)) {
+                problems << QStringLiteral("%1: not declared").arg(darkKey);
+                continue;
+            }
+            if (entries.value(darkKey).defaultValue != value) {
+                problems << QStringLiteral("%1: main.xml default \"%2\", ThemePolicy.js \"%3\"")
+                                .arg(darkKey, entries.value(darkKey).defaultValue, value);
+            }
+            if (!entries.contains(lightKey)) {
+                problems << QStringLiteral("%1: not declared").arg(lightKey);
+            } else if (entries.value(lightKey).type != entries.value(darkKey).type) {
+                problems << QStringLiteral("%1: type %2, %3 is %4")
+                                .arg(lightKey, entries.value(lightKey).type, darkKey, entries.value(darkKey).type);
+            }
+        }
+        QCOMPARE(suffixes.value(QStringLiteral("desktop")).size(), 28);
+        QCOMPARE(suffixes.value(QStringLiteral("panel")).size(), 26);
+
+        for (auto it = entries.cbegin(); it != entries.cend(); ++it) {
+            for (const QString &prefix : {QStringLiteral("desktopLight"), QStringLiteral("panelLight")}) {
+                if (it.key().startsWith(prefix)) {
+                    const QString formOf = prefix.chopped(5);
+                    if (!suffixes.value(formOf).contains(it.key().mid(prefix.size()))) {
+                        problems << QStringLiteral("%1: no suffix in ThemePolicy.js").arg(it.key());
+                    }
+                }
+            }
+        }
+        for (const QString &key : {QStringLiteral("desktopColorSchemeMode"), QStringLiteral("panelColorSchemeMode")}) {
+            if (entries.value(key).defaultValue != QLatin1String("auto")) {
+                problems << QStringLiteral("%1: missing or not defaulting to auto").arg(key);
+            }
+        }
+
+        QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
     }
 };
 

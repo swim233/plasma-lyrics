@@ -16,6 +16,9 @@
          0/1 instances can be migrated into this shared version 2 policy. -->
     <entry name="emptyTextUseDefault" type="Bool"><default>true</default></entry>
     <entry name="textConfigVersion" type="Int"><default>0</default></entry>
+    <!-- DESIGN.md decision 75. 0 until ThemePolicy.migrateConfiguration has
+         run once; see that function for what the first run copies. -->
+    <entry name="themeConfigVersion" type="Int"><default>0</default></entry>
 
     <entry name="desktopPlateMode" type="String"><default>ksvg</default></entry>
     <entry name="desktopSolidColor" type="String"><default>#99000000</default></entry>
@@ -106,6 +109,46 @@
     <entry name="desktopHideAnimationMs" type="Int"><default>1000</default></entry>
     <entry name="desktopHideNonMusic" type="Bool"><default>true</default></entry>
 
+    <!-- DESIGN.md decision 75: auto follows the colour scheme the platform
+         theme reports (Application.styleHints.colorScheme), light and dark
+         pin one set. The desktopXxx keys above are the dark set; each
+         desktopLightXxx below is the light copy of the key with the same
+         suffix, read instead of it while the light set is in effect.
+         ThemePolicy.js lists the suffixes that have a copy. The light
+         defaults put warm near black ink, at the dark set's alphas, on a
+         light plate. Brightening is off because it fades a word toward
+         opaque white, which on dark ink makes the word being sung the
+         palest one on the line. -->
+    <entry name="desktopColorSchemeMode" type="String"><default>auto</default></entry>
+    <entry name="desktopLightPlateMode" type="String"><default>ksvg</default></entry>
+    <entry name="desktopLightSolidColor" type="String"><default>#99ffffff</default></entry>
+    <entry name="desktopLightTextColor" type="String"><default>#1f1b16</default></entry>
+    <entry name="desktopLightStroke" type="Bool"><default>false</default></entry>
+    <entry name="desktopLightStrokeColor" type="String"><default>#ccffffff</default></entry>
+    <entry name="desktopLightFontFamily" type="String"><default></default></entry>
+    <entry name="desktopLightFontSize" type="Int"><default>34</default></entry>
+    <entry name="desktopLightFontWeight" type="Int"><default>700</default></entry>
+    <entry name="desktopLightOverflow" type="String"><default>fit</default></entry>
+    <entry name="desktopLightAnimation" type="String"><default>slide</default></entry>
+    <entry name="desktopLightShowTranslation" type="Bool"><default>true</default></entry>
+    <entry name="desktopLightSecondLineSource" type="String"><default>translation</default></entry>
+    <entry name="desktopLightSecondLineColorEnabled" type="Bool"><default>false</default></entry>
+    <entry name="desktopLightSecondLineColor" type="String"><default>#ad1f1b16</default></entry>
+    <entry name="desktopLightLineHeight" type="Int"><default>125</default></entry>
+    <entry name="desktopLightWordByWord" type="Bool"><default>true</default></entry>
+    <entry name="desktopLightWordByWordSynthetic" type="Bool"><default>false</default></entry>
+    <entry name="desktopLightWordUnsungColor" type="String"><default>#8c1f1b16</default></entry>
+    <entry name="desktopLightWordActiveColor" type="String"><default>#e61f1b16</default></entry>
+    <entry name="desktopLightWordSungColor" type="String"><default>#c41f1b16</default></entry>
+    <entry name="desktopLightWordLift" type="Bool"><default>true</default></entry>
+    <entry name="desktopLightWordLiftPercent" type="Int"><default>14</default></entry>
+    <entry name="desktopLightWordBrightness" type="Bool"><default>false</default></entry>
+    <entry name="desktopLightWordBrightnessPercent" type="Int"><default>60</default></entry>
+    <entry name="desktopLightWordBlurGlow" type="Bool"><default>false</default></entry>
+    <entry name="desktopLightTrackInfoColor" type="String"><default>#b31f1b16</default></entry>
+    <entry name="desktopLightTrackInfoStroke" type="Bool"><default>false</default></entry>
+    <entry name="desktopLightTrackInfoStrokeColor" type="String"><default>#ccffffff</default></entry>
+
     <entry name="panelPlateMode" type="String"><default>ksvg</default></entry>
     <entry name="panelWidth" type="Int"><default>280</default></entry>
     <entry name="panelSolidColor" type="String"><default>#99000000</default></entry>
@@ -149,5 +192,35 @@
     <entry name="panelAutoHide" type="Bool"><default>false</default></entry>
     <entry name="panelHideDelaySec" type="Int"><default>5</default></entry>
     <entry name="panelHideNonMusic" type="Bool"><default>true</default></entry>
+
+    <!-- See the desktopLight block above; same decision, panel copy, minus
+         the two lift keys the panel does not have. -->
+    <entry name="panelColorSchemeMode" type="String"><default>auto</default></entry>
+    <entry name="panelLightPlateMode" type="String"><default>ksvg</default></entry>
+    <entry name="panelLightSolidColor" type="String"><default>#99ffffff</default></entry>
+    <entry name="panelLightTextColor" type="String"><default>#1f1b16</default></entry>
+    <entry name="panelLightStroke" type="Bool"><default>false</default></entry>
+    <entry name="panelLightStrokeColor" type="String"><default>#ccffffff</default></entry>
+    <entry name="panelLightFontFamily" type="String"><default></default></entry>
+    <entry name="panelLightFontSize" type="Int"><default>16</default></entry>
+    <entry name="panelLightFontWeight" type="Int"><default>400</default></entry>
+    <entry name="panelLightOverflow" type="String"><default>fit</default></entry>
+    <entry name="panelLightAnimation" type="String"><default>fade</default></entry>
+    <entry name="panelLightShowTranslation" type="Bool"><default>false</default></entry>
+    <entry name="panelLightSecondLineSource" type="String"><default>translation</default></entry>
+    <entry name="panelLightSecondLineColorEnabled" type="Bool"><default>false</default></entry>
+    <entry name="panelLightSecondLineColor" type="String"><default>#ad1f1b16</default></entry>
+    <entry name="panelLightLineHeight" type="Int"><default>125</default></entry>
+    <entry name="panelLightWordByWord" type="Bool"><default>true</default></entry>
+    <entry name="panelLightWordByWordSynthetic" type="Bool"><default>false</default></entry>
+    <entry name="panelLightWordUnsungColor" type="String"><default>#8c1f1b16</default></entry>
+    <entry name="panelLightWordActiveColor" type="String"><default>#e61f1b16</default></entry>
+    <entry name="panelLightWordSungColor" type="String"><default>#c41f1b16</default></entry>
+    <entry name="panelLightWordBrightness" type="Bool"><default>false</default></entry>
+    <entry name="panelLightWordBrightnessPercent" type="Int"><default>60</default></entry>
+    <entry name="panelLightWordBlurGlow" type="Bool"><default>false</default></entry>
+    <entry name="panelLightTrackInfoColor" type="String"><default>#b31f1b16</default></entry>
+    <entry name="panelLightTrackInfoStroke" type="Bool"><default>false</default></entry>
+    <entry name="panelLightTrackInfoStrokeColor" type="String"><default>#ccffffff</default></entry>
   </group>
 </kcfg>
