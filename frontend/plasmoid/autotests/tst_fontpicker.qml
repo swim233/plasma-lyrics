@@ -77,13 +77,19 @@ TestCase {
                 }
                 return catalog.aliases[stored] || "";
             }
+            // Every standard step, unless a test sets this to [] to stand
+            // for a Plasma font set to one of Qt's generic names, whose faces
+            // the real catalog does not know.
+            property var systemFaces: {
+                const all = [];
+                for (let weight = 100; weight <= 900; weight += 100) {
+                    all.push({ weight: weight, styleName: "Face" + weight });
+                }
+                return all;
+            }
             function weights(family) {
                 if (family === catalog.systemFamily) {
-                    const all = [];
-                    for (let weight = 100; weight <= 900; weight += 100) {
-                        all.push({ weight: weight, styleName: "Face" + weight });
-                    }
-                    return all;
+                    return catalog.systemFaces;
                 }
                 return catalog.faces[family] || [];
             }
@@ -752,6 +758,51 @@ TestCase {
         tryVerify(() => !trackInfo.popup.visible);
         compare(win.edits, ["trackInfoFontSameAsLyrics=true", "trackInfoFontWeight=300"]);
         compare(win.fontWeight, 300);
+    }
+
+    function test_aFamilyWithUnknownFacesOffersTheSixSteps() {
+        const win = makeHarness({
+            fontFamily: "",
+            fontWeight: 700,
+            trackInfoFontSameAsLyrics: true,
+            trackInfoFontWeight: 800
+        }, { systemFaces: [] });
+        const lyricWeight = named(win.section, "lyricWeightComboBox");
+        const trackInfoWeight = named(win.section, "trackInfoWeightComboBox");
+        compare(lyricWeight.model, ["Light", "Regular", "Medium", "Demi bold", "Bold", "Black"]);
+        verify(lyricWeight.enabled);
+        compare(lyricWeight.currentText, "Bold");
+        // A stored weight that is none of the six is listed in its place,
+        // so the row never reads as a weight other than the one drawn.
+        compare(trackInfoWeight.model, ["Light", "Regular", "Medium", "Demi bold", "Bold", "Extra bold", "Black"]);
+        compare(trackInfoWeight.currentText, "Extra bold");
+        win.fontWeight = 450;
+        compare(lyricWeight.model, ["Light", "Regular", "450", "Medium", "Demi bold", "Bold", "Black"]);
+        compare(lyricWeight.currentText, "450");
+        compare(win.edits, []);
+
+        lyricWeight.activated(3);
+        compare(win.edits, ["fontWeight=500"]);
+        compare(lyricWeight.model, ["Light", "Regular", "Medium", "Demi bold", "Bold", "Black"]);
+        compare(lyricWeight.currentText, "Medium");
+    }
+
+    function test_movingOntoAFamilyWithUnknownFacesKeepsTheStoredWeights() {
+        const win = makeHarness({
+            fontFamily: "Beta Serif",
+            fontWeight: 700,
+            trackInfoFontSameAsLyrics: true,
+            trackInfoFontWeight: 316
+        }, { systemFaces: [] });
+        const lyric = named(win.section, "lyricFontPicker");
+        openPicker(lyric);
+        clickRow(lyric, 0);
+        tryVerify(() => !lyric.popup.visible);
+        // The family changed, so both weights are written, but snapped onto
+        // an empty list they are what was stored.
+        compare(win.edits, ["fontFamily=", "fontWeight=700", "trackInfoFontWeight=316"]);
+        compare(named(win.section, "lyricWeightComboBox").currentText, "Bold");
+        compare(named(win.section, "trackInfoWeightComboBox").currentText, "316");
     }
 
     function test_theFontControlsCannotWidenThePage() {
