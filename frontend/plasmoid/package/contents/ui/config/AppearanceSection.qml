@@ -67,9 +67,17 @@ Kirigami.FormLayout {
     property int wordBrightnessPercent: 60
     property bool wordBlurGlow: false
 
-    // The track-info rows are TrackInfoSection's, but picking a lyric font
-    // also writes the track-info weight when that section follows the lyric
-    // font, so editLyricFamily needs these two and the signal below.
+    // DESIGN.md decision 75: the track info's colours come in a light and a
+    // dark copy like every row above, so their three rows close this form;
+    // TrackInfoSection holds the rest, which both sets share. showTrackInfo
+    // hides these three, heading included, along with TrackInfoSection's.
+    property bool showTrackInfo: true
+    property string trackInfoColor: "#b3fffaf5"
+    property bool trackInfoStrokeEnabled: false
+    property string trackInfoStrokeColor: "#cc000000"
+    // Picking a lyric font also writes the track-info weight when the track
+    // info follows the lyric font, so editLyricFamily needs these two and
+    // trackInfoFontWeightEdited below.
     property bool trackInfoFontSameAsLyrics: true
     property int trackInfoFontWeight: Font.Normal
 
@@ -98,6 +106,9 @@ Kirigami.FormLayout {
     signal wordBrightnessPercentEdited(int value)
     signal wordBlurGlowEdited(bool value)
 
+    signal trackInfoColorEdited(string value)
+    signal trackInfoStrokeEnabledEdited(bool value)
+    signal trackInfoStrokeColorEdited(string value)
     signal trackInfoFontWeightEdited(int value)
 
     // What the lyrics render in: FontPolicy.lyricFamily() of the same key,
@@ -434,5 +445,30 @@ Kirigami.FormLayout {
         text: i18n("Overlay a glow on the word-by-word lyrics for a more elegant look, at a slight performance cost.")
         checked: root.wordBlurGlow
         onToggled: root.wordBlurGlowEdited(checked)
+    }
+
+    Kirigami.Separator {
+        objectName: "trackInfoColorsSeparator"
+        Kirigami.FormData.isSection: true
+        Kirigami.FormData.label: i18n("Track info colors")
+        visible: root.showTrackInfo
+    }
+    ColorField {
+        Kirigami.FormData.label: i18n("Text color:")
+        visible: root.showTrackInfo
+        value: root.trackInfoColor
+        onEdited: hexColor => root.trackInfoColorEdited(hexColor)
+    }
+    QQC2.CheckBox {
+        Kirigami.FormData.label: i18n("Outline:")
+        visible: root.showTrackInfo
+        checked: root.trackInfoStrokeEnabled
+        onToggled: root.trackInfoStrokeEnabledEdited(checked)
+    }
+    ColorField {
+        Kirigami.FormData.label: i18n("Outline color:")
+        visible: root.showTrackInfo && root.trackInfoStrokeEnabled
+        value: root.trackInfoStrokeColor
+        onEdited: hexColor => root.trackInfoStrokeColorEdited(hexColor)
     }
 }

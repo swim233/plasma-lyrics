@@ -5,10 +5,12 @@ import org.kde.kirigami as Kirigami
 
 import "../FontPolicy.js" as FontPolicy
 
-// The track-info rows of an appearance page, a FormLayout of their own
-// rather than the tail of AppearanceSection's so that the page can place
-// them apart from the rows above. The page lists AppearanceSection in this
-// form's twinFormLayouts, so the label columns still line up.
+// The track-info rows of an appearance page that both of its sets share
+// (DESIGN.md decision 75), a FormLayout of their own rather than the tail of
+// AppearanceSection's because they sit below the frame that holds the set
+// being edited. The three colour rows are AppearanceSection's, inside that
+// frame. The page lists AppearanceSection in this form's twinFormLayouts, so
+// the label columns still line up.
 Kirigami.FormLayout {
     id: root
 
@@ -19,9 +21,6 @@ Kirigami.FormLayout {
     property bool trackInfoFontSameAsLyrics: true
     property string trackInfoFontFamily: ""
     property int trackInfoFontWeight: Font.Normal
-    property string trackInfoColor: "#b3fffaf5"
-    property bool trackInfoStrokeEnabled: false
-    property string trackInfoStrokeColor: "#cc000000"
     property string trackInfoOverflow: "fit"
     required property var trackInfoFontSizeControl
 
@@ -30,9 +29,6 @@ Kirigami.FormLayout {
     signal trackInfoFontSameAsLyricsEdited(bool value)
     signal trackInfoFontFamilyEdited(string value)
     signal trackInfoFontWeightEdited(int value)
-    signal trackInfoColorEdited(string value)
-    signal trackInfoStrokeEnabledEdited(bool value)
-    signal trackInfoStrokeColorEdited(string value)
     signal trackInfoOverflowEdited(string value)
 
     // The families the lyrics and the track info render in, computed by the
@@ -108,24 +104,6 @@ Kirigami.FormLayout {
         family: root.trackInfoEffectiveFamily
         storedWeight: root.trackInfoFontWeight
         onWeightPicked: weight => root.trackInfoFontWeightEdited(weight)
-    }
-    ColorField {
-        Kirigami.FormData.label: i18n("Text color:")
-        visible: root.showTrackInfo
-        value: root.trackInfoColor
-        onEdited: hexColor => root.trackInfoColorEdited(hexColor)
-    }
-    QQC2.CheckBox {
-        Kirigami.FormData.label: i18n("Outline:")
-        visible: root.showTrackInfo
-        checked: root.trackInfoStrokeEnabled
-        onToggled: root.trackInfoStrokeEnabledEdited(checked)
-    }
-    ColorField {
-        Kirigami.FormData.label: i18n("Outline color:")
-        visible: root.showTrackInfo && root.trackInfoStrokeEnabled
-        value: root.trackInfoStrokeColor
-        onEdited: hexColor => root.trackInfoStrokeColorEdited(hexColor)
     }
     QQC2.ComboBox {
         Kirigami.FormData.label: i18n("Overflow:")

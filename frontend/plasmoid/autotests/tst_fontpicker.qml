@@ -6,6 +6,7 @@ import org.kde.kirigami as Kirigami
 import io.github.swim233.lyrics
 import "../package/contents/ui/config" as LyricsConfig
 import "../package/contents/ui/FontPolicy.js" as FontPolicy
+import "../package/contents/ui/ThemePolicy.js" as ThemePolicy
 
 // The font pickers and weight rows on the appearance pages. Everything below
 // runs against a stand-in catalog, so what is asserted does not depend on the
@@ -889,39 +890,88 @@ TestCase {
         ];
     }
 
+    // Once for each set: the stored lyric font sits in the set the page
+    // opens on (DESIGN.md decision 75), which the mode picks; the other set
+    // is left unset.
     function test_pagesCreatedWithStoredFontKeys(data) {
         for (const form of ["desktop", "panel"]) {
+            for (const dark of [false, true]) {
+                const tag = form + (dark ? " dark" : " light");
+                const prefix = ThemePolicy.keyPrefix(form, dark);
+                const props = {};
+                props["cfg_" + ThemePolicy.modeKey(form)] = dark ? "dark" : "light";
+                props["cfg_" + prefix + "FontFamily"] = data.family;
+                props["cfg_" + prefix + "FontWeight"] = 700;
+                props["cfg_" + form + "ShowTrackInfo"] = true;
+                props["cfg_" + form + "TrackInfoFontSameAsLyrics"] = data.sameAsLyrics;
+                props["cfg_" + form + "TrackInfoFontFamily"] = data.trackInfoFamily;
+                props["cfg_" + form + "TrackInfoFontWeight"] = 300;
+                const page = createTemporaryObject(form === "desktop"
+                    ? configDesktopAppearanceComponent
+                    : configPanelAppearanceComponent, this, props);
+                verify(page !== null, tag);
+                compare(page.editingDark, dark, tag);
+                const section = findAll(page, o => typeof o.fontFamilyEdited === "function")[0];
+                verify(section !== undefined, tag);
+                const trackInfoSection = findAll(page, o => typeof o.trackInfoFontFamilyEdited === "function")[0];
+                verify(trackInfoSection !== undefined, tag);
+                compare(section.lyricEffectiveFamily,
+                    FontPolicy.lyricFamily(FontCatalog, data.family, systemFamily()), tag);
+                compare(trackInfoSection.lyricEffectiveFamily, section.lyricEffectiveFamily, tag);
+                compare(trackInfoSection.trackInfoEffectiveFamily,
+                    FontPolicy.trackInfoFamily(FontCatalog, data.sameAsLyrics, data.trackInfoFamily,
+                        section.lyricEffectiveFamily, systemFamily()), tag);
+                // Displaying the pages wrote nothing back.
+                compare(page["cfg_" + prefix + "FontFamily"], data.family, tag);
+                compare(page["cfg_" + prefix + "FontWeight"], 700, tag);
+                compare(page["cfg_" + form + "TrackInfoFontWeight"], 300, tag);
+            }
+        }
+    }
+
+    // "Same as lyrics" and the track-info weight row follow the lyric font
+    // of the set on screen, while the track-info keys themselves are one
+    // copy for both sets.
+    function test_trackInfoFollowsTheLyricFontOfTheSetOnScreen() {
+        const system = FontPolicy.lyricFamily(FontCatalog, "", systemFamily());
+        const other = FontCatalog.families().find(family => family !== system);
+        if (other === undefined) {
+            skip("needs an installed family other than the Plasma font");
+        }
+        const otherFamily = FontPolicy.lyricFamily(FontCatalog, other, systemFamily());
+        for (const form of ["desktop", "panel"]) {
             const props = {};
-            props["cfg_" + form + "FontFamily"] = data.family;
-            props["cfg_" + form + "FontWeight"] = 700;
+            props["cfg_" + form + "FontFamily"] = other;
+            props["cfg_" + form + "LightFontFamily"] = "";
             props["cfg_" + form + "ShowTrackInfo"] = true;
-            props["cfg_" + form + "TrackInfoFontSameAsLyrics"] = data.sameAsLyrics;
-            props["cfg_" + form + "TrackInfoFontFamily"] = data.trackInfoFamily;
-            props["cfg_" + form + "TrackInfoFontWeight"] = 300;
+            props["cfg_" + form + "TrackInfoFontSameAsLyrics"] = true;
+            props["cfg_" + ThemePolicy.modeKey(form)] = "light";
             const page = createTemporaryObject(form === "desktop"
                 ? configDesktopAppearanceComponent
                 : configPanelAppearanceComponent, this, props);
             verify(page !== null, form);
-            const section = findAll(page, o => typeof o.fontFamilyEdited === "function")[0];
-            verify(section !== undefined, form);
             const trackInfoSection = findAll(page, o => typeof o.trackInfoFontFamilyEdited === "function")[0];
-            verify(trackInfoSection !== undefined, form);
-            compare(section.lyricEffectiveFamily,
-                FontPolicy.lyricFamily(FontCatalog, data.family, systemFamily()), form);
-            compare(trackInfoSection.lyricEffectiveFamily, section.lyricEffectiveFamily, form);
-            compare(trackInfoSection.trackInfoEffectiveFamily,
-                FontPolicy.trackInfoFamily(FontCatalog, data.sameAsLyrics, data.trackInfoFamily,
-                    section.lyricEffectiveFamily, systemFamily()), form);
-            // Displaying the pages wrote nothing back.
-            compare(page["cfg_" + form + "FontFamily"], data.family, form);
-            compare(page["cfg_" + form + "FontWeight"], 700, form);
-            compare(page["cfg_" + form + "TrackInfoFontWeight"], 300, form);
+            const tabBar = named(page, "themeTabBar");
+            compare(tabBar.currentIndex, 0, form);
+            compare(trackInfoSection.trackInfoEffectiveFamily, system, form);
+            compare(named(page, "trackInfoWeightComboBox").family, system, form);
+            tabBar.currentIndex = 1;
+            compare(trackInfoSection.trackInfoEffectiveFamily, otherFamily, form);
+            compare(named(page, "trackInfoWeightComboBox").family, otherFamily, form);
+            // Switching tabs wrote nothing.
+            compare(page["cfg_" + form + "TrackInfoFontSameAsLyrics"], true, form);
+            compare(page["cfg_" + form + "LightFontFamily"], "", form);
         }
     }
 
     function test_fontEditsReachTheirOwnConfigProperties() {
-        const desktopPage = createTemporaryObject(configDesktopAppearanceComponent, this);
-        const panelPage = createTemporaryObject(configPanelAppearanceComponent, this);
+        // Pinned to dark, so the lyric font edits land on the original
+        // <form>FontFamily keys; which set an edit reaches is
+        // tst_appearance.qml's test_editsReachOnlyTheSetOnScreen.
+        const desktopPage = createTemporaryObject(configDesktopAppearanceComponent, this,
+            { cfg_desktopColorSchemeMode: "dark" });
+        const panelPage = createTemporaryObject(configPanelAppearanceComponent, this,
+            { cfg_panelColorSchemeMode: "dark" });
         const desktop = findAll(desktopPage, o => typeof o.fontFamilyEdited === "function")[0];
         const panel = findAll(panelPage, o => typeof o.fontFamilyEdited === "function")[0];
         const desktopTrackInfo = findAll(desktopPage, o => typeof o.trackInfoFontFamilyEdited === "function")[0];

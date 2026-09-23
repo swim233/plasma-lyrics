@@ -5,6 +5,7 @@ import org.kde.kirigami as Kirigami
 import io.github.swim233.lyrics
 
 import "../FontPolicy.js" as FontPolicy
+import "../ThemePolicy.js" as ThemePolicy
 
 Kirigami.ScrollablePage {
     id: page
@@ -45,12 +46,68 @@ Kirigami.ScrollablePage {
     property string cfg_panelTrackInfoStrokeColor
     property string cfg_panelTrackInfoOverflow
 
+    // DESIGN.md decision 75: the mode that picks one of the two sets, and
+    // the light copy of every key ThemePolicy.themedSuffixes("panel") lists;
+    // the keys above with those suffixes are the dark copies. One property
+    // per key, as for the dark set: the config dialog loads and saves only
+    // the cfg_ properties a page declares.
+    property string cfg_panelColorSchemeMode
+    property string cfg_panelLightPlateMode
+    property string cfg_panelLightSolidColor
+    property string cfg_panelLightTextColor
+    property bool cfg_panelLightStroke
+    property string cfg_panelLightStrokeColor
+    property string cfg_panelLightFontFamily
+    property alias cfg_panelLightFontSize: panelLightFontSize.value
+    property int cfg_panelLightFontWeight
+    property string cfg_panelLightOverflow
+    property string cfg_panelLightAnimation
+    property alias cfg_panelLightShowTranslation: panelLightTranslation.checked
+    property string cfg_panelLightSecondLineSource
+    property bool cfg_panelLightSecondLineColorEnabled
+    property string cfg_panelLightSecondLineColor
+    property int cfg_panelLightLineHeight
+    property bool cfg_panelLightWordByWord
+    property bool cfg_panelLightWordByWordSynthetic
+    property string cfg_panelLightWordUnsungColor
+    property string cfg_panelLightWordActiveColor
+    property string cfg_panelLightWordSungColor
+    property bool cfg_panelLightWordBrightness
+    property int cfg_panelLightWordBrightnessPercent
+    property bool cfg_panelLightWordBlurGlow
+    property string cfg_panelLightTrackInfoColor
+    property bool cfg_panelLightTrackInfoStroke
+    property string cfg_panelLightTrackInfoStrokeColor
+
+    // The set the tabs show and edit, as on the desktop page.
+    readonly property bool editingDark: themeTabs.editingDark
+    readonly property string editingPrefix: "cfg_" + ThemePolicy.keyPrefix("panel", page.editingDark)
+
+    function themed(suffix) {
+        return page[page.editingPrefix + suffix];
+    }
+
+    function editThemed(suffix, value) {
+        page[page.editingPrefix + suffix] = value;
+    }
+
+    // Copies every key of the set `dark` names over the other set, in the
+    // dialog's values only, as on the desktop page.
+    function syncFrom(dark) {
+        const from = "cfg_" + ThemePolicy.keyPrefix("panel", dark);
+        const to = "cfg_" + ThemePolicy.keyPrefix("panel", !dark);
+        for (const suffix of ThemePolicy.themedSuffixes("panel")) {
+            page[to + suffix] = page[from + suffix];
+        }
+    }
+
     // The families the lyrics and the track info render in, for the weight
     // rows of AppearanceSection and TrackInfoSection. Computed here, from the
     // plain cfg_ properties above, rather than inside either section: see
-    // AppearanceSection's lyricEffectiveFamily.
+    // AppearanceSection's lyricEffectiveFamily. The lyric font is the one of
+    // the set on screen, and so is the track info's "Same as lyrics".
     readonly property string lyricFamily: FontPolicy.lyricFamily(FontCatalog,
-        page.cfg_panelFontFamily, Kirigami.Theme.defaultFont.family)
+        page.themed("FontFamily"), Kirigami.Theme.defaultFont.family)
     readonly property string trackInfoFamily: FontPolicy.trackInfoFamily(FontCatalog,
         page.cfg_panelTrackInfoFontSameAsLyrics, page.cfg_panelTrackInfoFontFamily,
         page.lyricFamily, Kirigami.Theme.defaultFont.family)
@@ -86,66 +143,86 @@ Kirigami.ScrollablePage {
             text: i18n("These settings affect this widget only; other widgets are not affected.")
         }
 
-        AppearanceSection {
-            id: appearanceSection
+        ThemeTabs {
+            id: themeTabs
             Layout.fillWidth: true
-            plateMode: page.cfg_panelPlateMode
-            solidColor: page.cfg_panelSolidColor
-            textColor: page.cfg_panelTextColor
-            strokeEnabled: page.cfg_panelStroke
-            strokeColor: page.cfg_panelStrokeColor
-            fontCatalog: FontCatalog
-            fontFamily: page.cfg_panelFontFamily
-            lyricEffectiveFamily: page.lyricFamily
-            fontWeight: page.cfg_panelFontWeight
-            overflowMode: page.cfg_panelOverflow
-            animationMode: page.cfg_panelAnimation
-            fontSizeControl: panelFontSize
-            translationControl: panelTranslation
-            secondLineSource: page.cfg_panelSecondLineSource
-            secondLineColorEnabled: page.cfg_panelSecondLineColorEnabled
-            secondLineColor: page.cfg_panelSecondLineColor
-            lineHeightPercent: page.cfg_panelLineHeight
-            liftSupported: false
-            // No panel lift keys exist, so the magnitude row stays hidden and
-            // the toggle above it reads unchecked-and-disabled.
-            wordLift: false
-            wordLiftRowVisible: false
-            wordByWord: page.cfg_panelWordByWord
-            syntheticWordByWord: page.cfg_panelWordByWordSynthetic
-            wordUnsungColor: page.cfg_panelWordUnsungColor
-            wordActiveColor: page.cfg_panelWordActiveColor
-            wordSungColor: page.cfg_panelWordSungColor
-            wordBrightness: page.cfg_panelWordBrightness
-            wordBrightnessPercent: page.cfg_panelWordBrightnessPercent
-            wordBlurGlow: page.cfg_panelWordBlurGlow
-            onSecondLineSourceEdited: value => page.cfg_panelSecondLineSource = value
-            onSecondLineColorEnabledEdited: value => page.cfg_panelSecondLineColorEnabled = value
-            onSecondLineColorEdited: value => page.cfg_panelSecondLineColor = value
-            onLineHeightPercentEdited: value => page.cfg_panelLineHeight = value
-            onWordByWordEdited: value => page.cfg_panelWordByWord = value
-            onSyntheticWordByWordEdited: value => page.cfg_panelWordByWordSynthetic = value
-            onWordUnsungColorEdited: value => page.cfg_panelWordUnsungColor = value
-            onWordActiveColorEdited: value => page.cfg_panelWordActiveColor = value
-            onWordSungColorEdited: value => page.cfg_panelWordSungColor = value
-            onWordBrightnessEdited: value => page.cfg_panelWordBrightness = value
-            onWordBrightnessPercentEdited: value => page.cfg_panelWordBrightnessPercent = value
-            onWordBlurGlowEdited: value => page.cfg_panelWordBlurGlow = value
-            onPlateModeEdited: value => page.cfg_panelPlateMode = value
-            onSolidColorEdited: value => page.cfg_panelSolidColor = value
-            onTextColorEdited: value => page.cfg_panelTextColor = value
-            onStrokeEnabledEdited: value => page.cfg_panelStroke = value
-            onStrokeColorEdited: value => page.cfg_panelStrokeColor = value
-            onFontFamilyEdited: value => page.cfg_panelFontFamily = value
-            onFontWeightEdited: value => page.cfg_panelFontWeight = value
-            onOverflowModeEdited: value => page.cfg_panelOverflow = value
-            onAnimationModeEdited: value => page.cfg_panelAnimation = value
+            formFactor: "panel"
+            mode: page.cfg_panelColorSchemeMode
+            twinFormLayouts: [appearanceSection]
+            onModeEdited: value => page.cfg_panelColorSchemeMode = value
+            onSyncConfirmed: fromDark => page.syncFrom(fromDark)
 
-            trackInfoFontSameAsLyrics: page.cfg_panelTrackInfoFontSameAsLyrics
-            trackInfoFontWeight: page.cfg_panelTrackInfoFontWeight
-            onTrackInfoFontWeightEdited: value => page.cfg_panelTrackInfoFontWeight = value
+            AppearanceSection {
+                id: appearanceSection
+                Layout.fillWidth: true
+                plateMode: page.themed("PlateMode")
+                solidColor: page.themed("SolidColor")
+                textColor: page.themed("TextColor")
+                strokeEnabled: page.themed("Stroke")
+                strokeColor: page.themed("StrokeColor")
+                fontCatalog: FontCatalog
+                fontFamily: page.themed("FontFamily")
+                lyricEffectiveFamily: page.lyricFamily
+                fontWeight: page.themed("FontWeight")
+                overflowMode: page.themed("Overflow")
+                animationMode: page.themed("Animation")
+                fontSizeControl: page.editingDark ? panelFontSize : panelLightFontSize
+                translationControl: page.editingDark ? panelTranslation : panelLightTranslation
+                secondLineSource: page.themed("SecondLineSource")
+                secondLineColorEnabled: page.themed("SecondLineColorEnabled")
+                secondLineColor: page.themed("SecondLineColor")
+                lineHeightPercent: page.themed("LineHeight")
+                liftSupported: false
+                // No panel lift keys exist, so the magnitude row stays hidden
+                // and the toggle above it reads unchecked-and-disabled.
+                wordLift: false
+                wordLiftRowVisible: false
+                wordByWord: page.themed("WordByWord")
+                syntheticWordByWord: page.themed("WordByWordSynthetic")
+                wordUnsungColor: page.themed("WordUnsungColor")
+                wordActiveColor: page.themed("WordActiveColor")
+                wordSungColor: page.themed("WordSungColor")
+                wordBrightness: page.themed("WordBrightness")
+                wordBrightnessPercent: page.themed("WordBrightnessPercent")
+                wordBlurGlow: page.themed("WordBlurGlow")
+                onSecondLineSourceEdited: value => page.editThemed("SecondLineSource", value)
+                onSecondLineColorEnabledEdited: value => page.editThemed("SecondLineColorEnabled", value)
+                onSecondLineColorEdited: value => page.editThemed("SecondLineColor", value)
+                onLineHeightPercentEdited: value => page.editThemed("LineHeight", value)
+                onWordByWordEdited: value => page.editThemed("WordByWord", value)
+                onSyntheticWordByWordEdited: value => page.editThemed("WordByWordSynthetic", value)
+                onWordUnsungColorEdited: value => page.editThemed("WordUnsungColor", value)
+                onWordActiveColorEdited: value => page.editThemed("WordActiveColor", value)
+                onWordSungColorEdited: value => page.editThemed("WordSungColor", value)
+                onWordBrightnessEdited: value => page.editThemed("WordBrightness", value)
+                onWordBrightnessPercentEdited: value => page.editThemed("WordBrightnessPercent", value)
+                onWordBlurGlowEdited: value => page.editThemed("WordBlurGlow", value)
+                onPlateModeEdited: value => page.editThemed("PlateMode", value)
+                onSolidColorEdited: value => page.editThemed("SolidColor", value)
+                onTextColorEdited: value => page.editThemed("TextColor", value)
+                onStrokeEnabledEdited: value => page.editThemed("Stroke", value)
+                onStrokeColorEdited: value => page.editThemed("StrokeColor", value)
+                onFontFamilyEdited: value => page.editThemed("FontFamily", value)
+                onFontWeightEdited: value => page.editThemed("FontWeight", value)
+                onOverflowModeEdited: value => page.editThemed("Overflow", value)
+                onAnimationModeEdited: value => page.editThemed("Animation", value)
+
+                showTrackInfo: page.cfg_panelShowTrackInfo
+                trackInfoColor: page.themed("TrackInfoColor")
+                trackInfoStrokeEnabled: page.themed("TrackInfoStroke")
+                trackInfoStrokeColor: page.themed("TrackInfoStrokeColor")
+                onTrackInfoColorEdited: value => page.editThemed("TrackInfoColor", value)
+                onTrackInfoStrokeEnabledEdited: value => page.editThemed("TrackInfoStroke", value)
+                onTrackInfoStrokeColorEdited: value => page.editThemed("TrackInfoStrokeColor", value)
+                // Shared by both sets: see editLyricFamily.
+                trackInfoFontSameAsLyrics: page.cfg_panelTrackInfoFontSameAsLyrics
+                trackInfoFontWeight: page.cfg_panelTrackInfoFontWeight
+                onTrackInfoFontWeightEdited: value => page.cfg_panelTrackInfoFontWeight = value
+            }
         }
 
+        // The rest of the track info, shared by both sets and so outside
+        // the tabs.
         TrackInfoSection {
             Layout.fillWidth: true
             twinFormLayouts: [appearanceSection]
@@ -157,9 +234,6 @@ Kirigami.ScrollablePage {
             trackInfoFontSameAsLyrics: page.cfg_panelTrackInfoFontSameAsLyrics
             trackInfoFontFamily: page.cfg_panelTrackInfoFontFamily
             trackInfoFontWeight: page.cfg_panelTrackInfoFontWeight
-            trackInfoColor: page.cfg_panelTrackInfoColor
-            trackInfoStrokeEnabled: page.cfg_panelTrackInfoStroke
-            trackInfoStrokeColor: page.cfg_panelTrackInfoStrokeColor
             trackInfoOverflow: page.cfg_panelTrackInfoOverflow
             trackInfoFontSizeControl: panelTrackInfoFontSize
             onShowTrackInfoEdited: value => page.cfg_panelShowTrackInfo = value
@@ -167,14 +241,13 @@ Kirigami.ScrollablePage {
             onTrackInfoFontSameAsLyricsEdited: value => page.cfg_panelTrackInfoFontSameAsLyrics = value
             onTrackInfoFontFamilyEdited: value => page.cfg_panelTrackInfoFontFamily = value
             onTrackInfoFontWeightEdited: value => page.cfg_panelTrackInfoFontWeight = value
-            onTrackInfoColorEdited: value => page.cfg_panelTrackInfoColor = value
-            onTrackInfoStrokeEnabledEdited: value => page.cfg_panelTrackInfoStroke = value
-            onTrackInfoStrokeColorEdited: value => page.cfg_panelTrackInfoStrokeColor = value
             onTrackInfoOverflowEdited: value => page.cfg_panelTrackInfoOverflow = value
         }
 
         QQC2.SpinBox { id: panelFontSize; visible: false }
+        QQC2.SpinBox { id: panelLightFontSize; visible: false }
         QQC2.CheckBox { id: panelTranslation; visible: false }
+        QQC2.CheckBox { id: panelLightTranslation; visible: false }
         QQC2.SpinBox { id: panelTrackInfoFontSize; visible: false }
 
         // Plasma 6.7 gives panel applets no drag-resize at all, so this is
