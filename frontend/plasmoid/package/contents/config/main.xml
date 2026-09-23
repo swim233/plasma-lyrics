@@ -26,7 +26,7 @@
          is what every instance did before this key existed, so an upgraded
          instance renders exactly as before. A stored name that is no longer
          installed renders in the Plasma font too, but is kept as is, so the
-         font comes back by itself once it is reinstalled. -->
+         font comes back once it is reinstalled and plasmashell restarted. -->
     <entry name="desktopFontFamily" type="String"><default></default></entry>
     <entry name="desktopFontSize" type="Int"><default>34</default></entry>
     <entry name="desktopFontWeight" type="Int"><default>700</default></entry>
