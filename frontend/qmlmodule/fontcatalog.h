@@ -1,5 +1,7 @@
 #pragma once
 
+#include "fontmatching.h"
+
 #include <QObject>
 #include <QQmlEngine>
 #include <QString>
@@ -61,4 +63,13 @@ public:
     // else the lightest above. Above 500: the lightest above target, else
     // the heaviest below. So 400 prefers 500, and 500 prefers 400.
     Q_INVOKABLE int snapWeight(const QVariantList &available, int target) const;
+
+private:
+    void ensureBuilt() const;
+
+    mutable bool m_built = false;
+    mutable QStringList m_families;
+    mutable FontMatching::NameIndex m_names;
+    // Per entry of m_families: its listed name followed by its alternates.
+    mutable QList<QStringList> m_searchNames;
 };
