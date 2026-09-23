@@ -1,4 +1,5 @@
 import QtQuick
+import org.kde.kirigami as Kirigami
 
 Item {
     id: root
@@ -9,6 +10,7 @@ Item {
     property color textColor: "white"
     property bool strokeEnabled: false
     property color strokeColor: "black"
+    property string fontFamily: Kirigami.Theme.defaultFont.family
     property int fontSize: 19
     property int fontWeight: Font.Normal
     property string overflowMode: "fit"
@@ -39,6 +41,7 @@ Item {
         textColor: root.textColor
         strokeEnabled: root.strokeEnabled
         strokeColor: root.strokeColor
+        fontFamily: root.fontFamily
         fontSize: root.fontSize
         fontWeight: root.fontWeight
         overflowMode: root.overflowMode
@@ -57,6 +60,7 @@ Item {
         textColor: Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, root.textColor.a * 0.75)
         strokeEnabled: root.strokeEnabled
         strokeColor: root.strokeColor
+        fontFamily: root.fontFamily
         fontSize: root.fontSize
         fontWeight: root.fontWeight
         overflowMode: root.overflowMode

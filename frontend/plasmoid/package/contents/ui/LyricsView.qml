@@ -14,6 +14,12 @@ Item {
     property color textColor: "#fffaf5"
     property bool strokeEnabled: false
     property color strokeColor: "#cc000000"
+    // fontFamily/trackInfoFontFamily and the two weights arrive already
+    // resolved by main.qml through FontPolicy.js: a stored family that is not
+    // installed comes in as the Plasma font, and each weight as one of its
+    // family's real faces. The defaults are what an instance with nothing
+    // configured renders in.
+    property string fontFamily: Kirigami.Theme.defaultFont.family
     property int fontSize: 34
     property int fontWeight: Font.Normal
     property string overflowMode: "fit"
@@ -77,6 +83,7 @@ Item {
 
     property bool showTrackInfo: true
     property string trackInfoLayout: "single"
+    property string trackInfoFontFamily: Kirigami.Theme.defaultFont.family
     property int trackInfoFontSize: 19
     property int trackInfoFontWeight: Font.Normal
     property color trackInfoColor: "#b3fffaf5"
@@ -301,6 +308,7 @@ Item {
             textColor: root.trackInfoColor
             strokeEnabled: root.trackInfoStrokeEnabled
             strokeColor: root.trackInfoStrokeColor
+            fontFamily: root.trackInfoFontFamily
             fontSize: root.trackInfoFontSize
             fontWeight: root.trackInfoFontWeight
             overflowMode: root.trackInfoOverflow
@@ -315,6 +323,7 @@ Item {
             secondLineColor: root.effectiveSecondLineColor
             strokeEnabled: root.strokeEnabled
             strokeColor: root.strokeColor
+            fontFamily: root.fontFamily
             fontSize: root.fontSize
             fontWeight: root.fontWeight
             overflowMode: root.overflowMode

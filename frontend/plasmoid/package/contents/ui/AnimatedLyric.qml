@@ -12,6 +12,7 @@ Item {
                                             root.textColor.b, 0.68)
     property bool strokeEnabled: false
     property color strokeColor: "black"
+    property string fontFamily: Kirigami.Theme.defaultFont.family
     property int fontSize: 34
     property int fontWeight: Font.Normal
     property string overflowMode: "fit"
@@ -129,6 +130,7 @@ Item {
         secondLineColor: root.secondLineColor
         strokeEnabled: root.strokeEnabled
         strokeColor: root.strokeColor
+        fontFamily: root.fontFamily
         fontSize: root.fontSize
         fontWeight: root.fontWeight
         overflowMode: root.overflowMode
@@ -157,6 +159,7 @@ Item {
         secondLineColor: root.secondLineColor
         strokeEnabled: root.strokeEnabled
         strokeColor: root.strokeColor
+        fontFamily: root.fontFamily
         fontSize: root.fontSize
         fontWeight: root.fontWeight
         overflowMode: root.overflowMode

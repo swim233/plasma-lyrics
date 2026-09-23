@@ -46,7 +46,8 @@ if(BUILD_TESTING)
     # matches. In every case the bare binary still exits 0; only ctest fails.
     #
     # NOT COVERED: a loop raised while THE FIRST TEST FILE QuickTest LOADS is
-    # being loaded -- currently the only one, tst_appearance.qml. QTestLog is
+    # being loaded -- tst_appearance.qml, which sorts ahead of
+    # tst_fontpicker.qml and tst_fontrender.qml. QTestLog is
     # not active yet, so Qt's default handler applies, the warning carries no
     # "QWARN :" prefix, and under ctest stderr is a pipe -- sd_journal_send()
     # (see core/tests/CMakeLists.txt), invisible to the regex. Measured
@@ -59,9 +60,10 @@ if(BUILD_TESTING)
     # documents loaded up front, every file's load-time scope would be
     # uncovered instead.
     #
-    # It is empty today: all 14 top-level declarations inside the TestCase are
-    # Component blocks that only a test function creates. A single
-    # non-Component top-level item would open it, and adding a test file that
+    # It is empty today: tst_appearance.qml's top-level declarations inside
+    # the TestCase are Component blocks that only a test function creates,
+    # plus three binding-free QtObject stubs that emit nothing while loading.
+    # Any other top-level item would open it, and adding a test file that
     # sorts earlier would move the uncovered region to that new file instead --
     # this is a property of load order, not of tst_appearance.qml.
     #
