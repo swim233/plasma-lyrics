@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-23 22:46+0800\n"
+"POT-Creation-Date: 2026-09-23 22:57+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -37,23 +37,23 @@ msgid "Lyrics Service"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/LyricsView.qml:61
-#: frontend/plasmoid/package/contents/ui/main.qml:279
-#: frontend/plasmoid/package/contents/ui/main.qml:350
+#: frontend/plasmoid/package/contents/ui/main.qml:300
+#: frontend/plasmoid/package/contents/ui/main.qml:375
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:51
 msgid "No media is playing"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:96
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:144
 msgid "Searching for lyrics…"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:288
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:336
 msgid ""
 "The lyrics service stopped. Restart it with:\n"
 "systemctl --user restart plasma-lyricsd"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:289
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:337
 msgid ""
 "The lyrics service is not running. Start it with:\n"
 "systemctl --user enable --now plasma-lyricsd"
@@ -64,91 +64,91 @@ msgctxt "@info track info: %1 is the song title, %2 is the artist name(s)"
 msgid "%1 — %2"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:113
-#: frontend/plasmoid/package/contents/ui/main.qml:380
+#: frontend/plasmoid/package/contents/ui/main.qml:114
+#: frontend/plasmoid/package/contents/ui/main.qml:407
 #: frontend/qmlmodule/lyricsource.cpp:551
 msgid "Desktop Lyrics"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:282
-#: frontend/plasmoid/package/contents/ui/main.qml:353
+#: frontend/plasmoid/package/contents/ui/main.qml:303
+#: frontend/plasmoid/package/contents/ui/main.qml:378
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:57
 msgid "Lyrics not found"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:285
-#: frontend/plasmoid/package/contents/ui/main.qml:356
+#: frontend/plasmoid/package/contents/ui/main.qml:306
+#: frontend/plasmoid/package/contents/ui/main.qml:381
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:63
 msgid "Instrumental track, enjoy the music"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:288
-#: frontend/plasmoid/package/contents/ui/main.qml:359
+#: frontend/plasmoid/package/contents/ui/main.qml:309
+#: frontend/plasmoid/package/contents/ui/main.qml:384
 #: frontend/plasmoid/package/contents/ui/config/ConfigText.qml:69
 msgid "Network error, cannot fetch lyrics"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:386
+#: frontend/plasmoid/package/contents/ui/main.qml:413
 msgid "Getting lyrics from %1…"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:390
+#: frontend/plasmoid/package/contents/ui/main.qml:417
 msgid "Current lyrics: %1 (temporary fallback)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:392
+#: frontend/plasmoid/package/contents/ui/main.qml:419
 msgid "Current lyrics: %1"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:394
+#: frontend/plasmoid/package/contents/ui/main.qml:421
 msgid "Current lyrics source: none"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:399
+#: frontend/plasmoid/package/contents/ui/main.qml:426
 msgid "Lyrics source: Automatic"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:407
+#: frontend/plasmoid/package/contents/ui/main.qml:434
 msgid "Prefer local files for this song"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:416
+#: frontend/plasmoid/package/contents/ui/main.qml:443
 msgid "Prefer NetEase for this song"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:425
+#: frontend/plasmoid/package/contents/ui/main.qml:452
 msgid "Prefer AMLL for this song"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:434
+#: frontend/plasmoid/package/contents/ui/main.qml:461
 msgid "Prefer QQ Music for this song"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:443
+#: frontend/plasmoid/package/contents/ui/main.qml:470
 msgid "Search for lyrics again"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:450
+#: frontend/plasmoid/package/contents/ui/main.qml:477
 msgid "Lyrics 0.5 s earlier (all songs)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:451
+#: frontend/plasmoid/package/contents/ui/main.qml:478
 msgid "Lyrics 0.5 s earlier"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:458
+#: frontend/plasmoid/package/contents/ui/main.qml:485
 msgid "Lyrics 0.5 s later (all songs)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:459
+#: frontend/plasmoid/package/contents/ui/main.qml:486
 msgid "Lyrics 0.5 s later"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:466
+#: frontend/plasmoid/package/contents/ui/main.qml:493
 msgid "Reset global lyric offset (%1 ms)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:467
+#: frontend/plasmoid/package/contents/ui/main.qml:494
 msgid "Reset lyric offset (%1 ms)"
 msgstr ""
 
