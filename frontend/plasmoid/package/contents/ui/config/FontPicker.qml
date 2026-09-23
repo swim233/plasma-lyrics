@@ -288,6 +288,9 @@ QQC2.ComboBox {
                             required property int index
 
                             width: ListView.view.width
+                            // Not drawn, the contentItem below is; this is
+                            // the row's name for screen readers.
+                            text: entryDelegate.modelData.text
                             highlighted: ListView.isCurrentItem
                             onClicked: root.pick(entryDelegate.modelData)
 

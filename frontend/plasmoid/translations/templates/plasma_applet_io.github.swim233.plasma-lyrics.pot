@@ -745,7 +745,7 @@ msgstr ""
 msgid "Search fonts"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:343
+#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:346
 msgid "No matching fonts"
 msgstr ""
 

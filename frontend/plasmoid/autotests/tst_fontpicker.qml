@@ -520,6 +520,9 @@ TestCase {
         const index = lyric.entryList.currentIndex;
         const row = lyric.entryList.itemAtIndex(index);
         verify(row !== null);
+        // The row's own text is not drawn (its contentItem is), but it is
+        // what a screen reader reads out.
+        compare(row.text, "Beta Serif");
         const texts = findAll(row, o => o.text !== undefined && o.font !== undefined).map(o => o.text);
         verify(texts.includes("Beta Serif"), texts);
         verify(texts.includes("Beta Antiqua, ベータ明朝"), texts);
