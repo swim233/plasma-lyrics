@@ -169,11 +169,17 @@ PlasmoidItem {
     // BreezeLight scheme reports #202326 here), so "auto" follows what draws
     // the plate and the panel. Read on this Item: the AppearanceTheme
     // QtObjects have no Kirigami.Theme of their own. It reads #000000,
-    // whatever the style, until Plasma parents this item -- in the same turn
-    // of the event loop that creates it, which AppearanceTheme lets settle
-    // without a transition -- and from then on follows a style change as it
-    // happens, with the same value here as in either representation.
+    // whatever the style, until Plasma parents this item, and from then on
+    // follows a style change as it happens, with the same value here as in
+    // either representation.
     readonly property bool plasmaStyleDark: ThemePolicy.isDarkBackground(Kirigami.Theme.backgroundColor)
+    // Put into a container, taken out of one or moved to another: the style's
+    // colour follows the new parent within this turn, and both themes let it
+    // arrive without a transition.
+    onParentChanged: {
+        desktopTheme.holdStill();
+        panelTheme.holdStill();
+    }
 
     // Gates the desktop fade Behavior (see LyricsView's `animationsArmed`):
     // true forever after the first determination, never reset. Deliberately

@@ -43,8 +43,8 @@ QtObject {
         return theme.configuration[theme.prefix + suffix];
     }
 
-    // False until one turn of the event loop after creation; until then
-    // `dark` follows wantDark without a transition. See Component.onCompleted.
+    // False from holdStill() until the next turn of the event loop; until
+    // then `dark` follows wantDark without a transition.
     property bool settled: false
     property Timer settleTimer: Timer {
         interval: theme.transitionMs
@@ -66,18 +66,24 @@ QtObject {
         theme.dark = theme.wantDark;
     }
 
-    // The set in effect at startup is simply there: plasmashell starting up
-    // is not a switch, and neither is styleDark settling right after it. The
-    // applet's root item completes before Plasma parents it, and until then
-    // its Kirigami.Theme has no style to inherit: plasmoidviewer reports
-    // #000000 at Component.onCompleted -- dark, whatever the style -- and the
-    // style's colour once the item is parented, in that same turn of the
-    // event loop. So switches count from the next turn on.
-    Component.onCompleted: {
+    // styleDark is only right on an item that has a parent: the widget's
+    // Kirigami.Theme has no style to inherit before that, and plasmoidviewer
+    // reports #000000 -- dark, whatever the style -- until Plasma parents
+    // the root item, with the style's colour arriving in the same turn of
+    // the event loop (in a panel, a millisecond after the parent itself).
+    // So main.qml calls this whenever the root item's parent changes, and
+    // whatever styleDark does for the rest of that turn is it settling, not
+    // a switch. It also runs on creation: plasmashell starting up is not a
+    // switch either.
+    function holdStill() {
+        theme.settled = false;
         theme.dark = theme.wantDark;
-        Qt.callLater(() => {
-            theme.dark = theme.wantDark;
-            theme.settled = true;
-        });
+        Qt.callLater(theme.settle);
     }
+    function settle() {
+        theme.dark = theme.wantDark;
+        theme.settled = true;
+    }
+
+    Component.onCompleted: theme.holdStill()
 }

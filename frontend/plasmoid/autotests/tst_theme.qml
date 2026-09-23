@@ -198,6 +198,29 @@ TestCase {
         compare(harness.transitioningWhenDarkChanged, true);
     }
 
+    // main.qml calls holdStill() whenever the widget's root item changes
+    // parent -- the same #000000-then-style's-colour sequence as at startup.
+    function test_themeHoldsStillForOneTurn() {
+        const harness = createSettled(themeComponent, { styleDark: true });
+        tryCompare(harness.theme, "transitioning", false);
+        const changes = harness.darkChanges;
+
+        harness.theme.holdStill();
+        compare(harness.theme.settled, false);
+        harness.styleDark = false;
+        compare(harness.theme.dark, false);
+        compare(harness.transitioningWhenDarkChanged, false);
+        harness.styleDark = true;
+        compare(harness.theme.dark, true);
+        compare(harness.theme.transitioning, false);
+        compare(harness.darkChanges, changes + 2);
+
+        tryCompare(harness.theme, "settled", true);
+        harness.styleDark = false;
+        compare(harness.transitioningWhenDarkChanged, true);
+        compare(harness.theme.transitioning, true);
+    }
+
     function test_themeSwitchArmsTransitionFirst() {
         const harness = createSettled(themeComponent, { transitionMs: 150 });
         compare(harness.theme.dark, false);
