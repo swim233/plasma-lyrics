@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-23 19:30+0800\n"
+"POT-Creation-Date: 2026-09-23 19:48+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -741,11 +741,11 @@ msgstr "跟随系统字体（%1）"
 msgid "%1 (not installed)"
 msgstr "%1（未安装）"
 
-#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:252
+#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:266
 msgid "Search fonts"
 msgstr "搜索字体"
 
-#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:346
+#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:360
 msgid "No matching fonts"
 msgstr "没有匹配的字体"
 

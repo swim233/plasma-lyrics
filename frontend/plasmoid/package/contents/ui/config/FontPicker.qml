@@ -193,11 +193,17 @@ QQC2.ComboBox {
         implicitWidth: 0
         implicitHeight: 0
         padding: 0
+        // The same indent as the style's own text field, read off
+        // styleReference below, so the text lines up with the plain combo
+        // boxes around this one: org.kde.desktop indents by the box's
+        // padding alone (0 here), org.kde.breeze and Fusion also by their
+        // field's leftPadding.
+        leftPadding: (styleReference.contentItem as TextInput)?.leftPadding ?? 0
         // org.kde.desktop draws the drop-down arrow inside the content area
-        // and has no indicator item; styles that have one (Fusion, Basic)
-        // already leave room for it in the box's rightPadding.
+        // and has no indicator item; styles that have one (org.kde.breeze,
+        // Fusion) already leave room for it in the box's rightPadding.
         rightPadding: root.indicator && root.indicator.width > 0
-            ? 0
+            ? (styleReference.contentItem as TextInput)?.rightPadding ?? 0
             : Kirigami.Units.gridUnit + Kirigami.Units.smallSpacing
         // Not editable and never focused; presses go to the box.
         enabled: false
@@ -217,6 +223,14 @@ QQC2.ComboBox {
             elide: Text.ElideRight
             elideWidth: Math.max(0, closedField.width - closedField.leftPadding - closedField.rightPadding)
         }
+    }
+
+    // A plain combo box of the same style, never shown, whose own text
+    // field says how far this style indents a combo box's text.
+    QQC2.ComboBox {
+        id: styleReference
+        visible: false
+        model: []
     }
 
     popup: QQC2.Popup {
