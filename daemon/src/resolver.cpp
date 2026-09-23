@@ -431,7 +431,7 @@ void Resolver::resolve(const MprisState &state, ResolveOptions options)
 
     // A forced request that is keeping an already-displayed lyric (a manual
     // "research"/preference change) never runs the retaining cache/override
-    // lookups above -- a preference change only tries the first provider's
+    // lookups above -- a preference change only tries the chain head's
     // own cache and gets here after missing it -- so it announces its own
     // retained content here instead.
     if (request->force && request->keepExisting && request->existing && request->existing->ref) {

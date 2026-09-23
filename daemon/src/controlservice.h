@@ -18,7 +18,7 @@ class ControlService final : public QObject
     Q_CLASSINFO("D-Bus Interface", "io.github.swim233.PlasmaLyrics.Control")
 
 public:
-    // Whether a forced resolve may answer from the new first provider's cached
+    // Whether a forced resolve may answer from the new chain head's cached
     // lyric (a provider switch) or must search again (Research).
     enum class CachePolicy { PreferCached, Bypass };
     using CurrentState = std::function<std::optional<MprisState>()>;
