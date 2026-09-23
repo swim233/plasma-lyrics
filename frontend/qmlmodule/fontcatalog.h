@@ -1,5 +1,7 @@
 #pragma once
 
+#include "fontmatching.h"
+
 #include <QObject>
 #include <QQmlEngine>
 #include <QString>
@@ -29,7 +31,9 @@ public:
     explicit FontCatalog(QObject *parent = nullptr);
 
     // Scalable families covering Latin or any of Simplified Chinese,
-    // Traditional Chinese, Japanese or Korean, sorted case-insensitively.
+    // Traditional Chinese, Japanese or Korean that have at least one upright
+    // face, so weights() is never empty for them; sorted case-insensitively.
+    // Qt's generic "Sans Serif", "Serif" and "Monospace" are not among them.
     Q_INVOKABLE QStringList families() const;
 
     // Every other name fontconfig knows `family` by (other languages), for
@@ -61,4 +65,13 @@ public:
     // else the lightest above. Above 500: the lightest above target, else
     // the heaviest below. So 400 prefers 500, and 500 prefers 400.
     Q_INVOKABLE int snapWeight(const QVariantList &available, int target) const;
+
+private:
+    void ensureBuilt() const;
+
+    mutable bool m_built = false;
+    mutable QStringList m_families;
+    mutable FontMatching::NameIndex m_names;
+    // Per entry of m_families: its listed name followed by its alternates.
+    mutable QList<QStringList> m_searchNames;
 };

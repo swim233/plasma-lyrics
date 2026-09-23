@@ -15,9 +15,10 @@ license=('GPL-2.0-only')
 # other entry only satisfies them by accident, which is what namcap reports.
 # zlib is linked directly by the QQ provider (QRC payloads are a zlib stream
 # under the cipher), so it is a real linkage rather than one satisfied by
-# accident through Qt.
+# accident through Qt. fontconfig likewise: the QML module lists every font
+# family's names in other languages through FcFontList itself.
 depends=('plasma-workspace' 'libplasma' 'kirigami' 'ksvg' 'ki18n' 'kdeclarative'
-         'qt6-base' 'qt6-declarative' 'zlib' 'glibc' 'libgcc' 'libstdc++')
+         'qt6-base' 'qt6-declarative' 'zlib' 'fontconfig' 'glibc' 'libgcc' 'libstdc++')
 # gettext supplies msgfmt, which builds the translation catalogues.
 makedepends=('git' 'cmake' 'ninja' 'extra-cmake-modules' 'gettext')
 provides=("${pkgname%-git}")

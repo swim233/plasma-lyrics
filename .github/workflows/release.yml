@@ -88,17 +88,18 @@ jobs:
     steps:
       # This list must stay identical to the one in ci.yml: dbus-daemon carries
       # dbus-run-session, file backs shlibdeps, appstream supplies
-      # appstreamcli, zlib1g-dev backs the QQ provider's find_package(ZLIB).
+      # appstreamcli, zlib1g-dev backs the QQ provider's find_package(ZLIB),
+      # libfontconfig-dev the QML module's find_package(Fontconfig).
       # A package missing from here does not fail the job, it quietly drops a
-      # test or the dependency scan -- except zlib1g-dev, which fails the
-      # configure outright.
+      # test or the dependency scan -- except zlib1g-dev and
+      # libfontconfig-dev, which fail the configure outright.
       - name: Install dependencies
         run: |
           apt-get update
           apt-get install -y --no-install-recommends \
             git ca-certificates cmake ninja-build g++ \
             extra-cmake-modules qt6-base-dev qt6-declarative-dev \
-            libkf6i18n-dev libplasma-dev gettext zlib1g-dev \
+            libkf6i18n-dev libplasma-dev gettext zlib1g-dev libfontconfig-dev \
             dbus-daemon libqt6sql6-sqlite \
             file appstream \
             qml6-module-org-kde-kirigami qml6-module-org-kde-ksvg \
