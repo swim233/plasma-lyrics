@@ -2,6 +2,9 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import io.github.swim233.lyrics
+
+import "../FontPolicy.js" as FontPolicy
 
 Kirigami.ScrollablePage {
     id: page
@@ -11,6 +14,7 @@ Kirigami.ScrollablePage {
     property string cfg_panelTextColor
     property bool cfg_panelStroke
     property string cfg_panelStrokeColor
+    property string cfg_panelFontFamily
     property alias cfg_panelFontSize: panelFontSize.value
     property int cfg_panelFontWeight
     property string cfg_panelOverflow
@@ -32,12 +36,23 @@ Kirigami.ScrollablePage {
 
     property bool cfg_panelShowTrackInfo
     property string cfg_panelTrackInfoLayout
+    property bool cfg_panelTrackInfoFontSameAsLyrics
+    property string cfg_panelTrackInfoFontFamily
     property alias cfg_panelTrackInfoFontSize: panelTrackInfoFontSize.value
     property int cfg_panelTrackInfoFontWeight
     property string cfg_panelTrackInfoColor
     property bool cfg_panelTrackInfoStroke
     property string cfg_panelTrackInfoStrokeColor
     property string cfg_panelTrackInfoOverflow
+
+    // The families the two sections render in, for AppearanceSection's
+    // weight rows. Computed here, from the plain cfg_ properties above,
+    // rather than inside AppearanceSection: see its lyricEffectiveFamily.
+    readonly property string lyricFamily: FontPolicy.lyricFamily(FontCatalog,
+        page.cfg_panelFontFamily, Kirigami.Theme.defaultFont.family)
+    readonly property string trackInfoFamily: FontPolicy.trackInfoFamily(FontCatalog,
+        page.cfg_panelTrackInfoFontSameAsLyrics, page.cfg_panelTrackInfoFontFamily,
+        page.lyricFamily, Kirigami.Theme.defaultFont.family)
 
     // Plain top-level property, same "Pattern 2" as the auto-hide block
     // below: this SpinBox is declared directly in this file rather than
@@ -78,6 +93,9 @@ Kirigami.ScrollablePage {
             textColor: page.cfg_panelTextColor
             strokeEnabled: page.cfg_panelStroke
             strokeColor: page.cfg_panelStrokeColor
+            fontCatalog: FontCatalog
+            fontFamily: page.cfg_panelFontFamily
+            lyricEffectiveFamily: page.lyricFamily
             fontWeight: page.cfg_panelFontWeight
             overflowMode: page.cfg_panelOverflow
             animationMode: page.cfg_panelAnimation
@@ -117,12 +135,16 @@ Kirigami.ScrollablePage {
             onTextColorEdited: value => page.cfg_panelTextColor = value
             onStrokeEnabledEdited: value => page.cfg_panelStroke = value
             onStrokeColorEdited: value => page.cfg_panelStrokeColor = value
+            onFontFamilyEdited: value => page.cfg_panelFontFamily = value
             onFontWeightEdited: value => page.cfg_panelFontWeight = value
             onOverflowModeEdited: value => page.cfg_panelOverflow = value
             onAnimationModeEdited: value => page.cfg_panelAnimation = value
 
             showTrackInfo: page.cfg_panelShowTrackInfo
             trackInfoLayout: page.cfg_panelTrackInfoLayout
+            trackInfoFontSameAsLyrics: page.cfg_panelTrackInfoFontSameAsLyrics
+            trackInfoFontFamily: page.cfg_panelTrackInfoFontFamily
+            trackInfoEffectiveFamily: page.trackInfoFamily
             trackInfoFontWeight: page.cfg_panelTrackInfoFontWeight
             trackInfoColor: page.cfg_panelTrackInfoColor
             trackInfoStrokeEnabled: page.cfg_panelTrackInfoStroke
@@ -131,6 +153,8 @@ Kirigami.ScrollablePage {
             trackInfoFontSizeControl: panelTrackInfoFontSize
             onShowTrackInfoEdited: value => page.cfg_panelShowTrackInfo = value
             onTrackInfoLayoutEdited: value => page.cfg_panelTrackInfoLayout = value
+            onTrackInfoFontSameAsLyricsEdited: value => page.cfg_panelTrackInfoFontSameAsLyrics = value
+            onTrackInfoFontFamilyEdited: value => page.cfg_panelTrackInfoFontFamily = value
             onTrackInfoFontWeightEdited: value => page.cfg_panelTrackInfoFontWeight = value
             onTrackInfoColorEdited: value => page.cfg_panelTrackInfoColor = value
             onTrackInfoStrokeEnabledEdited: value => page.cfg_panelTrackInfoStroke = value

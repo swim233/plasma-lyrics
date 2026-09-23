@@ -22,6 +22,12 @@
     <entry name="desktopTextColor" type="String"><default>#fffaf5</default></entry>
     <entry name="desktopStroke" type="Bool"><default>false</default></entry>
     <entry name="desktopStrokeColor" type="String"><default>#cc000000</default></entry>
+    <!-- Empty means follow the Plasma font (Kirigami.Theme.defaultFont), which
+         is what every instance did before this key existed, so an upgraded
+         instance renders exactly as before. A stored name that is no longer
+         installed renders in the Plasma font too, but is kept as is, so the
+         font comes back once it is reinstalled and plasmashell restarted. -->
+    <entry name="desktopFontFamily" type="String"><default></default></entry>
     <entry name="desktopFontSize" type="Int"><default>34</default></entry>
     <entry name="desktopFontWeight" type="Int"><default>700</default></entry>
     <entry name="desktopOverflow" type="String"><default>fit</default></entry>
@@ -77,6 +83,13 @@
 
     <entry name="desktopShowTrackInfo" type="Bool"><default>true</default></entry>
     <entry name="desktopTrackInfoLayout" type="String"><default>single</default></entry>
+    <!-- True: track info uses whatever family the lyrics actually render in,
+         and desktopTrackInfoFontFamily is ignored. False: that key applies,
+         with the same empty-means-Plasma-font rule as desktopFontFamily. Two
+         keys, like desktopSecondLineColorEnabled/desktopSecondLineColor,
+         rather than one string with a reserved marker value. -->
+    <entry name="desktopTrackInfoFontSameAsLyrics" type="Bool"><default>true</default></entry>
+    <entry name="desktopTrackInfoFontFamily" type="String"><default></default></entry>
     <entry name="desktopTrackInfoFontSize" type="Int"><default>19</default></entry>
     <entry name="desktopTrackInfoFontWeight" type="Int"><default>400</default></entry>
     <entry name="desktopTrackInfoColor" type="String"><default>#b3fffaf5</default></entry>
@@ -99,6 +112,8 @@
     <entry name="panelTextColor" type="String"><default>#fffaf5</default></entry>
     <entry name="panelStroke" type="Bool"><default>false</default></entry>
     <entry name="panelStrokeColor" type="String"><default>#cc000000</default></entry>
+    <!-- See desktopFontFamily's comment above; same rule, panel copy. -->
+    <entry name="panelFontFamily" type="String"><default></default></entry>
     <entry name="panelFontSize" type="Int"><default>16</default></entry>
     <entry name="panelFontWeight" type="Int"><default>400</default></entry>
     <entry name="panelOverflow" type="String"><default>fit</default></entry>
@@ -121,6 +136,9 @@
 
     <entry name="panelShowTrackInfo" type="Bool"><default>false</default></entry>
     <entry name="panelTrackInfoLayout" type="String"><default>single</default></entry>
+    <!-- See desktopTrackInfoFontSameAsLyrics's comment above; panel copy. -->
+    <entry name="panelTrackInfoFontSameAsLyrics" type="Bool"><default>true</default></entry>
+    <entry name="panelTrackInfoFontFamily" type="String"><default></default></entry>
     <entry name="panelTrackInfoFontSize" type="Int"><default>12</default></entry>
     <entry name="panelTrackInfoFontWeight" type="Int"><default>400</default></entry>
     <entry name="panelTrackInfoColor" type="String"><default>#b3fffaf5</default></entry>
