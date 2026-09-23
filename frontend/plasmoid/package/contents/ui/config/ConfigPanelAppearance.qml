@@ -79,9 +79,13 @@ Kirigami.ScrollablePage {
     property bool cfg_panelLightTrackInfoStroke
     property string cfg_panelLightTrackInfoStrokeColor
 
+    // Whether the Plasma style is dark, as on the desktop page.
+    property bool styleDark: PlasmaStyle.isDark()
+
     // The set the tabs show and edit, as on the desktop page.
     readonly property bool editingDark: themeTabs.editingDark
     readonly property string editingPrefix: "cfg_" + ThemePolicy.keyPrefix("panel", page.editingDark)
+    readonly property bool editingSetInEffect: page.editingDark === themeTabs.darkInEffect
 
     function themed(suffix) {
         return page[page.editingPrefix + suffix];
@@ -147,8 +151,10 @@ Kirigami.ScrollablePage {
             id: themeTabs
             Layout.fillWidth: true
             formFactor: "panel"
+            styleDark: page.styleDark
             mode: page.cfg_panelColorSchemeMode
             twinFormLayouts: [appearanceSection]
+            wideMode: appearanceSection.wideMode
             onModeEdited: value => page.cfg_panelColorSchemeMode = value
             onSyncConfirmed: fromDark => page.syncFrom(fromDark)
 
@@ -215,6 +221,7 @@ Kirigami.ScrollablePage {
                 onTrackInfoStrokeEnabledEdited: value => page.editThemed("TrackInfoStroke", value)
                 onTrackInfoStrokeColorEdited: value => page.editThemed("TrackInfoStrokeColor", value)
                 // Shared by both sets: see editLyricFamily.
+                setInEffect: page.editingSetInEffect
                 trackInfoFontSameAsLyrics: page.cfg_panelTrackInfoFontSameAsLyrics
                 trackInfoFontWeight: page.cfg_panelTrackInfoFontWeight
                 onTrackInfoFontWeightEdited: value => page.cfg_panelTrackInfoFontWeight = value
@@ -222,12 +229,17 @@ Kirigami.ScrollablePage {
         }
 
         // The rest of the track info, shared by both sets and so outside
-        // the tabs.
+        // the tabs. Like every form outside the frame it takes wideMode from
+        // the one inside, which the frame's padding makes the narrowest: on
+        // their own, the forms would switch between one and two columns at
+        // different page widths.
         TrackInfoSection {
             Layout.fillWidth: true
             twinFormLayouts: [appearanceSection]
+            wideMode: appearanceSection.wideMode
             fontCatalog: FontCatalog
             lyricEffectiveFamily: page.lyricFamily
+            lyricSetInEffect: page.editingSetInEffect
             trackInfoEffectiveFamily: page.trackInfoFamily
             showTrackInfo: page.cfg_panelShowTrackInfo
             trackInfoLayout: page.cfg_panelTrackInfoLayout
@@ -260,6 +272,7 @@ Kirigami.ScrollablePage {
         Kirigami.FormLayout {
             Layout.fillWidth: true
             twinFormLayouts: [appearanceSection]
+            wideMode: appearanceSection.wideMode
 
             QQC2.SpinBox {
                 Kirigami.FormData.label: i18nc("@label:spinbox", "Width:")
@@ -274,6 +287,7 @@ Kirigami.ScrollablePage {
         Kirigami.FormLayout {
             Layout.fillWidth: true
             twinFormLayouts: [appearanceSection]
+            wideMode: appearanceSection.wideMode
 
             Kirigami.Separator {
                 Kirigami.FormData.isSection: true

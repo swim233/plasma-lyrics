@@ -83,6 +83,13 @@ Kirigami.ScrollablePage {
     property bool cfg_desktopLightTrackInfoStroke
     property string cfg_desktopLightTrackInfoStrokeColor
 
+    // Whether the Plasma style is dark, which "Follow system" follows
+    // (DESIGN.md decision 76). Read once as the page opens, and from
+    // PlasmaStyle rather than Kirigami.Theme: in this dialog Kirigami.Theme
+    // reports the colour scheme. A property of the page so the tests can
+    // set it instead of reading the plasmarc of the machine they run on.
+    property bool styleDark: PlasmaStyle.isDark()
+
     // The set the tabs show and edit. AppearanceSection reads and writes it
     // through these two: themed("TextColor") is cfg_desktopTextColor on the
     // Dark tab and cfg_desktopLightTextColor on the Light tab. A property
@@ -90,6 +97,10 @@ Kirigami.ScrollablePage {
     // binding over themed() follows both the tab and the key.
     readonly property bool editingDark: themeTabs.editingDark
     readonly property string editingPrefix: "cfg_" + ThemePolicy.keyPrefix("desktop", page.editingDark)
+    // Whether the tab on screen is the set the widget renders with, which
+    // decides whether a font pick writes the shared track-info weight (see
+    // AppearanceSection's editLyricFamily).
+    readonly property bool editingSetInEffect: page.editingDark === themeTabs.darkInEffect
 
     function themed(suffix) {
         return page[page.editingPrefix + suffix];
@@ -153,8 +164,10 @@ Kirigami.ScrollablePage {
             id: themeTabs
             Layout.fillWidth: true
             formFactor: "desktop"
+            styleDark: page.styleDark
             mode: page.cfg_desktopColorSchemeMode
             twinFormLayouts: [appearanceSection]
+            wideMode: appearanceSection.wideMode
             onModeEdited: value => page.cfg_desktopColorSchemeMode = value
             onSyncConfirmed: fromDark => page.syncFrom(fromDark)
 
@@ -226,6 +239,7 @@ Kirigami.ScrollablePage {
                 onTrackInfoStrokeEnabledEdited: value => page.editThemed("TrackInfoStroke", value)
                 onTrackInfoStrokeColorEdited: value => page.editThemed("TrackInfoStrokeColor", value)
                 // Shared by both sets: see editLyricFamily.
+                setInEffect: page.editingSetInEffect
                 trackInfoFontSameAsLyrics: page.cfg_desktopTrackInfoFontSameAsLyrics
                 trackInfoFontWeight: page.cfg_desktopTrackInfoFontWeight
                 onTrackInfoFontWeightEdited: value => page.cfg_desktopTrackInfoFontWeight = value
@@ -233,12 +247,17 @@ Kirigami.ScrollablePage {
         }
 
         // The rest of the track info, shared by both sets and so outside
-        // the tabs.
+        // the tabs. Like every form outside the frame it takes wideMode from
+        // the one inside, which the frame's padding makes the narrowest: on
+        // their own, the forms would switch between one and two columns at
+        // different page widths.
         TrackInfoSection {
             Layout.fillWidth: true
             twinFormLayouts: [appearanceSection]
+            wideMode: appearanceSection.wideMode
             fontCatalog: FontCatalog
             lyricEffectiveFamily: page.lyricFamily
+            lyricSetInEffect: page.editingSetInEffect
             trackInfoEffectiveFamily: page.trackInfoFamily
             showTrackInfo: page.cfg_desktopShowTrackInfo
             trackInfoLayout: page.cfg_desktopTrackInfoLayout
@@ -271,6 +290,7 @@ Kirigami.ScrollablePage {
         Kirigami.FormLayout {
             Layout.fillWidth: true
             twinFormLayouts: [appearanceSection]
+            wideMode: appearanceSection.wideMode
 
             Kirigami.Separator {
                 Kirigami.FormData.isSection: true
