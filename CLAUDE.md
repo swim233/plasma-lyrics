@@ -137,26 +137,45 @@ published for as long as that PKGBUILD is live.
 
 ## Agent team workflow
 
+Every agent in this workflow -- `dev`, `qa-1`, `qa-2` and `qa-f` -- runs
+on opus.
+
 Sizeable features are split by the lead into independent tasks with
-disjoint file sets. Each task gets its own `dev` agent (opus) working in
-its own git worktree under `/home/swim/code/desktop_lyrics-wt/<name>` on a
-`feat/<name>` branch, all tasks running in parallel. Groundwork that several
-tasks depend on is written by the lead first and committed on a base branch
-the task branches start from. Each dev configures and builds in its own
+disjoint file sets. Groundwork that several tasks depend on is written by
+the lead first and committed on a base branch the task branches start from.
+Each task gets its own `dev` agent working in its own git worktree under
+`/home/swim/code/desktop_lyrics-wt/<name>` on a `feat/<name>` branch, all
+tasks running in parallel. Each dev configures and builds in its own
 worktree (`build/` inside it; ccache is installed) and commits on its branch
-in the commit-message style above. When a dev merges the integration branch
-into its own branch (for example to fix review findings on the integrated
-tree), the merge subject names what came in, such as
+in the commit-message style above.
+
+Each task then passes two reviews in order, each by a fresh agent assigned
+to that task alone:
+
+1. When the dev reports done, the task's `qa-1` reviews its branch.
+   Findings go back to that task's dev, and `qa-1` re-reviews the fix until
+   it passes.
+2. After `qa-1` passes, the task's `qa-2` reviews the same branch
+   independently -- it is not given `qa-1`'s findings or verdict. Findings
+   again go back to the dev, and `qa-2` re-reviews until it passes.
+
+When every task has passed `qa-2`, the lead merges the branches into one
+integration branch, re-verifies the whole tree itself (`git status
+--short`, full `git diff --stat` against `main`, build, ctest, qmllint),
+then hands the full diff against `main` to a `qa-f` agent for the final
+review. Findings go back to the responsible dev, and `qa-f` re-reviews the
+fix; the feature is done only when `qa-f` reports no findings. Only then
+does the lead merge into `main` and remove the worktrees and merged
+branches. QA agents report findings and never fix code themselves.
+
+When a dev merges the integration branch into its own branch (for example
+to fix `qa-f` findings on the integrated tree), the merge subject names
+what came in, such as
 `merge(外观): 字体目录分支合入集成分支的渲染与设置页改动`, never a bare
-"同步集成分支". When every task is done the lead merges
-the branches into one integration branch, re-verifies the whole tree itself
-(`git status --short`, full `git diff --stat` against `main`, build, ctest,
-qmllint), then hands the integrated tree to a single `reviewer` agent (opus)
-for the final review. Findings go back to the responsible dev; only after
-the reviewer passes it does the lead merge into `main` and remove the
-worktrees and merged branches.
+"同步集成分支".
 
 Nobody does destructive verification in a tree that holds uncommitted
 changes: `git checkout -- <file>` there destroys the whole change, not just
 the breakage that was introduced on purpose. Copy the tree to a scratch
-directory first. No agent's report replaces the lead's own verification.
+directory first, and state this rule in every QA agent's brief. No agent's
+report replaces the lead's own verification.
