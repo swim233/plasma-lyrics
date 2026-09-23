@@ -134,3 +134,25 @@ generates and validates them; it holds no AUR credentials.
 `plasma-lyrics-bin`'s `source=` points at the
 `plasma-lyrics-<version>-x86_64-bin.tar.gz` asset, so that asset has to stay
 published for as long as that PKGBUILD is live.
+
+## Agent team workflow
+
+Sizeable features are split by the lead into independent tasks with
+disjoint file sets. Each task gets its own `dev` agent (sonnet) working in
+its own git worktree under `/home/swim/code/desktop_lyrics-wt/<name>` on a
+`feat/<name>` branch, all tasks running in parallel. Groundwork that several
+tasks depend on is written by the lead first and committed on a base branch
+the task branches start from. Each dev configures and builds in its own
+worktree (`build/` inside it; ccache is installed) and commits on its branch
+in the commit-message style above. When every task is done the lead merges
+the branches into one integration branch, re-verifies the whole tree itself
+(`git status --short`, full `git diff --stat` against `main`, build, ctest,
+qmllint), then hands the integrated tree to a single `reviewer` agent (opus)
+for the final review. Findings go back to the responsible dev; only after
+the reviewer passes it does the lead merge into `main` and remove the
+worktrees and merged branches.
+
+Nobody does destructive verification in a tree that holds uncommitted
+changes: `git checkout -- <file>` there destroys the whole change, not just
+the breakage that was introduced on purpose. Copy the tree to a scratch
+directory first. No agent's report replaces the lead's own verification.
