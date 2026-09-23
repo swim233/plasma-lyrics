@@ -205,13 +205,16 @@ TestCase {
     // A stand-in for FontCatalog with a fixed set of families, so these
     // results do not depend on what is installed (CI has next to nothing).
     // "Beta Alias" is another name for "Beta Sans", the way a family saved
-    // under one locale is listed under another. snapWeight records its
+    // under one locale is listed under another, and "Microsoft YaHei" the
+    // same for "微软雅黑". Like FontCatalog's contract, weights() knows only
+    // listed names, so a weight snapped against an unlisted name shows up as
+    // an empty face list in snapCalls. snapWeight records its
     // arguments, keeps a weight that is one of the faces and otherwise
     // returns the heaviest face -- a rule neither nearest-weight nor CSS
     // matching follows, so such a result can only have come from here.
     function fakeCatalog() {
-        const faces = { "Alpha": [400], "Beta Sans": [300, 700], "Plasma Sans": [400, 700] };
-        const aliases = { "Beta Alias": "Beta Sans" };
+        const faces = { "Alpha": [400], "Beta Sans": [300, 700], "Plasma Sans": [400, 700], "微软雅黑": [400, 700] };
+        const aliases = { "Beta Alias": "Beta Sans", "Microsoft YaHei": "微软雅黑" };
         return {
             snapCalls: [],
             resolveFamily(stored) {
@@ -296,5 +299,42 @@ TestCase {
         compare(FontPolicy.renderWeight(catalog, trackInfo, 400), 400);
         compare(catalog.snapCalls, [{ weights: [400, 700], target: 700 },
                                     { weights: [400, 700], target: 400 }]);
+
+        // The same with the Plasma font stored under another locale's name:
+        // it still renders in the Plasma font, and its weights snap against
+        // that font's faces.
+        const localized = FontPolicy.lyricFamily(catalog, "", "Microsoft YaHei");
+        compare(localized, "微软雅黑");
+        compare(FontPolicy.trackInfoFamily(catalog, true, "", localized, "Microsoft YaHei"), "微软雅黑");
+        compare(FontPolicy.renderWeight(catalog, localized, 700), 700);
+        compare(catalog.snapCalls[2], { weights: [400, 700], target: 700 });
+    }
+
+    // kdeglobals keeps the Plasma font under the name it was picked under,
+    // which the current locale may list differently. The appearance pages
+    // write a snapped weight whenever a pick changes the effective family,
+    // so following the Plasma font and picking that same font from the list
+    // have to give one and the same family.
+    function test_policyThePlasmaFontIsNamedAsTheCatalogListsIt() {
+        const catalog = fakeCatalog();
+        const system = "Microsoft YaHei";
+        const following = FontPolicy.lyricFamily(catalog, "", system);
+        compare(following, "微软雅黑");
+        compare(FontPolicy.lyricFamily(catalog, "微软雅黑", system), following);
+        compare(FontPolicy.lyricFamily(catalog, "Microsoft YaHei", system), following);
+        // The not-installed fallback names it the same way.
+        compare(FontPolicy.lyricFamily(catalog, "Gone Font", system), "微软雅黑");
+        compare(FontPolicy.trackInfoFamily(catalog, false, "", "Alpha", system), "微软雅黑");
+        compare(FontPolicy.trackInfoFamily(catalog, false, "Gone Font", "Alpha", system), "微软雅黑");
+        compare(FontPolicy.trackInfoFamily(catalog, false, "微软雅黑", "Alpha", system), "微软雅黑");
+    }
+
+    function test_policyAPlasmaFontTheCatalogCannotResolveIsUsedAsItIs() {
+        const catalog = fakeCatalog();
+        const system = "Unlisted Sans";
+        compare(FontPolicy.lyricFamily(catalog, "", system), system);
+        compare(FontPolicy.lyricFamily(catalog, "Gone Font", system), system);
+        compare(FontPolicy.trackInfoFamily(catalog, false, "", "Alpha", system), system);
+        compare(FontPolicy.trackInfoFamily(catalog, false, "Gone Font", "Alpha", system), system);
     }
 }

@@ -8,14 +8,28 @@
 // tests; `systemFamily` is Kirigami.Theme.defaultFont.family, passed in
 // because a .pragma library script cannot reach Kirigami itself.
 
+// The Plasma font under the name the catalog lists it by. kdeglobals keeps
+// whatever name the font was picked under, which need not be the name the
+// current locale lists ("Microsoft YaHei" where zh_CN lists "微软雅黑");
+// without this, following the Plasma font and picking the same font from
+// the list would be two different effective families. A name the catalog
+// cannot resolve is returned as it is.
+function plasmaFamily(catalog, systemFamily) {
+    if (!systemFamily) {
+        return systemFamily;
+    }
+    const listed = catalog.resolveFamily(systemFamily);
+    return listed.length > 0 ? listed : systemFamily;
+}
+
 // The family the lyrics render in. `stored` is <form>FontFamily: empty
 // follows the Plasma font, and so does a stored family that is not installed.
 function lyricFamily(catalog, stored, systemFamily) {
     if (!stored) {
-        return systemFamily;
+        return plasmaFamily(catalog, systemFamily);
     }
     const listed = catalog.resolveFamily(stored);
-    return listed.length > 0 ? listed : systemFamily;
+    return listed.length > 0 ? listed : plasmaFamily(catalog, systemFamily);
 }
 
 // The family the track info renders in. `sameAsLyrics` and `stored` are
