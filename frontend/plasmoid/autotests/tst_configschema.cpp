@@ -347,7 +347,9 @@ private Q_SLOTS:
     // DESIGN.md decision 76, main.qml's side. main.qml is a PlasmoidItem the
     // QML suite cannot instantiate, and qmllint cannot tell one key name from
     // another, so this reads its text. Each form factor has one
-    // AppearanceTheme, id <form>Theme, over Plasmoid.configuration; every
+    // AppearanceTheme, id <form>Theme, over Plasmoid.configuration and fed
+    // the root's plasmaStyleDark -- Kirigami.Theme reports the Plasma style
+    // only on an Item of the widget, which a QtObject is not; every
     // value() call on it passes a literal suffix from that form's table; each
     // representation reads every suffix of its own form and nothing from the
     // other form's theme; and no themed key, dark or light, is read straight
@@ -373,6 +375,7 @@ private Q_SLOTS:
         const QRegularExpression idLine(QStringLiteral("\\bid:\\s*(\\w+)"));
         const QRegularExpression formFactorLine(QStringLiteral("\\bformFactor:\\s*\"(\\w*)\""));
         const QRegularExpression configurationLine(QStringLiteral("\\bconfiguration:\\s*Plasmoid\\.configuration\\s*\\n"));
+        const QRegularExpression styleDarkLine(QStringLiteral("\\bstyleDark:\\s*root\\.plasmaStyleDark\\s*\\n"));
         QStringList themeIds;
         for (auto it = themeDeclaration.globalMatch(main); it.hasNext();) {
             const QString block = braceBlock(main, it.next().capturedEnd() - 1);
@@ -383,6 +386,9 @@ private Q_SLOTS:
             }
             if (!configurationLine.match(block).hasMatch()) {
                 problems << QStringLiteral("%1: configuration is not Plasmoid.configuration").arg(id);
+            }
+            if (!styleDarkLine.match(block).hasMatch()) {
+                problems << QStringLiteral("%1: styleDark is not root.plasmaStyleDark").arg(id);
             }
             themeIds << id;
         }
