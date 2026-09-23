@@ -129,13 +129,14 @@ TestCase {
         }
     }
 
-    // Kirigami.Dialog parents itself to applicationWindow().overlay, which
-    // the config dialog provides (AppletConfiguration.qml defines
-    // applicationWindow() for the pages it loads). Without one, the sync
-    // dialog falls back to the item it is declared in, and opening it there
-    // reported binding loops on its y. The window is the one
-    // createWindowedPage() made last; a page outside a window gets no
-    // overlay, and its dialog is never opened.
+    // Kirigami.Dialog parents itself to applicationWindow().overlay. In the
+    // config dialog, AppletConfiguration.qml's applicationWindow() returns
+    // its Kirigami.ApplicationItem, whose `overlay` is an item covering the
+    // window; here the window's own Overlay.overlay stands in for it.
+    // Without one, the sync dialog falls back to the item it is declared in,
+    // and opening it there reported binding loops on its y. The window is
+    // the one createWindowedPage() made last; a page outside a window gets
+    // no overlay, and its dialog is never opened.
     property Window dialogWindow: null
 
     function applicationWindow() {
@@ -2260,7 +2261,8 @@ TestCase {
                     : i18nc("@action:button", "Sync from dark theme"), tag);
                 settle(button);
                 scrollIntoView(page, button);
-                // Where Kirigami puts it in the config dialog.
+                // On the stand-in for the overlay of the config dialog's
+                // ApplicationItem, where Kirigami parents it there.
                 compare(dialog.parent, dialogWindow.overlay, tag);
                 mouseClick(button);
                 tryVerify(() => dialog.opened);
