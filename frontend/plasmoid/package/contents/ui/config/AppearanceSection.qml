@@ -76,10 +76,13 @@ Kirigami.FormLayout {
     property bool trackInfoStrokeEnabled: false
     property string trackInfoStrokeColor: "#cc000000"
     // Picking a lyric font also writes the track-info weight when the track
-    // info follows the lyric font, so editLyricFamily needs these two and
-    // trackInfoFontWeightEdited below.
+    // info follows the lyric font, so editLyricFamily needs these three and
+    // trackInfoFontWeightEdited below. `setInEffect` is whether these rows
+    // show the set the widget renders with: the track info follows the
+    // lyric font of that set only.
     property bool trackInfoFontSameAsLyrics: true
     property int trackInfoFontWeight: Font.Normal
+    property bool setInEffect: true
 
     signal plateModeEdited(string value)
     signal solidColorEdited(string value)
@@ -132,16 +135,19 @@ Kirigami.FormLayout {
     // A pick that moves the lyrics onto another family also writes their
     // weight, snapped onto one of the new family's real faces, so the stored
     // weight is always one the family has -- and the track-info weight too
-    // while that section follows the lyric font. Only from this handler and
-    // TrackInfoSection's editTrackInfoFont, never from a binding: the weight
-    // rows merely display the snapped value, for the reason
-    // lineHeightSpinBox's comment gives. It captures what it compares against
-    // before emitting, since each emit flows back into this component's
-    // properties through the page.
+    // while the track info renders in that family, which is while it follows
+    // the lyric font and these rows are the set in effect. The track-info
+    // weight is one key for both sets (DESIGN.md decision 76), so a pick on
+    // the other set leaves it for the renderer to snap, as it does for any
+    // family. Only from this handler and TrackInfoSection's
+    // editTrackInfoFont, never from a binding: the weight rows merely display
+    // the snapped value, for the reason lineHeightSpinBox's comment gives. It
+    // captures what it compares against before emitting, since each emit
+    // flows back into this component's properties through the page.
     function editLyricFamily(stored) {
         const before = root.lyricEffectiveFamily;
         const after = FontPolicy.lyricFamily(root.fontCatalog, stored, root.systemFamily);
-        const trackInfoFollows = root.trackInfoFontSameAsLyrics;
+        const trackInfoFollows = root.trackInfoFontSameAsLyrics && root.setInEffect;
         const lyricWeight = root.fontWeight;
         const trackInfoWeight = root.trackInfoFontWeight;
         root.fontFamilyEdited(stored);

@@ -90,6 +90,10 @@ Kirigami.ScrollablePage {
     // binding over themed() follows both the tab and the key.
     readonly property bool editingDark: themeTabs.editingDark
     readonly property string editingPrefix: "cfg_" + ThemePolicy.keyPrefix("desktop", page.editingDark)
+    // Whether the tab on screen is the set the widget renders with, which
+    // decides whether a font pick writes the shared track-info weight (see
+    // AppearanceSection's editLyricFamily).
+    readonly property bool editingSetInEffect: page.editingDark === themeTabs.darkInEffect
 
     function themed(suffix) {
         return page[page.editingPrefix + suffix];
@@ -226,6 +230,7 @@ Kirigami.ScrollablePage {
                 onTrackInfoStrokeEnabledEdited: value => page.editThemed("TrackInfoStroke", value)
                 onTrackInfoStrokeColorEdited: value => page.editThemed("TrackInfoStrokeColor", value)
                 // Shared by both sets: see editLyricFamily.
+                setInEffect: page.editingSetInEffect
                 trackInfoFontSameAsLyrics: page.cfg_desktopTrackInfoFontSameAsLyrics
                 trackInfoFontWeight: page.cfg_desktopTrackInfoFontWeight
                 onTrackInfoFontWeightEdited: value => page.cfg_desktopTrackInfoFontWeight = value
@@ -239,6 +244,7 @@ Kirigami.ScrollablePage {
             twinFormLayouts: [appearanceSection]
             fontCatalog: FontCatalog
             lyricEffectiveFamily: page.lyricFamily
+            lyricSetInEffect: page.editingSetInEffect
             trackInfoEffectiveFamily: page.trackInfoFamily
             showTrackInfo: page.cfg_desktopShowTrackInfo
             trackInfoLayout: page.cfg_desktopTrackInfoLayout

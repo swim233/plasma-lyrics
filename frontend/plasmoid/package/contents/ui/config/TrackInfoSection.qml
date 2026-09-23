@@ -33,15 +33,22 @@ Kirigami.FormLayout {
 
     // The families the lyrics and the track info render in, computed by the
     // page for the reason AppearanceSection's lyricEffectiveFamily gives.
+    // The lyric family is that of the set on the page's tab;
+    // `lyricSetInEffect` is whether that set is the one the widget renders
+    // with, as AppearanceSection's `setInEffect`.
     required property string lyricEffectiveFamily
+    property bool lyricSetInEffect: true
     required property string trackInfoEffectiveFamily
     readonly property string systemFamily: Kirigami.Theme.defaultFont.family
 
     // A pick that moves the track info onto another family also writes its
     // weight, snapped onto one of the new family's real faces, as
-    // AppearanceSection's editLyricFamily does for the lyrics. "Same as
-    // lyrics" leaves trackInfoFontFamily as it is, so turning it back off
-    // restores the family chosen before.
+    // AppearanceSection's editLyricFamily does for the lyrics -- except
+    // "Same as lyrics" on the set not in effect: the track info renders in
+    // the lyric font of the set in effect, not in this one, so the weight is
+    // left for the renderer to snap. "Same as lyrics" leaves
+    // trackInfoFontFamily as it is, so turning it back off restores the
+    // family chosen before.
     function editTrackInfoFont(sameAsLyrics, stored) {
         const before = root.trackInfoEffectiveFamily;
         const after = FontPolicy.trackInfoFamily(root.fontCatalog, sameAsLyrics, stored,
@@ -51,7 +58,7 @@ Kirigami.FormLayout {
         if (!sameAsLyrics) {
             root.trackInfoFontFamilyEdited(stored);
         }
-        if (after !== before) {
+        if (after !== before && (!sameAsLyrics || root.lyricSetInEffect)) {
             root.trackInfoFontWeightEdited(FontPolicy.renderWeight(root.fontCatalog, after, trackInfoWeight));
         }
     }

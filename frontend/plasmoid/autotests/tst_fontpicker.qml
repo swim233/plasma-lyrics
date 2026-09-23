@@ -135,6 +135,9 @@ TestCase {
             property bool trackInfoFontSameAsLyrics: true
             property string trackInfoFontFamily: ""
             property int trackInfoFontWeight: 400
+            // Whether the sections show the set in effect (DESIGN.md
+            // decision 76); false stands for the other tab of the page.
+            property bool setInEffect: true
             // Every edit the section emitted, in order, as "key=value".
             property var edits: []
 
@@ -174,6 +177,7 @@ TestCase {
                     fontWeight: harness.fontWeight
                     trackInfoFontSameAsLyrics: harness.trackInfoFontSameAsLyrics
                     trackInfoFontWeight: harness.trackInfoFontWeight
+                    setInEffect: harness.setInEffect
 
                     onFontFamilyEdited: value => {
                         harness.log("fontFamily=" + value);
@@ -197,6 +201,7 @@ TestCase {
                     showTrackInfo: true
 
                     lyricEffectiveFamily: harness.lyricFamily
+                    lyricSetInEffect: harness.setInEffect
                     trackInfoFontSameAsLyrics: harness.trackInfoFontSameAsLyrics
                     trackInfoFontFamily: harness.trackInfoFontFamily
                     trackInfoEffectiveFamily: harness.trackInfoFamily
@@ -791,6 +796,56 @@ TestCase {
         tryVerify(() => !trackInfo.popup.visible);
         compare(win.edits, ["trackInfoFontSameAsLyrics=true", "trackInfoFontWeight=300"]);
         compare(win.fontWeight, 300);
+    }
+
+    // The track-info weight is one key for both sets, and the track info
+    // renders in the lyric font of the set in effect only (DESIGN.md
+    // decision 76). A lyric pick on the other set's tab therefore writes
+    // that set's lyric weight and leaves the track-info weight as stored.
+    function test_aLyricPickOnTheSetNotInEffectLeavesTheTrackInfoWeight() {
+        const win = makeHarness({
+            fontFamily: "",
+            fontWeight: 700,
+            trackInfoFontSameAsLyrics: true,
+            trackInfoFontWeight: 200,
+            setInEffect: false
+        });
+        const lyric = named(win.section, "lyricFontPicker");
+        openPicker(lyric);
+        typeText("beta");
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !lyric.popup.visible);
+        compare(win.edits, ["fontFamily=Beta Serif", "fontWeight=800"]);
+        compare(win.trackInfoFontWeight, 200);
+    }
+
+    // The same for "Same as lyrics" in the track-info picker: on the other
+    // set's tab it moves the track info onto a lyric font it will not
+    // render in. A family of its own is what it renders in on either tab,
+    // so that pick still writes the weight.
+    function test_sameAsLyricsOnTheSetNotInEffectLeavesTheTrackInfoWeight() {
+        const win = makeHarness({
+            fontFamily: "Alpha Sans",
+            fontWeight: 300,
+            trackInfoFontSameAsLyrics: false,
+            trackInfoFontFamily: "Beta Serif",
+            trackInfoFontWeight: 316,
+            setInEffect: false
+        });
+        const trackInfo = named(win.trackInfoSection, "trackInfoFontPicker");
+        openPicker(trackInfo);
+        clickRow(trackInfo, 0);
+        tryVerify(() => !trackInfo.popup.visible);
+        compare(win.edits, ["trackInfoFontSameAsLyrics=true"]);
+        compare(win.trackInfoFontWeight, 316);
+
+        win.edits = [];
+        openPicker(trackInfo);
+        typeText("gamma");
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !trackInfo.popup.visible);
+        compare(win.edits, ["trackInfoFontSameAsLyrics=false", "trackInfoFontFamily=Gamma Mono",
+            "trackInfoFontWeight=400"]);
     }
 
     function test_aFamilyWithUnknownFacesOffersTheSixSteps() {

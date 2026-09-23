@@ -2214,6 +2214,42 @@ TestCase {
         }
     }
 
+    // A font pick writes the shared track-info weight only from the set in
+    // effect (AppearanceSection's editLyricFamily has the rule); the page
+    // tells both sections whether the tab on screen is that set, following
+    // the mode the dialog holds.
+    function test_onlyTheSetInEffectWritesTheSharedTrackInfoWeight() {
+        for (const form of ["desktop", "panel"]) {
+            const props = modeProperties(form, "light");
+            props["cfg_" + form + "TrackInfoFontSameAsLyrics"] = true;
+            props["cfg_" + form + "TrackInfoFontWeight"] = 123;
+            const page = createTemporaryObject(pageComponent(form), this, props);
+            verify(page !== null, form);
+            const section = sectionOf(page);
+            const trackInfo = trackInfoSectionOf(page);
+            const tabBar = named(page, "themeTabBar");
+            compare(tabBar.currentIndex, 0, form);
+            verify(section.setInEffect, form);
+            verify(trackInfo.lyricSetInEffect, form);
+
+            tabBar.currentIndex = 1;
+            verify(!section.setInEffect, form);
+            verify(!trackInfo.lyricSetInEffect, form);
+            // Whatever the fonts of the machine, a pick here leaves the
+            // shared weight as stored.
+            const other = FontCatalog.families().find(family => family !== section.lyricEffectiveFamily);
+            if (other !== undefined) {
+                section.editLyricFamily(other);
+                compare(page["cfg_" + form + "FontFamily"], other, form);
+                compare(page["cfg_" + form + "TrackInfoFontWeight"], 123, form);
+            }
+
+            page["cfg_" + ThemePolicy.modeKey(form)] = "dark";
+            verify(section.setInEffect, form);
+            verify(trackInfo.lyricSetInEffect, form);
+        }
+    }
+
     function test_syncFromCopiesEveryKeyOfOneSetAndNothingElse() {
         for (const form of ["desktop", "panel"]) {
             for (const fromDark of [true, false]) {
