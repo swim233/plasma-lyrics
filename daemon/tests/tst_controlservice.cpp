@@ -53,6 +53,8 @@ public:
         qInstallMessageHandler(m_previous);
     }
 
+    // Returns a fresh copy on every call, so iterators taken from two
+    // separate calls belong to different lists: bind it to a local first.
     QStringList messages() const
     {
         QStringList result;
@@ -372,12 +374,13 @@ private Q_SLOTS:
                      QStringLiteral("preference-save-failed"));
             QCOMPARE(requests, 0);
             QVERIFY(!store.preferredProvider(current.fingerprint).has_value());
-            QVERIFY(std::any_of(capture.messages().cbegin(), capture.messages().cend(),
+            const QStringList messages = capture.messages();
+            QVERIFY(std::any_of(messages.cbegin(), messages.cend(),
                                 [](const QString &message) {
                 return message.contains(QStringLiteral("control SetPreferredProvider"))
                     && message.contains(QStringLiteral("result=preference-save-failed"));
             }));
-            QVERIFY(std::any_of(capture.messages().cbegin(), capture.messages().cend(),
+            QVERIFY(std::any_of(messages.cbegin(), messages.cend(),
                                 [](const QString &message) {
                 return message.contains(QStringLiteral("fingerprint=\"mediaSrc:write failure\""));
             }));
