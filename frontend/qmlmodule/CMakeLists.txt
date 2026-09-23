@@ -127,6 +127,19 @@ if(BUILD_TESTING)
     endif()
     set_tests_properties(tst_lyricsource PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
 
+    add_executable(tst_fontcatalog
+        tests/tst_fontcatalog.cpp
+        fontcatalog.cpp
+        fontmatching.cpp
+    )
+    target_include_directories(tst_fontcatalog PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(tst_fontcatalog PRIVATE Qt6::Gui Qt6::Qml Qt6::Test Fontconfig::Fontconfig)
+    target_compile_options(tst_fontcatalog PRIVATE -Wno-missing-field-initializers)
+    add_test(NAME tst_fontcatalog COMMAND tst_fontcatalog)
+    # QFontDatabase needs a QGuiApplication, and so a platform plugin.
+    set_tests_properties(tst_fontcatalog PROPERTIES
+        ENVIRONMENT "LC_ALL=C.UTF-8;QT_QPA_PLATFORM=offscreen")
+
     add_executable(tst_visibilitypolicy
         tests/tst_visibilitypolicy.cpp
         visibilitypolicy.cpp
