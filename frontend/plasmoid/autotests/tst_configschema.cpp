@@ -305,6 +305,45 @@ private Q_SLOTS:
         QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
     }
 
+    // DESIGN.md decision 76's light defaults, derived from the dark ones so
+    // that a light key whose default drifts is caught -- nothing else reads
+    // them, and every other test passes with any value there. Non-colour
+    // keys match their dark key, except that brightening is off (it fades
+    // towards opaque white, which on dark text makes the sung word the
+    // palest one). The plate is #99ffffff and both strokes #ccffffff; every
+    // other colour is the warm near-black #1f1b16 at the dark key's alpha,
+    // opaque when the dark key has none.
+    void lightDefaultsFollowTheDarkOnes()
+    {
+        const QHash<QString, SchemaEntry> entries = parsedEntries(readAll(schemaPath()));
+        const QList<ThemedKey> table = themeTable();
+        QVERIFY(!entries.isEmpty());
+        QVERIFY(!table.isEmpty());
+
+        const QHash<QString, QString> fixed = {
+            {QStringLiteral("SolidColor"), QStringLiteral("#99ffffff")},
+            {QStringLiteral("StrokeColor"), QStringLiteral("#ccffffff")},
+            {QStringLiteral("TrackInfoStrokeColor"), QStringLiteral("#ccffffff")},
+            {QStringLiteral("WordBrightness"), QStringLiteral("false")},
+        };
+        const QRegularExpression colour(QStringLiteral("^#([0-9a-f]{2})?[0-9a-f]{6}$"));
+        QStringList problems;
+        for (const ThemedKey &row : table) {
+            QString expected = fixed.value(row.suffix, row.defaultValue);
+            if (!fixed.contains(row.suffix)) {
+                if (const auto match = colour.match(row.defaultValue); match.hasMatch()) {
+                    expected = QLatin1Char('#') + match.captured(1) + QStringLiteral("1f1b16");
+                }
+            }
+            const QString lightKey = row.form + QStringLiteral("Light") + row.suffix;
+            const QString actual = entries.value(lightKey).defaultValue;
+            if (actual != expected) {
+                problems << QStringLiteral("%1: default \"%2\", expected \"%3\"").arg(lightKey, actual, expected);
+            }
+        }
+        QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
+    }
+
     // DESIGN.md decision 76, main.qml's side. main.qml is a PlasmoidItem the
     // QML suite cannot instantiate, and qmllint cannot tell one key name from
     // another, so this reads its text. Each form factor has one
