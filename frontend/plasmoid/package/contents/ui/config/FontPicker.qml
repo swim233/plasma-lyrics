@@ -57,6 +57,10 @@ QQC2.ComboBox {
     readonly property string currentFamily: root.currentKind === "font"
         ? root.fontCatalog.resolveFamily(root.storedFamily)
         : ""
+    // What the closed box says, before displayText elides it to the box's
+    // width; how much of it fits depends on the fonts installed.
+    readonly property string currentLabel: root.entryText(root.currentKind,
+        root.currentKind === "missing" ? root.storedFamily : root.currentFamily)
 
     function entryText(kind, family) {
         switch (kind) {
@@ -175,9 +179,7 @@ QQC2.ComboBox {
     TextMetrics {
         id: displayMetrics
         font: root.font
-        text: root.currentKind === "missing"
-            ? root.entryText("missing", root.storedFamily)
-            : root.entryText(root.currentKind, root.currentFamily)
+        text: root.currentLabel
         elide: Text.ElideRight
         elideWidth: Math.max(0, root.availableWidth - Kirigami.Units.gridUnit - Kirigami.Units.smallSpacing)
     }

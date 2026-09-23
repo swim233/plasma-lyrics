@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-23 18:13+0800\n"
+"POT-Creation-Date: 2026-09-23 18:40+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -729,23 +729,23 @@ msgstr ""
 msgid "Network error text:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:64
+#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:68
 msgid "Same as lyrics"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:66
+#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:70
 msgid "Follow system font (%1)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:68
+#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:72
 msgid "%1 (not installed)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:215
+#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:217
 msgid "Search fonts"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:306
+#: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:308
 msgid "No matching fonts"
 msgstr ""
 

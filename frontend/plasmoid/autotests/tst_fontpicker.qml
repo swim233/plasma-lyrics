@@ -242,10 +242,37 @@ TestCase {
         return win;
     }
 
+    // Waits until `item` stops moving. FormLayout lays its rows out from
+    // zero-interval timers rather than synchronously, so a click right after
+    // the window is shown can land where a row was before that. Measured in
+    // the Debian 13 CI container (Qt 6.8.2): in the suite's first test the
+    // lyric picker was still at its 120 px implicit width and y 0 when
+    // clicked, where it settles 252 px wide at y 62, and the click missed.
+    function settle(item) {
+        let last = "";
+        tryVerify(() => {
+            const corner = item.mapToItem(null, 0, 0);
+            const now = [corner.x, corner.y, item.width, item.height].join(",");
+            const unchanged = now === last;
+            last = now;
+            return unchanged;
+        });
+    }
+
     function openPicker(picker) {
+        settle(picker);
         mouseClick(picker);
         tryVerify(() => picker.popup.opened);
         tryVerify(() => picker.searchField.activeFocus);
+    }
+
+    // The list is positioned on the current entry after the popup opens,
+    // so a row can still move under the pointer; the same wait applies.
+    function clickRow(picker, index) {
+        const row = picker.entryList.itemAtIndex(index);
+        verify(row !== null, "row " + index);
+        settle(row);
+        mouseClick(row);
     }
 
     function typeText(text) {
@@ -266,27 +293,44 @@ TestCase {
         return picker.entryList.entries[picker.entryList.currentIndex];
     }
 
+    // The closed box's text. currentLabel is asserted exactly; displayText is
+    // it elided to the box's width, and how much fits depends on the fonts
+    // and style of the machine running this (CI's containers have few fonts
+    // and fall back to Fusion), so it is only checked to be the label or a
+    // cut-down form of it. Qt ends an elided string with U+2026, or with
+    // three dots when the font has no such glyph.
+    function compareLabel(picker, label) {
+        compare(picker.currentLabel, label);
+        const shown = picker.displayText;
+        if (shown === label) {
+            return;
+        }
+        const kept = shown.replace(/(\u2026|\.\.\.)$/, "");
+        verify(kept.length < shown.length && label.startsWith(kept),
+            "\"" + shown + "\" is not \"" + label + "\" elided");
+    }
+
     function test_closedPickerShowsTheCurrentChoiceInItsOwnFamily() {
         const win = makeHarness({ fontFamily: "Beta Serif", trackInfoFontSameAsLyrics: true });
         const lyric = named(win.section, "lyricFontPicker");
         const trackInfo = named(win.section, "trackInfoFontPicker");
-        compare(lyric.displayText, "Beta Serif");
+        compareLabel(lyric, "Beta Serif");
         compare(lyric.font.family, "Beta Serif");
         // "Same as lyrics" is drawn in what it stands for.
-        compare(trackInfo.displayText, "Same as lyrics");
+        compareLabel(trackInfo, "Same as lyrics");
         compare(trackInfo.font.family, "Beta Serif");
 
         win.fontFamily = "";
         win.trackInfoFontSameAsLyrics = false;
         win.trackInfoFontFamily = "Gamma Mono";
-        compare(lyric.displayText, "Follow system font (" + systemFamily() + ")");
+        compareLabel(lyric, "Follow system font (" + systemFamily() + ")");
         compare(lyric.font.family, systemFamily());
-        compare(trackInfo.displayText, "Gamma Mono");
+        compareLabel(trackInfo, "Gamma Mono");
         compare(trackInfo.font.family, "Gamma Mono");
 
         // A name stored under another locale shows as this one lists it.
         win.fontFamily = "阿尔法黑体";
-        compare(lyric.displayText, "Alpha Sans");
+        compareLabel(lyric, "Alpha Sans");
         compare(lyric.font.family, "Alpha Sans");
         compare(win.edits, []);
     }
@@ -359,7 +403,7 @@ TestCase {
             trackInfoFontFamily: "Gone Mono"
         });
         const lyric = named(win.section, "lyricFontPicker");
-        compare(lyric.displayText, "Gone Sans (not installed)");
+        compareLabel(lyric, "Gone Sans (not installed)");
         compare(lyric.font.family, systemFamily());
         openPicker(lyric);
         compare(kinds(lyric).slice(0, 3), ["system", "missing", "font"]);
@@ -373,7 +417,7 @@ TestCase {
         openPicker(trackInfo);
         compare(kinds(trackInfo).slice(0, 4), ["same", "system", "missing", "font"]);
         compare(highlighted(trackInfo).text, "Gone Mono (not installed)");
-        mouseClick(trackInfo.entryList.itemAtIndex(2));
+        clickRow(trackInfo, 2);
         tryVerify(() => !trackInfo.popup.visible);
         compare(win.trackInfoFontFamily, "Gone Mono");
         compare(win.edits, []);
@@ -470,9 +514,11 @@ TestCase {
         verify(texts.includes("Beta Antiqua, ベータ明朝"), texts);
         // The closed box is set to the chosen family; the popup, which sits
         // in the window's overlay, takes the window's font instead, so only
-        // the rows are drawn in their own families.
+        // the rows are drawn in their own families. Not compared with
+        // Kirigami.Theme.defaultFont: which font the window gets is up to the
+        // style, and CI falls back to Fusion.
         compare(lyric.font.family, "Beta Serif");
-        compare(lyric.searchField.font.family, systemFamily());
+        verify(lyric.searchField.font.family !== "Beta Serif");
         keyClick(Qt.Key_Escape);
         tryVerify(() => !lyric.popup.visible);
     }
@@ -490,13 +536,21 @@ TestCase {
         // time to run, so this counts what the view settles on.
         wait(200);
         let created = 0;
+        let rowHeight = Infinity;
         const rows = lyric.entryList.contentItem.children;
         for (let i = 0; i < rows.length; ++i) {
             if (rows[i].modelData !== undefined) {
                 ++created;
+                rowHeight = Math.min(rowHeight, rows[i].height);
             }
         }
-        verify(created > 0 && created < 60, "created " + created + " of 301 rows");
+        // Row heights follow the fonts on the machine, so the bound is
+        // worked out from the ones laid out here: the rows that fit in the
+        // viewport plus ListView's default 320 px cache on either side,
+        // with a few to spare for rows straddling an edge.
+        verify(created > 0 && rowHeight > 0);
+        const bound = Math.ceil((lyric.entryList.height + 2 * 320) / rowHeight) + 4;
+        verify(created <= bound, "created " + created + " of 301 rows, bound " + bound);
         keyClick(Qt.Key_Escape);
         tryVerify(() => !lyric.popup.visible);
     }
@@ -506,7 +560,7 @@ TestCase {
         const lyric = named(win.section, "lyricFontPicker");
 
         openPicker(lyric);
-        mouseClick(lyric.entryList.itemAtIndex(0));
+        clickRow(lyric, 0);
         tryVerify(() => !lyric.popup.visible);
         // "Gone Sans" rendered in the Plasma font already, so the family in
         // effect did not change and neither does the weight.
@@ -532,14 +586,14 @@ TestCase {
         // "Same as lyrics" leaves the stored track-info family alone, so
         // turning it off again brings that family back.
         openPicker(trackInfo);
-        mouseClick(trackInfo.entryList.itemAtIndex(0));
+        clickRow(trackInfo, 0);
         tryVerify(() => !trackInfo.popup.visible);
         compare(win.edits, ["trackInfoFontSameAsLyrics=true", "trackInfoFontWeight=400"]);
         compare(win.trackInfoFontFamily, "Beta Serif");
 
         win.edits = [];
         openPicker(trackInfo);
-        mouseClick(trackInfo.entryList.itemAtIndex(1));
+        clickRow(trackInfo, 1);
         tryVerify(() => !trackInfo.popup.visible);
         compare(win.edits, [
             "trackInfoFontSameAsLyrics=false",
@@ -583,7 +637,7 @@ TestCase {
         const lyricWeight = named(win.section, "lyricWeightComboBox");
         const trackInfoWeight = named(win.section, "trackInfoWeightComboBox");
         compare(lyricWeight.count, 1);
-        compare(lyricWeight.displayText, "Regular");
+        compare(lyricWeight.currentText, "Regular");
         verify(!lyricWeight.enabled);
         // Track info follows the lyric family here, so the same applies.
         compare(trackInfoWeight.count, 1);
@@ -602,9 +656,9 @@ TestCase {
         const lyricWeight = named(win.section, "lyricWeightComboBox");
         const trackInfoWeight = named(win.section, "trackInfoWeightComboBox");
         // 700 is not a face of Beta Serif; the lightest heavier one is.
-        compare(lyricWeight.displayText, "Extra bold");
+        compare(lyricWeight.currentText, "Extra bold");
         // 500 prefers the heaviest lighter face when none up to 500 exists.
-        compare(trackInfoWeight.displayText, "Regular");
+        compare(trackInfoWeight.currentText, "Regular");
         compare(win.fontWeight, 700);
         compare(win.trackInfoFontWeight, 500);
 
@@ -635,8 +689,8 @@ TestCase {
         // Snapped from the stored weights, 700 and 200, onto Beta Serif's
         // 300/316/400/800.
         compare(win.edits, ["fontFamily=Beta Serif", "fontWeight=800", "trackInfoFontWeight=300"]);
-        compare(named(win.section, "lyricWeightComboBox").displayText, "Extra bold");
-        compare(named(win.section, "trackInfoWeightComboBox").displayText, "Light");
+        compare(named(win.section, "lyricWeightComboBox").currentText, "Extra bold");
+        compare(named(win.section, "trackInfoWeightComboBox").currentText, "Light");
     }
 
     function test_pickingALyricFamilyLeavesAnIndependentTrackInfoWeightAlone() {
@@ -694,7 +748,7 @@ TestCase {
         const trackInfo = named(win.section, "trackInfoFontPicker");
         // Back to the lyric family: 316 is not an Alpha Sans face.
         openPicker(trackInfo);
-        mouseClick(trackInfo.entryList.itemAtIndex(0));
+        clickRow(trackInfo, 0);
         tryVerify(() => !trackInfo.popup.visible);
         compare(win.edits, ["trackInfoFontSameAsLyrics=true", "trackInfoFontWeight=300"]);
         compare(win.fontWeight, 300);
@@ -720,8 +774,9 @@ TestCase {
             verify(control.width <= control.Layout.maximumWidth, objectName);
         }
         const lyric = named(longName.section, "lyricFontPicker");
+        compareLabel(lyric, longFamily);
+        // Over 200 characters fit in 14 gridUnits in no font at all.
         verify(lyric.displayText.length < longFamily.length);
-        verify(lyric.displayText.endsWith("…"));
     }
 
     // The pages are created the way the config dialog creates them: every
