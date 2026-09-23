@@ -826,7 +826,7 @@ TestCase {
         }
         const lyric = named(longName.section, "lyricFontPicker");
         compareLabel(lyric, longFamily);
-        // Over 200 characters fit in 14 gridUnits in no font at all.
+        // Over 200 characters fit in 20 gridUnits in no font at all.
         verify(lyric.displayText.length < longFamily.length);
     }
 

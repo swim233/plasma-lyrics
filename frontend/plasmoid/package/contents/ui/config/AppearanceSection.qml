@@ -269,9 +269,13 @@ Kirigami.FormLayout {
         Kirigami.FormData.label: i18n("Font:")
         // Fills the column up to a cap rather than sizing to its text, the
         // same mechanism formDescription below uses, so no family name can
-        // become what the page sizes itself to.
+        // become what the page sizes itself to. 20 gridUnits fits "Follow
+        // system font (Noto Sans CJK SC)" in English and Chinese with that
+        // font at 12 pt, and leaves the page width as it was (measured under
+        // org.kde.desktop: 894 px English, 592 px Chinese, with the pickers
+        // and without).
         Layout.fillWidth: true
-        Layout.maximumWidth: Kirigami.Units.gridUnit * 14
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 20
         fontCatalog: root.fontCatalog
         storedFamily: root.fontFamily
         onFollowSystemPicked: root.editLyricFamily("")
@@ -557,7 +561,7 @@ Kirigami.FormLayout {
         Kirigami.FormData.label: i18n("Font:")
         visible: root.showTrackInfo
         Layout.fillWidth: true
-        Layout.maximumWidth: Kirigami.Units.gridUnit * 14
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 20
         fontCatalog: root.fontCatalog
         storedFamily: root.trackInfoFontFamily
         offerSameAsLyrics: true
