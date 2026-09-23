@@ -144,7 +144,11 @@ its own git worktree under `/home/swim/code/desktop_lyrics-wt/<name>` on a
 tasks depend on is written by the lead first and committed on a base branch
 the task branches start from. Each dev configures and builds in its own
 worktree (`build/` inside it; ccache is installed) and commits on its branch
-in the commit-message style above. When every task is done the lead merges
+in the commit-message style above. When a dev merges the integration branch
+into its own branch (for example to fix review findings on the integrated
+tree), the merge subject names what came in, such as
+`merge(外观): 字体目录分支合入集成分支的渲染与设置页改动`, never a bare
+"同步集成分支". When every task is done the lead merges
 the branches into one integration branch, re-verifies the whole tree itself
 (`git status --short`, full `git diff --stat` against `main`, build, ctest,
 qmllint), then hands the integrated tree to a single `reviewer` agent (opus)
