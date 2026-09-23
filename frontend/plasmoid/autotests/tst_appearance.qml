@@ -4,6 +4,7 @@ import QtTest
 import QtQuick.Window
 import org.kde.kirigami as Kirigami
 import org.kde.ksvg as KSvg
+import io.github.swim233.lyrics
 import "../package/contents/ui" as LyricsUi
 import "../package/contents/ui/config" as LyricsConfig
 import "../package/contents/ui/TextPolicy.js" as TextPolicy
@@ -137,6 +138,9 @@ TestCase {
             LyricsConfig.AppearanceSection {
                 id: innerSection
                 width: Kirigami.Units.gridUnit * 39
+                fontCatalog: FontCatalog
+                lyricEffectiveFamily: Kirigami.Theme.defaultFont.family
+                trackInfoEffectiveFamily: Kirigami.Theme.defaultFont.family
                 fontSizeControl: stubFontSize
                 translationControl: stubTranslation
                 trackInfoFontSizeControl: stubTrackInfoFontSize

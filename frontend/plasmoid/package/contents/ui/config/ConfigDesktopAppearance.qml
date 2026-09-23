@@ -2,6 +2,9 @@ import QtQuick
 import QtQuick.Controls as QQC2
 import QtQuick.Layouts
 import org.kde.kirigami as Kirigami
+import io.github.swim233.lyrics
+
+import "../FontPolicy.js" as FontPolicy
 
 Kirigami.ScrollablePage {
     id: page
@@ -11,6 +14,7 @@ Kirigami.ScrollablePage {
     property string cfg_desktopTextColor
     property bool cfg_desktopStroke
     property string cfg_desktopStrokeColor
+    property string cfg_desktopFontFamily
     property alias cfg_desktopFontSize: desktopFontSize.value
     property int cfg_desktopFontWeight
     property string cfg_desktopOverflow
@@ -34,12 +38,23 @@ Kirigami.ScrollablePage {
 
     property bool cfg_desktopShowTrackInfo
     property string cfg_desktopTrackInfoLayout
+    property bool cfg_desktopTrackInfoFontSameAsLyrics
+    property string cfg_desktopTrackInfoFontFamily
     property alias cfg_desktopTrackInfoFontSize: desktopTrackInfoFontSize.value
     property int cfg_desktopTrackInfoFontWeight
     property string cfg_desktopTrackInfoColor
     property bool cfg_desktopTrackInfoStroke
     property string cfg_desktopTrackInfoStrokeColor
     property string cfg_desktopTrackInfoOverflow
+
+    // The families the two sections render in, for AppearanceSection's
+    // weight rows. Computed here, from the plain cfg_ properties above,
+    // rather than inside AppearanceSection: see its lyricEffectiveFamily.
+    readonly property string lyricFamily: FontPolicy.lyricFamily(FontCatalog,
+        page.cfg_desktopFontFamily, Kirigami.Theme.defaultFont.family)
+    readonly property string trackInfoFamily: FontPolicy.trackInfoFamily(FontCatalog,
+        page.cfg_desktopTrackInfoFontSameAsLyrics, page.cfg_desktopTrackInfoFontFamily,
+        page.lyricFamily, Kirigami.Theme.defaultFont.family)
 
     // DESIGN.md decision 40. Plain top-level properties rather than the
     // hidden-control-plus-alias dance the appearance keys above need: those
@@ -77,6 +92,9 @@ Kirigami.ScrollablePage {
             textColor: page.cfg_desktopTextColor
             strokeEnabled: page.cfg_desktopStroke
             strokeColor: page.cfg_desktopStrokeColor
+            fontCatalog: FontCatalog
+            fontFamily: page.cfg_desktopFontFamily
+            lyricEffectiveFamily: page.lyricFamily
             fontWeight: page.cfg_desktopFontWeight
             overflowMode: page.cfg_desktopOverflow
             animationMode: page.cfg_desktopAnimation
@@ -121,12 +139,16 @@ Kirigami.ScrollablePage {
             onTextColorEdited: value => page.cfg_desktopTextColor = value
             onStrokeEnabledEdited: value => page.cfg_desktopStroke = value
             onStrokeColorEdited: value => page.cfg_desktopStrokeColor = value
+            onFontFamilyEdited: value => page.cfg_desktopFontFamily = value
             onFontWeightEdited: value => page.cfg_desktopFontWeight = value
             onOverflowModeEdited: value => page.cfg_desktopOverflow = value
             onAnimationModeEdited: value => page.cfg_desktopAnimation = value
 
             showTrackInfo: page.cfg_desktopShowTrackInfo
             trackInfoLayout: page.cfg_desktopTrackInfoLayout
+            trackInfoFontSameAsLyrics: page.cfg_desktopTrackInfoFontSameAsLyrics
+            trackInfoFontFamily: page.cfg_desktopTrackInfoFontFamily
+            trackInfoEffectiveFamily: page.trackInfoFamily
             trackInfoFontWeight: page.cfg_desktopTrackInfoFontWeight
             trackInfoColor: page.cfg_desktopTrackInfoColor
             trackInfoStrokeEnabled: page.cfg_desktopTrackInfoStroke
@@ -135,6 +157,8 @@ Kirigami.ScrollablePage {
             trackInfoFontSizeControl: desktopTrackInfoFontSize
             onShowTrackInfoEdited: value => page.cfg_desktopShowTrackInfo = value
             onTrackInfoLayoutEdited: value => page.cfg_desktopTrackInfoLayout = value
+            onTrackInfoFontSameAsLyricsEdited: value => page.cfg_desktopTrackInfoFontSameAsLyrics = value
+            onTrackInfoFontFamilyEdited: value => page.cfg_desktopTrackInfoFontFamily = value
             onTrackInfoFontWeightEdited: value => page.cfg_desktopTrackInfoFontWeight = value
             onTrackInfoColorEdited: value => page.cfg_desktopTrackInfoColor = value
             onTrackInfoStrokeEnabledEdited: value => page.cfg_desktopTrackInfoStroke = value
