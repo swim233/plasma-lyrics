@@ -78,62 +78,11 @@ the new behaviour -- no root-cause narration, no metaphor. Do not add
 
     偏移改为 LyricLine 的属性绑定，失效即归零。
 
-README.md and release notes are written in Chinese; README.en.md carries the
-English copy.
+README.md is written in Chinese; README.en.md carries the English copy.
 
-Release notes follow this format:
-- Grouped by change type with English section headers, in this order:
-  Breaking Changes → Added → Changed → Fixed → Removed → Security.
-  Empty sections are omitted; the project is small enough that module
-  grouping is skipped.
-- One bullet per change, verb-first in Chinese (新增 / 更改 / 修复 / 移除),
-  stating what changed and its user-visible behaviour; for fixes, state the
-  symptom, not the internals. Breaking changes must include migration notes.
-- Code elements (settings, commands, paths) in backticks.
-- Major versions open with a one-line 概要; every release ends with a
-  完整变更列表 compare link to the previous tag.
-
-Release notes live in `CHANGELOG.md` at the repo root. CI extracts the
-section whose heading matches the pushed tag and uses it as the GitHub
-Release body; the release is created as a draft and published by hand. New
-changes go under `## 未发布` until a tag is cut. The `v0.1.0` / `v0.1.1` /
-`v0.2.0` entries were copied verbatim from the pre-existing GitHub Releases
-via `gh release view` and must not be rewritten.
-
-Cutting a release: rename `## 未发布` to `## v<x.y.z> - <YYYY-MM-DD>`, add
-the 完整变更列表 compare link to the previous tag, open a fresh empty
-`## 未发布` above it, bump `project(VERSION)` (and `metadata.json`, which the
-build checks) to match, then tag `v<x.y.z>` on that commit. CI matches a
-section by the tag name followed by ` - `, so the heading and the tag must
-agree exactly.
-
-`packaging/aur/PKGBUILD` (the `-git` package) is the only hand-maintained
-PKGBUILD. `packaging/aur/generate.sh` derives the two release ones --
-`plasma-lyrics` by sed, so `build()`/`check()`/`package()` stay
-single-sourced, and `plasma-lyrics-bin` from a template with the `depends`
-array spliced in verbatim. Never edit a generated PKGBUILD: a second copy of
-`depends` is exactly how the released source package went four versions
-without the `zlib` the daemon links directly. Run the script locally to see
-what CI will produce.
-
-`packaging/aur/namcap-check.sh` runs namcap on the built *package* and fails
-on anything not on its allowlist. Do not point namcap at a PKGBUILD instead:
-a PKGBUILD carries no ELF data, so that form of the check cannot see a
-missing linkage at all, which is why the `zlib` gap survived a namcap that
-was already running. namcap's output depends on what is installed on the
-analysing machine -- in a bare container it resolves nothing and emits ~25
-"uninstalled dependency" lines -- so it is only meaningful in a job that has
-installed the package's `depends` first. Two findings are allowlisted, each
-with its reason in the script; a third means the build fails.
-
-After pushing a release tag, push both `plasma-lyrics` and
-`plasma-lyrics-bin` to AUR by hand, from the `plasma-lyrics-<version>-aur.tar.gz`
-release asset -- it holds one directory per package, each with its PKGBUILD
-and `.SRCINFO`, to be extracted into that package's own AUR clone. CI only
-generates and validates them; it holds no AUR credentials.
-`plasma-lyrics-bin`'s `source=` points at the
-`plasma-lyrics-<version>-x86_64-bin.tar.gz` asset, so that asset has to stay
-published for as long as that PKGBUILD is live.
+Release work follows `docs/RELEASE.md`: read it before writing any
+`CHANGELOG.md` entry, cutting a release, syncing a GitHub Release body,
+pushing to AUR, or changing `packaging/aur/`.
 
 ## Agent team workflow
 
