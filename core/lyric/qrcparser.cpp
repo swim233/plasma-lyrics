@@ -34,22 +34,37 @@ const QString &translationPlaceholder()
 // attribute-value normalization turns every newline into a space (XML 1.0
 // section 3.3.3), which would collapse the whole lyric into one line. The
 // attribute is scanned out by hand and unescaped afterwards instead.
+//
+// The value ends at the first '"' followed by optional whitespace and "/>",
+// not at the first '"': QQ writes raw quotes inside the body. musicid
+// 394368429 carries four (around "今日" and "明日"), and stopping at the first
+// one kept 22 of its 66 lines. The [ti:], [ar:] and [al:] tags come ahead of
+// every timed line, so a quote in the title, artist or album -- "Slut!",
+// musicid 446012964 -- left none at all.
+//
+// The rule rests on evidence, not on the format ruling the case out: none of
+// the seven recorded bodies (the six fixtures plus 446012964) has a '"'
+// followed by '>' or "/>" anywhere before its real end, and a lyric would
+// have to spell out those characters itself to be cut short. A bare '>' is
+// not taken as the end, since every recorded payload closes the element with
+// "/>".
 QString extractLyricContent(QStringView document)
 {
     static const QString marker = QStringLiteral("LyricContent=\"");
+    static const QRegularExpression terminator(QStringLiteral(R"("\s*/>)"));
     const qsizetype begin = document.indexOf(marker);
     if (begin < 0) {
         return {};
     }
     const qsizetype valueStart = begin + marker.size();
-    const qsizetype valueEnd = document.indexOf(QLatin1Char('"'), valueStart);
-    if (valueEnd < 0) {
+    const auto end = terminator.matchView(document, valueStart);
+    if (!end.hasMatch()) {
         return {};
     }
-    QString value = document.sliced(valueStart, valueEnd - valueStart).toString();
-    // A raw '"' cannot occur inside the value, so the scan above is safe; the
-    // other four predefined entities can, and &amp; is unescaped last so that
-    // an escaped "&amp;lt;" survives as the literal "&lt;".
+    QString value = document.sliced(valueStart, end.capturedStart() - valueStart).toString();
+    // &quot; and the other four predefined entities are unescaped here, and
+    // &amp; last so that an escaped "&amp;lt;" survives as the literal
+    // "&lt;".
     value.replace(QStringLiteral("&lt;"), QStringLiteral("<"));
     value.replace(QStringLiteral("&gt;"), QStringLiteral(">"));
     value.replace(QStringLiteral("&quot;"), QStringLiteral("\""));

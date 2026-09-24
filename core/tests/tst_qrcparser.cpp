@@ -4,6 +4,8 @@
 #include <QFile>
 #include <QTest>
 
+#include <algorithm>
+
 using namespace PlasmaLyrics;
 
 namespace {
@@ -39,6 +41,8 @@ private Q_SLOTS:
         QVERIFY(!fixture(QStringLiteral("qq-qrc-hoshiloop.qrc")).isEmpty());
         QVERIFY(!fixture(QStringLiteral("qq-qrc-hoshiloop-roma.qrc")).isEmpty());
         QVERIFY(!fixture(QStringLiteral("qq-qrc-budaoren.qrc")).isEmpty());
+        QVERIFY(!fixture(QStringLiteral("qq-qrc-birthday.qrc")).isEmpty());
+        QVERIFY(!fixture(QStringLiteral("qq-qrc-birthday-roma.qrc")).isEmpty());
     }
 
     void parsesWordLevelTimesFromARealTrack()
@@ -189,6 +193,84 @@ private Q_SLOTS:
             "[0,100]rock &amp; roll(0,60) &lt;x&gt;(60,40)")));
         QCOMPARE(parsed.lines.size(), 1);
         QCOMPARE(parsed.lines.first().text, QStringLiteral("rock & roll <x>"));
+    }
+
+    void keepsRawQuotesInsideTheBody()
+    {
+        // QQ does not escape '"' in the body. Both spellings in one body, with
+        // lines after each: ending the value at the first raw quote would lose
+        // everything from the first line on.
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral(
+            "[ti:Song]\r\n"
+            "[0,100]\"(0,10)raw(10,40)\"(50,50)\r\n"
+            "[200,100]&quot;(200,10)escaped(210,40)&quot;(250,50)\r\n"
+            "[400,100]after(400,100)")));
+        QCOMPARE(parsed.lines.size(), 3);
+        QCOMPARE(parsed.lines.at(0).text, QStringLiteral("\"raw\""));
+        QCOMPARE(parsed.lines.at(0).words->at(2).text, QStringLiteral("\""));
+        QCOMPARE(parsed.lines.at(0).words->at(2).startMs, 50);
+        QCOMPARE(parsed.lines.at(1).text, QStringLiteral("\"escaped\""));
+        QCOMPARE(parsed.lines.at(2).text, QStringLiteral("after"));
+    }
+
+    void keepsALyricWhoseTagsCarryARawQuote()
+    {
+        // The shape of musicid 446012964, "Slut!" (Taylor's Version): the
+        // [ti:] tag comes before every timed line, so a quote in the title
+        // used to end the body before the first lyric line.
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral(
+            "[ti:\"Song\" (Live)]\r\n[ar:Artist]\r\n"
+            "[0,100]\"(0,10)Song\" ((10,40)Live) - (50,20)Artist(70,30)\r\n"
+            "[200,100]sung(200,100)")));
+        QCOMPARE(parsed.title, QStringLiteral("\"Song\" (Live)"));
+        QCOMPARE(parsed.lines.size(), 2);
+        QCOMPARE(parsed.lines.at(0).text, QStringLiteral("\"Song\" (Live) - Artist"));
+        QVERIFY(parsed.lines.at(0).credit);
+        QCOMPARE(parsed.lines.at(1).text, QStringLiteral("sung"));
+        QVERIFY(!parsed.lines.at(1).credit);
+
+        // Any other tag ahead of the first line does the same, the album
+        // included.
+        const auto album = QrcParser::parse(wrap(QStringLiteral(
+            "[ti:Heroes]\r\n[ar:Artist]\r\n[al:\"Heroes\" (2017 Remaster)]\r\n"
+            "[0,100]sung(0,100)\r\n[200,100]more(200,100)")));
+        QCOMPARE(album.album, QStringLiteral("\"Heroes\" (2017 Remaster)"));
+        QCOMPARE(album.lines.size(), 2);
+    }
+
+    void endsTheBodyOnlyAtAQuoteThatClosesTheElement()
+    {
+        const QString head = QStringLiteral("<Lyric_1 LyricType=\"1\" LyricContent=\"");
+        // Whitespace between the quote and "/>" is still the end.
+        QCOMPARE(QrcParser::parse(head + QStringLiteral("[0,100]a(0,100)\r\n\" />"))
+                     .lines.size(),
+                 1);
+        // A quote followed by '>' alone is not: no recorded payload closes the
+        // element that way, so the attribute stays unterminated.
+        QVERIFY(QrcParser::parse(head + QStringLiteral("[0,100]a(0,100)\r\n\">")).lines.isEmpty());
+    }
+
+    void readsARealBodyThatCarriesRawQuotes()
+    {
+        // musicid 394368429. Line 54327 opens with a raw quote; stopping at it
+        // kept 22 of the 66 lines, the last of them ending at 54160.
+        const auto parsed = QrcParser::parse(fixture(QStringLiteral("qq-qrc-birthday.qrc")));
+        QCOMPARE(parsed.title, QStringLiteral("バースデー"));
+        QCOMPARE(parsed.lines.size(), 66);
+        const auto quoted = std::find_if(parsed.lines.cbegin(), parsed.lines.cend(),
+                                         [](const auto &line) { return line.startMs == 54327; });
+        QVERIFY(quoted != parsed.lines.cend());
+        QCOMPARE(quoted->text, QStringLiteral("\"今日\"は眠って夢へ逃げよう"));
+        QCOMPARE(quoted->words->first().text, QStringLiteral("\""));
+        QCOMPARE(parsed.lines.last().startMs, 195486);
+        QCOMPARE(parsed.lines.last().text, QStringLiteral("言っていないと生きていけないよ"));
+
+        // The romanization payload carries the same four quotes. It also has
+        // 66 timed lines, but the first three hold only whitespace and are
+        // skipped as any empty line is.
+        const auto romanized = QrcParser::parse(fixture(QStringLiteral("qq-qrc-birthday-roma.qrc")));
+        QCOMPARE(romanized.lines.size(), 63);
+        QCOMPARE(romanized.lines.last().startMs, 195486);
     }
 
     void readsWordLevelRomanizationByTime()
