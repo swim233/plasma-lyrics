@@ -512,6 +512,35 @@ int main(int argc, char **argv)
         qCCritical(lcDaemon).noquote() << "cannot open lyric store:" << error;
         return 3;
     }
+    // One-time, after an upgrade: every QQ word-level lyric cached by a QRC
+    // parser that cut the body at a raw '"', or split a word at a literal
+    // "(1,2)", is dropped, so each track is fetched and parsed again
+    // (DESIGN.md decision 68 and section 4). Here rather than in
+    // LyricStore::open(): plasmashell opens the same store, possibly while
+    // the previous daemon is still running and still caching lyrics the old
+    // way, which would land after the marker and never be purged. The
+    // single-instance lock above means no other daemon can be writing now.
+    // A failure costs only stale lyrics, so it is a warning and the daemon
+    // carries on; the transaction rolls back and the purge is tried again on
+    // the next start.
+    // "empty" is the reason Resolver records for a fetched lyric with nothing
+    // to show; tst_resolver pins that spelling.
+    QString purgeError;
+    const QString purgeMarker = QStringLiteral("migration/qq-qrc-reparse-1");
+    if (const auto purged = store.purgeWordLevelLyricsOnce(
+            {.marker = purgeMarker, .provider = QStringLiteral("qq"),
+             .emptyMissReason = QStringLiteral("empty")},
+            &purgeError)) {
+        if (!purged->alreadyDone) {
+            qCInfo(lcDaemon).noquote()
+                << QStringLiteral("cache purged: provider=qq marker=%1 lyrics=%2 misses=%3")
+                       .arg(purgeMarker).arg(purged->lyrics).arg(purged->misses);
+        }
+    } else {
+        qCWarning(lcDaemon).noquote()
+            << QStringLiteral("cache purge failed: provider=qq marker=%1 error=%2")
+                   .arg(purgeMarker, quoted(purgeError));
+    }
     Resolver resolver(store, providers, config.filterCredits());
     SnapshotWriter snapshots;
     // One-time, idempotent: cleans up a leftover `@Invalid()` literal on

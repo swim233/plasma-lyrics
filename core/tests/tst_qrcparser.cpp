@@ -4,6 +4,8 @@
 #include <QFile>
 #include <QTest>
 
+#include <algorithm>
+
 using namespace PlasmaLyrics;
 
 namespace {
@@ -39,6 +41,8 @@ private Q_SLOTS:
         QVERIFY(!fixture(QStringLiteral("qq-qrc-hoshiloop.qrc")).isEmpty());
         QVERIFY(!fixture(QStringLiteral("qq-qrc-hoshiloop-roma.qrc")).isEmpty());
         QVERIFY(!fixture(QStringLiteral("qq-qrc-budaoren.qrc")).isEmpty());
+        QVERIFY(!fixture(QStringLiteral("qq-qrc-birthday.qrc")).isEmpty());
+        QVERIFY(!fixture(QStringLiteral("qq-qrc-birthday-roma.qrc")).isEmpty());
     }
 
     void parsesWordLevelTimesFromARealTrack()
@@ -189,6 +193,191 @@ private Q_SLOTS:
             "[0,100]rock &amp; roll(0,60) &lt;x&gt;(60,40)")));
         QCOMPARE(parsed.lines.size(), 1);
         QCOMPARE(parsed.lines.first().text, QStringLiteral("rock & roll <x>"));
+    }
+
+    void keepsRawQuotesInsideTheBody()
+    {
+        // QQ does not escape '"' in the body. Both spellings in one body, with
+        // lines after each: ending the value at the first raw quote would lose
+        // everything from the first line on.
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral(
+            "[ti:Song]\r\n"
+            "[0,100]\"(0,10)raw(10,40)\"(50,50)\r\n"
+            "[200,100]&quot;(200,10)escaped(210,40)&quot;(250,50)\r\n"
+            "[400,100]after(400,100)")));
+        QCOMPARE(parsed.lines.size(), 3);
+        QCOMPARE(parsed.lines.at(0).text, QStringLiteral("\"raw\""));
+        QCOMPARE(parsed.lines.at(0).words->at(2).text, QStringLiteral("\""));
+        QCOMPARE(parsed.lines.at(0).words->at(2).startMs, 50);
+        QCOMPARE(parsed.lines.at(1).text, QStringLiteral("\"escaped\""));
+        QCOMPARE(parsed.lines.at(2).text, QStringLiteral("after"));
+    }
+
+    void keepsALyricWhoseTagsCarryARawQuote()
+    {
+        // The shape of musicid 446012964, "Slut!" (Taylor's Version): the
+        // [ti:] tag comes before every timed line, so a quote in the title
+        // used to end the body before the first lyric line.
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral(
+            "[ti:\"Song\" (Live)]\r\n[ar:Artist]\r\n"
+            "[0,100]\"(0,10)Song\" ((10,40)Live) - (50,20)Artist(70,30)\r\n"
+            "[200,100]sung(200,100)")));
+        QCOMPARE(parsed.title, QStringLiteral("\"Song\" (Live)"));
+        QCOMPARE(parsed.lines.size(), 2);
+        QCOMPARE(parsed.lines.at(0).text, QStringLiteral("\"Song\" (Live) - Artist"));
+        QVERIFY(parsed.lines.at(0).credit);
+        QCOMPARE(parsed.lines.at(1).text, QStringLiteral("sung"));
+        QVERIFY(!parsed.lines.at(1).credit);
+
+        // Any other tag ahead of the first line does the same, the album
+        // included.
+        const auto album = QrcParser::parse(wrap(QStringLiteral(
+            "[ti:Heroes]\r\n[ar:Artist]\r\n[al:\"Heroes\" (2017 Remaster)]\r\n"
+            "[0,100]sung(0,100)\r\n[200,100]more(200,100)")));
+        QCOMPARE(album.album, QStringLiteral("\"Heroes\" (2017 Remaster)"));
+        QCOMPARE(album.lines.size(), 2);
+    }
+
+    void endsTheBodyOnlyAtAQuoteThatClosesTheElement()
+    {
+        const QString head = QStringLiteral("<Lyric_1 LyricType=\"1\" LyricContent=\"");
+        // Whitespace between the quote and "/>" is still the end.
+        QCOMPARE(QrcParser::parse(head + QStringLiteral("[0,100]a(0,100)\r\n\" />"))
+                     .lines.size(),
+                 1);
+        // A quote followed by '>' alone is not: no recorded payload closes the
+        // element that way, so the attribute stays unterminated.
+        QVERIFY(QrcParser::parse(head + QStringLiteral("[0,100]a(0,100)\r\n\">")).lines.isEmpty());
+    }
+
+    void readsARealBodyThatCarriesRawQuotes()
+    {
+        // musicid 394368429. Line 54327 opens with a raw quote; stopping at it
+        // kept 22 of the 66 lines, the last of them ending at 54160.
+        const auto parsed = QrcParser::parse(fixture(QStringLiteral("qq-qrc-birthday.qrc")));
+        QCOMPARE(parsed.title, QStringLiteral("バースデー"));
+        QCOMPARE(parsed.lines.size(), 66);
+        const auto quoted = std::find_if(parsed.lines.cbegin(), parsed.lines.cend(),
+                                         [](const auto &line) { return line.startMs == 54327; });
+        QVERIFY(quoted != parsed.lines.cend());
+        QCOMPARE(quoted->text, QStringLiteral("\"今日\"は眠って夢へ逃げよう"));
+        QCOMPARE(quoted->words->first().text, QStringLiteral("\""));
+        QCOMPARE(parsed.lines.last().startMs, 195486);
+        QCOMPARE(parsed.lines.last().text, QStringLiteral("言っていないと生きていけないよ"));
+
+        // The romanization payload carries the same four quotes. It also has
+        // 66 timed lines, but the first three hold only whitespace and are
+        // skipped as any empty line is.
+        const auto romanized = QrcParser::parse(fixture(QStringLiteral("qq-qrc-birthday-roma.qrc")));
+        QCOMPARE(romanized.lines.size(), 63);
+        QCOMPARE(romanized.lines.last().startMs, 195486);
+    }
+
+    void keepsATimingGroupOutsideTheLinesWindowAsText()
+    {
+        // The line spans 1000..1500, so (1,2) cannot be a word's start.
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral(
+            "[1000,500]abc(1,2)(1000,100)de(3,4)f(1100,100)")));
+        QCOMPARE(parsed.lines.size(), 1);
+        const auto &line = parsed.lines.first();
+        QCOMPARE(line.text, QStringLiteral("abc(1,2)de(3,4)f"));
+        QCOMPARE(line.words->size(), 2);
+        QCOMPARE(line.words->at(0).text, QStringLiteral("abc(1,2)"));
+        QCOMPARE(line.words->at(0).startMs, 1000);
+        QCOMPARE(line.words->at(0).endMs, 1100);
+        QCOMPARE(line.words->at(1).text, QStringLiteral("de(3,4)f"));
+        QCOMPARE(line.words->at(1).startMs, 1100);
+    }
+
+    void readsAYearLikeGroupAsText()
+    {
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral(
+            "[30000,2000]born (30000,400)in (30400,300)(2020,1)(30700,600)")));
+        const auto &words = *parsed.lines.first().words;
+        QCOMPARE(words.size(), 3);
+        QCOMPARE(words.at(2).text, QStringLiteral("(2020,1)"));
+        QCOMPARE(words.at(2).startMs, 30700);
+        QCOMPARE(words.at(2).endMs, 31300);
+        QCOMPARE(parsed.lines.first().text, QStringLiteral("born in (2020,1)"));
+    }
+
+    void readsAGroupTooLongForATimeAsText()
+    {
+        // It would read as 0 and so land inside a window that starts at 0.
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral(
+            "[0,1000]a(0,100)b(99999999999999999999,5)(500,100)")));
+        const auto &words = *parsed.lines.first().words;
+        QCOMPARE(words.size(), 2);
+        QCOMPARE(words.at(1).text, QStringLiteral("b(99999999999999999999,5)"));
+        QCOMPARE(words.at(1).startMs, 500);
+    }
+
+    void acceptsAWordStartingExactlyAtTheLineEnd()
+    {
+        // The window is closed at both ends.
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral(
+            "[1000,500]a(1000,500)b(1500,0)")));
+        const auto &words = *parsed.lines.first().words;
+        QCOMPARE(words.size(), 2);
+        QCOMPARE(words.at(1).text, QStringLiteral("b"));
+        QCOMPARE(words.at(1).startMs, 1500);
+    }
+
+    void appendsTextAfterTheLastTimestampToTheLastWord()
+    {
+        // A run after the last real timestamp that holds a rejected group is
+        // lyric text; it joins the last word, untimed tail and all, and the
+        // word keeps its own times.
+        const auto merged = QrcParser::parse(wrap(QStringLiteral(
+            "[1000,500]abc(1000,100)def(1,2)\r\n"
+            "[2000,500]abc(2000,100)def(1,2)ghi")));
+        QCOMPARE(merged.lines.size(), 2);
+        QCOMPARE(merged.lines.at(0).words->size(), 1);
+        QCOMPARE(merged.lines.at(0).words->first().text, QStringLiteral("abcdef(1,2)"));
+        QCOMPARE(merged.lines.at(0).words->first().endMs, 1100);
+        QCOMPARE(merged.lines.at(0).text, QStringLiteral("abcdef(1,2)"));
+        QCOMPARE(merged.lines.at(1).words->first().text, QStringLiteral("abcdef(1,2)ghi"));
+        // A tail with no group in it at all is dropped, as it always was.
+        const auto plain = QrcParser::parse(wrap(QStringLiteral("[1000,500]abc(1000,100)ghi")));
+        QCOMPARE(plain.lines.first().text, QStringLiteral("abc"));
+    }
+
+    void readsEveryGroupAsATimestampWhenNoneIsInsideTheWindow()
+    {
+        // Out of step with its own header, but it parsed before and must not
+        // collapse into one word or disappear now.
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral("[5000,100]a(0,50)b(50,50)")));
+        QCOMPARE(parsed.lines.size(), 1);
+        const auto &words = *parsed.lines.first().words;
+        QCOMPARE(words.size(), 2);
+        QCOMPARE(words.at(0).text, QStringLiteral("a"));
+        QCOMPARE(words.at(0).startMs, 0);
+        QCOMPARE(words.at(1).text, QStringLiteral("b"));
+        QCOMPARE(words.at(1).startMs, 50);
+    }
+
+    void readsEveryGroupAsATimestampOnALineOfZeroDuration()
+    {
+        // The window of a zero-duration line is a single instant, which would
+        // keep the first word and turn every later one into its text.
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral(
+            "[1000,0]a(1000,100)b(1100,100)")));
+        const auto &words = *parsed.lines.first().words;
+        QCOMPARE(words.size(), 2);
+        QCOMPARE(words.at(1).text, QStringLiteral("b"));
+        QCOMPARE(words.at(1).startMs, 1100);
+    }
+
+    void keepsATimingGroupOutsideTheWindowAsTextInTheRomanization()
+    {
+        // Read as a timestamp, "(1,2)" would give "na" a start of 1 and hand
+        // it to the first word, leaving the second without romanization.
+        const auto document = QrcParser::assemble(
+            wrap(QStringLiteral("[1000,1000]か(1000,500)な(1500,500)")),
+            wrap(QStringLiteral("[1000,1000]ka (1000,500)na(1,2) (1500,500)")), QString());
+        const auto &words = *document.lines.first().words;
+        QCOMPARE(*words.at(0).romanization, QStringLiteral("ka"));
+        QCOMPARE(*words.at(1).romanization, QStringLiteral("na(1,2)"));
     }
 
     void readsWordLevelRomanizationByTime()

@@ -21,6 +21,27 @@ struct MissRecord {
     QString cacheVersion;
 };
 
+/// What LyricStore::purgeWordLevelLyricsOnce() removes. A struct rather than
+/// three adjacent QString parameters so that a call site can name each value
+/// with a designator, as every current one does. That makes a mix-up visible,
+/// not impossible: positional initialization still compiles, and so does a
+/// designated one with two values swapped (DESIGN.md decision 72).
+struct WordLevelPurge {
+    /// The setting row that records the purge as done.
+    QString marker;
+    QString provider;
+    /// The reason the resolver records for a fetched lyric with nothing to
+    /// show. The store does not own that vocabulary, so it is handed in.
+    QString emptyMissReason;
+};
+
+struct WordLevelPurgeResult {
+    /// The marker was already there and nothing was touched.
+    bool alreadyDone = false;
+    int lyrics = 0;
+    int misses = 0;
+};
+
 class LyricStore
 {
 public:
@@ -65,6 +86,14 @@ public:
     bool setGlobalOffsetMs(int offsetMs);
     std::optional<int> adjustGlobalOffset(int deltaMs);
     static constexpr int maximumGlobalOffsetMs() { return 10000; }
+
+    /// Once per marker, drops every word-level lyric row of one provider and
+    /// the negative-cache rows that would keep those tracks from being
+    /// fetched again, so lyrics parsed by an older, faulty parser are
+    /// replaced. Mappings, offsets and preferences are kept. Returns nullopt
+    /// on failure, with nothing changed.
+    std::optional<WordLevelPurgeResult> purgeWordLevelLyricsOnce(const WordLevelPurge &purge,
+                                                                 QString *error = nullptr);
 
     static QString defaultPath();
 

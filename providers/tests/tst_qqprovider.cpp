@@ -286,6 +286,14 @@ private Q_SLOTS:
         QTest::newRow("wanwuyouling content")
             << QStringLiteral("qq-lyric-wanwuyouling.xml") << QStringLiteral("content")
             << QStringLiteral("qq-qrc-wanwuyouling.qrc");
+        // Recorded because its body carries raw '"' in both payloads, which
+        // the parser tests pin against these decrypted bytes.
+        QTest::newRow("birthday content")
+            << QStringLiteral("qq-lyric-kafu-birthday.xml") << QStringLiteral("content")
+            << QStringLiteral("qq-qrc-birthday.qrc");
+        QTest::newRow("birthday romanization")
+            << QStringLiteral("qq-lyric-kafu-birthday.xml") << QStringLiteral("contentroma")
+            << QStringLiteral("qq-qrc-birthday-roma.qrc");
     }
 
     void decryptsRealPayloadsExactly()
@@ -807,6 +815,23 @@ private Q_SLOTS:
         const auto shown = filterLeadingCredits(document->lines);
         QCOMPARE(shown.size(), 65);
         QVERIFY(!shown.first().text.contains(QStringLiteral("Eve")));
+    }
+
+    void keepsTheWholeSongWhenTheBodyCarriesRawQuotes()
+    {
+        // musicid 394368429: content and contentroma both hold "今日" and
+        // "明日" in raw quotes at 00:54, and both used to end there.
+        QString error;
+        const auto document = QqProvider::parseLyricResponse(
+            fixture(QStringLiteral("qq-lyric-kafu-birthday.xml")), &error);
+        QVERIFY2(document.has_value(), qPrintable(error));
+        QVERIFY(document->hasWords);
+        QCOMPARE(document->lines.size(), 66);
+        const auto &last = document->lines.last();
+        QCOMPARE(last.startMs, 195486);
+        QVERIFY(last.romanization.has_value());
+        QVERIFY(last.translation.has_value());
+        QCOMPARE(*last.translation, QStringLiteral("就无法坚持活下去"));
     }
 
     void keepsTranslationWithoutRomanization()

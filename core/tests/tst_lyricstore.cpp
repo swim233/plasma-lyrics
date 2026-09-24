@@ -3,6 +3,7 @@
 #include <QSqlDatabase>
 #include <QSqlError>
 #include <QSqlQuery>
+#include <QSqlRecord>
 #include <QJsonObject>
 #include <QTemporaryDir>
 #include <QTest>
@@ -11,6 +12,52 @@
 #include <climits>
 
 using namespace PlasmaLyrics;
+
+namespace {
+
+// Runs one statement through a connection of its own, the way another
+// process -- or an older build -- would touch the file. Rows come back with
+// their columns joined by '|'.
+QStringList sql(const QString &path, const QString &statement)
+{
+    const QString connectionName = QStringLiteral("tst-lyricstore-sql-%1")
+        .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
+    QStringList rows;
+    {
+        auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
+        database.setDatabaseName(path);
+        if (database.open()) {
+            QSqlQuery query(database);
+            if (!query.exec(statement)) {
+                rows.append(QStringLiteral("error: ") + query.lastError().text());
+            }
+            while (query.isSelect() && query.next()) {
+                QStringList columns;
+                for (int column = 0; column < query.record().count(); ++column) {
+                    columns.append(query.value(column).toString());
+                }
+                rows.append(columns.join(QLatin1Char('|')));
+            }
+        }
+        database.close();
+    }
+    QSqlDatabase::removeDatabase(connectionName);
+    return rows;
+}
+
+LyricDocument oneLine(bool hasWords)
+{
+    const QList<LyricWord> words{{1000, 2000, QStringLiteral("word")}};
+    return {{{1000, 2000, QStringLiteral("word"), std::nullopt, std::nullopt,
+              hasWords ? std::optional(words) : std::nullopt}},
+            0, hasWords, {}};
+}
+
+const WordLevelPurge qqPurge{.marker = QStringLiteral("migration/test-purge"),
+                             .provider = QStringLiteral("qq"),
+                             .emptyMissReason = QStringLiteral("empty")};
+
+} // namespace
 
 class LyricStoreTest : public QObject
 {
@@ -394,6 +441,199 @@ private Q_SLOTS:
         QSqlDatabase::removeDatabase(connectionName);
 
         QCOMPARE(store.globalOffsetMs(), 10000);
+    }
+
+    void purgeRemovesOnlyTheProvidersWordLevelRowsAndTheirMisses()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("lyrics.db"));
+        LyricStore store(path);
+        QVERIFY(store.open());
+        const TrackRef mappedBoth{QStringLiteral("qq"), QStringLiteral("100"), 1};
+        const TrackRef mappedPerProvider{QStringLiteral("qq"), QStringLiteral("101"), 1};
+        const TrackRef mappedLegacy{QStringLiteral("qq"), QStringLiteral("102"), 1};
+        const TrackRef lineLevel{QStringLiteral("qq"), QStringLiteral("200"), 1};
+        const TrackRef otherProvider{QStringLiteral("netease"), QStringLiteral("100"), 1};
+        QVERIFY(store.putLyric(mappedBoth, oneLine(true), 10));
+        QVERIFY(store.putLyric(mappedPerProvider, oneLine(true), 10));
+        QVERIFY(store.putLyric(mappedLegacy, oneLine(true), 10));
+        QVERIFY(store.putLyric(lineLevel, oneLine(false), 10));
+        QVERIFY(store.putLyric(otherProvider, oneLine(true), 10));
+
+        // mapFingerprint writes both mapping tables; the other two tracks are
+        // reachable through only one of them each.
+        QVERIFY(store.mapFingerprint(QStringLiteral("fp-both"), mappedBoth, 11));
+        QVERIFY(store.mapProviderFingerprint(QStringLiteral("fp-per-provider"), mappedPerProvider, 11));
+        QCOMPARE(sql(path, QStringLiteral(
+                     "INSERT INTO fingerprint VALUES('fp-legacy', 'qq', '102', 11, 1)")),
+                 QStringList());
+        QVERIFY(store.mapFingerprint(QStringLiteral("fp-line"), lineLevel, 11));
+        QVERIFY(store.mapFingerprint(QStringLiteral("fp-netease"), otherProvider, 11));
+
+        // Removed: a qq miss on each fingerprint mapped to a purged track,
+        // whatever its reason, and every qq "empty" miss.
+        const QString qq = QStringLiteral("qq");
+        QVERIFY(store.recordProviderMiss(QStringLiteral("fp-both"), qq, QStringLiteral("network"), {}, 12));
+        QVERIFY(store.recordProviderMiss(QStringLiteral("fp-per-provider"), qq, QStringLiteral("fetch-error"), {}, 12));
+        QVERIFY(store.recordProviderMiss(QStringLiteral("fp-legacy"), qq, QStringLiteral("no-candidate"), {}, 12));
+        QVERIFY(store.recordProviderMiss(QStringLiteral("fp-title-quote"), qq, QStringLiteral("empty"), {}, 12));
+        // Kept: an unrelated qq miss, a qq miss on a line-level track, and
+        // other providers' misses, even an "empty" one on a purged fingerprint.
+        QVERIFY(store.recordProviderMiss(QStringLiteral("fp-unrelated"), qq, QStringLiteral("no-candidate"), {}, 12));
+        QVERIFY(store.recordProviderMiss(QStringLiteral("fp-line"), qq, QStringLiteral("network"), {}, 12));
+        QVERIFY(store.recordProviderMiss(QStringLiteral("fp-both"), QStringLiteral("netease"),
+                                         QStringLiteral("empty"), {}, 12));
+
+        QVERIFY(store.setOffset(mappedBoth, 250));
+        QVERIFY(store.setOffset(lineLevel, -100));
+        QVERIFY(store.setPreferredProvider(QStringLiteral("fp-both"), qq, 13));
+
+        QString error;
+        const auto purged = store.purgeWordLevelLyricsOnce(qqPurge, &error);
+        QVERIFY2(purged.has_value(), qPrintable(error));
+        QVERIFY(!purged->alreadyDone);
+        QCOMPARE(purged->lyrics, 3);
+        QCOMPARE(purged->misses, 4);
+
+        QCOMPARE(sql(path, QStringLiteral(
+                     "SELECT provider, track_id, has_words FROM lyric ORDER BY provider, track_id")),
+                 QStringList({QStringLiteral("netease|100|1"), QStringLiteral("qq|200|0")}));
+        QCOMPARE(sql(path, QStringLiteral(
+                     "SELECT fingerprint, provider, reason FROM provider_miss "
+                     "ORDER BY fingerprint, provider")),
+                 QStringList({QStringLiteral("fp-both|netease|empty"),
+                              QStringLiteral("fp-line|qq|network"),
+                              QStringLiteral("fp-unrelated|qq|no-candidate")}));
+        // Mappings, offsets and the preference are left for the resolver,
+        // which searches again when a mapped lyric row is missing.
+        QCOMPARE(store.refForFingerprint(QStringLiteral("fp-both"))->trackId, QStringLiteral("100"));
+        QCOMPARE(store.refForProvider(QStringLiteral("fp-per-provider"), qq)->trackId,
+                 QStringLiteral("101"));
+        QCOMPARE(store.refForFingerprint(QStringLiteral("fp-legacy"))->trackId, QStringLiteral("102"));
+        QCOMPARE(store.offset(mappedBoth), 250);
+        QCOMPARE(store.offset(lineLevel), -100);
+        QCOMPARE(store.preferredProvider(QStringLiteral("fp-both")), std::optional<QString>(qq));
+        QVERIFY(!store.lyric(mappedBoth).has_value());
+        QVERIFY(store.lyric(lineLevel).has_value());
+        // Recorded under exactly the name it was given.
+        QCOMPARE(sql(path, QStringLiteral(
+                     "SELECT name FROM setting WHERE name LIKE 'migration/%'")),
+                 QStringList({QStringLiteral("migration/test-purge")}));
+    }
+
+    void purgeRunsOnlyOncePerMarker()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("lyrics.db"));
+        LyricStore store(path);
+        QVERIFY(store.open());
+        // An empty store still runs it and records it: that is what a fresh
+        // install looks like, and it must not purge the first real lyrics
+        // later.
+        const auto first = store.purgeWordLevelLyricsOnce(qqPurge);
+        QVERIFY(first.has_value());
+        QVERIFY(!first->alreadyDone);
+        QCOMPARE(first->lyrics, 0);
+        QCOMPARE(first->misses, 0);
+
+        const TrackRef fresh{QStringLiteral("qq"), QStringLiteral("100"), 1};
+        QVERIFY(store.putLyric(fresh, oneLine(true), 10));
+        QVERIFY(store.recordProviderMiss(QStringLiteral("fp"), QStringLiteral("qq"),
+                                         QStringLiteral("empty"), {}, 12));
+        const auto second = store.purgeWordLevelLyricsOnce(qqPurge);
+        QVERIFY(second.has_value());
+        QVERIFY(second->alreadyDone);
+        QCOMPARE(second->lyrics, 0);
+        QCOMPARE(second->misses, 0);
+        QVERIFY(store.lyric(fresh).has_value());
+        QCOMPARE(sql(path, QStringLiteral("SELECT count(*) FROM provider_miss")),
+                 QStringList({QStringLiteral("1")}));
+
+        // A different marker is a different purge.
+        const auto other = store.purgeWordLevelLyricsOnce(
+            {.marker = QStringLiteral("migration/test-purge-2"), .provider = QStringLiteral("qq"),
+             .emptyMissReason = QStringLiteral("empty")});
+        QVERIFY(other.has_value());
+        QVERIFY(!other->alreadyDone);
+        QCOMPARE(other->lyrics, 1);
+        QCOMPARE(other->misses, 1);
+    }
+
+    void purgeChangesNothingWhenItFailsAfterTheDeletes()
+    {
+        // The marker insert is the last statement, so refusing it makes the
+        // purge fail after both deletes have already run.
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("lyrics.db"));
+        LyricStore store(path);
+        QVERIFY(store.open());
+        const QString qq = QStringLiteral("qq");
+        const TrackRef word{qq, QStringLiteral("100"), 1};
+        QVERIFY(store.putLyric(word, oneLine(true), 10));
+        QVERIFY(store.mapFingerprint(QStringLiteral("fp-word"), word, 11));
+        QVERIFY(store.recordProviderMiss(QStringLiteral("fp-word"), qq, QStringLiteral("network"), {}, 12));
+        QVERIFY(store.recordProviderMiss(QStringLiteral("fp-empty"), qq, QStringLiteral("empty"), {}, 12));
+        QCOMPARE(sql(path, QStringLiteral(
+                     "CREATE TRIGGER refuse_marker BEFORE INSERT ON setting "
+                     "WHEN NEW.name = 'migration/test-purge' "
+                     "BEGIN SELECT RAISE(ABORT, 'marker refused by the test'); END")),
+                 QStringList());
+
+        QString error;
+        QVERIFY(!store.purgeWordLevelLyricsOnce(qqPurge, &error).has_value());
+        QVERIFY2(error.contains(QStringLiteral("marker refused by the test")), qPrintable(error));
+        QCOMPARE(sql(path, QStringLiteral("SELECT provider, track_id FROM lyric")),
+                 QStringList({QStringLiteral("qq|100")}));
+        QCOMPARE(sql(path, QStringLiteral(
+                     "SELECT fingerprint FROM provider_miss ORDER BY fingerprint")),
+                 QStringList({QStringLiteral("fp-empty"), QStringLiteral("fp-word")}));
+        QCOMPARE(sql(path, QStringLiteral("SELECT count(*) FROM setting WHERE name LIKE 'migration/%'")),
+                 QStringList({QStringLiteral("0")}));
+
+        // The transaction was closed, not left open: a write through the same
+        // connection is visible from another one straight away.
+        const TrackRef later{qq, QStringLiteral("101"), 1};
+        QVERIFY(store.putLyric(later, oneLine(true), 13));
+        QCOMPARE(sql(path, QStringLiteral("SELECT track_id FROM lyric WHERE track_id='101'")),
+                 QStringList({QStringLiteral("101")}));
+
+        // Nothing was recorded, so it runs in full once it can.
+        QCOMPARE(sql(path, QStringLiteral("DROP TRIGGER refuse_marker")), QStringList());
+        const auto retried = store.purgeWordLevelLyricsOnce(qqPurge, &error);
+        QVERIFY2(retried.has_value(), qPrintable(error));
+        QVERIFY(!retried->alreadyDone);
+        QCOMPARE(retried->lyrics, 2);
+        QCOMPARE(retried->misses, 2);
+    }
+
+    void purgeMarkerSurvivesAnOlderBuildOpeningTheStore()
+    {
+        // Every released build writes user_version=2 on open, plasmashell's
+        // copy included. A marker kept there would be reset by it, and the
+        // purge would run again over lyrics the fixed parser wrote.
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("lyrics.db"));
+        const TrackRef fresh{QStringLiteral("qq"), QStringLiteral("100"), 1};
+        {
+            LyricStore store(path);
+            QVERIFY(store.open());
+            QVERIFY(store.purgeWordLevelLyricsOnce(qqPurge).has_value());
+            QVERIFY(store.putLyric(fresh, oneLine(true), 10));
+        }
+        QCOMPARE(sql(path, QStringLiteral("PRAGMA user_version=2")), QStringList());
+        QCOMPARE(sql(path, QStringLiteral("PRAGMA user_version")),
+                 QStringList({QStringLiteral("2")}));
+
+        LyricStore reopened(path);
+        QVERIFY(reopened.open());
+        const auto again = reopened.purgeWordLevelLyricsOnce(qqPurge);
+        QVERIFY(again.has_value());
+        QVERIFY(again->alreadyDone);
+        QVERIFY(reopened.lyric(fresh).has_value());
     }
 };
 
