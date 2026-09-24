@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-24 01:07+0800\n"
+"POT-Creation-Date: 2026-09-24 09:56+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -715,8 +715,8 @@ msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:81
 msgid ""
-"When following the system, the widget uses the set below that matches "
-"whether the Plasma style is light or dark."
+"When set to follow the system, allows plasma-lyrics to follow changes to the "
+"system theme."
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:103
@@ -739,29 +739,27 @@ msgctxt "@title:tab dark Plasma style"
 msgid "Dark"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:131
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:132
 msgid ""
 "The theme mode is “Always light”, so these settings are not used for now."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:134
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:135
 msgid ""
 "The theme mode is “Always dark”, so these settings are not used for now."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:137
-msgid ""
-"The Plasma style is currently dark. These settings take effect once it "
-"switches to a light one."
-msgstr ""
-
 #: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:138
 msgid ""
-"The Plasma style is currently light. These settings take effect once it "
-"switches to a dark one."
+"The system theme is currently dark, and the matching colors are in effect."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:166
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:139
+msgid ""
+"The system theme is currently light, and the matching colors are in effect."
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:167
 msgid ""
 "This replaces the %1 setting of the dark theme with that of the light theme. "
 "Nothing is saved until you click Apply or OK."
@@ -771,7 +769,7 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:169
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:170
 msgid ""
 "This replaces the %1 setting of the light theme with that of the dark theme. "
 "Nothing is saved until you click Apply or OK."
@@ -781,12 +779,12 @@ msgid_plural ""
 msgstr[0] ""
 msgstr[1] ""
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:175
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:176
 msgctxt "@action:button"
 msgid "Sync"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:183
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:184
 msgctxt "@action:button"
 msgid "Cancel"
 msgstr ""

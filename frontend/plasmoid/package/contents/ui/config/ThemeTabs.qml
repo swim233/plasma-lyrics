@@ -78,7 +78,7 @@ ColumnLayout {
             wrapMode: Text.WordWrap
             color: Kirigami.Theme.disabledTextColor
             font: Kirigami.Theme.smallFont
-            text: i18n("When following the system, the widget uses the set below that matches whether the Plasma style is light or dark.")
+            text: i18n("When set to follow the system, allows plasma-lyrics to follow changes to the system theme.")
         }
     }
 
@@ -119,8 +119,9 @@ ColumnLayout {
             contentItem: ColumnLayout {
                 spacing: Kirigami.Units.largeSpacing
 
-                // Only on the tab whose set is not in effect, saying when
-                // it would be.
+                // Only on the tab whose set is not in effect, saying why:
+                // the mode is fixed to the other set, or which set the
+                // system theme puts in effect.
                 Kirigami.InlineMessage {
                     objectName: "themeHint"
                     Layout.fillWidth: true
@@ -134,8 +135,8 @@ ColumnLayout {
                             return i18n("The theme mode is “Always dark”, so these settings are not used for now.");
                         }
                         return root.darkInEffect
-                            ? i18n("The Plasma style is currently dark. These settings take effect once it switches to a light one.")
-                            : i18n("The Plasma style is currently light. These settings take effect once it switches to a dark one.");
+                            ? i18n("The system theme is currently dark, and the matching colors are in effect.")
+                            : i18n("The system theme is currently light, and the matching colors are in effect.");
                     }
                 }
 

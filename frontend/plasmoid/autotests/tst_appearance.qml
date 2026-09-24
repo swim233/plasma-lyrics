@@ -2115,8 +2115,8 @@ TestCase {
             tabBar.currentIndex = styleDark ? 0 : 1;
             verify(hint.visible, form);
             compare(hint.text, styleDark
-                ? i18n("The Plasma style is currently dark. These settings take effect once it switches to a light one.")
-                : i18n("The Plasma style is currently light. These settings take effect once it switches to a dark one."), form);
+                ? i18n("The system theme is currently dark, and the matching colors are in effect.")
+                : i18n("The system theme is currently light, and the matching colors are in effect."), form);
             tabBar.currentIndex = styleDark ? 1 : 0;
             verify(!hint.visible, form);
         }
