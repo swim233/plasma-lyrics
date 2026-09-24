@@ -449,4 +449,76 @@ std::optional<int> LyricStore::adjustGlobalOffset(int deltaMs)
     return adjusted;
 }
 
+// Gated by a setting row, not by user_version: every released build since
+// v0.3.0 writes user_version=2 unconditionally whenever it opens the store --
+// plasmashell included, which can go on running the previous build's module
+// long after an upgrade -- so a version gate would be reset and the purge
+// would run again. The marker is read and written inside the same
+// transaction as the deletes, so the purge either happens entirely and is
+// recorded, or not at all.
+std::optional<WordLevelPurgeResult> LyricStore::purgeWordLevelLyricsOnce(const WordLevelPurge &purge,
+                                                                         QString *error)
+{
+    QSqlQuery begin(m_database);
+    if (!begin.exec(QStringLiteral("BEGIN IMMEDIATE"))) {
+        if (error) *error = begin.lastError().text();
+        return std::nullopt;
+    }
+    auto fail = [&](const QSqlQuery &query) -> std::optional<WordLevelPurgeResult> {
+        if (error) *error = query.lastError().text();
+        m_database.rollback();
+        return std::nullopt;
+    };
+    bool alreadyDone = false;
+    {
+        QSqlQuery marker(m_database);
+        marker.prepare(QStringLiteral("SELECT 1 FROM setting WHERE name=?"));
+        marker.addBindValue(purge.marker);
+        if (!marker.exec()) return fail(marker);
+        alreadyDone = marker.next();
+    }
+    if (alreadyDone) {
+        m_database.rollback();
+        return WordLevelPurgeResult{.alreadyDone = true, .lyrics = 0, .misses = 0};
+    }
+    // Misses first: finding the fingerprints of the purged tracks needs the
+    // lyric rows that are about to go. A mapping is looked up in both tables
+    // because either can be the one still pointing at the track. The
+    // mappings themselves stay -- the resolver searches again when a mapped
+    // lyric row is missing -- and so does every offset, which is keyed by
+    // track id and applies again if the new search finds the same track.
+    QSqlQuery misses(m_database);
+    misses.prepare(QStringLiteral(
+        "DELETE FROM provider_miss WHERE provider=? AND (reason=? OR fingerprint IN ("
+        "SELECT m.fingerprint FROM provider_fingerprint m JOIN lyric l USING (provider, track_id) "
+        "WHERE m.provider=? AND l.has_words=1 "
+        "UNION "
+        "SELECT m.fingerprint FROM fingerprint m JOIN lyric l USING (provider, track_id) "
+        "WHERE m.provider=? AND l.has_words=1))"));
+    misses.addBindValue(purge.provider);
+    misses.addBindValue(purge.emptyMissReason);
+    misses.addBindValue(purge.provider);
+    misses.addBindValue(purge.provider);
+    if (!misses.exec()) return fail(misses);
+    // Read straight away: the SQLite driver reports the count of whichever
+    // statement ran last on the connection, not of the query asked -- a
+    // DELETE of three rows reads back as 1 once a later INSERT has run.
+    const int missCount = misses.numRowsAffected();
+    QSqlQuery lyrics(m_database);
+    lyrics.prepare(QStringLiteral("DELETE FROM lyric WHERE provider=? AND has_words=1"));
+    lyrics.addBindValue(purge.provider);
+    if (!lyrics.exec()) return fail(lyrics);
+    const int lyricCount = lyrics.numRowsAffected();
+    // The value, when the purge ran in epoch seconds, is only there for
+    // whoever reads the database by hand.
+    QSqlQuery marker(m_database);
+    marker.prepare(QStringLiteral("INSERT INTO setting(name, value) VALUES(?, ?)"));
+    marker.addBindValue(purge.marker);
+    marker.addBindValue(QString::number(QDateTime::currentSecsSinceEpoch()));
+    if (!marker.exec()) return fail(marker);
+    QSqlQuery commit(m_database);
+    if (!commit.exec(QStringLiteral("COMMIT"))) return fail(commit);
+    return WordLevelPurgeResult{.alreadyDone = false, .lyrics = lyricCount, .misses = missCount};
+}
+
 } // namespace PlasmaLyrics

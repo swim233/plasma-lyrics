@@ -425,6 +425,20 @@ CREATE TABLE offset (
 **按 provider 的负缓存是必需的**，不是优化：不做它，每看一个 B 站视频都会向所有在线源
 重复搜索；若继续使用旧全局 miss，又会让升级前的网易云失败错误抑制新加入的 AMLL。
 
+**解析器修正后的一次性清理用 `setting` 表里的标记行，不用 `user_version`**：成功的歌词行永不过期，
+旧版解析存下的残缺正文不清掉就会一直显示。`LyricStore::purgeWordLevelLyricsOnce` 在同一个
+`BEGIN IMMEDIATE` 事务里读标记、删除该源 `has_words=1` 的 `lyric` 行、删除该源 `reason='empty'`
+的负缓存以及经 `provider_fingerprint`/`fingerprint` 指向被删曲目的指纹上的该源负缓存、写入标记，
+要么全部生效，要么全不生效；`fingerprint`、`provider_fingerprint`、`offset`、`track_preference`
+与其他源的行不动——映射指向缺失的 `lyric` 行时 Resolver 本就退回联网搜索，偏移按
+`(provider, trackId)` 保存，重新匹配到同一曲目时照常生效。门槛不能是 `user_version`：v0.3.0
+起每个已发布版本打开库时都无条件写回 2，包括升级后仍在运行旧模块的 plasmashell，版本门槛会被
+改回去、清理会重跑。只在 daemon 打开库成功后执行，不放进 `executeSchema`：plasmashell 也会打开
+同一个库，而那时旧 daemon 可能仍在按旧解析写入，写在标记之后的行永远不会被清；daemon 持有单实例锁，
+执行时不可能有别的 daemon 在写。失败只记 warning，事务回滚，下次启动再试。现有标记：
+`migration/qq-qrc-reparse-1`，对应决策 68 的两处 QRC 解析修正：正文在未转义的 `"` 处截断，
+以及字里形如 `(1,2)` 的文字被当作时间戳拆开。
+
 **手工改歌词不改数据库**，走 `~/.local/share/plasma-lyrics/overrides/<provider>:<id>.lrc`，
 由 `core/store/` 的覆盖读取器在 provider 结果之后读取。这样缓存保持"纯粹可再生"的语义，覆盖目录是"你的数据"，
 备份时只需备份后者。
