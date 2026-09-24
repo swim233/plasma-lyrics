@@ -273,6 +273,113 @@ private Q_SLOTS:
         QCOMPARE(romanized.lines.last().startMs, 195486);
     }
 
+    void keepsATimingGroupOutsideTheLinesWindowAsText()
+    {
+        // The line spans 1000..1500, so (1,2) cannot be a word's start.
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral(
+            "[1000,500]abc(1,2)(1000,100)de(3,4)f(1100,100)")));
+        QCOMPARE(parsed.lines.size(), 1);
+        const auto &line = parsed.lines.first();
+        QCOMPARE(line.text, QStringLiteral("abc(1,2)de(3,4)f"));
+        QCOMPARE(line.words->size(), 2);
+        QCOMPARE(line.words->at(0).text, QStringLiteral("abc(1,2)"));
+        QCOMPARE(line.words->at(0).startMs, 1000);
+        QCOMPARE(line.words->at(0).endMs, 1100);
+        QCOMPARE(line.words->at(1).text, QStringLiteral("de(3,4)f"));
+        QCOMPARE(line.words->at(1).startMs, 1100);
+    }
+
+    void readsAYearLikeGroupAsText()
+    {
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral(
+            "[30000,2000]born (30000,400)in (30400,300)(2020,1)(30700,600)")));
+        const auto &words = *parsed.lines.first().words;
+        QCOMPARE(words.size(), 3);
+        QCOMPARE(words.at(2).text, QStringLiteral("(2020,1)"));
+        QCOMPARE(words.at(2).startMs, 30700);
+        QCOMPARE(words.at(2).endMs, 31300);
+        QCOMPARE(parsed.lines.first().text, QStringLiteral("born in (2020,1)"));
+    }
+
+    void readsAGroupTooLongForATimeAsText()
+    {
+        // It would read as 0 and so land inside a window that starts at 0.
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral(
+            "[0,1000]a(0,100)b(99999999999999999999,5)(500,100)")));
+        const auto &words = *parsed.lines.first().words;
+        QCOMPARE(words.size(), 2);
+        QCOMPARE(words.at(1).text, QStringLiteral("b(99999999999999999999,5)"));
+        QCOMPARE(words.at(1).startMs, 500);
+    }
+
+    void acceptsAWordStartingExactlyAtTheLineEnd()
+    {
+        // The window is closed at both ends.
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral(
+            "[1000,500]a(1000,500)b(1500,0)")));
+        const auto &words = *parsed.lines.first().words;
+        QCOMPARE(words.size(), 2);
+        QCOMPARE(words.at(1).text, QStringLiteral("b"));
+        QCOMPARE(words.at(1).startMs, 1500);
+    }
+
+    void appendsTextAfterTheLastTimestampToTheLastWord()
+    {
+        // A run after the last real timestamp that holds a rejected group is
+        // lyric text; it joins the last word, untimed tail and all, and the
+        // word keeps its own times.
+        const auto merged = QrcParser::parse(wrap(QStringLiteral(
+            "[1000,500]abc(1000,100)def(1,2)\r\n"
+            "[2000,500]abc(2000,100)def(1,2)ghi")));
+        QCOMPARE(merged.lines.size(), 2);
+        QCOMPARE(merged.lines.at(0).words->size(), 1);
+        QCOMPARE(merged.lines.at(0).words->first().text, QStringLiteral("abcdef(1,2)"));
+        QCOMPARE(merged.lines.at(0).words->first().endMs, 1100);
+        QCOMPARE(merged.lines.at(0).text, QStringLiteral("abcdef(1,2)"));
+        QCOMPARE(merged.lines.at(1).words->first().text, QStringLiteral("abcdef(1,2)ghi"));
+        // A tail with no group in it at all is dropped, as it always was.
+        const auto plain = QrcParser::parse(wrap(QStringLiteral("[1000,500]abc(1000,100)ghi")));
+        QCOMPARE(plain.lines.first().text, QStringLiteral("abc"));
+    }
+
+    void readsEveryGroupAsATimestampWhenNoneIsInsideTheWindow()
+    {
+        // Out of step with its own header, but it parsed before and must not
+        // collapse into one word or disappear now.
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral("[5000,100]a(0,50)b(50,50)")));
+        QCOMPARE(parsed.lines.size(), 1);
+        const auto &words = *parsed.lines.first().words;
+        QCOMPARE(words.size(), 2);
+        QCOMPARE(words.at(0).text, QStringLiteral("a"));
+        QCOMPARE(words.at(0).startMs, 0);
+        QCOMPARE(words.at(1).text, QStringLiteral("b"));
+        QCOMPARE(words.at(1).startMs, 50);
+    }
+
+    void readsEveryGroupAsATimestampOnALineOfZeroDuration()
+    {
+        // The window of a zero-duration line is a single instant, which would
+        // keep the first word and turn every later one into its text.
+        const auto parsed = QrcParser::parse(wrap(QStringLiteral(
+            "[1000,0]a(1000,100)b(1100,100)")));
+        const auto &words = *parsed.lines.first().words;
+        QCOMPARE(words.size(), 2);
+        QCOMPARE(words.at(1).text, QStringLiteral("b"));
+        QCOMPARE(words.at(1).startMs, 1100);
+    }
+
+    void keepsATimingGroupOutsideTheWindowAsTextInTheRomanization()
+    {
+        // Read as a timestamp, "(1,2)" would give "na" a start of 1 and hand
+        // it to the first word, leaving the second without romanization.
+        const auto document = QrcParser::assemble(
+            wrap(QStringLiteral("[1000,1000]か(1000,500)な(1500,500)")),
+            wrap(QStringLiteral("[1000,1000]ka (1000,500)na(1,2) (1500,500)")), QString());
+        const auto &words = *document.lines.first().words;
+        QCOMPARE(*words.at(0).romanization, QStringLiteral("ka"));
+        QCOMPARE(*words.at(1).romanization, QStringLiteral("na(1,2)"));
+    }
+
     void readsWordLevelRomanizationByTime()
     {
         const auto document = QrcParser::assemble(

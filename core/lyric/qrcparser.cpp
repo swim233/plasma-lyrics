@@ -73,20 +73,78 @@ QString extractLyricContent(QStringView document)
     return value;
 }
 
-QList<LyricWord> parseWords(const QString &payload)
+// A "(start,duration)" group is a word's timestamp only when its start lies
+// inside the line's own [start, start + duration]. Any other group is lyric
+// text that happens to look like one -- "(1,2)", or a year such as
+// "(2020,1)" -- and stays inside the word it sits in instead of splitting it.
+// Measured over six real payloads (the four fixtures plus content and
+// romanization of musicid 394368429), 3,392 word starts with none outside
+// their line's window, so the test is exact, with no tolerance, and costs no
+// real word. Adjacency cannot make the call instead: a real word can have
+// empty text (that romanization has "[6539,1474](7592,421)") and 65 more are
+// whitespace only, so two groups side by side say nothing about either.
+//
+// Two kinds of line keep the old reading, where every group is a timestamp,
+// so that no line that parsed before loses its words: one with no group
+// inside its window at all, and one of zero duration, whose window [s, s]
+// would turn every word after the first into text. Neither occurs in the
+// measured payloads.
+QList<LyricWord> parseWords(const QString &payload, qint64 lineStartMs, qint64 lineDurationMs)
 {
     // Lazy leading group so a literal '(' inside the word text is handled:
     // the title line of a track whose name carries a parenthetical reads
     // "人(659,40) ((699,80)", where the word text is " (".
     static const QRegularExpression token(QStringLiteral(R"((.*?)\((\d+),(\d+)\))"),
                                           QRegularExpression::DotMatchesEverythingOption);
-    QList<LyricWord> words;
+    struct Group {
+        QRegularExpressionMatch match;
+        qint64 start = 0;
+        qint64 duration = 0;
+        bool timestamp = false;
+    };
+    QList<Group> groups;
+    bool anyInWindow = false;
     auto iterator = token.globalMatch(payload);
     while (iterator.hasNext()) {
-        const auto match = iterator.next();
-        const qint64 start = match.capturedView(2).toLongLong();
-        const qint64 duration = match.capturedView(3).toLongLong();
-        words.append({.startMs = start, .endMs = start + duration, .text = match.captured(1), .romanization = std::nullopt});
+        auto match = iterator.next();
+        bool startOk = false;
+        bool durationOk = false;
+        const qint64 start = match.capturedView(2).toLongLong(&startOk);
+        const qint64 duration = match.capturedView(3).toLongLong(&durationOk);
+        // A group too long for qint64 reads as 0, which would land inside
+        // the window of a line starting at 0, hence the ok flags. The window
+        // test is a difference so that a huge start cannot overflow a sum.
+        const bool inWindow = startOk && durationOk && start >= lineStartMs
+            && start - lineStartMs <= lineDurationMs;
+        anyInWindow |= inWindow;
+        groups.append({.match = std::move(match), .start = start, .duration = duration, .timestamp = inWindow});
+    }
+    const bool windowed = anyInWindow && lineDurationMs > 0;
+
+    QList<LyricWord> words;
+    // Text read since the last accepted timestamp: word text, plus every
+    // rejected group exactly as it was written.
+    QString pending;
+    qsizetype pendingFrom = 0;
+    bool pendingHasRejected = false;
+    for (const auto &group : groups) {
+        pending += group.match.capturedView(1);
+        if (windowed && !group.timestamp) {
+            pending += group.match.capturedView(0).sliced(group.match.capturedLength(1));
+            pendingHasRejected = true;
+            continue;
+        }
+        words.append({.startMs = group.start, .endMs = group.start + group.duration, .text = pending, .romanization = std::nullopt});
+        pending.clear();
+        pendingFrom = group.match.capturedEnd(0);
+        pendingHasRejected = false;
+    }
+    // Everything after the last accepted timestamp is one run. Untimed text
+    // with no group in it is dropped, as it always was; a run holding a
+    // rejected group is lyric text that ends the line, so it joins the last
+    // word, untimed tail included, rather than being lost.
+    if (pendingHasRejected && !words.isEmpty()) {
+        words.last().text += payload.sliced(pendingFrom);
     }
     return words;
 }
@@ -287,7 +345,10 @@ ParsedQrc QrcParser::parse(QStringView document)
         if (headerMatch.hasMatch()) {
             const qint64 start = headerMatch.capturedView(1).toLongLong();
             const qint64 duration = headerMatch.capturedView(2).toLongLong();
-            auto words = parseWords(headerMatch.captured(3));
+            // Raw times: the [offset:] shift further down moves lines and
+            // words together, so it never changes which group is in the
+            // window.
+            auto words = parseWords(headerMatch.captured(3), start, duration);
             QString text;
             for (const auto &word : words) {
                 text += word.text;
