@@ -351,8 +351,8 @@ private Q_SLOTS:
     // and the dark defaults, so a key dropped from both main.xml and the
     // table, or a default moved in both, passes them. The particles are on
     // in both dark sets and off in both light ones, the colour switch is off
-    // everywhere, and the colour starts as the one it replaces: the current
-    // word's, at full opacity.
+    // everywhere, and the colour defaults to the default of the one it
+    // replaces, the current word's, at full opacity.
     void wordParticleEntries()
     {
         const QHash<QString, SchemaEntry> entries = parsedEntries(readAll(schemaPath()));

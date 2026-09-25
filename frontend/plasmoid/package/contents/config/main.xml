@@ -91,10 +91,11 @@
     <entry name="desktopWordBrightnessPercent" type="Int"><default>60</default></entry>
     <entry name="desktopWordBlurGlow" type="Bool"><default>false</default></entry>
     <!-- DESIGN.md decision 77. Off, the particles take desktopWordActiveColor
-         at full opacity; desktopWordParticleColor is that colour's default at
-         full opacity, so turning desktopWordParticleColorEnabled on changes
-         nothing until the colour is actually edited, as with
-         desktopSecondLineColor. -->
+         at full opacity. desktopWordParticleColor defaults to that key's
+         default at full opacity, so turning desktopWordParticleColorEnabled
+         on leaves the particles as they were only while desktopWordActiveColor
+         is still at its default; once that has been edited, the particles
+         take desktopWordParticleColor instead. -->
     <entry name="desktopWordParticles" type="Bool"><default>true</default></entry>
     <entry name="desktopWordParticleColorEnabled" type="Bool"><default>false</default></entry>
     <entry name="desktopWordParticleColor" type="String"><default>#fffaf5</default></entry>
