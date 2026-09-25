@@ -564,6 +564,9 @@ private Q_SLOTS:
         // set's #1f1b16 blends normally.
         QVERIFY(isAdditive(1.0, 0xfa / 255.0, 0xf5 / 255.0));
         QVERIFY(!isAdditive(0x1f / 255.0, 0x1b / 255.0, 0x16 / 255.0));
+        // The boundary itself adds: 0.2126 + 0.7152 + 0.0722 sums to exactly
+        // 1.0 in double and halving is exact, so mid-grey is exactly 0.5.
+        QVERIFY(isAdditive(0.5, 0.5, 0.5));
         QVERIFY(isAdditive(0.51, 0.51, 0.51));
         QVERIFY(!isAdditive(0.49, 0.49, 0.49));
         // The sRGB components as they are, weighted 0.2126/0.7152/0.0722:
