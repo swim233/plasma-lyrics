@@ -51,7 +51,7 @@
     <!-- Off restores DESIGN.md decision 38's wakeup profile exactly: it empties
          the word Repeater's model and the particle layer, which is also what
          stops the per-frame FrameAnimation. Since decision 77 that clock runs
-         while (effectiveWords.length > 0 || positionMs < particlesAliveUntilMs)
+         while (effectiveWords.length > 0 || lyricPositionMs < lyric.particlesAliveUntilMs)
          && Playing && (panelMode || shouldBeVisible): with this entry on, it
          no longer stops the moment the line without words (an interlude, a
          blank line, the end of the track) begins, but runs on until the last
