@@ -428,14 +428,14 @@ private Q_SLOTS:
         const Snapshot first = snapshotAt(0, QStringLiteral("one"));
         field.setLive(first);
         QCOMPARE(field.aliveUntilMs(), first.aliveUntilMs());
-        field.detach();
+        field.detach(500);
         const Snapshot second = snapshotAt(500, QStringLiteral("two"));
         field.setLive(second);
         QCOMPARE(field.snapshots().size(), 2);
         QCOMPARE(field.aliveUntilMs(), second.aliveUntilMs());
 
         // Moving on to a line with no words leaves the kept ones in charge.
-        field.detach();
+        field.detach(600);
         field.setLive(Snapshot());
         QCOMPARE(field.snapshots().size(), 2);
         QCOMPARE(field.aliveUntilMs(), second.aliveUntilMs());
@@ -448,7 +448,7 @@ private Q_SLOTS:
         Field field;
         const Snapshot line = snapshotAt(1000, QStringLiteral("a"));
         field.setLive(line);
-        field.detach();
+        field.detach(1100);
         field.setLive(Snapshot());
         field.prune(line.aliveUntilMs() - 1);
         QCOMPARE(field.snapshots().size(), 1);
@@ -458,10 +458,28 @@ private Q_SLOTS:
 
         // A seek back to before the line started drops it too.
         field.setLive(line);
-        field.detach();
+        field.detach(1100);
         field.setLive(Snapshot());
         field.prune(999);
         QCOMPARE(field.snapshots().size(), 0);
+
+        // So does a line switch that comes after either of those: a seek back
+        // to before the line, or on to past its last particle. Kept until the
+        // next position change instead, it would ask for empty frames while
+        // paused or on a line without words.
+        field.setLive(line);
+        field.detach(999);
+        field.setLive(Snapshot());
+        QCOMPARE(field.snapshots().size(), 0);
+        field.setLive(line);
+        field.detach(line.aliveUntilMs());
+        field.setLive(Snapshot());
+        QCOMPARE(field.snapshots().size(), 0);
+        field.setLive(line);
+        field.detach(line.aliveUntilMs() - 1);
+        field.setLive(Snapshot());
+        QCOMPARE(field.snapshots().size(), 1);
+        field.prune(line.aliveUntilMs());
 
         // The line being sung stays whatever the position.
         field.setLive(line);
@@ -477,10 +495,10 @@ private Q_SLOTS:
         Field field;
         const Snapshot line = snapshotAt(1000, QStringLiteral("refrain"));
         field.setLive(line);
-        field.detach();
+        field.detach(3100);
         field.setLive(snapshotAt(3000, QStringLiteral("refrain")));
         QCOMPARE(field.snapshots().size(), 2);
-        field.detach();
+        field.detach(3100);
         field.setLive(line);
         QCOMPARE(field.snapshots().size(), 2);
         QCOMPARE(field.snapshots().last()->startMs, 1000);
@@ -491,15 +509,15 @@ private Q_SLOTS:
         // then the copy goes -- through setLive(), or through the next
         // prune() when the line's layout did not change at all. Without that,
         // every particle would be drawn twice.
-        field.detach();
+        field.detach(3100);
         QCOMPARE(field.snapshots().size(), 3);
         field.setLive(line);
         QCOMPARE(field.snapshots().size(), 2);
-        field.detach();
+        field.detach(3100);
         QCOMPARE(field.snapshots().size(), 3);
         field.dedupe();
         QCOMPARE(field.snapshots().size(), 2);
-        field.detach();
+        field.detach(3100);
         QCOMPARE(field.snapshots().size(), 3);
         field.prune(3500);
         QCOMPARE(field.snapshots().size(), 2);
@@ -508,8 +526,8 @@ private Q_SLOTS:
         // Detaching the same line twice keeps one copy.
         field.setLive(Snapshot());
         field.setLive(line);
-        field.detach();
-        field.detach();
+        field.detach(3100);
+        field.detach(3100);
         field.setLive(Snapshot());
         int copies = 0;
         for (const Snapshot *s : field.snapshots()) {
@@ -525,7 +543,7 @@ private Q_SLOTS:
         field.setLiveFollow(-40, 12, 0.8);
         field.setLive(snapshotAt(0, QStringLiteral("a")));
         QCOMPARE(field.snapshots().last()->offsetX, -40.0);
-        field.detach();
+        field.detach(100);
         field.setLiveFollow(0, 33, 0);
         field.setLive(snapshotAt(900, QStringLiteral("b")));
         QCOMPARE(field.snapshots().size(), 2);
@@ -544,7 +562,7 @@ private Q_SLOTS:
     {
         Field field;
         field.setLive(snapshotAt(0, QStringLiteral("a")));
-        field.detach();
+        field.detach(100);
         field.setLive(snapshotAt(600, QStringLiteral("b")));
         field.dropAll();
         QCOMPARE(field.snapshots().size(), 0);
@@ -552,7 +570,7 @@ private Q_SLOTS:
         // Still dropped when the old line is laid out again.
         field.setLive(snapshotAt(600, QStringLiteral("b")));
         QCOMPARE(field.snapshots().size(), 0);
-        field.detach();
+        field.detach(700);
         field.setLive(snapshotAt(0, QStringLiteral("new track")));
         QCOMPARE(field.snapshots().size(), 1);
         QCOMPARE(field.snapshots().first()->text, QStringLiteral("new track"));

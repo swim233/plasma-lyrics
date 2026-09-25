@@ -851,6 +851,33 @@ TestCase {
         layer.lineChanged.disconnect(counter);
     }
 
+    // A line switched away from at a position where it can never show again
+    // -- long after its last particle, or before its first word after a seek
+    // back -- is not kept at all: kept, it would hold snapshotCount up and
+    // ask for empty frames for as long as the position stood still.
+    function test_aLineThatCanNoLongerShowIsNotKept() {
+        const t = createView();
+        tryCompare(t.layer, "snapshotCount", 1);
+        step(t.view, t.source, 2100);
+        switchTo(t, "efgh", lineB);
+        tryCompare(t.layer, "snapshotCount", 2);
+        step(t.view, t.source, 90000);
+        compare(t.layer.snapshotCount, 1);
+        t.source.playbackStatus = "Paused";
+        switchToPlainLine(t);
+        compare(t.layer.snapshotCount, 0);
+        compare(t.layer.particlesAliveUntilMs, -Infinity);
+
+        // A seek back to before the line being sung.
+        t.source.playbackStatus = "Playing";
+        step(t.view, t.source, 2100);
+        switchTo(t, "efgh", lineB);
+        tryCompare(t.layer, "snapshotCount", 1);
+        step(t.view, t.source, 500);
+        switchToPlainLine(t, "before it");
+        compare(t.layer.snapshotCount, 0);
+    }
+
     // A repeated line with its own timings is a line of its own.
     function test_aRepeatedLineKeepsBothCopies() {
         const t = createView();

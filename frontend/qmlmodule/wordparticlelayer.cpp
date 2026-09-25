@@ -198,7 +198,7 @@ void WordParticleLayer::setLineOpacity(qreal value)
 
 void WordParticleLayer::detach()
 {
-    m_field.detach();
+    m_field.detach(m_positionMs);
     fieldChanged();
     polish();
 }

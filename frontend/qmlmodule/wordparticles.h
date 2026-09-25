@@ -165,13 +165,15 @@ public:
     void setLive(const Snapshot &live);
     void setLiveFollow(double offsetX, double offsetY, double opacity);
     /// The current line stops being current: a copy is kept, frozen where it
-    /// was, in place of any older copy of the same line. The current line
-    /// itself is left alone until the next setLive() or dedupe(), which is
-    /// where a line switch that turns out to land on the same line again
-    /// (only the second line changed) drops that copy. Deduplicating here
-    /// instead would drop every copy, because the new line has not arrived
-    /// yet.
-    void detach();
+    /// was, in place of any older copy of the same line -- unless at
+    /// positionMs it would already fail the condition prune() keeps lines
+    /// by, as after a seek back before the line or past its last particle.
+    /// The current line itself is left alone until the next setLive() or
+    /// dedupe(), which is where a line switch that turns out to land on the
+    /// same line again (only the second line changed) drops that copy.
+    /// Deduplicating here instead would drop every copy, because the new
+    /// line has not arrived yet.
+    void detach(double positionMs);
     /// Everything goes, the current line included until the next detach():
     /// the switch to a new track arrives before the line switch that goes
     /// with it, and the outgoing line must not be kept by that switch.
@@ -194,6 +196,8 @@ public:
     const Snapshot *live() const;
 
 private:
+    void retain(double positionMs);
+
     Snapshot m_live;
     bool m_liveDropped = false;
     QList<Snapshot> m_kept;

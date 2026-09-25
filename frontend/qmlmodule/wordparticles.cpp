@@ -196,17 +196,15 @@ void Field::setLiveFollow(double offsetX, double offsetY, double opacity)
     m_live.opacity = opacity;
 }
 
-void Field::detach()
+void Field::detach(double positionMs)
 {
     if (m_liveDropped) {
         m_liveDropped = false;
-        return;
+    } else if (!m_live.particles.isEmpty()) {
+        m_kept.removeIf([this](const Snapshot &kept) { return kept.sameLine(m_live); });
+        m_kept.append(m_live);
     }
-    if (m_live.particles.isEmpty()) {
-        return;
-    }
-    m_kept.removeIf([this](const Snapshot &kept) { return kept.sameLine(m_live); });
-    m_kept.append(m_live);
+    retain(positionMs);
 }
 
 void Field::dropAll()
@@ -217,10 +215,15 @@ void Field::dropAll()
 
 void Field::prune(double positionMs)
 {
+    retain(positionMs);
+    dedupe();
+}
+
+void Field::retain(double positionMs)
+{
     m_kept.removeIf([positionMs](const Snapshot &kept) {
         return positionMs < kept.startMs || positionMs >= kept.aliveUntilMs();
     });
-    dedupe();
 }
 
 void Field::dedupe()
