@@ -933,8 +933,8 @@ private Q_SLOTS:
         QCOMPARE(int(normal[1 + 9 * 24].a), 0);
     }
 
-    // A small particle's core keeps its 1.5 device pixels, so the rings of
-    // a panel-sized sprite carry that wider Gaussian; the outermost ring is
+    // A small particle's core keeps its 1.5 device pixels, so every ring of
+    // a panel-sized sprite carries that wider Gaussian; the outermost ring is
     // still nothing, although that Gaussian has not quite died out there.
     void aSmallSpriteKeepsItsCoresFloor()
     {
@@ -946,15 +946,21 @@ private Q_SLOTS:
         for (double devicePixel : {1.0, 0.5}) {
             std::vector<Vertex> v(kVerticesPerSprite);
             writeSprite(sprite, 1, 1, 1, true, devicePixel, v.data(), 0, indices.data());
-            const double sigma = 1.5 * devicePixel / 2.355;
-            const double r = radius * std::pow(0.5, 1.7);
-            const double q = r / radius;
-            const double expected = (std::exp(-r * r / (2 * sigma * sigma)) + 0.8 * (1 - q * q) * (1 - q * q)) / 1.8;
-            QVERIFY(std::abs(v[1 + 4 * 24].r - 255 * expected) <= 1);
+            const auto p = [&](double r, double width) {
+                const double sigma = width / 2.355;
+                const double q = r / radius;
+                return (std::exp(-r * r / (2 * sigma * sigma)) + 0.8 * (1 - q * q) * (1 - q * q)) / 1.8;
+            };
+            for (int ring = 1; ring <= 9; ++ring) {
+                const double r = radius * std::pow(ring / 10.0, 1.7);
+                for (int i = 0; i < 24; ++i) {
+                    QVERIFY2(std::abs(v[1 + (ring - 1) * 24 + i].r - 255 * p(r, 1.5 * devicePixel)) <= 1,
+                             qPrintable(QStringLiteral("ring %1").arg(ring)));
+                }
+            }
             // Without the floor the core would be far narrower.
-            const double bare = sprite.size / 2.355;
-            const double unfloored = (std::exp(-r * r / (2 * bare * bare)) + 0.8 * (1 - q * q) * (1 - q * q)) / 1.8;
-            QVERIFY(std::abs(v[1 + 4 * 24].r - 255 * unfloored) > 10);
+            const double middle = radius * std::pow(0.5, 1.7);
+            QVERIFY(std::abs(v[1 + 4 * 24].r - 255 * p(middle, sprite.size)) > 10);
             for (int i = 0; i < 24; ++i) {
                 QCOMPARE(int(v[1 + 9 * 24 + i].r), 0);
             }
