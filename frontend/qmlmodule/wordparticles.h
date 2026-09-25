@@ -9,8 +9,10 @@
 // can be tested without Qt Quick -- the software backend the QML suite runs
 // on draws no custom geometry at all. Everything here is a pure function of
 // the lyric position: the same line, played or replayed, gives the same
-// particles, and a seek lands on exactly what playing up to that point would
-// have shown.
+// particles, and after a seek every line still held shows what playing up
+// to that point would have. The lines a seek jumped over were never
+// captured, so their particles, which playing would have left in the air,
+// do not appear.
 //
 // Lengths are logical pixels at the 34 px reference font size unless a name
 // says otherwise, and are scaled by fontSize / 34 when evaluated. Birth
@@ -175,8 +177,9 @@ public:
     void dropAll();
     /// Drops what is never going to be visible again at positionMs: a kept
     /// line that has not started yet, or whose last particle has gone out.
-    /// Pure function of the position, so a seek needs nothing else. Also
-    /// drops a kept copy of the current line, like dedupe().
+    /// Pure function of the position, so a seek needs nothing more for the
+    /// lines held. Also drops a kept copy of the current line, like
+    /// dedupe().
     void prune(double positionMs);
     /// Drops a kept copy of the current line: for a line switch that landed
     /// on the same line again without its layout changing at all.
