@@ -458,6 +458,31 @@ Kirigami.FormLayout {
         checked: root.wordBlurGlow
         onToggled: root.wordBlurGlowEdited(checked)
     }
+    // DESIGN.md decision 77. The three rows are named for the tests that
+    // check which of them show.
+    QQC2.CheckBox {
+        objectName: "wordParticlesCheckBox"
+        Kirigami.FormData.label: i18n("Particles:")
+        visible: root.wordByWord
+        text: i18n("Float particles up from each word as it is sung")
+        checked: root.wordParticles
+        onToggled: root.wordParticlesEdited(checked)
+    }
+    QQC2.CheckBox {
+        objectName: "wordParticleColorCheckBox"
+        Kirigami.FormData.label: i18n("Particle color:")
+        visible: root.wordByWord && root.wordParticles
+        text: i18n("Set it separately from the current word color")
+        checked: root.wordParticleColorEnabled
+        onToggled: root.wordParticleColorEnabledEdited(checked)
+    }
+    ColorField {
+        objectName: "wordParticleColorField"
+        Kirigami.FormData.label: i18n("Color:")
+        visible: root.wordByWord && root.wordParticles && root.wordParticleColorEnabled
+        value: root.wordParticleColor
+        onEdited: hexColor => root.wordParticleColorEdited(hexColor)
+    }
 
     Kirigami.Separator {
         objectName: "trackInfoColorsSeparator"

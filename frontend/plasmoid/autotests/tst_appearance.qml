@@ -495,11 +495,11 @@ TestCase {
         const panelSections = findAll(panelPage, o => typeof o.textColorEdited === "function");
         desktopPage.cfg_desktopTextColor = "#0f0f0f";
         // Background, text, outline, second line, the three word-state
-        // colours, track-info text, track-info outline -- in that order down
-        // the form. The track-info section took this from 3 rows to 5, and
-        // word-by-word from 5 to 9.
+        // colours, particles, track-info text, track-info outline -- in that
+        // order down the form. The track-info section took this from 3 rows
+        // to 5, word-by-word from 5 to 9, and the particles to 10.
         const rows = findAll(desktopSections[0], o => typeof o.edited === "function");
-        compare(rows.length, 9);
+        compare(rows.length, 10);
         compare(rows[1].value, "#0f0f0f");
 
         // Same crosstalk bug test_sectionEditsReachTheirOwnConfigProperties
@@ -2412,6 +2412,75 @@ TestCase {
             page["cfg_" + form + "ShowTrackInfo"] = false;
             verify(!heading.visible, form);
             verify(trackInfoRows.every(row => !row.visible), form);
+        }
+    }
+
+    // DESIGN.md decision 77's three rows, on both pages and both tabs. They
+    // go with the rest of the word-by-word group, the colour switch shows
+    // only while the particles are on, and the colour only while that switch
+    // is on as well. A click on either check box writes the key of the set
+    // on screen and no other.
+    function test_particleRowsShowWithWordByWordAndEachOther() {
+        for (const form of ["desktop", "panel"]) {
+            for (const dark of [false, true]) {
+                const tag = form + (dark ? " dark" : " light");
+                const props = distinctConfiguration(form, dark ? "dark" : "light");
+                const key = suffix => "cfg_" + ThemePolicy.keyPrefix(form, dark) + suffix;
+                const otherKey = suffix => "cfg_" + ThemePolicy.keyPrefix(form, !dark) + suffix;
+                props[key("WordByWord")] = true;
+                props[key("WordParticles")] = true;
+                props[key("WordParticleColorEnabled")] = true;
+                props[key("WordParticleColor")] = "#ff8800";
+                const page = createWindowedPage(form, props);
+                compare(page.editingDark, dark, tag);
+                const particles = named(page, "wordParticlesCheckBox");
+                const colorSwitch = named(page, "wordParticleColorCheckBox");
+                const colorField = named(page, "wordParticleColorField");
+                const shown = () => [particles.visible, colorSwitch.visible, colorField.visible];
+                compare(particles.text, i18n("Float particles up from each word as it is sung"), tag);
+                compare(colorSwitch.text, i18n("Set it separately from the current word color"), tag);
+                compare(shown(), [true, true, true], tag);
+                verify(particles.checked, tag);
+                verify(colorSwitch.checked, tag);
+                compare(colorField.value, "#ff8800", tag);
+
+                page[key("WordParticleColorEnabled")] = false;
+                compare(shown(), [true, true, false], tag);
+                page[key("WordParticles")] = false;
+                compare(shown(), [true, false, false], tag);
+                page[key("WordParticleColorEnabled")] = true;
+                compare(shown(), [true, false, false], tag);
+                page[key("WordParticles")] = true;
+                compare(shown(), [true, true, true], tag);
+                page[key("WordByWord")] = false;
+                compare(shown(), [false, false, false], tag);
+                page[key("WordByWord")] = true;
+                compare(shown(), [true, true, true], tag);
+
+                const others = ["WordParticles", "WordParticleColorEnabled", "WordParticleColor"]
+                    .map(suffix => page[otherKey(suffix)]);
+                const othersUnchanged = () => ["WordParticles", "WordParticleColorEnabled", "WordParticleColor"]
+                    .every((suffix, i) => page[otherKey(suffix)] === others[i]);
+
+                settle(colorSwitch);
+                scrollIntoView(page, colorSwitch);
+                mouseClick(colorSwitch);
+                compare(page[key("WordParticleColorEnabled")], false, tag);
+                compare(shown(), [true, true, false], tag);
+
+                settle(particles);
+                scrollIntoView(page, particles);
+                mouseClick(particles);
+                compare(page[key("WordParticles")], false, tag);
+                compare(shown(), [true, false, false], tag);
+                mouseClick(particles);
+                compare(page[key("WordParticles")], true, tag);
+                compare(shown(), [true, true, false], tag);
+
+                colorField.edited("#123456");
+                compare(page[key("WordParticleColor")], "#123456", tag);
+                verify(othersUnchanged(), tag);
+            }
         }
     }
 

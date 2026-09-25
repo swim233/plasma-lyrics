@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-25 16:27+0800\n"
+"POT-Creation-Date: 2026-09-25 16:28+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -175,7 +175,7 @@ msgid "Background color:"
 msgstr "背景颜色："
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:182
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:469
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:494
 msgid "Text color:"
 msgstr "文字颜色："
 
@@ -205,12 +205,12 @@ msgid "%1%"
 msgstr "%1%"
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:242
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:475
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:500
 msgid "Outline:"
 msgstr "描边："
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:247
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:481
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:506
 msgid "Outline color:"
 msgstr "描边颜色："
 
@@ -235,6 +235,7 @@ msgid "Set it separately from the lyric color"
 msgstr "与歌词颜色分开设置"
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:273
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:481
 msgid "Color:"
 msgstr "颜色："
 
@@ -362,6 +363,22 @@ msgid ""
 msgstr "在逐字歌词上叠加光晕，提供更优雅的效果，略微增加性能开销"
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:465
+msgid "Particles:"
+msgstr "粒子："
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:467
+msgid "Float particles up from each word as it is sung"
+msgstr "唱到每个词时从字上飘起粒子"
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:473
+msgid "Particle color:"
+msgstr "粒子颜色："
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:475
+msgid "Set it separately from the current word color"
+msgstr "与正在唱的颜色分开设置"
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:490
 msgid "Track info colors"
 msgstr "曲目信息颜色"
 
