@@ -58,6 +58,14 @@ Item {
     property bool wordBrightness: true
     property int wordBrightnessPercent: 60
     property bool wordBlurGlow: false
+    // Word particles (DESIGN.md decision 77). main.qml sets all three from
+    // the current appearance; the defaults mirror desktopWordParticles and
+    // friends. wordParticleColor only applies while
+    // wordParticleColorEnabled is on -- otherwise the particles take
+    // wordActiveColor at full opacity.
+    property bool wordParticles: true
+    property bool wordParticleColorEnabled: false
+    property color wordParticleColor: "#fffaf5"
     property string idleText: i18n("No media is playing")
     property string notFoundText: ""
     property string noLyricText: ""
