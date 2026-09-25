@@ -724,6 +724,33 @@ TestCase {
         compare(t.layer.describeSnapshots().filter(s => s.startMs === 2000)[0].offsetY, frozen.offsetY);
     }
 
+    // Particles turned on with the marquee already scrolled and nothing
+    // moving any more -- paused -- still start from the scrolled row: they
+    // follow the offset the line has, not only the next change to it.
+    function test_particlesTurnedOnMidScrollFollowTheScroll() {
+        const words = [];
+        let text = "";
+        for (let i = 0; i < 30; ++i) {
+            words.push({ startMs: 1000 + i * 100, endMs: 1100 + i * 100, text: "word" + i + " " });
+            text += "word" + i + " ";
+        }
+        const source = createTemporaryObject(fakeSourceComponent, this,
+            { currentText: text, currentWords: words, positionMs: 3500, playbackStatus: "Paused" });
+        const view = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: true, overflowMode: "marquee", wordParticles: false });
+        const layer = layerOf(view);
+        const line = linesOf(view).filter(l => l.lineText === text)[0];
+        tryVerify(() => line.particleScrollOffset < -100, 2000, String(line.particleScrollOffset));
+        // Settled: the scroll's own animation has finished.
+        wait(400);
+        const scrolled = line.particleScrollOffset;
+        compare(layer.snapshotCount, 0);
+        view.wordParticles = true;
+        tryCompare(layer, "snapshotCount", 1);
+        compare(current(layer).offsetX, scrolled);
+        compare(line.particleScrollOffset, scrolled);
+    }
+
     function test_marqueeParticlesFollowTheScroll() {
         const words = [];
         let text = "";

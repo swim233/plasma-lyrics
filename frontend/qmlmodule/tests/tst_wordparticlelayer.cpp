@@ -258,6 +258,26 @@ private Q_SLOTS:
         QCOMPARE(layer.describeLine().value(QStringLiteral("x")).toDouble(), 100.0);
     }
 
+    // Turned on while the line already follows an offset -- a marquee
+    // scrolled, and paused so that the offset never changes again -- the
+    // particles start from that offset, not from the unscrolled row.
+    void turnedOnTheLineFollowsTheOffsetItAlreadyHas()
+    {
+        Layer layer;
+        layer.setLineOffset(QPointF(-500, 12));
+        layer.setLineOpacity(0.5);
+        layer.setLine(twoWords());
+        layer.setPositionMs(1500);
+        QCOMPARE(layer.snapshotCount(), 0);
+        layer.setActive(true);
+        const QVariantList snapshots = layer.describeSnapshots();
+        QCOMPARE(snapshots.size(), 1);
+        const QVariantMap live = snapshots.first().toMap();
+        QCOMPARE(live.value(QStringLiteral("offsetX")).toDouble(), -500.0);
+        QCOMPARE(live.value(QStringLiteral("offsetY")).toDouble(), 12.0);
+        QCOMPARE(live.value(QStringLiteral("opacity")).toDouble(), 0.5);
+    }
+
     // The same line set again is no change at all.
     void anUnchangedLineIsIgnored()
     {
