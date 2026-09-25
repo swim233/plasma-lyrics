@@ -38,6 +38,12 @@ Item {
     implicitHeight: origin.implicitHeight + (translation.visible ? translation.implicitHeight : 0)
     height: implicitHeight
 
+    // For AnimatedLyric's particle layer (DESIGN.md decision 77). Only the
+    // lyric itself spawns particles, never the second line; its line sits at
+    // this block's top left.
+    readonly property var particleLine: origin.particleLine
+    readonly property real particleScrollOffset: origin.particleScrollOffset
+
     LyricLine {
         id: origin
         anchors.left: parent.left

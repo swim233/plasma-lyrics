@@ -138,6 +138,10 @@ Item {
         enabled: root.animateColors
         ColorAnimation { duration: root.colorTransitionMs }
     }
+    Behavior on wordParticleColor {
+        enabled: root.animateColors
+        ColorAnimation { duration: root.colorTransitionMs }
+    }
     Behavior on trackInfoColor {
         enabled: root.animateColors
         ColorAnimation { duration: root.colorTransitionMs }
@@ -170,6 +174,14 @@ Item {
     readonly property color effectiveSecondLineColor: root.secondLineColorEnabled
         ? root.secondLineColor
         : Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.68)
+    // Opaque whichever colour it follows: each particle's own brightness
+    // envelope is its alpha, and the 10% translucency the current-word colour
+    // carries by default would only dim every particle once more. Fades with
+    // the theme through the two colours' own Behaviors.
+    readonly property color effectiveWordParticleColor: {
+        const c = root.wordParticleColorEnabled ? root.wordParticleColor : root.wordActiveColor;
+        return Qt.rgba(c.r, c.g, c.b, 1);
+    }
 
     // Word timings belong to the lyric line alone. Every other thing this slot
     // can show -- "Searching…", the idle text, a custom not-found message --
@@ -219,6 +231,18 @@ Item {
     // is not a substitute. See DESIGN.md decision 38 for why the wakeup count,
     // not the per-frame cost, is the thing being protected here.
     //
+    // Word particles (DESIGN.md decision 77) keep it running past the last
+    // word: a line that ends in a switch to one without words -- an
+    // interlude, a blank line, the end of the song -- would otherwise stop
+    // positionMs and leave every particle hanging in the air until the next
+    // line with words. particlesAliveUntilMs is when the last one goes out,
+    // at most 2050 ms of lyric time after its word started, so each switch to
+    // a line without words costs up to that many more frames (about 295 at
+    // 144 Hz), and decision 38's wakeup count rises accordingly on tracks
+    // with particles. Nothing more: switching particles or word-by-word off
+    // clears them at once, and -Infinity makes the clause false, so off still
+    // means decision 38's profile exactly.
+    //
     // syntheticWordByWord does not weaken this: effectiveWords only ever
     // reads source.currentSyntheticWords inside the wordByWord-gated branch
     // above, so turning wordByWord off silences the synthetic clock along
@@ -228,7 +252,8 @@ Item {
     // timings used to leave this clock permanently disarmed (decision 38's
     // "zero cost today" reasoning); with syntheticWordByWord on, such a
     // track now arms it too.
-    readonly property bool wordClockRunning: root.effectiveWords.length > 0
+    readonly property bool wordClockRunning: (root.effectiveWords.length > 0
+            || root.lyricPositionMs < lyric.particlesAliveUntilMs)
         && root.source.playbackStatus === "Playing"
         && (root.panelMode || root.shouldBeVisible)
 
@@ -347,6 +372,7 @@ Item {
     }
 
     ColumnLayout {
+        id: content
         anchors.fill: parent
         anchors.topMargin: root.baseMargin + root.plateMarginTop
         anchors.bottomMargin: root.baseMargin + root.plateMarginBottom
@@ -371,6 +397,7 @@ Item {
         }
 
         AnimatedLyric {
+            id: lyric
             Layout.fillWidth: true
             Layout.fillHeight: true
             lyricText: root.effectiveText
@@ -398,6 +425,13 @@ Item {
             brightnessStrength: root.wordBrightnessPercent / 100
             blurGlowEnabled: root.wordBlurGlow
             lineHeightFactor: Math.max(root.lineHeightMinPercent, root.lineHeightPercent) / 100
+            particlesEnabled: root.wordParticles && root.wordByWord
+            particleColor: root.effectiveWordParticleColor
+            // The test stand-ins for LyricSource carry no fingerprint.
+            particleFingerprint: root.source.fingerprint ?? ""
+            // This whole item, clipped at its edges -- in a panel that is the
+            // applet's own bounds.
+            particleArea: Qt.rect(-(content.x + lyric.x), -(content.y + lyric.y), root.width, root.height)
         }
     }
 

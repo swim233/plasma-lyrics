@@ -148,8 +148,10 @@ Item {
     // "the user turned animations off in System Settings" (see LyricsView's
     // fade Behavior). Colour still advances word by word there, because that
     // is information rather than decoration; the lift and brightness envelopes
-    // are decoration and go flat.
-    readonly property bool envelopesAnimate: Kirigami.Units.longDuration > 1
+    // are decoration and go flat, and the line spawns no particles. Writable
+    // only so that tests can turn it off: Kirigami.Units is a global the
+    // suite cannot vary.
+    property bool envelopesAnimate: Kirigami.Units.longDuration > 1
 
     // Measured at the nominal size so word mode can reproduce "fit" with one
     // shared pixel size. Text.HorizontalFit cannot be used per word: it would
@@ -309,6 +311,41 @@ Item {
         NumberAnimation { duration: 260; easing.type: Easing.OutCubic }
     }
 
+    // What AnimatedLyric's particle layer needs to know about this line
+    // (DESIGN.md decision 77): each word's timing, text and x in the row,
+    // the row's x before any marquee scroll, the words' resting baseline --
+    // both in this item's coordinates, through clipper -- and the font the
+    // glyphs are drawn in, which the layer measures the ink and the CJK
+    // ascent with. startMs is the first word's: the line's own timestamp
+    // never reaches the renderer. null whenever the line spawns nothing: not
+    // in word mode (wrap, or a line too long to fit) or with animations off.
+    //
+    // Reads Repeater.count for the reason activeWordItem does, and every
+    // delegate's x so that it settles once the Row has laid the words out.
+    readonly property var particleLine: {
+        if (!root.wordMode || !root.envelopesAnimate || wordRepeater.count !== root.words.length) {
+            return null;
+        }
+        const words = [];
+        for (let i = 0; i < wordRepeater.count; ++i) {
+            const word = root.words[i];
+            words.push({ startMs: word.startMs, endMs: word.endMs, text: word.text,
+                         x: wordRepeater.itemAt(i).x });
+        }
+        return {
+            startMs: root.words[0].startMs,
+            text: root.lineText,
+            words: words,
+            x: clipper.x + (root.marqueeApplies ? 0 : wordRow.x),
+            baseline: clipper.y + wordRow.y + wordRepeater.itemAt(0).baselineOffset,
+            font: Qt.font({ family: root.fontFamily, pixelSize: root.wordPixelSize,
+                            weight: root.fontWeight })
+        };
+    }
+    // The horizontal part of what this line's particles follow while it is
+    // the current one: the marquee scroll that particleLine.x leaves out.
+    readonly property real particleScrollOffset: root.marqueeApplies ? root.wordScrollOffset : 0
+
     // Brightening cannot go through Qt.lighter(): that raises HSV value, and
     // the colours this is applied to are already at value 1.0 (near-white over
     // a wallpaper), so it would be a control that visibly does nothing. Fading
@@ -448,6 +485,9 @@ Item {
                     readonly property real lift: root.liftEnabled
                         ? root.fontSize * root.liftEm * word.envelope
                         : 0
+                    // The glyph's baseline at rest, the lift left out. For
+                    // particleLine.
+                    baselineOffset: glyph.baselineOffset
 
                     // Alive for as long as the halo can be seen, so it fades with
                     // the glyph instead of vanishing at endMs while the glyph is
