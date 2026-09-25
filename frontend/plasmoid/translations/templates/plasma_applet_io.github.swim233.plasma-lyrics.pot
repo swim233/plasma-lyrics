@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-25 23:00+0800\n"
+"POT-Creation-Date: 2026-09-26 00:42+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -175,7 +175,7 @@ msgid "Background color:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:182
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:496
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:520
 msgid "Text color:"
 msgstr ""
 
@@ -205,12 +205,12 @@ msgid "%1%"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:242
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:502
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:526
 msgid "Outline:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:247
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:508
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:532
 msgid "Outline color:"
 msgstr ""
 
@@ -235,7 +235,7 @@ msgid "Set it separately from the lyric color"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:273
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:481
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:505
 msgid "Color:"
 msgstr ""
 
@@ -357,28 +357,38 @@ msgid "Blurred glow:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:457
-msgid ""
-"Overlay a glow on the word-by-word lyrics for a more elegant look, at a "
-"slight performance cost."
+msgid "Turn on lyric glow"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:465
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:471
+msgid ""
+"With this on, a glow is overlaid on word-by-word lyrics for a more elegant "
+"look, at a slight performance cost."
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:477
 msgid "Particles:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:467
-msgid "Float particles up from each word as it is sung"
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:479
+msgid "Turn on lyric particle animation"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:473
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:493
+msgid ""
+"With this on, particles show the live progress of word-by-word lyrics, at a "
+"slight performance cost."
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:497
 msgid "Particle color:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:475
-msgid "Set it separately from the current word color"
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:499
+msgid "Use a separate particle color"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:492
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:516
 msgid "Track info colors"
 msgstr ""
 

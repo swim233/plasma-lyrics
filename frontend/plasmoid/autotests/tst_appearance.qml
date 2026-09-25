@@ -1860,10 +1860,12 @@ TestCase {
         wait(150);
 
         const descriptions = findAll(section, o => o.objectName === "formDescription");
-        // Two today. Asserted as non-empty rather than exactly two so adding
-        // a third description does not fail this, but deleting an
-        // objectName -- which would silently drop that label out of this
-        // check -- does.
+        // Four today. Asserted as non-empty rather than exactly four so
+        // adding a fifth description does not fail this; only every label
+        // losing its objectName does. One label losing it just drops out of
+        // this check: test_glowAndParticleDescriptionsShowWithTheirRows
+        // fails for the glow and particle descriptions, nothing does for
+        // the other two.
         verify(descriptions.length > 0);
         verify(section.width > 0);
 
@@ -2453,8 +2455,8 @@ TestCase {
                     compare(particles.Kirigami.FormData.label, i18n("Particles:"), tag);
                     compare(colorSwitch.Kirigami.FormData.label, i18n("Particle color:"), tag);
                     compare(colorField.Kirigami.FormData.label, i18n("Color:"), tag);
-                    compare(particles.text, i18n("Float particles up from each word as it is sung"), tag);
-                    compare(colorSwitch.text, i18n("Set it separately from the current word color"), tag);
+                    compare(particles.text, i18n("Turn on lyric particle animation"), tag);
+                    compare(colorSwitch.text, i18n("Use a separate particle color"), tag);
                     // Right after "Blurred glow:", the last row of the group
                     // before them, and in this order down the form.
                     const sectionChildren = sectionOf(page).children;
@@ -2512,6 +2514,80 @@ TestCase {
                     compare(page[key("WordParticleColor")], "#123456", tag);
                     verify(othersUnchanged(), tag);
                 }
+            }
+        }
+    }
+
+    // Decision 77's descriptions: one directly below the glow row and one
+    // directly below the particle row, in the field column, each shown with
+    // its row -- so with word-by-word on it stays while its own switch is
+    // off. The particle colour row has none: its colour field follows it.
+    function test_glowAndParticleDescriptionsShowWithTheirRows() {
+        for (const form of ["desktop", "panel"]) {
+            for (const dark of [false, true]) {
+                const tag = form + (dark ? " dark" : " light");
+                const props = distinctConfiguration(form, dark ? "dark" : "light");
+                const key = suffix => "cfg_" + ThemePolicy.keyPrefix(form, dark) + suffix;
+                props[key("WordByWord")] = true;
+                props[key("WordBlurGlow")] = true;
+                props[key("WordParticles")] = true;
+                props[key("WordParticleColorEnabled")] = true;
+                // Wide enough for the two-column layout in any locale and
+                // font, as for test_theFormsInsideAndOutsideTheFrameLineUp.
+                const page = createWindowedPage(form, props, { width: Kirigami.Units.gridUnit * 80 });
+                compare(page.editingDark, dark, tag);
+                // Every row of the form in declaration order, those without a
+                // label (the descriptions) included.
+                const sectionChildren = sectionOf(page).children;
+                const items = [];
+                for (let i = 0; i < sectionChildren.length; ++i) {
+                    items.push(sectionChildren[i]);
+                }
+                const glow = items.find(item => item.Kirigami.FormData.label === i18n("Blurred glow:"));
+                verify(glow !== undefined, tag);
+                const particles = named(page, "wordParticlesCheckBox");
+                const colorSwitch = named(page, "wordParticleColorCheckBox");
+                const colorField = named(page, "wordParticleColorField");
+                const glowAt = items.indexOf(glow);
+                const particlesAt = items.indexOf(particles);
+                const glowDescription = items[glowAt + 1];
+                const particlesDescription = items[particlesAt + 1];
+
+                compare(glow.text, i18n("Turn on lyric glow"), tag);
+                compare(glowDescription.objectName, "formDescription", tag);
+                compare(glowDescription.text, i18n("With this on, a glow is overlaid on word-by-word lyrics for a more elegant look, at a slight performance cost."), tag);
+                compare(particlesAt, glowAt + 2, tag);
+                compare(particlesDescription.objectName, "formDescription", tag);
+                compare(particlesDescription.text, i18n("With this on, particles show the live progress of word-by-word lyrics, at a slight performance cost."), tag);
+                compare(items.indexOf(colorSwitch), particlesAt + 2, tag);
+                compare(items.indexOf(colorField), particlesAt + 3, tag);
+
+                // Laid out below its row and above the next, starting where
+                // the row's check box does.
+                const rows = [[glow, glowDescription, particles],
+                              [particles, particlesDescription, colorSwitch]];
+                for (const [row, description, next] of rows) {
+                    settle(row);
+                    settle(description);
+                    settle(next);
+                    const rowAt = row.mapToItem(null, 0, 0);
+                    const descriptionAt = description.mapToItem(null, 0, 0);
+                    const nextAt = next.mapToItem(null, 0, 0);
+                    fuzzyCompare(descriptionAt.x, rowAt.x, 1, tag);
+                    verify(descriptionAt.y >= rowAt.y + row.height, tag);
+                    verify(nextAt.y >= descriptionAt.y + description.height, tag);
+                }
+
+                const state = () => [glow.visible, glowDescription.visible,
+                                     particles.visible, particlesDescription.visible];
+                compare(state(), [true, true, true, true], tag);
+                page[key("WordBlurGlow")] = false;
+                page[key("WordParticles")] = false;
+                compare(state(), [true, true, true, true], tag);
+                page[key("WordByWord")] = false;
+                compare(state(), [false, false, false, false], tag);
+                page[key("WordByWord")] = true;
+                compare(state(), [true, true, true, true], tag);
             }
         }
     }

@@ -299,9 +299,9 @@ Kirigami.FormLayout {
         onToggled: root.wordByWordEdited(checked)
     }
     QQC2.Label {
-        // Named so the regression test can find these two without a shape
-        // check that would also match every other Label on the page, the
-        // same reason LyricLine.qml's word glyphs carry one.
+        // Named so the regression test can find these descriptions without a
+        // shape check that would also match every other Label on the page,
+        // the same reason LyricLine.qml's word glyphs carry one.
         objectName: "formDescription"
         Layout.fillWidth: true
         // A wrapping Text still reports its *unwrapped* single-line width as
@@ -339,9 +339,9 @@ Kirigami.FormLayout {
         onToggled: root.syntheticWordByWordEdited(checked)
     }
     QQC2.Label {
-        // Named so the regression test can find these two without a shape
-        // check that would also match every other Label on the page, the
-        // same reason LyricLine.qml's word glyphs carry one.
+        // Named so the regression test can find these descriptions without a
+        // shape check that would also match every other Label on the page,
+        // the same reason LyricLine.qml's word glyphs carry one.
         objectName: "formDescription"
         Layout.fillWidth: true
         // A wrapping Text still reports its *unwrapped* single-line width as
@@ -454,25 +454,49 @@ Kirigami.FormLayout {
     QQC2.CheckBox {
         Kirigami.FormData.label: i18n("Blurred glow:")
         visible: root.wordByWord
-        text: i18n("Overlay a glow on the word-by-word lyrics for a more elegant look, at a slight performance cost.")
+        text: i18n("Turn on lyric glow")
         checked: root.wordBlurGlow
         onToggled: root.wordBlurGlowEdited(checked)
     }
-    // DESIGN.md decision 77. The three rows are named for the tests that
-    // check which of them show.
+    QQC2.Label {
+        // Named, capped and styled like the formDescription labels above;
+        // the first one's comment has the measurements behind the cap.
+        objectName: "formDescription"
+        Layout.fillWidth: true
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+        wrapMode: Text.WordWrap
+        visible: root.wordByWord
+        color: Kirigami.Theme.disabledTextColor
+        font: Kirigami.Theme.smallFont
+        text: i18n("With this on, a glow is overlaid on word-by-word lyrics for a more elegant look, at a slight performance cost.")
+    }
+    // DESIGN.md decision 77. The three control rows are named for the tests
+    // that check which of them show.
     QQC2.CheckBox {
         objectName: "wordParticlesCheckBox"
         Kirigami.FormData.label: i18n("Particles:")
         visible: root.wordByWord
-        text: i18n("Float particles up from each word as it is sung")
+        text: i18n("Turn on lyric particle animation")
         checked: root.wordParticles
         onToggled: root.wordParticlesEdited(checked)
+    }
+    QQC2.Label {
+        // As the glow's description above. Shown with its row, so it stays
+        // while the particles themselves are off.
+        objectName: "formDescription"
+        Layout.fillWidth: true
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+        wrapMode: Text.WordWrap
+        visible: root.wordByWord
+        color: Kirigami.Theme.disabledTextColor
+        font: Kirigami.Theme.smallFont
+        text: i18n("With this on, particles show the live progress of word-by-word lyrics, at a slight performance cost.")
     }
     QQC2.CheckBox {
         objectName: "wordParticleColorCheckBox"
         Kirigami.FormData.label: i18n("Particle color:")
         visible: root.wordByWord && root.wordParticles
-        text: i18n("Set it separately from the current word color")
+        text: i18n("Use a separate particle color")
         checked: root.wordParticleColorEnabled
         onToggled: root.wordParticleColorEnabledEdited(checked)
     }
