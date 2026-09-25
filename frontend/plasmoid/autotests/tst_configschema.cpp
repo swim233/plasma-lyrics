@@ -145,21 +145,50 @@ QString braceBlock(const QString &text, qsizetype open)
     return {};
 }
 
+// `line` without its `//` comment, if it has one outside a "..." or '...'
+// string literal, so that a key named in a comment is not read as code.
+QString withoutLineComment(const QString &line)
+{
+    QChar quote;
+    for (qsizetype i = 0; i < line.size(); ++i) {
+        const QChar c = line.at(i);
+        if (!quote.isNull()) {
+            if (c == QLatin1Char('\\')) {
+                ++i;
+            } else if (c == quote) {
+                quote = QChar();
+            }
+        } else if (c == QLatin1Char('"') || c == QLatin1Char('\'')) {
+            quote = c;
+        } else if (c == QLatin1Char('/') && i + 1 < line.size() && line.at(i + 1) == QLatin1Char('/')) {
+            return line.left(i);
+        }
+    }
+    return line;
+}
+
+// `text` with withoutLineComment() applied to each of its lines.
+QString withoutComments(const QString &text)
+{
+    QStringList lines = text.split(QLatin1Char('\n'));
+    for (QString &line : lines) {
+        line = withoutLineComment(line);
+    }
+    return lines.join(QLatin1Char('\n'));
+}
+
 // The bindings directly inside a `{ ... }` block of main.qml's, one level
 // in (eight spaces), by property name: each runs from its `name:` line up to
-// the next one, continuation lines included. Whole-line comments are left
-// out, so that one naming a key cannot count as reading it.
+// the next one, continuation lines included. Comments are left out, whole
+// line or trailing, through withoutComments(), so that one naming a key
+// cannot count as reading it.
 QHash<QString, QString> bindingsOf(const QString &block)
 {
     const QRegularExpression bindingLine(QStringLiteral("^ {8}([A-Za-z_][A-Za-z0-9_.]*):(.*)$"));
-    const QRegularExpression commentLine(QStringLiteral("^\\s*//"));
     QHash<QString, QString> bindings;
     QString current;
-    const QStringList lines = block.split(QLatin1Char('\n'));
+    const QStringList lines = withoutComments(block).split(QLatin1Char('\n'));
     for (const QString &line : lines) {
-        if (commentLine.match(line).hasMatch()) {
-            continue;
-        }
         if (const auto match = bindingLine.match(line); match.hasMatch()) {
             current = match.captured(1);
             bindings.insert(current, match.captured(2));
@@ -552,8 +581,9 @@ private Q_SLOTS:
                 problems << QStringLiteral("no complete \"%1\" block").arg(opening);
                 continue;
             }
+            // Comments left out, as in bindingsOf().
             QSet<QString> read;
-            for (auto it = valueCall.globalMatch(block); it.hasNext();) {
+            for (auto it = valueCall.globalMatch(withoutComments(block)); it.hasNext();) {
                 const auto call = it.next();
                 if (call.captured(1) == representation.form) {
                     read << literalSuffix.match(call.captured(2)).captured(1);
