@@ -495,11 +495,11 @@ TestCase {
         const panelSections = findAll(panelPage, o => typeof o.textColorEdited === "function");
         desktopPage.cfg_desktopTextColor = "#0f0f0f";
         // Background, text, outline, second line, the three word-state
-        // colours, track-info text, track-info outline -- in that order down
-        // the form. The track-info section took this from 3 rows to 5, and
-        // word-by-word from 5 to 9.
+        // colours, particles, track-info text, track-info outline -- in that
+        // order down the form. The track-info section took this from 3 rows
+        // to 5, word-by-word from 5 to 9, and the particles to 10.
         const rows = findAll(desktopSections[0], o => typeof o.edited === "function");
-        compare(rows.length, 9);
+        compare(rows.length, 10);
         compare(rows[1].value, "#0f0f0f");
 
         // Same crosstalk bug test_sectionEditsReachTheirOwnConfigProperties
@@ -1446,6 +1446,9 @@ TestCase {
         desktop.wordLiftPercentEdited(22);
         desktop.wordBrightnessPercentEdited(85);
         desktop.wordBlurGlowEdited(true);
+        desktop.wordParticlesEdited(false);
+        desktop.wordParticleColorEnabledEdited(true);
+        desktop.wordParticleColorEdited("#ff8800");
         desktop.lineHeightPercentEdited(160);
         desktop.secondLineSourceEdited("romanization");
         desktop.secondLineColorEnabledEdited(true);
@@ -1459,6 +1462,9 @@ TestCase {
         compare(desktopPage.cfg_desktopWordLiftPercent, 22);
         compare(desktopPage.cfg_desktopWordBrightnessPercent, 85);
         compare(desktopPage.cfg_desktopWordBlurGlow, true);
+        compare(desktopPage.cfg_desktopWordParticles, false);
+        compare(desktopPage.cfg_desktopWordParticleColorEnabled, true);
+        compare(desktopPage.cfg_desktopWordParticleColor, "#ff8800");
         compare(desktopPage.cfg_desktopLineHeight, 160);
         compare(desktopPage.cfg_desktopSecondLineSource, "romanization");
         compare(desktopPage.cfg_desktopSecondLineColorEnabled, true);
@@ -1471,12 +1477,18 @@ TestCase {
 
         panel.wordActiveColorEdited("#cafebabe");
         panel.syntheticWordByWordEdited(true);
+        // Decision 77 gives the panel the particle keys the lift lacks.
+        panel.wordParticleColorEnabledEdited(true);
+        panel.wordParticleColorEdited("#0088ff");
         compare(panelPage.cfg_panelWordActiveColor, "#cafebabe");
         compare(panelPage.cfg_panelWordByWordSynthetic, true);
+        compare(panelPage.cfg_panelWordParticleColorEnabled, true);
+        compare(panelPage.cfg_panelWordParticleColor, "#0088ff");
         // Same crosstalk guard the other appearance tests apply: the two tabs
         // are separate page instances and must not reach into each other.
         compare(desktopPage.cfg_desktopWordActiveColor, "#55667788");
         compare(desktopPage.cfg_desktopWordByWordSynthetic, true);
+        compare(desktopPage.cfg_desktopWordParticleColor, "#ff8800");
     }
 
     // DESIGN.md decision 69/73: below 125% line height, the previous line's
@@ -2004,6 +2016,9 @@ TestCase {
         WordBrightness: { property: "wordBrightness", signal: "wordBrightnessEdited" },
         WordBrightnessPercent: { property: "wordBrightnessPercent", signal: "wordBrightnessPercentEdited" },
         WordBlurGlow: { property: "wordBlurGlow", signal: "wordBlurGlowEdited" },
+        WordParticles: { property: "wordParticles", signal: "wordParticlesEdited" },
+        WordParticleColorEnabled: { property: "wordParticleColorEnabled", signal: "wordParticleColorEnabledEdited" },
+        WordParticleColor: { property: "wordParticleColor", signal: "wordParticleColorEdited" },
         TrackInfoColor: { property: "trackInfoColor", signal: "trackInfoColorEdited" },
         TrackInfoStroke: { property: "trackInfoStrokeEnabled", signal: "trackInfoStrokeEnabledEdited" },
         TrackInfoStrokeColor: { property: "trackInfoStrokeColor", signal: "trackInfoStrokeColorEdited" }
@@ -2018,7 +2033,7 @@ TestCase {
             const page = createTemporaryObject(pageComponent(form), this);
             verify(page !== null, form);
             const suffixes = ThemePolicy.themedSuffixes(form);
-            compare(suffixes.length, form === "desktop" ? 28 : 26, form);
+            compare(suffixes.length, form === "desktop" ? 31 : 29, form);
             const keys = ["cfg_" + ThemePolicy.modeKey(form)];
             for (const suffix of suffixes) {
                 keys.push("cfg_" + ThemePolicy.keyPrefix(form, false) + suffix);
@@ -2397,6 +2412,149 @@ TestCase {
             page["cfg_" + form + "ShowTrackInfo"] = false;
             verify(!heading.visible, form);
             verify(trackInfoRows.every(row => !row.visible), form);
+        }
+    }
+
+    // DESIGN.md decision 77's three rows, on both pages and both tabs, from
+    // each of three stored states: everything on, the dark default (particles
+    // on, their own colour off) and the light default (both off). They go
+    // with the rest of the word-by-word group, the colour switch shows only
+    // while the particles are on, and the colour only while that switch is
+    // on as well; each check box shows its key as stored. A click on either
+    // check box writes the key of the set on screen and no other.
+    function test_particleRowsShowWithWordByWordAndEachOther() {
+        const seeds = [
+            { tag: "both on", particles: true, colorEnabled: true },
+            { tag: "dark default", particles: true, colorEnabled: false },
+            { tag: "light default", particles: false, colorEnabled: false }
+        ];
+        for (const form of ["desktop", "panel"]) {
+            for (const dark of [false, true]) {
+                for (const seed of seeds) {
+                    const tag = form + (dark ? " dark, " : " light, ") + seed.tag;
+                    const props = distinctConfiguration(form, dark ? "dark" : "light");
+                    const key = suffix => "cfg_" + ThemePolicy.keyPrefix(form, dark) + suffix;
+                    const otherKey = suffix => "cfg_" + ThemePolicy.keyPrefix(form, !dark) + suffix;
+                    props[key("WordByWord")] = true;
+                    props[key("WordParticles")] = seed.particles;
+                    props[key("WordParticleColorEnabled")] = seed.colorEnabled;
+                    props[key("WordParticleColor")] = "#ff8800";
+                    const page = createWindowedPage(form, props);
+                    compare(page.editingDark, dark, tag);
+                    const particles = named(page, "wordParticlesCheckBox");
+                    const colorSwitch = named(page, "wordParticleColorCheckBox");
+                    const colorField = named(page, "wordParticleColorField");
+                    // Which of the three rows show, then whether each check
+                    // box is checked.
+                    const state = () => [particles.visible, colorSwitch.visible, colorField.visible,
+                                         particles.checked, colorSwitch.checked];
+                    const expected = (wordByWord, on, colorEnabled) =>
+                        [wordByWord, wordByWord && on, wordByWord && on && colorEnabled, on, colorEnabled];
+                    compare(particles.Kirigami.FormData.label, i18n("Particles:"), tag);
+                    compare(colorSwitch.Kirigami.FormData.label, i18n("Particle color:"), tag);
+                    compare(colorField.Kirigami.FormData.label, i18n("Color:"), tag);
+                    compare(particles.text, i18n("Float particles up from each word as it is sung"), tag);
+                    compare(colorSwitch.text, i18n("Set it separately from the current word color"), tag);
+                    // Right after "Blurred glow:", the last row of the group
+                    // before them, and in this order down the form.
+                    const sectionChildren = sectionOf(page).children;
+                    const rows = [];
+                    for (let i = 0; i < sectionChildren.length; ++i) {
+                        if (sectionChildren[i].Kirigami.FormData.label !== "") {
+                            rows.push(sectionChildren[i]);
+                        }
+                    }
+                    const glowAt = rows.findIndex(item => item.Kirigami.FormData.label === i18n("Blurred glow:"));
+                    verify(glowAt >= 0, tag);
+                    compare(rows.indexOf(particles), glowAt + 1, tag);
+                    compare(rows.indexOf(colorSwitch), glowAt + 2, tag);
+                    compare(rows.indexOf(colorField), glowAt + 3, tag);
+                    compare(state(), expected(true, seed.particles, seed.colorEnabled), tag);
+                    compare(colorField.value, "#ff8800", tag);
+
+                    page[key("WordParticles")] = true;
+                    page[key("WordParticleColorEnabled")] = true;
+                    compare(state(), expected(true, true, true), tag);
+                    page[key("WordParticleColorEnabled")] = false;
+                    compare(state(), expected(true, true, false), tag);
+                    page[key("WordParticles")] = false;
+                    compare(state(), expected(true, false, false), tag);
+                    page[key("WordParticleColorEnabled")] = true;
+                    compare(state(), expected(true, false, true), tag);
+                    page[key("WordParticles")] = true;
+                    compare(state(), expected(true, true, true), tag);
+                    page[key("WordByWord")] = false;
+                    compare(state(), expected(false, true, true), tag);
+                    page[key("WordByWord")] = true;
+                    compare(state(), expected(true, true, true), tag);
+
+                    const others = ["WordParticles", "WordParticleColorEnabled", "WordParticleColor"]
+                        .map(suffix => page[otherKey(suffix)]);
+                    const othersUnchanged = () => ["WordParticles", "WordParticleColorEnabled", "WordParticleColor"]
+                        .every((suffix, i) => page[otherKey(suffix)] === others[i]);
+
+                    settle(colorSwitch);
+                    scrollIntoView(page, colorSwitch);
+                    mouseClick(colorSwitch);
+                    compare(page[key("WordParticleColorEnabled")], false, tag);
+                    compare(state(), expected(true, true, false), tag);
+
+                    settle(particles);
+                    scrollIntoView(page, particles);
+                    mouseClick(particles);
+                    compare(page[key("WordParticles")], false, tag);
+                    compare(state(), expected(true, false, false), tag);
+                    mouseClick(particles);
+                    compare(page[key("WordParticles")], true, tag);
+                    compare(state(), expected(true, true, false), tag);
+
+                    colorField.edited("#123456");
+                    compare(page[key("WordParticleColor")], "#123456", tag);
+                    verify(othersUnchanged(), tag);
+                }
+            }
+        }
+    }
+
+    // Decision 77 draws the particles opaque, so their colour field offers
+    // no alpha: not in the dialog, not in the hex field, and a pick that
+    // comes back with one is stored without it. Every other colour field
+    // keeps its alpha, the second line's among them.
+    function test_theParticleColorFieldOffersNoAlpha() {
+        for (const form of ["desktop", "panel"]) {
+            const props = {};
+            props["cfg_" + form + "SecondLineColor"] = "#80123456";
+            const page = createDarkPage(pageComponent(form), form, props);
+            const particleField = named(page, "wordParticleColorField");
+            const fields = findAll(sectionOf(page), o => typeof o.edited === "function");
+            const secondLineFields = fields.filter(field => field.value === "#80123456");
+            compare(secondLineFields.length, 1, form);
+            const secondLineField = secondLineFields[0];
+            // Declaration order inside the row: the swatch, then the hex field.
+            const swatchOf = field => field.children[0];
+            const hexFieldOf = field => field.children[1];
+
+            compare(particleField.alphaEnabled, false, form);
+            compare(swatchOf(particleField).showAlphaChannel, false, form);
+            for (const field of fields.filter(field => field !== particleField)) {
+                compare(field.alphaEnabled, true, form);
+                compare(swatchOf(field).showAlphaChannel, true, form);
+            }
+
+            hexFieldOf(particleField).text = "#80ff8800";
+            verify(!hexFieldOf(particleField).acceptableInput, form);
+            hexFieldOf(particleField).text = "#ff8800";
+            verify(hexFieldOf(particleField).acceptableInput, form);
+            hexFieldOf(secondLineField).text = "#80ff8800";
+            verify(hexFieldOf(secondLineField).acceptableInput, form);
+
+            // What accepting the colour dialog does.
+            swatchOf(particleField).color = "#80ff8800";
+            swatchOf(particleField).accepted(swatchOf(particleField).color);
+            compare(page["cfg_" + form + "WordParticleColor"], "#ff8800", form);
+            swatchOf(secondLineField).color = "#80ff8800";
+            swatchOf(secondLineField).accepted(swatchOf(secondLineField).color);
+            compare(page["cfg_" + form + "SecondLineColor"], "#80ff8800", form);
         }
     }
 

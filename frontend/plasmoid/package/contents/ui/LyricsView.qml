@@ -58,6 +58,14 @@ Item {
     property bool wordBrightness: true
     property int wordBrightnessPercent: 60
     property bool wordBlurGlow: false
+    // Word particles (DESIGN.md decision 77). main.qml sets all three from
+    // the current appearance; the defaults mirror desktopWordParticles and
+    // friends. wordParticleColor only applies while
+    // wordParticleColorEnabled is on -- otherwise the particles take
+    // wordActiveColor at full opacity.
+    property bool wordParticles: true
+    property bool wordParticleColorEnabled: false
+    property color wordParticleColor: "#fffaf5"
     property string idleText: i18n("No media is playing")
     property string notFoundText: ""
     property string noLyricText: ""
@@ -130,6 +138,10 @@ Item {
         enabled: root.animateColors
         ColorAnimation { duration: root.colorTransitionMs }
     }
+    Behavior on wordParticleColor {
+        enabled: root.animateColors
+        ColorAnimation { duration: root.colorTransitionMs }
+    }
     Behavior on trackInfoColor {
         enabled: root.animateColors
         ColorAnimation { duration: root.colorTransitionMs }
@@ -162,6 +174,24 @@ Item {
     readonly property color effectiveSecondLineColor: root.secondLineColorEnabled
         ? root.secondLineColor
         : Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.68)
+    // Whether the lyric slot is showing the track's lyrics: exactly the
+    // branch of effectiveText above that returns source.currentText, a line
+    // without words and a filtered-out one aside. Anything else there -- the
+    // idle text after a Stop, a search, a not-found or error message --
+    // drops every particle rather than leaving them frozen over it. Paused
+    // is still lyrics, and the particles stay where they are.
+    readonly property bool showingLyrics: root.source.serviceAvailable && !root.source.stale
+        && root.source.lyricState === "ok"
+        && root.source.playbackStatus !== "Stopped" && root.source.trackTitle.length > 0
+
+    // Opaque whichever colour it follows: each particle's own brightness
+    // envelope is its alpha, and the 10% translucency the current-word colour
+    // carries by default would only dim every particle once more. Fades with
+    // the theme through the two colours' own Behaviors.
+    readonly property color effectiveWordParticleColor: {
+        const c = root.wordParticleColorEnabled ? root.wordParticleColor : root.wordActiveColor;
+        return Qt.rgba(c.r, c.g, c.b, 1);
+    }
 
     // Word timings belong to the lyric line alone. Every other thing this slot
     // can show -- "Searching…", the idle text, a custom not-found message --
@@ -211,6 +241,22 @@ Item {
     // is not a substitute. See DESIGN.md decision 38 for why the wakeup count,
     // not the per-frame cost, is the thing being protected here.
     //
+    // Word particles (DESIGN.md decision 77) keep it running past the last
+    // word: a line that ends in a switch to one without words -- an
+    // interlude, a blank line, the end of the song -- would otherwise stop
+    // positionMs and leave every particle hanging in the air until the next
+    // line with words. particlesAliveUntilMs is when the last one goes out,
+    // 2050 ms of lyric time after it was born, and a line switched away from
+    // keeps only the words it had started by then, whose particles are all
+    // born within 90 ms of their start. So each switch to a line without
+    // words costs up to about 2 s more of this clock (2050 ms, plus up to
+    // 90 ms for a word that had just started; about 308 frames at 144 Hz),
+    // and decision 38's wakeup count rises accordingly on tracks with
+    // particles. Nothing more: particles off,
+    // word-by-word off and anything but lyrics in this slot all clear them
+    // at once, and -Infinity makes the clause false, so off still means
+    // decision 38's profile exactly.
+    //
     // syntheticWordByWord does not weaken this: effectiveWords only ever
     // reads source.currentSyntheticWords inside the wordByWord-gated branch
     // above, so turning wordByWord off silences the synthetic clock along
@@ -220,7 +266,8 @@ Item {
     // timings used to leave this clock permanently disarmed (decision 38's
     // "zero cost today" reasoning); with syntheticWordByWord on, such a
     // track now arms it too.
-    readonly property bool wordClockRunning: root.effectiveWords.length > 0
+    readonly property bool wordClockRunning: (root.effectiveWords.length > 0
+            || root.lyricPositionMs < lyric.particlesAliveUntilMs)
         && root.source.playbackStatus === "Playing"
         && (root.panelMode || root.shouldBeVisible)
 
@@ -339,6 +386,7 @@ Item {
     }
 
     ColumnLayout {
+        id: content
         anchors.fill: parent
         anchors.topMargin: root.baseMargin + root.plateMarginTop
         anchors.bottomMargin: root.baseMargin + root.plateMarginBottom
@@ -363,6 +411,7 @@ Item {
         }
 
         AnimatedLyric {
+            id: lyric
             Layout.fillWidth: true
             Layout.fillHeight: true
             lyricText: root.effectiveText
@@ -390,6 +439,13 @@ Item {
             brightnessStrength: root.wordBrightnessPercent / 100
             blurGlowEnabled: root.wordBlurGlow
             lineHeightFactor: Math.max(root.lineHeightMinPercent, root.lineHeightPercent) / 100
+            particlesEnabled: root.wordParticles && root.wordByWord && root.showingLyrics
+            particleColor: root.effectiveWordParticleColor
+            // The test stand-ins for LyricSource carry no fingerprint.
+            particleFingerprint: root.source.fingerprint ?? ""
+            // This whole item, clipped at its edges -- in a panel that is the
+            // applet's own bounds.
+            particleArea: Qt.rect(-(content.x + lyric.x), -(content.y + lyric.y), root.width, root.height)
         }
     }
 

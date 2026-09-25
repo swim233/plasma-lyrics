@@ -145,6 +145,60 @@ QString braceBlock(const QString &text, qsizetype open)
     return {};
 }
 
+// `line` without its `//` comment, if it has one outside a "..." or '...'
+// string literal, so that a key named in a comment is not read as code.
+QString withoutLineComment(const QString &line)
+{
+    QChar quote;
+    for (qsizetype i = 0; i < line.size(); ++i) {
+        const QChar c = line.at(i);
+        if (!quote.isNull()) {
+            if (c == QLatin1Char('\\')) {
+                ++i;
+            } else if (c == quote) {
+                quote = QChar();
+            }
+        } else if (c == QLatin1Char('"') || c == QLatin1Char('\'')) {
+            quote = c;
+        } else if (c == QLatin1Char('/') && i + 1 < line.size() && line.at(i + 1) == QLatin1Char('/')) {
+            return line.left(i);
+        }
+    }
+    return line;
+}
+
+// `text` with withoutLineComment() applied to each of its lines.
+QString withoutComments(const QString &text)
+{
+    QStringList lines = text.split(QLatin1Char('\n'));
+    for (QString &line : lines) {
+        line = withoutLineComment(line);
+    }
+    return lines.join(QLatin1Char('\n'));
+}
+
+// The bindings directly inside a `{ ... }` block of main.qml's, one level
+// in (eight spaces), by property name: each runs from its `name:` line up to
+// the next one, continuation lines included. Comments are left out, whole
+// line or trailing, through withoutComments(), so that one naming a key
+// cannot count as reading it.
+QHash<QString, QString> bindingsOf(const QString &block)
+{
+    const QRegularExpression bindingLine(QStringLiteral("^ {8}([A-Za-z_][A-Za-z0-9_.]*):(.*)$"));
+    QHash<QString, QString> bindings;
+    QString current;
+    const QStringList lines = withoutComments(block).split(QLatin1Char('\n'));
+    for (const QString &line : lines) {
+        if (const auto match = bindingLine.match(line); match.hasMatch()) {
+            current = match.captured(1);
+            bindings.insert(current, match.captured(2));
+        } else if (!current.isEmpty()) {
+            bindings[current] += QLatin1Char('\n') + line;
+        }
+    }
+    return bindings;
+}
+
 QStringList filesUnder(const QString &dir, const QStringList &nameFilters)
 {
     QStringList result;
@@ -283,8 +337,8 @@ private Q_SLOTS:
                                 .arg(lightKey, entries.value(lightKey).type, darkKey, entries.value(darkKey).type);
             }
         }
-        QCOMPARE(suffixes.value(QStringLiteral("desktop")).size(), 28);
-        QCOMPARE(suffixes.value(QStringLiteral("panel")).size(), 26);
+        QCOMPARE(suffixes.value(QStringLiteral("desktop")).size(), 31);
+        QCOMPARE(suffixes.value(QStringLiteral("panel")).size(), 29);
 
         for (auto it = entries.cbegin(); it != entries.cend(); ++it) {
             for (const QString &prefix : {QStringLiteral("desktopLight"), QStringLiteral("panelLight")}) {
@@ -310,7 +364,8 @@ private Q_SLOTS:
     // them, and every other test passes with any value there. Non-colour
     // keys match their dark key, except that brightening is off (it fades
     // towards opaque white, which on dark text makes the sung word the
-    // palest one). The plate is #99ffffff and both strokes #ccffffff; every
+    // palest one) and so are the particles (decision 77: dark ink particles
+    // are no light). The plate is #99ffffff and both strokes #ccffffff; every
     // other colour is the warm near-black #1f1b16 at the dark key's alpha,
     // opaque when the dark key has none.
     void lightDefaultsFollowTheDarkOnes()
@@ -325,6 +380,7 @@ private Q_SLOTS:
             {QStringLiteral("StrokeColor"), QStringLiteral("#ccffffff")},
             {QStringLiteral("TrackInfoStrokeColor"), QStringLiteral("#ccffffff")},
             {QStringLiteral("WordBrightness"), QStringLiteral("false")},
+            {QStringLiteral("WordParticles"), QStringLiteral("false")},
         };
         const QRegularExpression colour(QStringLiteral("^#([0-9a-f]{2})?[0-9a-f]{6}$"));
         QStringList problems;
@@ -339,6 +395,52 @@ private Q_SLOTS:
             const QString actual = entries.value(lightKey).defaultValue;
             if (actual != expected) {
                 problems << QStringLiteral("%1: default \"%2\", expected \"%3\"").arg(lightKey, actual, expected);
+            }
+        }
+        QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
+    }
+
+    // DESIGN.md decision 77's twelve keys, spelled out rather than derived:
+    // the two tests above take what they expect from ThemePolicy.js's table
+    // and the dark defaults, so a key dropped from both main.xml and the
+    // table, or a default moved in both, passes them. The particles are on
+    // in both dark sets and off in both light ones, the colour switch is off
+    // everywhere, and the colour defaults to the default of the one it
+    // replaces, the current word's, at full opacity.
+    void wordParticleEntries()
+    {
+        const QHash<QString, SchemaEntry> entries = parsedEntries(readAll(schemaPath()));
+        QVERIFY(!entries.isEmpty());
+
+        struct Expected {
+            QString name;
+            QString type;
+            QString defaultValue;
+        };
+        QList<Expected> expected;
+        for (const QString &form : {QStringLiteral("desktop"), QStringLiteral("panel")}) {
+            for (const bool light : {false, true}) {
+                const QString prefix = light ? form + QStringLiteral("Light") : form;
+                expected.append({prefix + QStringLiteral("WordParticles"), QStringLiteral("Bool"),
+                                 light ? QStringLiteral("false") : QStringLiteral("true")});
+                expected.append({prefix + QStringLiteral("WordParticleColorEnabled"), QStringLiteral("Bool"),
+                                 QStringLiteral("false")});
+                expected.append({prefix + QStringLiteral("WordParticleColor"), QStringLiteral("String"),
+                                 light ? QStringLiteral("#1f1b16") : QStringLiteral("#fffaf5")});
+            }
+        }
+        QCOMPARE(expected.size(), 12);
+
+        QStringList problems;
+        for (const Expected &key : std::as_const(expected)) {
+            if (!entries.contains(key.name)) {
+                problems << QStringLiteral("%1: not declared").arg(key.name);
+                continue;
+            }
+            const SchemaEntry entry = entries.value(key.name);
+            if (entry.type != key.type || entry.defaultValue != key.defaultValue) {
+                problems << QStringLiteral("%1: %2 \"%3\", expected %4 \"%5\"")
+                                .arg(key.name, entry.type, entry.defaultValue, key.type, key.defaultValue);
             }
         }
         QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
@@ -426,6 +528,42 @@ private Q_SLOTS:
             }
         }
 
+        // The LyricsView property each themed key binds, both forms alike;
+        // the panel has no lift keys and so no lift rows.
+        const QHash<QString, QString> themedProperty = {
+            {QStringLiteral("PlateMode"), QStringLiteral("plateMode")},
+            {QStringLiteral("SolidColor"), QStringLiteral("solidColor")},
+            {QStringLiteral("TextColor"), QStringLiteral("textColor")},
+            {QStringLiteral("Stroke"), QStringLiteral("strokeEnabled")},
+            {QStringLiteral("StrokeColor"), QStringLiteral("strokeColor")},
+            {QStringLiteral("FontFamily"), QStringLiteral("fontFamily")},
+            {QStringLiteral("FontSize"), QStringLiteral("fontSize")},
+            {QStringLiteral("FontWeight"), QStringLiteral("fontWeight")},
+            {QStringLiteral("Overflow"), QStringLiteral("overflowMode")},
+            {QStringLiteral("Animation"), QStringLiteral("animationMode")},
+            {QStringLiteral("ShowTranslation"), QStringLiteral("showTranslation")},
+            {QStringLiteral("SecondLineSource"), QStringLiteral("secondLineSource")},
+            {QStringLiteral("SecondLineColorEnabled"), QStringLiteral("secondLineColorEnabled")},
+            {QStringLiteral("SecondLineColor"), QStringLiteral("secondLineColor")},
+            {QStringLiteral("LineHeight"), QStringLiteral("lineHeightPercent")},
+            {QStringLiteral("WordByWord"), QStringLiteral("wordByWord")},
+            {QStringLiteral("WordByWordSynthetic"), QStringLiteral("syntheticWordByWord")},
+            {QStringLiteral("WordUnsungColor"), QStringLiteral("wordUnsungColor")},
+            {QStringLiteral("WordActiveColor"), QStringLiteral("wordActiveColor")},
+            {QStringLiteral("WordSungColor"), QStringLiteral("wordSungColor")},
+            {QStringLiteral("WordLift"), QStringLiteral("wordLift")},
+            {QStringLiteral("WordLiftPercent"), QStringLiteral("wordLiftPercent")},
+            {QStringLiteral("WordBrightness"), QStringLiteral("wordBrightness")},
+            {QStringLiteral("WordBrightnessPercent"), QStringLiteral("wordBrightnessPercent")},
+            {QStringLiteral("WordBlurGlow"), QStringLiteral("wordBlurGlow")},
+            {QStringLiteral("WordParticles"), QStringLiteral("wordParticles")},
+            {QStringLiteral("WordParticleColorEnabled"), QStringLiteral("wordParticleColorEnabled")},
+            {QStringLiteral("WordParticleColor"), QStringLiteral("wordParticleColor")},
+            {QStringLiteral("TrackInfoColor"), QStringLiteral("trackInfoColor")},
+            {QStringLiteral("TrackInfoStroke"), QStringLiteral("trackInfoStrokeEnabled")},
+            {QStringLiteral("TrackInfoStrokeColor"), QStringLiteral("trackInfoStrokeColor")},
+        };
+
         struct Representation {
             QString property;
             QString form;
@@ -443,8 +581,9 @@ private Q_SLOTS:
                 problems << QStringLiteral("no complete \"%1\" block").arg(opening);
                 continue;
             }
+            // Comments left out, as in bindingsOf().
             QSet<QString> read;
-            for (auto it = valueCall.globalMatch(block); it.hasNext();) {
+            for (auto it = valueCall.globalMatch(withoutComments(block)); it.hasNext();) {
                 const auto call = it.next();
                 if (call.captured(1) == representation.form) {
                     read << literalSuffix.match(call.captured(2)).captured(1);
@@ -454,6 +593,43 @@ private Q_SLOTS:
                 if (!read.contains(suffix)) {
                     problems << QStringLiteral("%1 never reads %2Theme.value(\"%3\")")
                                     .arg(representation.property, representation.form, suffix);
+                }
+            }
+            // Which property each key feeds. Reading every key somewhere is
+            // not enough: two keys swapped between two properties are still
+            // all read. So each key has to be read by the property this
+            // table names for it, and each property that reads a key has to
+            // read that key alone.
+            const QHash<QString, QString> bindings = bindingsOf(block);
+            for (auto it = bindings.cbegin(); it != bindings.cend(); ++it) {
+                QStringList readHere;
+                for (auto call = valueCall.globalMatch(it.value()); call.hasNext();) {
+                    const auto match = call.next();
+                    if (match.captured(1) == representation.form) {
+                        readHere << literalSuffix.match(match.captured(2)).captured(1);
+                    }
+                }
+                for (const QString &suffix : std::as_const(readHere)) {
+                    const QString expected = themedProperty.value(suffix);
+                    if (expected.isEmpty()) {
+                        problems << QStringLiteral("%1: no property listed for %2 in this test").arg(representation.property, suffix);
+                    } else if (expected != it.key()) {
+                        problems << QStringLiteral("%1: %2 reads %3Theme.value(\"%4\"), which belongs to %5")
+                                        .arg(representation.property, it.key(), representation.form, suffix, expected);
+                    }
+                }
+                if (readHere.size() > 1) {
+                    problems << QStringLiteral("%1: %2 reads %3 keys").arg(representation.property, it.key()).arg(readHere.size());
+                }
+            }
+            for (const QString &suffix : suffixes.value(representation.form)) {
+                const QString expected = themedProperty.value(suffix);
+                if (expected.isEmpty()) {
+                    problems << QStringLiteral("%1: no property listed for %2 in this test").arg(representation.property, suffix);
+                } else if (!bindings.value(expected).contains(
+                               QStringLiteral("%1Theme.value(\"%2\")").arg(representation.form, suffix))) {
+                    problems << QStringLiteral("%1: %2 does not read %3Theme.value(\"%4\")")
+                                    .arg(representation.property, expected, representation.form, suffix);
                 }
             }
             if (block.contains(representation.otherForm + QStringLiteral("Theme."))) {

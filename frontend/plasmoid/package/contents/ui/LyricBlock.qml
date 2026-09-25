@@ -38,6 +38,13 @@ Item {
     implicitHeight: origin.implicitHeight + (translation.visible ? translation.implicitHeight : 0)
     height: implicitHeight
 
+    // For AnimatedLyric's particle layer (DESIGN.md decision 77). Only the
+    // lyric itself spawns particles, never the second line; its line sits at
+    // this block's top left. particlesWanted only on the current block.
+    property bool particlesWanted: false
+    readonly property var particleLine: origin.particleLine
+    readonly property real particleScrollOffset: origin.particleScrollOffset
+
     LyricLine {
         id: origin
         anchors.left: parent.left
@@ -62,6 +69,7 @@ Item {
         brightnessStrength: root.brightnessStrength
         blurGlowEnabled: root.blurGlowEnabled
         lineHeightFactor: root.lineHeightFactor
+        particlesWanted: root.particlesWanted
     }
 
     // The second line stays whole-line on purpose: word timings belong to the

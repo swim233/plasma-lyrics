@@ -148,8 +148,10 @@ Item {
     // "the user turned animations off in System Settings" (see LyricsView's
     // fade Behavior). Colour still advances word by word there, because that
     // is information rather than decoration; the lift and brightness envelopes
-    // are decoration and go flat.
-    readonly property bool envelopesAnimate: Kirigami.Units.longDuration > 1
+    // are decoration and go flat, and the line spawns no particles. Writable
+    // only so that tests can turn it off: Kirigami.Units is a global the
+    // suite cannot vary.
+    property bool envelopesAnimate: Kirigami.Units.longDuration > 1
 
     // Measured at the nominal size so word mode can reproduce "fit" with one
     // shared pixel size. Text.HorizontalFit cannot be used per word: it would
@@ -309,6 +311,69 @@ Item {
         NumberAnimation { duration: 260; easing.type: Easing.OutCubic }
     }
 
+    // Set on the lyric line of AnimatedLyric's current block while particles
+    // are on, and nowhere else. Read first in particleLine, so that off it is
+    // the binding's only dependency and nothing below is ever evaluated.
+    property bool particlesWanted: false
+    // Bumped each time the Row has laid the words out, which is the one
+    // moment every delegate's x and baseline are final.
+    property int particleLayoutRevision: 0
+
+    // What AnimatedLyric's particle layer needs to know about this line
+    // (DESIGN.md decision 77): each word's timing, text and delegate, whose x
+    // and resting baseline the layer reads itself; the row's position in
+    // this item, through clipper and before any marquee scroll; and the font
+    // the glyphs are drawn in, which the layer measures the ink and the CJK
+    // ascent with. The baseline is per word because each word is its own
+    // Text centred on its own line height: a word drawn in the fallback CJK
+    // font sits a pixel or two lower than a Latin one. startMs is the first
+    // word's: the line's own timestamp never reaches the renderer. null
+    // whenever the line spawns nothing: not wanted, not in word mode (wrap,
+    // or a line too long to fit), or with animations off.
+    //
+    // The delegates go in through itemAt(), a function call, and none of
+    // their properties is read here. Reading each x made this binding run
+    // again for every word the Row placed -- quadratic in the word count, on
+    // every line switch. It runs a handful of times per switch instead: when
+    // the words or the text change, so that the layer knows at once which
+    // line is current, and once more when the Row reports the layout done.
+    // Reads Repeater.count for the reason activeWordItem does.
+    readonly property var particleLine: {
+        if (!root.particlesWanted || !root.envelopesAnimate || !root.wordMode
+            || wordRepeater.count !== root.words.length) {
+            return null;
+        }
+        const words = [];
+        for (let i = 0; i < root.words.length; ++i) {
+            const item = wordRepeater.itemAt(i);
+            if (!item) {
+                return null;
+            }
+            const word = root.words[i];
+            words.push({ startMs: word.startMs, endMs: word.endMs, text: word.text, item: item });
+        }
+        return {
+            startMs: root.words[0].startMs,
+            text: root.lineText,
+            words: words,
+            x: clipper.x + root.particleRowX,
+            y: clipper.y + wordRow.y,
+            font: Qt.font({ family: root.fontFamily, pixelSize: root.wordPixelSize,
+                            weight: root.fontWeight }),
+            layout: root.particleLayoutRevision
+        };
+    }
+    // The row's x without the marquee scroll, and the scroll: the particles
+    // are born where the unscrolled row puts them and follow the scroll for
+    // as long as the line is current. particleRowX is a property of its own
+    // so that particleLine only sees it change when its value does. Read
+    // inline as `marqueeApplies ? 0 : wordRow.x`, particleLine was measured
+    // to re-run on 92 of 100 rendered frames of an 80-word marquee line --
+    // one whose switch passed through marqueeApplies false -- with the
+    // scroll moving wordRow.x, although that branch was no longer taken.
+    readonly property real particleRowX: root.marqueeApplies ? 0 : wordRow.x
+    readonly property real particleScrollOffset: root.marqueeApplies ? root.wordScrollOffset : 0
+
     // Brightening cannot go through Qt.lighter(): that raises HSV value, and
     // the colours this is applied to are already at value 1.0 (near-white over
     // a wallpaper), so it would be a control that visibly does nothing. Fading
@@ -390,6 +455,11 @@ Item {
         Row {
             id: wordRow
             visible: root.wordMode
+            onPositioningComplete: {
+                if (root.particlesWanted) {
+                    ++root.particleLayoutRevision;
+                }
+            }
             x: root.marqueeApplies ? root.wordScrollOffset : Math.max(0, (root.width - width) / 2)
             y: root.contentTop
             height: root.height - root.liftHeadroom
@@ -448,6 +518,9 @@ Item {
                     readonly property real lift: root.liftEnabled
                         ? root.fontSize * root.liftEm * word.envelope
                         : 0
+                    // The glyph's baseline at rest, the lift left out. For
+                    // the particle layer, through particleLine.
+                    baselineOffset: glyph.baselineOffset
 
                     // Alive for as long as the halo can be seen, so it fades with
                     // the glyph instead of vanishing at endMs while the glyph is
