@@ -2484,6 +2484,48 @@ TestCase {
         }
     }
 
+    // Decision 77 draws the particles opaque, so their colour field offers
+    // no alpha: not in the dialog, not in the hex field, and a pick that
+    // comes back with one is stored without it. Every other colour field
+    // keeps its alpha, the second line's among them.
+    function test_theParticleColorFieldOffersNoAlpha() {
+        for (const form of ["desktop", "panel"]) {
+            const props = {};
+            props["cfg_" + form + "SecondLineColor"] = "#80123456";
+            const page = createDarkPage(pageComponent(form), form, props);
+            const particleField = named(page, "wordParticleColorField");
+            const fields = findAll(sectionOf(page), o => typeof o.edited === "function");
+            const secondLineFields = fields.filter(field => field.value === "#80123456");
+            compare(secondLineFields.length, 1, form);
+            const secondLineField = secondLineFields[0];
+            // Declaration order inside the row: the swatch, then the hex field.
+            const swatchOf = field => field.children[0];
+            const hexFieldOf = field => field.children[1];
+
+            compare(particleField.alphaEnabled, false, form);
+            compare(swatchOf(particleField).showAlphaChannel, false, form);
+            for (const field of fields.filter(field => field !== particleField)) {
+                compare(field.alphaEnabled, true, form);
+                compare(swatchOf(field).showAlphaChannel, true, form);
+            }
+
+            hexFieldOf(particleField).text = "#80ff8800";
+            verify(!hexFieldOf(particleField).acceptableInput, form);
+            hexFieldOf(particleField).text = "#ff8800";
+            verify(hexFieldOf(particleField).acceptableInput, form);
+            hexFieldOf(secondLineField).text = "#80ff8800";
+            verify(hexFieldOf(secondLineField).acceptableInput, form);
+
+            // What accepting the colour dialog does.
+            swatchOf(particleField).color = "#80ff8800";
+            swatchOf(particleField).accepted(swatchOf(particleField).color);
+            compare(page["cfg_" + form + "WordParticleColor"], "#ff8800", form);
+            swatchOf(secondLineField).color = "#80ff8800";
+            swatchOf(secondLineField).accepted(swatchOf(secondLineField).color);
+            compare(page["cfg_" + form + "SecondLineColor"], "#80ff8800", form);
+        }
+    }
+
     // The rows inside the frame share the label and field columns of the
     // forms outside it: the frame's padding is the same on both sides, and
     // twinFormLayouts gives every form the same column widths. Wide enough

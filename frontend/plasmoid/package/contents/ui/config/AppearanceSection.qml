@@ -479,6 +479,8 @@ Kirigami.FormLayout {
     ColorField {
         objectName: "wordParticleColorField"
         Kirigami.FormData.label: i18n("Color:")
+        // The particles are drawn opaque whatever this holds.
+        alphaEnabled: false
         visible: root.wordByWord && root.wordParticles && root.wordParticleColorEnabled
         value: root.wordParticleColor
         onEdited: hexColor => root.wordParticleColorEdited(hexColor)

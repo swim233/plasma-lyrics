@@ -13,6 +13,10 @@ RowLayout {
     id: root
 
     property string value: "#ffffffff"
+    // False for a colour whose alpha the widget ignores (DESIGN.md decision
+    // 77's particle colour): the dialog then offers no alpha, the hex field
+    // takes only #RRGGBB, and an accepted pick is written back opaque.
+    property bool alphaEnabled: true
     signal edited(string hexColor)
 
     spacing: Kirigami.Units.smallSpacing
@@ -38,8 +42,10 @@ RowLayout {
 
     KQuickControls.ColorButton {
         id: swatch
-        showAlphaChannel: true
-        onAccepted: root.edited(swatch.color.toString())
+        showAlphaChannel: root.alphaEnabled
+        onAccepted: root.edited(root.alphaEnabled
+            ? swatch.color.toString()
+            : Qt.rgba(swatch.color.r, swatch.color.g, swatch.color.b, 1).toString())
     }
 
     QQC2.TextField {
@@ -49,7 +55,9 @@ RowLayout {
         // what stops an unparseable string reaching the config and rendering
         // the lyrics black-on-black.
         validator: RegularExpressionValidator {
-            regularExpression: /#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})/
+            regularExpression: root.alphaEnabled
+                ? /#(?:[0-9a-fA-F]{6}|[0-9a-fA-F]{8})/
+                : /#[0-9a-fA-F]{6}/
         }
         onEditingFinished: root.edited(hexField.text)
     }

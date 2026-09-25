@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-25 16:28+0800\n"
+"POT-Creation-Date: 2026-09-25 16:36+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -175,7 +175,7 @@ msgid "Background color:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:182
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:494
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:496
 msgid "Text color:"
 msgstr ""
 
@@ -205,12 +205,12 @@ msgid "%1%"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:242
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:500
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:502
 msgid "Outline:"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:247
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:506
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:508
 msgid "Outline color:"
 msgstr ""
 
@@ -378,7 +378,7 @@ msgstr ""
 msgid "Set it separately from the current word color"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:490
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:492
 msgid "Track info colors"
 msgstr ""
 
