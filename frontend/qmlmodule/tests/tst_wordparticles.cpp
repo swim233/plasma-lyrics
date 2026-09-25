@@ -645,6 +645,65 @@ private Q_SLOTS:
         QCOMPARE(int(normal[1 + kHaloSegments].a), int(std::lround(0.8 * 255)));
         QCOMPARE(int(normal[1].a), 0);
     }
+
+    // The triangles tile both discs exactly once: every point inside the
+    // halo lies in one halo triangle, every point inside the feathered core
+    // in one core or fringe triangle. Index ranges alone would pass a fan
+    // that forgets to wrap round (a 22.5° wedge missing) or a fringe quad
+    // split along the wrong diagonal (holes and doubled slivers of the same
+    // total area).
+    void theTrianglesTileTheHaloAndTheCoreOnce()
+    {
+        Sprite sprite;
+        sprite.x = 100;
+        sprite.y = 50;
+        sprite.coreRadius = 2;
+        sprite.haloRadius = 14;
+        sprite.brightness = 1;
+        const double feather = 0.8;
+        std::vector<Vertex> v(kVerticesPerSprite);
+        std::vector<quint32> index(kIndicesPerSprite);
+        writeSprite(sprite, 1, 1, 1, true, feather, v.data(), 0, index.data());
+
+        const auto inside = [&](int triangle, double x, double y) {
+            const Vertex &a = v[index[3 * triangle]];
+            const Vertex &b = v[index[3 * triangle + 1]];
+            const Vertex &c = v[index[3 * triangle + 2]];
+            const double d1 = (x - b.x) * (a.y - b.y) - (a.x - b.x) * (y - b.y);
+            const double d2 = (x - c.x) * (b.y - c.y) - (b.x - c.x) * (y - c.y);
+            const double d3 = (x - a.x) * (c.y - a.y) - (c.x - a.x) * (y - a.y);
+            return (d1 > 0 && d2 > 0 && d3 > 0) || (d1 < 0 && d2 < 0 && d3 < 0);
+        };
+        const auto covering = [&](int first, int count, double x, double y) {
+            int n = 0;
+            for (int t = first; t < first + count; ++t) {
+                n += inside(t, x, y);
+            }
+            return n;
+        };
+        const int haloTriangles = kHaloSegments;
+        const int coreTriangles = kIndicesPerSprite / 3 - haloTriangles;
+        QCOMPARE(coreTriangles, 3 * kCoreSegments);
+
+        // Angles between the vertices of both rings, radii inside each
+        // polygon's inscribed circle.
+        const double haloReach = sprite.haloRadius * std::cos(std::numbers::pi / kHaloSegments);
+        const double coreReach = (sprite.coreRadius + feather) * std::cos(std::numbers::pi / kCoreSegments);
+        for (int a = 0; a < 96; ++a) {
+            const double angle = 2 * std::numbers::pi * (a + 0.5) / 96;
+            for (int r = 0; r < 20; ++r) {
+                const double fraction = (r + 0.5) / 20;
+                const double hx = sprite.x + haloReach * fraction * std::cos(angle);
+                const double hy = sprite.y + haloReach * fraction * std::sin(angle);
+                QVERIFY2(covering(0, haloTriangles, hx, hy) == 1,
+                         qPrintable(QStringLiteral("halo %1 %2").arg(hx).arg(hy)));
+                const double cx = sprite.x + coreReach * fraction * std::cos(angle);
+                const double cy = sprite.y + coreReach * fraction * std::sin(angle);
+                QVERIFY2(covering(haloTriangles, coreTriangles, cx, cy) == 1,
+                         qPrintable(QStringLiteral("core %1 %2").arg(cx).arg(cy)));
+            }
+        }
+    }
 };
 
 QTEST_GUILESS_MAIN(WordParticlesTest)
