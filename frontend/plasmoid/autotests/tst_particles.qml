@@ -803,6 +803,26 @@ TestCase {
         verify(current(layer));
     }
 
+    // A line from QML arrives as a JS object, built anew by every
+    // evaluation of LyricLine.particleLine: one with the same content is
+    // still no change, delegates included.
+    function test_aLineWithTheSameContentIsNoChange() {
+        const layer = createTemporaryObject(layerComponent, this);
+        let changes = 0;
+        const counter = () => { ++changes; };
+        layer.lineChanged.connect(counter);
+        const build = () => ({
+            startMs: 5000, text: "efgh", x: 20, y: 40, font: Qt.font({ pixelSize: 34 }),
+            words: [{ startMs: 5000, endMs: 5400, text: "ef", item: layer },
+                    { startMs: 5400, endMs: 5800, text: "gh", x: 40, baseline: 30 }]
+        });
+        layer.line = build();
+        layer.line = build();
+        compare(changes, 1);
+        compare(layer.describeLine().startMs, 5000);
+        layer.lineChanged.disconnect(counter);
+    }
+
     // A repeated line with its own timings is a line of its own.
     function test_aRepeatedLineKeepsBothCopies() {
         const t = createView();

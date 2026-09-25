@@ -1,6 +1,7 @@
 #include "wordparticlelayer.h"
 
 #include <QFontMetricsF>
+#include <QJSValue>
 #include <QQuickWindow>
 #include <QSGGeometryNode>
 #include <QSGVertexColorMaterial>
@@ -148,10 +149,16 @@ void WordParticleLayer::setColor(const QColor &value)
 
 void WordParticleLayer::setLine(const QVariant &value)
 {
-    if (value == m_line) {
+    // A JS object assigned from QML arrives as a QJSValue, and two of those
+    // compare equal only when they are the same object: compared as that,
+    // no line from QML would ever be recognised as unchanged.
+    const QVariant line = value.metaType() == QMetaType::fromType<QJSValue>()
+        ? value.value<QJSValue>().toVariant()
+        : value;
+    if (line == m_line) {
         return;
     }
-    m_line = value;
+    m_line = line;
     measureLine();
     recaptureLine();
     Q_EMIT lineChanged();
