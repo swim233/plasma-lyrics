@@ -32,9 +32,13 @@ target_sources(plasmalyricssource PRIVATE
     settingslog.h
     visibilitypolicy.cpp
     visibilitypolicy.h
+    wordparticlelayer.cpp
+    wordparticlelayer.h
+    wordparticles.cpp
+    wordparticles.h
 )
 target_include_directories(plasmalyricssource PRIVATE ${CMAKE_SOURCE_DIR})
-target_link_libraries(plasmalyricssource PRIVATE plasma_lyrics_core Qt6::Core Qt6::DBus Qt6::Gui Qt6::Qml Qt6::Sql KF6::I18n Fontconfig::Fontconfig)
+target_link_libraries(plasmalyricssource PRIVATE plasma_lyrics_core Qt6::Core Qt6::DBus Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Sql KF6::I18n Fontconfig::Fontconfig)
 
 ecm_finalize_qml_module(plasmalyricssource DESTINATION ${KDE_INSTALL_QMLDIR})
 install(TARGETS plasmalyricssource ${KDE_INSTALL_TARGETS_DEFAULT_ARGS})
@@ -163,4 +167,32 @@ if(BUILD_TESTING)
     target_compile_options(tst_visibilitypolicy PRIVATE -Wno-missing-field-initializers)
     add_test(NAME tst_visibilitypolicy COMMAND tst_visibilitypolicy)
     set_tests_properties(tst_visibilitypolicy PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
+
+    # Qt Core and Test only: the particle maths must not need Qt Quick, whose
+    # software backend -- the one the QML suite runs on -- draws no particle
+    # at all (DESIGN.md decision 77).
+    add_executable(tst_wordparticles
+        tests/tst_wordparticles.cpp
+        wordparticles.cpp
+    )
+    target_include_directories(tst_wordparticles PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(tst_wordparticles PRIVATE Qt6::Core Qt6::Test)
+    target_compile_options(tst_wordparticles PRIVATE -Wno-missing-field-initializers)
+    add_test(NAME tst_wordparticles COMMAND tst_wordparticles)
+    set_tests_properties(tst_wordparticles PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
+
+    # The layer's node, driven without GL: the QML suite's software backend
+    # never draws it (DESIGN.md decision 77).
+    add_executable(tst_wordparticlelayer
+        tests/tst_wordparticlelayer.cpp
+        wordparticlelayer.cpp
+        wordparticles.cpp
+    )
+    target_include_directories(tst_wordparticlelayer PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(tst_wordparticlelayer PRIVATE Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Test)
+    target_compile_options(tst_wordparticlelayer PRIVATE -Wno-missing-field-initializers)
+    add_test(NAME tst_wordparticlelayer COMMAND tst_wordparticlelayer)
+    # QFontMetricsF needs a QGuiApplication, and so a platform plugin.
+    set_tests_properties(tst_wordparticlelayer PROPERTIES
+        ENVIRONMENT "LC_ALL=C.UTF-8;QT_QPA_PLATFORM=offscreen")
 endif()

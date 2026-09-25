@@ -1,5 +1,6 @@
 import QtQuick
 import org.kde.kirigami as Kirigami
+import io.github.swim233.lyrics
 
 Item {
     id: root
@@ -29,6 +30,23 @@ Item {
     property real brightnessStrength: 0.6
     property bool blurGlowEnabled: false
     property real lineHeightFactor: 1.25
+
+    // Word particles (DESIGN.md decision 77). Off also drops every particle
+    // already in the air. The colour arrives resolved, alpha already 1.
+    property bool particlesEnabled: false
+    property color particleColor: root.activeColor
+    // A change is a new track, and drops what is in the air; the words of
+    // the line being sung that are still to come spawn as usual.
+    property string particleFingerprint: ""
+    // Where the particles may go, in this item's coordinates. LyricsView
+    // makes it cover the whole widget: the words' own clipper leaves only a
+    // few pixels above the glyphs, and a particle rises up to 45 px at the
+    // 34 px default size.
+    property rect particleArea: Qt.rect(0, 0, root.width, root.height)
+    // Until when some particle is still in the air, -Infinity when none is.
+    // LyricsView keeps its frame clock running until then, so particles
+    // still finish their flight after the line switches to one without words.
+    readonly property real particlesAliveUntilMs: particles.particlesAliveUntilMs
 
     readonly property string effectiveAnimationMode: Kirigami.Units.longDuration > 0
         ? animationMode : "none"
@@ -68,6 +86,9 @@ Item {
         // the highlight restarts from the first word.
         if (shownText === lyricText && shownTranslation === translationText
             && wordsKey(shownWords) === wordsKey(words)) return;
+        // Before anything below moves: the outgoing line's particles stay
+        // where its block is right now instead of following it up and out.
+        particles.detach();
         previousText = shownText;
         previousTranslation = shownTranslation;
         previousWords = shownWords;
@@ -173,6 +194,34 @@ Item {
         brightnessStrength: root.brightnessStrength
         blurGlowEnabled: root.blurGlowEnabled
         lineHeightFactor: root.lineHeightFactor
+        // Never the previous block: its particles were detached at the
+        // switch, and its line would only be measured for nothing.
+        particlesWanted: root.particlesEnabled
+    }
+
+    // Every particle of the widget in one scene-graph node. Declared after
+    // both blocks so that it draws over them, and last among this item's
+    // visual children. The line being sung is followed as its block slides
+    // and fades in and as the marquee scrolls it; lines already switched away
+    // from are kept inside the layer itself, since previousWords is gone
+    // ~260 ms after the switch and a particle lives 2050 ms.
+    WordParticleLayer {
+        id: particles
+        objectName: "wordParticles"
+        x: root.particleArea.x
+        y: root.particleArea.y
+        width: root.particleArea.width
+        height: root.particleArea.height
+        clip: true
+        active: root.particlesEnabled
+        fingerprint: root.particleFingerprint
+        positionMs: root.positionMs
+        fontSize: root.fontSize
+        color: root.particleColor
+        line: current.particleLine
+        lineOrigin: Qt.point(current.x - particles.x, (root.height - current.height) / 2 - particles.y)
+        lineOffset: Qt.point(current.particleScrollOffset, current.slideOffset)
+        lineOpacity: current.opacity
     }
 
     ParallelAnimation {
