@@ -246,10 +246,11 @@ Item {
     // interlude, a blank line, the end of the song -- would otherwise stop
     // positionMs and leave every particle hanging in the air until the next
     // line with words. particlesAliveUntilMs is when the last one goes out,
-    // 2050 ms of lyric time after it was born, so each switch to a line
-    // without words costs up to about that much more of this clock (about
-    // 295 frames at 144 Hz), and decision 38's wakeup count rises
-    // accordingly on tracks with particles. Nothing more: particles off,
+    // 2050 ms of lyric time after it was born, and a line switched away from
+    // keeps only the particles born by then, so each switch to a line
+    // without words costs up to that much more of this clock (about 295
+    // frames at 144 Hz), and decision 38's wakeup count rises accordingly on
+    // tracks with particles. Nothing more: particles off,
     // word-by-word off and anything but lyrics in this slot all clear them
     // at once, and -Infinity makes the clause false, so off still means
     // decision 38's profile exactly.

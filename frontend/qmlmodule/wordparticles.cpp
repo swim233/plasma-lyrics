@@ -202,9 +202,20 @@ void Field::setLiveFollow(double offsetX, double offsetY, double opacity)
 
 void Field::detach(double positionMs)
 {
-    if (!m_live.particles.isEmpty()) {
-        m_kept.removeIf([this](const Snapshot &kept) { return kept.sameLine(m_live); });
-        m_kept.append(m_live);
+    // Only what has been born by now. Lines overlap -- duets and backing
+    // vocals in AMLL, some QRC -- and the next one takes over the moment it
+    // starts, so a line can be switched away from with words still to come;
+    // born later, those would rise from where the line was, over whatever
+    // the slot shows by then.
+    Snapshot kept = m_live;
+    kept.particles.removeIf([positionMs](const Particle &p) { return p.birthMs > positionMs; });
+    if (!kept.particles.isEmpty()) {
+        kept.lastBirthMs = -std::numeric_limits<double>::infinity();
+        for (const Particle &p : std::as_const(kept.particles)) {
+            kept.lastBirthMs = std::max(kept.lastBirthMs, p.birthMs);
+        }
+        m_kept.removeIf([this](const Snapshot &other) { return other.sameLine(m_live); });
+        m_kept.append(kept);
     }
     retain(positionMs);
 }

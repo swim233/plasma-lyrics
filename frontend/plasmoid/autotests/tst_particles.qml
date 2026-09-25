@@ -851,6 +851,34 @@ TestCase {
         layer.lineChanged.disconnect(counter);
     }
 
+    // Lines overlap -- duets and backing vocals -- and the next one takes
+    // over the moment it starts, so a line can be switched away from with a
+    // word still to come ("ef" at 3000 here, the switch at 2000). That word
+    // must not rise later from where the line was, over whatever the slot
+    // shows by then, and the clock must stop within 2050 ms of the switch.
+    function test_aWordStillToComeWhenTheLineGoesNeverSpawns() {
+        const overlapping = [
+            { startMs: 1000, endMs: 1400, text: "ab" },
+            { startMs: 1400, endMs: 1800, text: "cd" },
+            { startMs: 3000, endMs: 3400, text: "ef" }
+        ];
+        const source = createTemporaryObject(fakeSourceComponent, this,
+            { currentText: "abcdef", currentWords: overlapping, positionMs: 1500 });
+        const view = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: true });
+        const t = { source: source, view: view, layer: layerOf(view), lyric: lyricOf(view) };
+        tryCompare(t.layer, "snapshotCount", 1);
+        verify(t.layer.particlesAliveUntilMs >= 3000 + 2050);
+        step(view, source, 2000);
+        switchToPlainLine(t, "next line");
+        compare(t.layer.snapshotCount, 1);
+        verify(t.layer.particlesAliveUntilMs <= 2000 + 90 + 2050, t.layer.particlesAliveUntilMs);
+        verify(t.layer.describeSnapshots()[0].birthTimes.every(ms => ms <= 2000));
+        step(view, source, 2000 + 2050);
+        compare(view.wordClockRunning, false);
+        compare(t.layer.snapshotCount, 0);
+    }
+
     // A line switched away from at a position where it can never show again
     // -- long after its last particle, or before its first word after a seek
     // back -- is not kept at all: kept, it would hold snapshotCount up and
@@ -908,13 +936,14 @@ TestCase {
         verify(live.birthTimes.length > 0);
         verify(live.birthTimes.every(ms => ms >= 2300), JSON.stringify(live.birthTimes));
         verify(t.layer.particlesAliveUntilMs >= 2300 + 2050);
-        // The line switch that follows keeps no more than that.
+        // The line switch that follows keeps what was born by then, and
+        // nothing had been since the drop.
         switchToPlainLine(t, "new track");
-        compare(t.layer.snapshotCount, 1);
-        verify(t.layer.describeSnapshots()[0].birthTimes.every(ms => ms >= 2300));
+        compare(t.layer.snapshotCount, 0);
+        compare(t.view.wordClockRunning, false);
 
         switchTo(t, "abcd", lineA);
-        tryCompare(t.layer, "snapshotCount", 2);
+        tryCompare(t.layer, "snapshotCount", 1);
         compare(current(t.layer).startMs, 1000);
     }
 

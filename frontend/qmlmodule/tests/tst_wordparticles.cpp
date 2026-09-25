@@ -435,7 +435,7 @@ private Q_SLOTS:
         QCOMPARE(field.aliveUntilMs(), second.aliveUntilMs());
 
         // Moving on to a line with no words leaves the kept ones in charge.
-        field.detach(600);
+        field.detach(900);
         field.setLive(Snapshot());
         QCOMPARE(field.snapshots().size(), 2);
         QCOMPARE(field.aliveUntilMs(), second.aliveUntilMs());
@@ -448,7 +448,7 @@ private Q_SLOTS:
         Field field;
         const Snapshot line = snapshotAt(1000, QStringLiteral("a"));
         field.setLive(line);
-        field.detach(1100);
+        field.detach(1400);
         field.setLive(Snapshot());
         field.prune(line.aliveUntilMs() - 1);
         QCOMPARE(field.snapshots().size(), 1);
@@ -458,7 +458,7 @@ private Q_SLOTS:
 
         // A seek back to before the line started drops it too.
         field.setLive(line);
-        field.detach(1100);
+        field.detach(1400);
         field.setLive(Snapshot());
         field.prune(999);
         QCOMPARE(field.snapshots().size(), 0);
@@ -534,6 +534,91 @@ private Q_SLOTS:
             copies += s->sameLine(line);
         }
         QCOMPARE(copies, 1);
+    }
+
+    // Lines overlap (duets, backing vocals), and the next one takes over
+    // the moment it starts: a line can be switched away from with a word
+    // still to come. The kept copy holds only what was born by the switch,
+    // so that word never rises from where the line was, and the last of the
+    // copy goes out 2050 ms after the switch at the latest -- 2050 ms, not
+    // "2050 after its last word", is the most a switch can add to the clock.
+    void aDetachedLineKeepsOnlyWhatWasBornByTheSwitch()
+    {
+        LineLayout layout;
+        layout.startMs = 1000;
+        layout.text = QStringLiteral("overlapping");
+        layout.ascent = 30;
+        layout.words = {span(1000, 1400), span(1400, 1800, 30), span(3000, 3400, 60)};
+        const Snapshot line = capture(layout);
+        int bornBySwitch = 0;
+        for (const Particle &p : line.particles) {
+            bornBySwitch += p.birthMs <= 2000;
+        }
+        QVERIFY(bornBySwitch > 0);
+        QVERIFY(bornBySwitch < line.particles.size());
+        QVERIFY(line.aliveUntilMs() > 3000 + kLifeMs);
+
+        Field field;
+        field.setLive(line);
+        field.detach(2000);
+        field.setLive(Snapshot());
+        QCOMPARE(field.snapshots().size(), 1);
+        const Snapshot *kept = field.snapshots().first();
+        QCOMPARE(kept->particles.size(), bornBySwitch);
+        for (const Particle &p : kept->particles) {
+            QVERIFY(p.birthMs <= 2000);
+        }
+        QVERIFY(field.aliveUntilMs() <= 2000 + kBirthSpreadMs + kLifeMs);
+        QVERIFY(field.aliveUntilMs() <= 2000 + kLifeMs);
+        QCOMPARE(kept->aliveUntilMs(), kept->lastBirthMs + kLifeMs);
+
+        // A particle born exactly at the switch is in the air, and stays.
+        Snapshot edge;
+        edge.startMs = 1000;
+        edge.text = QStringLiteral("edge");
+        Particle atSwitch;
+        atSwitch.birthMs = 2000;
+        edge.particles = {atSwitch};
+        edge.lastBirthMs = 2000;
+        Field boundary;
+        boundary.setLive(edge);
+        boundary.detach(2000);
+        boundary.setLive(Snapshot());
+        QCOMPARE(boundary.snapshots().size(), 1);
+
+        // Switched away from before its first word: nothing is kept at all.
+        Field early;
+        early.setLive(line);
+        early.detach(1000);
+        early.setLive(Snapshot());
+        QCOMPARE(early.snapshots().size(), 0);
+    }
+
+    // A switch that lands on the same line again -- only the second line
+    // changed -- leaves the line being sung with every particle it had,
+    // later words included, whichever way the copy goes.
+    void aSecondLineSwitchKeepsTheLinesLaterWords()
+    {
+        LineLayout layout;
+        layout.startMs = 1000;
+        layout.text = QStringLiteral("overlapping");
+        layout.ascent = 30;
+        layout.words = {span(1000, 1400), span(1400, 1800, 30), span(3000, 3400, 60)};
+        const Snapshot line = capture(layout);
+
+        Field field;
+        field.setLive(line);
+        field.detach(2000);
+        field.setLive(line);
+        QCOMPARE(field.snapshots().size(), 1);
+        QCOMPARE(field.live()->particles.size(), line.particles.size());
+        QCOMPARE(field.aliveUntilMs(), line.aliveUntilMs());
+
+        field.detach(2000);
+        field.dedupe();
+        QCOMPARE(field.snapshots().size(), 1);
+        QCOMPARE(field.live()->particles.size(), line.particles.size());
+        QCOMPARE(field.aliveUntilMs(), line.aliveUntilMs());
     }
 
     // A detached line keeps what it was following at the switch.

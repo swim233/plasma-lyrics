@@ -164,13 +164,16 @@ public:
     /// same line goes: the current line's snapshot replaces an older one.
     void setLive(const Snapshot &live);
     void setLiveFollow(double offsetX, double offsetY, double opacity);
-    /// The current line stops being current: a copy is kept, frozen where it
-    /// was, in place of any older copy of the same line -- unless at
-    /// positionMs it would already fail the condition prune() keeps lines
-    /// by, as after a seek back before the line or past its last particle.
-    /// The current line itself is left alone until the next setLive() or
-    /// dedupe(), which is where a line switch that turns out to land on the
-    /// same line again (only the second line changed) drops that copy.
+    /// The current line stops being current: a copy holding its particles
+    /// born by positionMs is kept, frozen where it was, in place of any
+    /// older copy of the same line -- unless at positionMs it would already
+    /// fail the condition prune() keeps lines by, as after a seek back
+    /// before the line or past its last particle. Words not started yet
+    /// spawn nothing from the copy, so the last of it goes out 2050 ms after
+    /// positionMs at the latest. The current line itself is left alone until
+    /// the next setLive() or dedupe(), which is where a line switch that
+    /// turns out to land on the same line again (only the second line
+    /// changed) drops that copy, the line going on with all its words.
     /// Deduplicating here instead would drop every copy, because the new
     /// line has not arrived yet.
     void detach(double positionMs);
