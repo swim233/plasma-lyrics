@@ -117,9 +117,18 @@ class WordParticleLayerTest : public QObject
 
 public:
     // Before the application exists: every window is then of ratio 2, which
-    // the offscreen platform honours too. A layer with no window, as in all
-    // but one case, still draws at ratio 1.
-    static void initMain() { qputenv("QT_SCALE_FACTOR", "2"); }
+    // the offscreen platform honours too. Qt multiplies QT_SCALE_FACTOR with
+    // one per-screen factor, taken from QT_SCREEN_SCALE_FACTORS if set and
+    // otherwise from the font or physical DPI, so those go -- a developer
+    // environment's QT_FONT_DPI=144 would otherwise make it 3. A layer with
+    // no window, as in all but one case, still draws at ratio 1.
+    static void initMain()
+    {
+        qputenv("QT_SCALE_FACTOR", "2");
+        qunsetenv("QT_SCREEN_SCALE_FACTORS");
+        qunsetenv("QT_FONT_DPI");
+        qunsetenv("QT_USE_PHYSICAL_DPI");
+    }
 
 private Q_SLOTS:
     void nothingToDrawIsNoNode()
