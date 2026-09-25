@@ -347,6 +347,7 @@ TestCase {
             { tag: "filtered", property: "lyricState", value: "filtered" },
             { tag: "no-title", property: "trackTitle", value: "" },
             { tag: "service-gone", property: "serviceAvailable", value: false },
+            { tag: "stale", property: "stale", value: true },
         ];
     }
     function test_particlesGoWhenTheSlotStopsShowingLyrics(data) {
