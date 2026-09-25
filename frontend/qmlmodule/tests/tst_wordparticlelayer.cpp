@@ -146,9 +146,12 @@ private Q_SLOTS:
         QCOMPARE(node, nullptr);
     }
 
-    // Decision 77: every length is defined at 34 px and scales with the
-    // font size -- the panel's 16 px draws at 16 / 34. The birth points do
-    // not move, so each halo's radius halves exactly at 17 px.
+    // Decision 77: every length is defined at 34 px. The motion scales with
+    // x = fontSize / 34 and the size with g(x), which is x up to 34 px -- the
+    // panel's 16 px draws at 16 / 34 -- and grows ever slower above it. The
+    // birth points do not move, so each sprite's R, from its centre to its
+    // outermost ring, halves exactly at 17 px and grows by g(2), not 2, at
+    // 68 px.
     void sizesScaleWithTheFontSize()
     {
         Layer full;
@@ -156,27 +159,69 @@ private Q_SLOTS:
         Layer half;
         setUp(half, twoWords(), 1500);
         half.setFontSize(17);
+        Layer twice;
+        setUp(twice, twoWords(), 1500);
+        twice.setFontSize(68);
         const QSGGeometryNode *big = full.paint();
         const QSGGeometryNode *small = half.paint();
-        QVERIFY(big && small);
+        const QSGGeometryNode *large = twice.paint();
+        QVERIFY(big && small && large);
         QCOMPARE(small->geometry()->vertexCount(), big->geometry()->vertexCount());
+        QCOMPARE(large->geometry()->vertexCount(), big->geometry()->vertexCount());
         const auto *a = big->geometry()->vertexDataAsColoredPoint2D();
         const auto *b = small->geometry()->vertexDataAsColoredPoint2D();
+        const auto *c = large->geometry()->vertexDataAsColoredPoint2D();
+        const double grown = 1 + 0.5 * (1 - std::exp(-2.0));
         for (int sprite = 0; sprite < big->geometry()->vertexCount() / WordParticles::kVerticesPerSprite; ++sprite) {
             const int centre = sprite * WordParticles::kVerticesPerSprite;
-            const double haloBig = distance(a[centre], a[centre + 1]);
-            const double haloSmall = distance(b[centre], b[centre + 1]);
+            const int rim = centre + 1 + 9 * WordParticles::kRingSegments;
+            const double haloBig = distance(a[centre], a[rim]);
+            const double haloSmall = distance(b[centre], b[rim]);
+            const double haloLarge = distance(c[centre], c[rim]);
             QVERIFY(haloBig > 0);
             QVERIFY2(std::abs(haloSmall / haloBig - 0.5) < 1e-4, qPrintable(QString::number(haloSmall / haloBig)));
+            QVERIFY2(std::abs(haloLarge / haloBig - grown) < 1e-4, qPrintable(QString::number(haloLarge / haloBig)));
             // 3.5 s, s being in [1, 4) at 34 px.
             QVERIFY(haloBig >= 3.5 - 1e-3 && haloBig < 14);
-            // The core's fringe is one device pixel wide whatever the size,
-            // and without a window the ratio is 1.
-            const int core = centre + 1 + WordParticles::kHaloSegments;
-            const double edge = distance(b[core], b[core + 1]);
-            const double fringe = distance(b[core], b[core + 2]);
-            QVERIFY2(std::abs(fringe - edge - 1) < 1e-4, qPrintable(QString::number(fringe - edge)));
         }
+    }
+
+    // The core's σ has a floor of 1.5 device pixels, and without a window
+    // the ratio is 1: at 17 px most sprites are under 1.5 px, and their rings
+    // carry the Gaussian of a 1.5 px core.
+    void aSmallCoreIsHeldAtOneAndAHalfDevicePixels()
+    {
+        Layer layer;
+        setUp(layer, twoWords(), 1500);
+        layer.setFontSize(17);
+        const QSGGeometryNode *node = layer.paint();
+        QVERIFY(node);
+        const auto *v = node->geometry()->vertexDataAsColoredPoint2D();
+        int floored = 0;
+        for (int sprite = 0; sprite < node->geometry()->vertexCount() / WordParticles::kVerticesPerSprite; ++sprite) {
+            const int centre = sprite * WordParticles::kVerticesPerSprite;
+            const int middle = centre + 1 + 4 * WordParticles::kRingSegments;
+            const double radius = distance(v[centre], v[centre + 1 + 9 * WordParticles::kRingSegments]);
+            const double size = radius / 3.5;
+            const double r = distance(v[centre], v[middle]);
+            const double q = r / radius;
+            const auto p = [&](double width) {
+                const double sigma = width / 2.355;
+                return (std::exp(-r * r / (2 * sigma * sigma)) + 0.8 * (1 - q * q) * (1 - q * q)) / 1.8;
+            };
+            // #fffaf5: red is 1, so the centre's red is b and the ring's b × p.
+            const double centreRed = v[centre].r;
+            QVERIFY2(std::abs(v[middle].r - centreRed * p(std::max(size, 1.5))) <= 1.01,
+                     qPrintable(QStringLiteral("size %1: %2 vs %3").arg(size).arg(v[middle].r).arg(centreRed * p(std::max(size, 1.5)))));
+            // Well under the floor and bright enough to tell: neither the
+            // bare core nor a ratio-2 floor would give this.
+            if (size < 1 && centreRed > 40) {
+                ++floored;
+                QVERIFY(std::abs(v[middle].r - centreRed * p(size)) > 2);
+                QVERIFY(std::abs(v[middle].r - centreRed * p(std::max(size, 0.75))) > 2);
+            }
+        }
+        QVERIFY(floored > 0);
     }
 
     // The item's own choice of blending, from its colour.
@@ -198,11 +243,15 @@ private Q_SLOTS:
         node = layer.paint();
         QVERIFY(node);
         v = node->geometry()->vertexDataAsColoredPoint2D();
-        const int core = 1 + WordParticles::kHaloSegments;
+        const int middle = 1 + 4 * WordParticles::kRingSegments;
+        const int rim = 1 + 9 * WordParticles::kRingSegments;
         QVERIFY(v[0].a > 0);
-        QVERIFY(v[core].a > v[0].a);
+        QVERIFY(v[middle].a > 0);
+        QVERIFY(v[middle].a < v[0].a);
+        QCOMPARE(int(v[rim].a), 0);
         // Premultiplied: no channel above alpha.
-        QVERIFY(v[core].r <= v[core].a);
+        QVERIFY(v[0].r <= v[0].a);
+        QVERIFY(v[middle].r <= v[middle].a);
     }
 
     // Measured once per line, from the words' own text: the ink leaves out

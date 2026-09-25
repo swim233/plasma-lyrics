@@ -422,7 +422,7 @@ QSGNode *WordParticleLayer::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDat
     const double blue = m_color.blueF();
     const bool additive = WordParticles::isAdditive(red, green, blue);
     const qreal ratio = window() ? window()->effectiveDevicePixelRatio() : 1;
-    const double feather = 1 / (ratio > 0 ? ratio : 1);
+    const double devicePixel = 1 / (ratio > 0 ? ratio : 1);
 
     QSGGeometry *geometry = node->geometry();
     const int count = static_cast<int>(m_sprites.size());
@@ -430,7 +430,7 @@ QSGNode *WordParticleLayer::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDat
     auto *vertices = static_cast<WordParticles::Vertex *>(geometry->vertexData());
     quint32 *indices = geometry->indexDataAsUInt();
     for (int i = 0; i < count; ++i) {
-        WordParticles::writeSprite(m_sprites.at(i), red, green, blue, additive, feather,
+        WordParticles::writeSprite(m_sprites.at(i), red, green, blue, additive, devicePixel,
                                    vertices + i * WordParticles::kVerticesPerSprite,
                                    static_cast<quint32>(i * WordParticles::kVerticesPerSprite),
                                    indices + i * WordParticles::kIndicesPerSprite);
