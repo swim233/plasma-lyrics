@@ -38,13 +38,15 @@ TestCase {
     function test_themedSuffixes() {
         const desktop = ThemePolicy.themedSuffixes("desktop");
         const panel = ThemePolicy.themedSuffixes("panel");
-        compare(desktop.length, 28);
-        compare(panel.length, 26);
+        compare(desktop.length, 31);
+        compare(panel.length, 29);
         verify(desktop.includes("WordLift"));
         verify(desktop.includes("WordLiftPercent"));
         verify(!panel.includes("WordLift"));
         verify(!panel.includes("WordLiftPercent"));
-        for (const suffix of ["TrackInfoColor", "TrackInfoStroke", "TrackInfoStrokeColor"]) {
+        // Decision 77: unlike the lift keys, the particle keys have a panel copy.
+        for (const suffix of ["TrackInfoColor", "TrackInfoStroke", "TrackInfoStrokeColor",
+                              "WordParticles", "WordParticleColorEnabled", "WordParticleColor"]) {
             verify(desktop.includes(suffix), suffix);
             verify(panel.includes(suffix), suffix);
         }

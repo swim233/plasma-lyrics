@@ -66,6 +66,9 @@ Kirigami.FormLayout {
     property bool wordBrightness: true
     property int wordBrightnessPercent: 60
     property bool wordBlurGlow: false
+    property bool wordParticles: true
+    property bool wordParticleColorEnabled: false
+    property string wordParticleColor: "#fffaf5"
 
     // DESIGN.md decision 76: the track info's colours come in a light and a
     // dark copy like every row above, so their three rows close this form;
@@ -108,6 +111,9 @@ Kirigami.FormLayout {
     signal wordBrightnessEdited(bool value)
     signal wordBrightnessPercentEdited(int value)
     signal wordBlurGlowEdited(bool value)
+    signal wordParticlesEdited(bool value)
+    signal wordParticleColorEnabledEdited(bool value)
+    signal wordParticleColorEdited(string value)
 
     signal trackInfoColorEdited(string value)
     signal trackInfoStrokeEnabledEdited(bool value)

@@ -1446,6 +1446,9 @@ TestCase {
         desktop.wordLiftPercentEdited(22);
         desktop.wordBrightnessPercentEdited(85);
         desktop.wordBlurGlowEdited(true);
+        desktop.wordParticlesEdited(false);
+        desktop.wordParticleColorEnabledEdited(true);
+        desktop.wordParticleColorEdited("#ff8800");
         desktop.lineHeightPercentEdited(160);
         desktop.secondLineSourceEdited("romanization");
         desktop.secondLineColorEnabledEdited(true);
@@ -1459,6 +1462,9 @@ TestCase {
         compare(desktopPage.cfg_desktopWordLiftPercent, 22);
         compare(desktopPage.cfg_desktopWordBrightnessPercent, 85);
         compare(desktopPage.cfg_desktopWordBlurGlow, true);
+        compare(desktopPage.cfg_desktopWordParticles, false);
+        compare(desktopPage.cfg_desktopWordParticleColorEnabled, true);
+        compare(desktopPage.cfg_desktopWordParticleColor, "#ff8800");
         compare(desktopPage.cfg_desktopLineHeight, 160);
         compare(desktopPage.cfg_desktopSecondLineSource, "romanization");
         compare(desktopPage.cfg_desktopSecondLineColorEnabled, true);
@@ -1471,12 +1477,18 @@ TestCase {
 
         panel.wordActiveColorEdited("#cafebabe");
         panel.syntheticWordByWordEdited(true);
+        // Decision 77 gives the panel the particle keys the lift lacks.
+        panel.wordParticleColorEnabledEdited(true);
+        panel.wordParticleColorEdited("#0088ff");
         compare(panelPage.cfg_panelWordActiveColor, "#cafebabe");
         compare(panelPage.cfg_panelWordByWordSynthetic, true);
+        compare(panelPage.cfg_panelWordParticleColorEnabled, true);
+        compare(panelPage.cfg_panelWordParticleColor, "#0088ff");
         // Same crosstalk guard the other appearance tests apply: the two tabs
         // are separate page instances and must not reach into each other.
         compare(desktopPage.cfg_desktopWordActiveColor, "#55667788");
         compare(desktopPage.cfg_desktopWordByWordSynthetic, true);
+        compare(desktopPage.cfg_desktopWordParticleColor, "#ff8800");
     }
 
     // DESIGN.md decision 69/73: below 125% line height, the previous line's
@@ -2004,6 +2016,9 @@ TestCase {
         WordBrightness: { property: "wordBrightness", signal: "wordBrightnessEdited" },
         WordBrightnessPercent: { property: "wordBrightnessPercent", signal: "wordBrightnessPercentEdited" },
         WordBlurGlow: { property: "wordBlurGlow", signal: "wordBlurGlowEdited" },
+        WordParticles: { property: "wordParticles", signal: "wordParticlesEdited" },
+        WordParticleColorEnabled: { property: "wordParticleColorEnabled", signal: "wordParticleColorEnabledEdited" },
+        WordParticleColor: { property: "wordParticleColor", signal: "wordParticleColorEdited" },
         TrackInfoColor: { property: "trackInfoColor", signal: "trackInfoColorEdited" },
         TrackInfoStroke: { property: "trackInfoStrokeEnabled", signal: "trackInfoStrokeEnabledEdited" },
         TrackInfoStrokeColor: { property: "trackInfoStrokeColor", signal: "trackInfoStrokeColorEdited" }
@@ -2018,7 +2033,7 @@ TestCase {
             const page = createTemporaryObject(pageComponent(form), this);
             verify(page !== null, form);
             const suffixes = ThemePolicy.themedSuffixes(form);
-            compare(suffixes.length, form === "desktop" ? 28 : 26, form);
+            compare(suffixes.length, form === "desktop" ? 31 : 29, form);
             const keys = ["cfg_" + ThemePolicy.modeKey(form)];
             for (const suffix of suffixes) {
                 keys.push("cfg_" + ThemePolicy.keyPrefix(form, false) + suffix);

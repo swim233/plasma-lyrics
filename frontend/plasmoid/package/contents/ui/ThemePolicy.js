@@ -41,6 +41,9 @@ var darkDefaults = {
         WordBrightness: true,
         WordBrightnessPercent: 60,
         WordBlurGlow: false,
+        WordParticles: true,
+        WordParticleColorEnabled: false,
+        WordParticleColor: "#fffaf5",
         TrackInfoColor: "#b3fffaf5",
         TrackInfoStroke: false,
         TrackInfoStrokeColor: "#cc000000",
@@ -69,6 +72,9 @@ var darkDefaults = {
         WordBrightness: true,
         WordBrightnessPercent: 60,
         WordBlurGlow: false,
+        WordParticles: true,
+        WordParticleColorEnabled: false,
+        WordParticleColor: "#fffaf5",
         TrackInfoColor: "#b3fffaf5",
         TrackInfoStroke: false,
         TrackInfoStrokeColor: "#cc000000",
@@ -77,8 +83,8 @@ var darkDefaults = {
 // END darkDefaults
 
 // The suffixes of the keys that come in a light and a dark copy, for
-// "desktop" or "panel" (the key prefix, not Plasmoid.formFactor): 28 for the
-// desktop, 26 for the panel, which has no lift keys.
+// "desktop" or "panel" (the key prefix, not Plasmoid.formFactor): 31 for the
+// desktop, 29 for the panel, which has no lift keys.
 function themedSuffixes(formFactor) {
     return Object.keys(darkDefaults[formFactor]);
 }

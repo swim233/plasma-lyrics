@@ -317,6 +317,9 @@ PlasmoidItem {
         wordBrightness: panelTheme.value("WordBrightness")
         wordBrightnessPercent: panelTheme.value("WordBrightnessPercent")
         wordBlurGlow: panelTheme.value("WordBlurGlow")
+        wordParticles: panelTheme.value("WordParticles")
+        wordParticleColorEnabled: panelTheme.value("WordParticleColorEnabled")
+        wordParticleColor: panelTheme.value("WordParticleColor")
         idleText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                            Plasmoid.configuration.idleText,
                                            i18n("No media is playing"))
@@ -392,6 +395,9 @@ PlasmoidItem {
         wordBrightness: desktopTheme.value("WordBrightness")
         wordBrightnessPercent: desktopTheme.value("WordBrightnessPercent")
         wordBlurGlow: desktopTheme.value("WordBlurGlow")
+        wordParticles: desktopTheme.value("WordParticles")
+        wordParticleColorEnabled: desktopTheme.value("WordParticleColorEnabled")
+        wordParticleColor: desktopTheme.value("WordParticleColor")
         idleText: TextPolicy.effectiveText(Plasmoid.configuration.emptyTextUseDefault,
                                            Plasmoid.configuration.idleText,
                                            i18n("No media is playing"))
