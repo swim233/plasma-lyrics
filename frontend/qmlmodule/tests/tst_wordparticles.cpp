@@ -478,6 +478,10 @@ private Q_SLOTS:
         QCOMPARE(field.snapshots().size(), 2);
         field.detach();
         QCOMPARE(field.snapshots().size(), 3);
+        field.dedupe();
+        QCOMPARE(field.snapshots().size(), 2);
+        field.detach();
+        QCOMPARE(field.snapshots().size(), 3);
         field.prune(3500);
         QCOMPARE(field.snapshots().size(), 2);
         QCOMPARE(field.snapshots().first()->startMs, 3000);

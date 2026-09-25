@@ -158,10 +158,11 @@ public:
     void setLiveFollow(double offsetX, double offsetY, double opacity);
     /// The current line stops being current: a copy is kept, frozen where it
     /// was, in place of any older copy of the same line. The current line
-    /// itself is left alone until the next setLive(), which is where a line
-    /// switch that turns out to land on the same line again (only the second
-    /// line changed) drops that copy. Deduplicating here instead would drop
-    /// every copy, because the new line has not arrived yet.
+    /// itself is left alone until the next setLive() or dedupe(), which is
+    /// where a line switch that turns out to land on the same line again
+    /// (only the second line changed) drops that copy. Deduplicating here
+    /// instead would drop every copy, because the new line has not arrived
+    /// yet.
     void detach();
     /// Everything goes, the current line included until the next detach():
     /// the switch to a new track arrives before the line switch that goes
@@ -170,17 +171,20 @@ public:
     /// Drops what is never going to be visible again at positionMs: a kept
     /// line that has not started yet, or whose last particle has gone out.
     /// Pure function of the position, so a seek needs nothing else. Also
-    /// drops a kept copy of the current line, like setLive().
+    /// drops a kept copy of the current line, like dedupe().
     void prune(double positionMs);
+    /// Drops a kept copy of the current line: for a line switch that landed
+    /// on the same line again without its layout changing at all.
+    void dedupe();
 
     /// When the last particle of anything kept goes out, or -infinity.
     double aliveUntilMs() const;
     /// Every snapshot to draw, the current line last.
     QList<const Snapshot *> snapshots() const;
+    /// The current line's snapshot among those, or null when it has none.
+    const Snapshot *live() const;
 
 private:
-    void dedupe();
-
     Snapshot m_live;
     bool m_liveDropped = false;
     QList<Snapshot> m_kept;

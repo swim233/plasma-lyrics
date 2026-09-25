@@ -224,7 +224,7 @@ void Field::prune(double positionMs)
 
 void Field::dedupe()
 {
-    if (m_liveDropped || m_live.particles.isEmpty()) {
+    if (!live()) {
         return;
     }
     m_kept.removeIf([this](const Snapshot &kept) { return kept.sameLine(m_live); });
@@ -246,10 +246,15 @@ QList<const Snapshot *> Field::snapshots() const
     for (const Snapshot &kept : m_kept) {
         out.append(&kept);
     }
-    if (!m_liveDropped && !m_live.particles.isEmpty()) {
-        out.append(&m_live);
+    if (const Snapshot *current = live()) {
+        out.append(current);
     }
     return out;
+}
+
+const Snapshot *Field::live() const
+{
+    return m_liveDropped || m_live.particles.isEmpty() ? nullptr : &m_live;
 }
 
 bool evaluate(const Particle &particle, double positionMs, double scale,

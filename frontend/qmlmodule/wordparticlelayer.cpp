@@ -1,0 +1,359 @@
+#include "wordparticlelayer.h"
+
+#include <QFontMetricsF>
+#include <QQuickWindow>
+#include <QSGGeometryNode>
+#include <QSGVertexColorMaterial>
+
+#include <algorithm>
+#include <cstddef>
+#include <limits>
+
+// WordParticles::writeSprite fills the geometry's vertex buffer directly.
+static_assert(sizeof(WordParticles::Vertex) == sizeof(QSGGeometry::ColoredPoint2D));
+static_assert(offsetof(WordParticles::Vertex, x) == offsetof(QSGGeometry::ColoredPoint2D, x));
+static_assert(offsetof(WordParticles::Vertex, y) == offsetof(QSGGeometry::ColoredPoint2D, y));
+static_assert(offsetof(WordParticles::Vertex, r) == offsetof(QSGGeometry::ColoredPoint2D, r));
+static_assert(offsetof(WordParticles::Vertex, a) == offsetof(QSGGeometry::ColoredPoint2D, a));
+
+namespace {
+
+QString withoutTrailingSpace(QString text)
+{
+    while (!text.isEmpty() && text.back().isSpace()) {
+        text.chop(1);
+    }
+    return text;
+}
+
+} // namespace
+
+WordParticleLayer::WordParticleLayer(QQuickItem *parent)
+    : QQuickItem(parent)
+    , m_aliveUntilMs(-std::numeric_limits<qreal>::infinity())
+{
+    setFlag(ItemHasContents);
+}
+
+bool WordParticleLayer::active() const
+{
+    return m_active;
+}
+
+QString WordParticleLayer::fingerprint() const
+{
+    return m_fingerprint;
+}
+
+qreal WordParticleLayer::positionMs() const
+{
+    return m_positionMs;
+}
+
+int WordParticleLayer::fontSize() const
+{
+    return m_fontSize;
+}
+
+QColor WordParticleLayer::color() const
+{
+    return m_color;
+}
+
+QVariant WordParticleLayer::line() const
+{
+    return m_line;
+}
+
+QPointF WordParticleLayer::lineOrigin() const
+{
+    return m_lineOrigin;
+}
+
+QPointF WordParticleLayer::lineOffset() const
+{
+    return m_lineOffset;
+}
+
+qreal WordParticleLayer::lineOpacity() const
+{
+    return m_lineOpacity;
+}
+
+qreal WordParticleLayer::particlesAliveUntilMs() const
+{
+    return m_aliveUntilMs;
+}
+
+int WordParticleLayer::snapshotCount() const
+{
+    return m_snapshotCount;
+}
+
+void WordParticleLayer::setActive(bool value)
+{
+    if (value == m_active) {
+        return;
+    }
+    m_active = value;
+    m_field = WordParticles::Field();
+    m_field.setLiveFollow(m_lineOffset.x(), m_lineOffset.y(), m_lineOpacity);
+    recaptureLine();
+    Q_EMIT activeChanged();
+}
+
+void WordParticleLayer::setFingerprint(const QString &value)
+{
+    if (value == m_fingerprint) {
+        return;
+    }
+    m_fingerprint = value;
+    // The value every instance is created with is no track change.
+    if (isComponentComplete()) {
+        m_field.dropAll();
+        fieldChanged();
+    }
+    Q_EMIT fingerprintChanged();
+}
+
+void WordParticleLayer::setPositionMs(qreal value)
+{
+    if (value == m_positionMs) {
+        return;
+    }
+    m_positionMs = value;
+    m_field.prune(m_positionMs);
+    fieldChanged();
+    Q_EMIT positionMsChanged();
+}
+
+void WordParticleLayer::setFontSize(int value)
+{
+    if (value == m_fontSize) {
+        return;
+    }
+    m_fontSize = value;
+    update();
+    Q_EMIT fontSizeChanged();
+}
+
+void WordParticleLayer::setColor(const QColor &value)
+{
+    if (value == m_color) {
+        return;
+    }
+    m_color = value;
+    update();
+    Q_EMIT colorChanged();
+}
+
+void WordParticleLayer::setLine(const QVariant &value)
+{
+    m_line = value;
+    recaptureLine();
+    Q_EMIT lineChanged();
+}
+
+void WordParticleLayer::setLineOrigin(const QPointF &value)
+{
+    if (value == m_lineOrigin) {
+        return;
+    }
+    m_lineOrigin = value;
+    recaptureLine();
+    Q_EMIT lineOriginChanged();
+}
+
+void WordParticleLayer::setLineOffset(const QPointF &value)
+{
+    if (value == m_lineOffset) {
+        return;
+    }
+    m_lineOffset = value;
+    m_field.setLiveFollow(m_lineOffset.x(), m_lineOffset.y(), m_lineOpacity);
+    update();
+    Q_EMIT lineOffsetChanged();
+}
+
+void WordParticleLayer::setLineOpacity(qreal value)
+{
+    if (value == m_lineOpacity) {
+        return;
+    }
+    m_lineOpacity = value;
+    m_field.setLiveFollow(m_lineOffset.x(), m_lineOffset.y(), m_lineOpacity);
+    update();
+    Q_EMIT lineOpacityChanged();
+}
+
+void WordParticleLayer::detach()
+{
+    m_field.detach();
+    fieldChanged();
+    polish();
+}
+
+QVariantList WordParticleLayer::describeSnapshots() const
+{
+    QVariantList out;
+    const QList<const WordParticles::Snapshot *> snapshots = m_field.snapshots();
+    for (const WordParticles::Snapshot *snapshot : snapshots) {
+        QPointF topLeft = {std::numeric_limits<qreal>::infinity(), std::numeric_limits<qreal>::infinity()};
+        QPointF bottomRight = -topLeft;
+        for (const WordParticles::Particle &particle : snapshot->particles) {
+            topLeft = {std::min(topLeft.x(), particle.x), std::min(topLeft.y(), particle.y)};
+            bottomRight = {std::max(bottomRight.x(), particle.x), std::max(bottomRight.y(), particle.y)};
+        }
+        const QRectF births(topLeft, bottomRight);
+        out.append(QVariantMap{
+            {QStringLiteral("startMs"), snapshot->startMs},
+            {QStringLiteral("text"), snapshot->text},
+            {QStringLiteral("particles"), snapshot->particles.size()},
+            {QStringLiteral("births"), births},
+            {QStringLiteral("offsetX"), snapshot->offsetX},
+            {QStringLiteral("offsetY"), snapshot->offsetY},
+            {QStringLiteral("opacity"), snapshot->opacity},
+            {QStringLiteral("current"), snapshot == m_field.live()},
+        });
+    }
+    return out;
+}
+
+void WordParticleLayer::componentComplete()
+{
+    QQuickItem::componentComplete();
+    recaptureLine();
+}
+
+// The line switch that called detach() has finished by now. If it landed on
+// the same line (only the second line changed) and nothing about the line's
+// layout moved, no setLive() has come to drop the copy detach() kept, and
+// without this every particle would be drawn twice until the position moved.
+void WordParticleLayer::updatePolish()
+{
+    m_field.dedupe();
+    fieldChanged();
+}
+
+WordParticles::LineLayout WordParticleLayer::layoutOfLine()
+{
+    WordParticles::LineLayout layout;
+    const QVariantMap line = m_line.toMap();
+    const QVariantList words = line.value(QStringLiteral("words")).toList();
+    if (words.isEmpty()) {
+        return layout;
+    }
+
+    const QFont font = line.value(QStringLiteral("font")).value<QFont>();
+    QStringList texts;
+    texts.reserve(words.size());
+    for (const QVariant &word : words) {
+        texts.append(word.toMap().value(QStringLiteral("text")).toString());
+    }
+    if (font != m_measuredFont || texts != m_measuredTexts || m_inkWidths.size() != texts.size()) {
+        const QFontMetricsF metrics(font);
+        m_inkWidths.clear();
+        for (const QString &text : std::as_const(texts)) {
+            m_inkWidths.append(metrics.horizontalAdvance(withoutTrailingSpace(text)));
+        }
+        // The top of a CJK glyph at this size, whatever script the line is
+        // in. A font with no such glyph anywhere falls back to its own
+        // ascent.
+        const QRectF ink = metrics.tightBoundingRect(QStringLiteral("国"));
+        m_cjkAscent = ink.isEmpty() ? metrics.ascent() : -ink.top();
+        m_measuredFont = font;
+        m_measuredTexts = texts;
+    }
+
+    const double rowX = m_lineOrigin.x() + line.value(QStringLiteral("x")).toDouble();
+    layout.startMs = line.value(QStringLiteral("startMs")).toLongLong();
+    layout.text = line.value(QStringLiteral("text")).toString();
+    layout.ascent = m_cjkAscent;
+    layout.glyphTop = m_lineOrigin.y() + line.value(QStringLiteral("baseline")).toDouble() - m_cjkAscent;
+    layout.words.reserve(words.size());
+    for (int i = 0; i < words.size(); ++i) {
+        const QVariantMap word = words.at(i).toMap();
+        WordParticles::WordSpan span;
+        span.startMs = word.value(QStringLiteral("startMs")).toLongLong();
+        span.endMs = word.value(QStringLiteral("endMs")).toLongLong();
+        span.left = rowX + word.value(QStringLiteral("x")).toDouble();
+        span.width = m_inkWidths.at(i);
+        layout.words.append(span);
+    }
+    return layout;
+}
+
+void WordParticleLayer::recaptureLine()
+{
+    if (!isComponentComplete()) {
+        return;
+    }
+    m_field.setLive(m_active ? WordParticles::capture(layoutOfLine()) : WordParticles::Snapshot());
+    fieldChanged();
+}
+
+void WordParticleLayer::fieldChanged()
+{
+    const QList<const WordParticles::Snapshot *> snapshots = m_field.snapshots();
+    const qreal aliveUntilMs = m_field.aliveUntilMs();
+    const int count = static_cast<int>(snapshots.size());
+    // One more frame after the last line goes, to clear what it drew.
+    if (count > 0 || m_snapshotCount > 0) {
+        update();
+    }
+    if (aliveUntilMs != m_aliveUntilMs || count != m_snapshotCount) {
+        m_aliveUntilMs = aliveUntilMs;
+        m_snapshotCount = count;
+        Q_EMIT snapshotsChanged();
+    }
+}
+
+QSGNode *WordParticleLayer::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
+{
+    auto *node = static_cast<QSGGeometryNode *>(oldNode);
+    if (!node) {
+        node = new QSGGeometryNode;
+        auto *geometry = new QSGGeometry(QSGGeometry::defaultAttributes_ColoredPoint2D(), 0, 0,
+                                         QSGGeometry::UnsignedIntType);
+        geometry->setDrawingMode(QSGGeometry::DrawTriangles);
+        geometry->setVertexDataPattern(QSGGeometry::StreamPattern);
+        geometry->setIndexDataPattern(QSGGeometry::StreamPattern);
+        node->setGeometry(geometry);
+        node->setFlag(QSGNode::OwnsGeometry);
+        node->setMaterial(new QSGVertexColorMaterial);
+        node->setFlag(QSGNode::OwnsMaterial);
+    }
+
+    m_sprites.clear();
+    const double scale = m_fontSize / WordParticles::kReferencePixelSize;
+    for (const WordParticles::Snapshot *snapshot : m_field.snapshots()) {
+        for (const WordParticles::Particle &particle : snapshot->particles) {
+            WordParticles::Sprite sprite;
+            if (WordParticles::evaluate(particle, m_positionMs, scale, snapshot->offsetX,
+                                        snapshot->offsetY, snapshot->opacity, &sprite)) {
+                m_sprites.append(sprite);
+            }
+        }
+    }
+
+    const double red = m_color.redF();
+    const double green = m_color.greenF();
+    const double blue = m_color.blueF();
+    const bool additive = WordParticles::isAdditive(red, green, blue);
+    const qreal ratio = window() ? window()->effectiveDevicePixelRatio() : 1;
+    const double feather = 1 / (ratio > 0 ? ratio : 1);
+
+    QSGGeometry *geometry = node->geometry();
+    const int count = static_cast<int>(m_sprites.size());
+    geometry->allocate(count * WordParticles::kVerticesPerSprite, count * WordParticles::kIndicesPerSprite);
+    auto *vertices = static_cast<WordParticles::Vertex *>(geometry->vertexData());
+    quint32 *indices = geometry->indexDataAsUInt();
+    for (int i = 0; i < count; ++i) {
+        WordParticles::writeSprite(m_sprites.at(i), red, green, blue, additive, feather,
+                                   vertices + i * WordParticles::kVerticesPerSprite,
+                                   static_cast<quint32>(i * WordParticles::kVerticesPerSprite),
+                                   indices + i * WordParticles::kIndicesPerSprite);
+    }
+    node->markDirty(QSGNode::DirtyGeometry);
+    return node;
+}
