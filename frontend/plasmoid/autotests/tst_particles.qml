@@ -890,25 +890,50 @@ TestCase {
         tryCompare(t.layer, "snapshotCount", 2);
     }
 
-    // A new track drops everything, the line being sung included: the line
-    // switch that follows the track change must not bring it back.
-    function test_aNewTrackDropsEveryParticle() {
+    // A new track drops everything in the air -- every kept line, and every
+    // particle of the line being sung born by then -- and nothing more: the
+    // words still to come on that line spawn when they start.
+    function test_aNewTrackDropsWhatIsInTheAir() {
         const t = createView();
         tryCompare(t.layer, "snapshotCount", 1);
         step(t.view, t.source, 2100);
         switchTo(t, "efgh", lineB);
         tryCompare(t.layer, "snapshotCount", 2);
 
+        // "ef" (2000) is in the air, "gh" (2300) still to come.
         t.source.fingerprint = "track-2";
-        compare(t.layer.snapshotCount, 0);
-        compare(t.layer.particlesAliveUntilMs, -Infinity);
+        compare(t.layer.snapshotCount, 1);
+        const live = current(t.layer);
+        compare(live.startMs, 2000);
+        verify(live.birthTimes.length > 0);
+        verify(live.birthTimes.every(ms => ms >= 2300), JSON.stringify(live.birthTimes));
+        verify(t.layer.particlesAliveUntilMs >= 2300 + 2050);
+        // The line switch that follows keeps no more than that.
         switchToPlainLine(t, "new track");
-        wait(50);
-        compare(t.layer.snapshotCount, 0);
-        compare(t.view.wordClockRunning, false);
+        compare(t.layer.snapshotCount, 1);
+        verify(t.layer.describeSnapshots()[0].birthTimes.every(ms => ms >= 2300));
 
         switchTo(t, "abcd", lineA);
-        tryCompare(t.layer, "snapshotCount", 1);
+        tryCompare(t.layer, "snapshotCount", 2);
         compare(current(t.layer).startMs, 1000);
+    }
+
+    // qa-2's case: the fingerprint changes while playback stays on the same
+    // line -- a track found in the cache publishes its lyrics at once, so
+    // the slot never shows "Searching…". The word in flight goes; the next
+    // word on the line still spawns.
+    function test_aTrackChangeMidLineStillSpawnsTheLinesLaterWords() {
+        const t = createView();
+        step(t.view, t.source, 1050);
+        tryCompare(t.layer, "snapshotCount", 1);
+        t.source.fingerprint = "track-2";
+        step(t.view, t.source, 1500);
+        tryCompare(t.layer, "snapshotCount", 1);
+        const live = current(t.layer);
+        verify(live !== undefined);
+        verify(live.birthTimes.every(ms => ms > 1050), JSON.stringify(live.birthTimes));
+        verify(live.birthTimes.some(ms => ms >= 1400), JSON.stringify(live.birthTimes));
+        verify(t.layer.particlesAliveUntilMs >= 1400 + 2050);
+        compare(t.view.wordClockRunning, true);
     }
 }

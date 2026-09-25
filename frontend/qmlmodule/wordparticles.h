@@ -174,10 +174,12 @@ public:
     /// Deduplicating here instead would drop every copy, because the new
     /// line has not arrived yet.
     void detach(double positionMs);
-    /// Everything goes, the current line included until the next detach():
-    /// the switch to a new track arrives before the line switch that goes
-    /// with it, and the outgoing line must not be kept by that switch.
-    void dropAll();
+    /// A new track: every kept line goes, and every particle of the current
+    /// line born at or before positionMs, now and whenever the same line is
+    /// captured again. The words of that line still to come spawn as
+    /// usual -- a new track that happens to carry the same line goes on
+    /// singing it. A different current line ends the drop.
+    void dropAll(double positionMs);
     /// Drops what is never going to be visible again at positionMs: a kept
     /// line that has not started yet, or whose last particle has gone out.
     /// Pure function of the position, so a seek needs nothing more for the
@@ -197,10 +199,14 @@ public:
 
 private:
     void retain(double positionMs);
+    void applyDrop();
 
     Snapshot m_live;
-    bool m_liveDropped = false;
     QList<Snapshot> m_kept;
+    // The current line when dropAll() ran, and the position it ran at.
+    bool m_dropping = false;
+    Snapshot m_dropped;
+    double m_droppedThroughMs = 0;
 };
 
 struct Sprite

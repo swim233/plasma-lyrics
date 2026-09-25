@@ -110,7 +110,7 @@ void WordParticleLayer::setFingerprint(const QString &value)
     m_fingerprint = value;
     // The value every instance is created with is no track change.
     if (isComponentComplete()) {
-        m_field.dropAll();
+        m_field.dropAll(m_positionMs);
         fieldChanged();
     }
     Q_EMIT fingerprintChanged();
@@ -209,13 +209,16 @@ QVariantList WordParticleLayer::describeSnapshots() const
     const QList<const WordParticles::Snapshot *> snapshots = m_field.snapshots();
     for (const WordParticles::Snapshot *snapshot : snapshots) {
         QVariantList births;
+        QVariantList birthTimes;
         for (const WordParticles::Particle &particle : snapshot->particles) {
             births.append(QPointF(particle.x, particle.y));
+            birthTimes.append(particle.birthMs);
         }
         out.append(QVariantMap{
             {QStringLiteral("startMs"), snapshot->startMs},
             {QStringLiteral("text"), snapshot->text},
             {QStringLiteral("births"), births},
+            {QStringLiteral("birthTimes"), birthTimes},
             {QStringLiteral("offsetX"), snapshot->offsetX},
             {QStringLiteral("offsetY"), snapshot->offsetY},
             {QStringLiteral("opacity"), snapshot->opacity},

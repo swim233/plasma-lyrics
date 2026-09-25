@@ -186,6 +186,10 @@ void Field::setLive(const Snapshot &live)
     m_live.offsetX = offsetX;
     m_live.offsetY = offsetY;
     m_live.opacity = opacity;
+    if (m_dropping && !m_live.sameLine(m_dropped)) {
+        m_dropping = false;
+    }
+    applyDrop();
     dedupe();
 }
 
@@ -198,19 +202,32 @@ void Field::setLiveFollow(double offsetX, double offsetY, double opacity)
 
 void Field::detach(double positionMs)
 {
-    if (m_liveDropped) {
-        m_liveDropped = false;
-    } else if (!m_live.particles.isEmpty()) {
+    if (!m_live.particles.isEmpty()) {
         m_kept.removeIf([this](const Snapshot &kept) { return kept.sameLine(m_live); });
         m_kept.append(m_live);
     }
     retain(positionMs);
 }
 
-void Field::dropAll()
+void Field::dropAll(double positionMs)
 {
     m_kept.clear();
-    m_liveDropped = true;
+    m_dropping = true;
+    m_dropped.startMs = m_live.startMs;
+    m_dropped.text = m_live.text;
+    m_droppedThroughMs = positionMs;
+    applyDrop();
+}
+
+void Field::applyDrop()
+{
+    if (!m_dropping) {
+        return;
+    }
+    // The earliest births go, so whenever anything is left the last birth,
+    // and with it aliveUntilMs(), stands as it was.
+    const double through = m_droppedThroughMs;
+    m_live.particles.removeIf([through](const Particle &p) { return p.birthMs <= through; });
 }
 
 void Field::prune(double positionMs)
@@ -258,7 +275,7 @@ QList<const Snapshot *> Field::snapshots() const
 
 const Snapshot *Field::live() const
 {
-    return m_liveDropped || m_live.particles.isEmpty() ? nullptr : &m_live;
+    return m_live.particles.isEmpty() ? nullptr : &m_live;
 }
 
 bool evaluate(const Particle &particle, double positionMs, double scale,

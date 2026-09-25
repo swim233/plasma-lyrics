@@ -35,8 +35,10 @@ class WordParticleLayer : public QQuickItem
 
     // Off clears everything at once, the line being sung included.
     Q_PROPERTY(bool active READ active WRITE setActive NOTIFY activeChanged)
-    // A change drops every particle, the line being sung included: a new
-    // track's position says nothing about the old track's lines.
+    // A change is a new track: every kept line goes, and so does every
+    // particle of the line being sung born by now -- what is in the air. The
+    // words of that line still to come spawn as usual, since a new track
+    // can carry on with the very same line.
     Q_PROPERTY(QString fingerprint READ fingerprint WRITE setFingerprint NOTIFY fingerprintChanged)
     Q_PROPERTY(qreal positionMs READ positionMs WRITE setPositionMs NOTIFY positionMsChanged)
     // Sizes and motion are defined at 34 px and scale by fontSize / 34.
@@ -94,9 +96,10 @@ public:
     /// moves anything; a switch that lands on the same line again is sorted
     /// out once it is complete, before the next frame.
     Q_INVOKABLE void detach();
-    /// [{ startMs, text, births, offsetX, offsetY, opacity, current }] per
-    /// snapshot, births being every particle's birth point. For tests: the
-    /// software backend the QML suite runs on draws none of the geometry.
+    /// [{ startMs, text, births, birthTimes, offsetX, offsetY, opacity,
+    /// current }] per snapshot, births and birthTimes being every particle's
+    /// birth point and time. For tests: the software backend the QML suite
+    /// runs on draws none of the geometry.
     Q_INVOKABLE QVariantList describeSnapshots() const;
     /// The current line as the layer measured it: { startMs, text, x, y,
     /// ascent, words: [{ x, baseline, ink }] }, x and y being the row's top

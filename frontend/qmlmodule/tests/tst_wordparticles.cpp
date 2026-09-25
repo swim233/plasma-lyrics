@@ -556,24 +556,60 @@ private Q_SLOTS:
         QCOMPARE(live->opacity, 0.0);
     }
 
-    // A new track drops everything, and the line being sung at that moment
-    // does not come back through the line switch that follows.
-    void dropAllTakesTheLineBeingSungWithIt()
+    // A new track drops every kept line and every particle of the line being
+    // sung born at or before the drop -- what is in the air -- and nothing
+    // more: that line's words still to come spawn when they start, however
+    // often the line is captured again, and a different line spawns in full.
+    void dropAllTakesWhatIsInTheAir()
     {
         Field field;
         field.setLive(snapshotAt(0, QStringLiteral("a")));
         field.detach(100);
-        field.setLive(snapshotAt(600, QStringLiteral("b")));
-        field.dropAll();
-        QCOMPARE(field.snapshots().size(), 0);
-        QCOMPARE(field.aliveUntilMs(), -std::numeric_limits<double>::infinity());
-        // Still dropped when the old line is laid out again.
-        field.setLive(snapshotAt(600, QStringLiteral("b")));
-        QCOMPARE(field.snapshots().size(), 0);
-        field.detach(700);
-        field.setLive(snapshotAt(0, QStringLiteral("new track")));
+        // "b": one word from 600 and one from 850, each born within 90 ms.
+        const Snapshot b = snapshotAt(600, QStringLiteral("b"));
+        field.setLive(b);
+        field.dropAll(700);
         QCOMPARE(field.snapshots().size(), 1);
-        QCOMPARE(field.snapshots().first()->text, QStringLiteral("new track"));
+        const auto laterOnly = [](const Snapshot *s) {
+            for (const Particle &p : s->particles) {
+                if (p.birthMs <= 700) {
+                    return false;
+                }
+            }
+            return !s->particles.isEmpty();
+        };
+        QVERIFY(laterOnly(field.live()));
+        int later = 0;
+        for (const Particle &p : b.particles) {
+            later += p.birthMs > 700;
+        }
+        QCOMPARE(field.live()->particles.size(), later);
+        QCOMPARE(field.aliveUntilMs(), b.aliveUntilMs());
+
+        // Captured again -- the Row laid it out once more -- and still only
+        // the later word.
+        field.setLive(b);
+        QVERIFY(laterOnly(field.live()));
+        // Switched away from: kept as it stands.
+        field.detach(1000);
+        field.setLive(Snapshot());
+        QCOMPARE(field.snapshots().size(), 1);
+        QVERIFY(laterOnly(field.snapshots().first()));
+        // The next line is not the dropped one and spawns in full.
+        const Snapshot c = snapshotAt(1200, QStringLiteral("c"));
+        field.setLive(c);
+        QCOMPARE(field.live()->particles.size(), c.particles.size());
+        // Nor does the drop come back with the old line once it has ended.
+        field.detach(1300);
+        field.setLive(b);
+        QCOMPARE(field.live()->particles.size(), b.particles.size());
+
+        // Dropped after the line's last birth: nothing of it is left.
+        Field late;
+        late.setLive(b);
+        late.dropAll(b.lastBirthMs);
+        QCOMPARE(late.snapshots().size(), 0);
+        QCOMPARE(late.aliveUntilMs(), -std::numeric_limits<double>::infinity());
     }
 
     void blendingFollowsTheColoursLuminance()
