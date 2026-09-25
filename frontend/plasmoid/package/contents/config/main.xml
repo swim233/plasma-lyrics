@@ -55,7 +55,7 @@
          && Playing && (panelMode || shouldBeVisible): with this entry on, it
          no longer stops the moment the line without words (an interlude, a
          blank line, the end of the track) begins, but runs on until the last
-         particle of the lines before has faded, up to about 2050 ms after
+         particle of the lines before has faded, up to about 2 s after
          them; desktopWordParticles off drops that extension. No combination
          of the colour and effect settings below substitutes for this entry:
          three identical colours neutralise the look, but the clock keeps
