@@ -308,17 +308,16 @@ Kirigami.FormLayout {
         // implicitWidth, and Layout.fillWidth does not cap that -- it only
         // lets the item grow. FormLayout then sizes itself to the widest
         // child's preferred width, so a long enough sentence here silently
-        // widens the whole config page. Measured on this form when these
-        // descriptions were added: the two sentences it held then wanted 790
-        // and 806px, against the 653px the rest of the page needs, and the
-        // page's implicitWidth went 761 -> 938 (+23%) when they were added.
-        // Layout.preferredWidth: 0 does NOT help (measured: still 938); only
-        // an explicit cap does. 24 gridUnits bounds how wide any description
-        // can make the field column. Below the cap a description can still
-        // be the widest item there (the first one on this form is, in
-        // Chinese), so a wording change can move the page width, but never
-        // past the cap.
-        Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+        // widens the whole config page. Measured in tst_appearance's English
+        // with this label uncapped: it wants 722 px and the form's
+        // implicitWidth goes 592 -> 846, too wide for two columns in the
+        // test's 702 px. Layout.preferredWidth: 0 does NOT help (still 846);
+        // only an explicit cap does. 26 gridUnits bounds how wide any
+        // description can make the field column. A description can still be
+        // the widest item there -- measured, the first one is in Chinese, and
+        // in English with Plasma's default fonts the capped ones are -- so a
+        // wording change can move the page width, but never past the cap.
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 26
         wrapMode: Text.WordWrap
         // Same styling as the "Record debug details" description on the
         // Lyrics Service page: this is secondary copy about the checkbox
@@ -345,21 +344,9 @@ Kirigami.FormLayout {
         // the same reason LyricLine.qml's word glyphs carry one.
         objectName: "formDescription"
         Layout.fillWidth: true
-        // A wrapping Text still reports its *unwrapped* single-line width as
-        // implicitWidth, and Layout.fillWidth does not cap that -- it only
-        // lets the item grow. FormLayout then sizes itself to the widest
-        // child's preferred width, so a long enough sentence here silently
-        // widens the whole config page. Measured on this form when these
-        // descriptions were added: the two sentences it held then wanted 790
-        // and 806px, against the 653px the rest of the page needs, and the
-        // page's implicitWidth went 761 -> 938 (+23%) when they were added.
-        // Layout.preferredWidth: 0 does NOT help (measured: still 938); only
-        // an explicit cap does. 24 gridUnits bounds how wide any description
-        // can make the field column. Below the cap a description can still
-        // be the widest item there (the first one on this form is, in
-        // Chinese), so a wording change can move the page width, but never
-        // past the cap.
-        Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+        // Capped as the first formDescription is; its comment has the
+        // measurements behind the cap.
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 26
         wrapMode: Text.WordWrap
         visible: root.wordByWord
         // Same styling as the "Record debug details" description on the
@@ -465,7 +452,7 @@ Kirigami.FormLayout {
         // the first one's comment has the measurements behind the cap.
         objectName: "formDescription"
         Layout.fillWidth: true
-        Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 26
         wrapMode: Text.WordWrap
         visible: root.wordByWord
         color: Kirigami.Theme.disabledTextColor
@@ -487,7 +474,7 @@ Kirigami.FormLayout {
         // while the particles themselves are off.
         objectName: "formDescription"
         Layout.fillWidth: true
-        Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 26
         wrapMode: Text.WordWrap
         visible: root.wordByWord
         color: Kirigami.Theme.disabledTextColor

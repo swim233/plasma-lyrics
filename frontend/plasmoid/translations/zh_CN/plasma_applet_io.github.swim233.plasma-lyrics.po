@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-26 01:12+0800\n"
+"POT-Creation-Date: 2026-09-26 02:22+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -175,7 +175,7 @@ msgid "Background color:"
 msgstr "背景颜色："
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:182
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:522
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:509
 msgid "Text color:"
 msgstr "文字颜色："
 
@@ -205,12 +205,12 @@ msgid "%1%"
 msgstr "%1%"
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:242
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:528
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:515
 msgid "Outline:"
 msgstr "描边："
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:247
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:534
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:521
 msgid "Outline color:"
 msgstr "描边颜色："
 
@@ -235,7 +235,7 @@ msgid "Set it separately from the lyric color"
 msgstr "与歌词颜色分开设置"
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:273
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:507
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:494
 msgid "Color:"
 msgstr "颜色："
 
@@ -279,116 +279,116 @@ msgstr "逐字歌词："
 msgid "Highlight each word as it is sung"
 msgstr "逐词高亮正在唱的歌词"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:332
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:331
 msgid ""
 "Turn this on for word-by-word lyrics. The lyrics source has to support it "
 "(QQ Music and AMLL are the recommended first choices)."
 msgstr "勾选后启用逐字歌词，需要歌词源支持（推荐首选QQ音乐与AMLL歌词源）"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:335
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:334
 msgid "Simulate timing:"
 msgstr "模拟逐字："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:339
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:338
 msgid ""
 "Turn on simulated word-by-word for lyrics sources that do not support it"
 msgstr "为不支持逐字歌词的歌词源启用模拟逐字"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:369
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:356
 msgid ""
 "With this on, the word-by-word effect is simulated from the line timings, so "
 "it is less accurate."
 msgstr "勾选该选项后，将根据歌词时间来模拟逐字效果，准确性会有所下降"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:373
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:360
 msgid "Upcoming words:"
 msgstr "未唱："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:379
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:366
 msgid "Current word:"
 msgstr "正在唱："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:385
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:372
 msgid "Sung words:"
 msgstr "已唱："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:390
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:377
 msgid "Lift:"
 msgstr "抬升："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:395
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:382
 msgid "Raise the word being sung"
 msgstr "抬起正在唱的词"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:396
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:383
 msgid "Not available in a panel, which sets the widget height"
 msgstr "面板不支持抬升，部件高度由面板决定"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:400
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:387
 msgid "Lift height:"
 msgstr "抬升高度："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:437
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:424
 #, javascript-format
 msgctxt "@item:valuesuffix lift height as a percentage of the font size"
 msgid "%1%"
 msgstr "%1%"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:440
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:427
 msgid "Brightening:"
 msgstr "提亮："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:442
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:429
 msgid "Brighten the word being sung"
 msgstr "提亮正在唱的词"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:447
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:434
 msgid "Brightness:"
 msgstr "提亮强度："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:454
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:441
 #, javascript-format
 msgctxt "@item:valuesuffix how far the sung word is brightened"
 msgid "%1%"
 msgstr "%1%"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:457
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:444
 msgid "Blurred glow:"
 msgstr "光晕："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:459
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:446
 msgid "Turn on lyric glow"
 msgstr "启用歌词光晕"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:473
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:460
 msgid ""
 "With this on, a glow is overlaid on word-by-word lyrics for a more elegant "
 "look, at a slight performance cost."
 msgstr "启用后，逐字歌词上将叠加一层光晕，效果更优雅，略微增加性能开销"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:479
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:466
 msgid "Particles:"
 msgstr "粒子："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:481
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:468
 msgid "Turn on lyric particle animation"
 msgstr "启用歌词粒子动画"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:495
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:482
 msgid ""
 "With this on, particles show the live progress of word-by-word lyrics, at a "
 "slight performance cost."
 msgstr "启用后，逐字歌词的实时进度将呈现粒子效果，略微增加性能开销"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:499
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:486
 msgid "Particle color:"
 msgstr "粒子颜色："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:501
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:488
 msgid "Use a separate particle color"
 msgstr "启用独立的粒子颜色"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:518
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:505
 msgid "Track info colors"
 msgstr "曲目信息颜色"
 
@@ -740,53 +740,53 @@ msgctxt "@item:inlistbox theme mode"
 msgid "Always dark"
 msgstr "始终暗色"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:81
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:83
 msgid ""
 "When set to follow the system, allows plasma-lyrics to follow changes to the "
 "system theme."
 msgstr "设置为跟随系统时，允许 plasma-lyrics 跟随系统主题变化。"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:103
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:105
 msgctxt "@title:tab light Plasma style"
 msgid "Light"
 msgstr "亮色"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:104
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:106
 msgctxt "@title:tab light Plasma style, the set in effect"
 msgid "Light (current)"
 msgstr "亮色（当前）"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:108
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:110
 msgctxt "@title:tab dark Plasma style, the set in effect"
 msgid "Dark (current)"
 msgstr "暗色（当前）"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:109
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:111
 msgctxt "@title:tab dark Plasma style"
 msgid "Dark"
 msgstr "暗色"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:132
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:134
 msgid ""
 "The theme mode is “Always light”, so these settings are not used for now."
 msgstr "主题模式为「始终亮色」，这套设置目前不会生效。"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:135
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:137
 msgid ""
 "The theme mode is “Always dark”, so these settings are not used for now."
 msgstr "主题模式为「始终暗色」，这套设置目前不会生效。"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:138
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:140
 msgid ""
 "The system theme is currently dark, and the matching colors are in effect."
 msgstr "当前系统主题为暗色，对应配色方案生效中。"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:139
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:141
 msgid ""
 "The system theme is currently light, and the matching colors are in effect."
 msgstr "当前系统主题为亮色，对应配色方案生效中。"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:167
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:169
 msgid ""
 "This replaces the %1 setting of the dark theme with that of the light theme. "
 "Nothing is saved until you click Apply or OK."
@@ -797,7 +797,7 @@ msgstr[0] ""
 "将用亮色主题的 %1 项设置覆盖暗色主题的对应设置，点击「应用」或「确定」后才会"
 "保存。"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:170
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:172
 msgid ""
 "This replaces the %1 setting of the light theme with that of the dark theme. "
 "Nothing is saved until you click Apply or OK."
@@ -808,12 +808,12 @@ msgstr[0] ""
 "将用暗色主题的 %1 项设置覆盖亮色主题的对应设置，点击「应用」或「确定」后才会"
 "保存。"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:176
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:178
 msgctxt "@action:button"
 msgid "Sync"
 msgstr "同步"
 
-#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:184
+#: frontend/plasmoid/package/contents/ui/config/ThemeTabs.qml:186
 msgctxt "@action:button"
 msgid "Cancel"
 msgstr "取消"

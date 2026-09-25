@@ -1852,16 +1852,16 @@ TestCase {
         // WHAT THIS DOES NOT DO, and why. The obvious test -- lengthen a
         // description at runtime and assert the page does not move -- passes
         // just as well with the bug fully present, measured: uncapped, the
-        // page sits at 914 for text repeated 1x, 40x and 720x alike. The
+        // form sits at 846 for text repeated 1x, 40x and 720x alike. The
         // page width is fixed at load time by the *declared* text; assigning
         // `text` afterwards never moves it. A pixel budget is out too: every
         // absolute width here scales with the platform font, which is what
         // the line-height fixtures in this file had to be rewritten for.
         // So this asserts the mechanism, with both clauses measured to
         // discriminate: uncapped reads Infinity and takes the full content
-        // width (702 of 702), capped reads 432 and takes 432 of 702.
+        // width (702 of 702), capped reads 468 and takes 468 of 702.
         // Layout.preferredWidth: 0 does not substitute for the cap
-        // (measured: the page stayed at 938).
+        // (measured: the form stays at 846).
         const win = createTemporaryObject(windowedAppearanceSectionComponent, this);
         verify(win !== null);
         const section = win.section;
@@ -1881,8 +1881,8 @@ TestCase {
         for (let i = 0; i < descriptions.length; ++i) {
             const description = descriptions[i];
             // Uncapped, this reads Infinity; AppearanceSection.qml's
-            // formDescription comment has the measurements behind the 24.
-            verify(description.Layout.maximumWidth <= Kirigami.Units.gridUnit * 24);
+            // formDescription comment has the measurements behind the 26.
+            verify(description.Layout.maximumWidth <= Kirigami.Units.gridUnit * 26);
             // And the cap has to be tight enough to matter: a description
             // allowed the whole content width is back to being what the
             // page sizes itself to.
@@ -1893,7 +1893,7 @@ TestCase {
     // Every description is secondary copy under its row, styled as the
     // "Record debug details" description on the Lyrics Service page is, and
     // wraps: without WordWrap the English glow sentence stays one 604 px
-    // line, past its 432 px box and the right edge of the form (measured
+    // line, past its 468 px box and the right edge of the form (measured
     // in this test's window, which is just wide enough to still hold it).
     //
     // The font is compared with a Label given Kirigami.Theme.smallFont, not
@@ -2701,10 +2701,9 @@ TestCase {
     // The mode row's description is capped like AppearanceSection's (see
     // test_aDescriptionCannotWidenTheConfigPage for why the cap is the
     // mechanism to check), and has a positive preferred width, which is what
-    // FormLayout then sizes the column from instead of the text. The cap
-    // alone lets the Chinese text widen every form on the page (ThemeTabs.qml
-    // has the measurement); in this suite's English the cap is narrower than
-    // the controls, so only the mechanism can be checked here.
+    // FormLayout then sizes the column from instead of the text. Only the
+    // mechanism can be checked here: with today's wording the preferred
+    // width changes no width in this suite (ThemeTabs.qml has the history).
     function test_theModeDescriptionCannotWidenThePage() {
         for (const form of ["desktop", "panel"]) {
             const page = createWindowedPage(form, modeProperties(form, "auto"));

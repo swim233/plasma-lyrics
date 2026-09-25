@@ -64,17 +64,19 @@ ColumnLayout {
         QQC2.Label {
             // Styled, capped and named as AppearanceSection's formDescription
             // labels are; its comment has the measurements behind the cap.
-            // The cap alone is not enough here: the 24 gridUnits sit below
-            // what the controls need in English but above it in Chinese, and
-            // this sentence in Chinese is wider than the controls, which
-            // widened every form on the page by 35 px (489 -> 524, measured).
-            // A preferred width of 1 -- FormLayout ignores 0 -- leaves the
-            // column width to the controls; fillWidth still lets the text
-            // take all of it, up to the cap.
+            // The cap alone is not enough here: every form on the page shares
+            // one column width, so a sentence here wider than every other
+            // item in the column widens them all, as an earlier wording did
+            // in Chinese (489 -> 524 px, measured then). A preferred width of
+            // 1 -- FormLayout ignores 0 -- leaves the column width to the
+            // other items; fillWidth still lets the text take all of it, up
+            // to the cap. With today's wording it changes no width: measured
+            // with and without it, the page is as wide in English and in
+            // Chinese, where AppearanceSection's first description is wider.
             objectName: "formDescription"
             Layout.fillWidth: true
             Layout.preferredWidth: 1
-            Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+            Layout.maximumWidth: Kirigami.Units.gridUnit * 26
             wrapMode: Text.WordWrap
             color: Kirigami.Theme.disabledTextColor
             font: Kirigami.Theme.smallFont
