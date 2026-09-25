@@ -538,24 +538,31 @@ private Q_SLOTS:
 
     // Lines overlap (duets, backing vocals), and the next one takes over
     // the moment it starts: a line can be switched away from with a word
-    // still to come. The kept copy holds only what was born by the switch,
-    // so that word never rises from where the line was, and the last of the
-    // copy goes out 2050 ms after the switch at the latest -- 2050 ms, not
-    // "2050 after its last word", is the most a switch can add to the clock.
-    void aDetachedLineKeepsOnlyWhatWasBornByTheSwitch()
+    // still to come. The kept copy holds every particle of the words started
+    // by the switch -- a word that had just started keeps even the particles
+    // its 90 ms birth window puts after the switch -- and nothing of the
+    // words after it. So the last of the copy goes out 90 + 2050 ms after the
+    // switch at the latest, which is the most a switch adds to the clock.
+    void aDetachedLineKeepsTheWordsStartedByTheSwitch()
     {
         LineLayout layout;
         layout.startMs = 1000;
         layout.text = QStringLiteral("overlapping");
         layout.ascent = 30;
-        layout.words = {span(1000, 1400), span(1400, 1800, 30), span(3000, 3400, 60)};
+        // Sung long before, just started (switch - 10), just to come
+        // (switch + 1), and well after.
+        layout.words = {span(1000, 1400), span(1990, 2400, 30), span(2001, 2400, 60), span(3000, 3400, 90)};
         const Snapshot line = capture(layout);
-        int bornBySwitch = 0;
+        int started = 0;
+        int startedButBornLater = 0;
         for (const Particle &p : line.particles) {
-            bornBySwitch += p.birthMs <= 2000;
+            started += p.wordStartMs <= 2000;
+            startedButBornLater += p.wordStartMs <= 2000 && p.birthMs > 2000;
         }
-        QVERIFY(bornBySwitch > 0);
-        QVERIFY(bornBySwitch < line.particles.size());
+        QVERIFY(started > 0);
+        QVERIFY(started < line.particles.size());
+        // The case the rule is for: a started word with births still to come.
+        QVERIFY(startedButBornLater > 0);
         QVERIFY(line.aliveUntilMs() > 3000 + kLifeMs);
 
         Field field;
@@ -564,32 +571,35 @@ private Q_SLOTS:
         field.setLive(Snapshot());
         QCOMPARE(field.snapshots().size(), 1);
         const Snapshot *kept = field.snapshots().first();
-        QCOMPARE(kept->particles.size(), bornBySwitch);
+        QCOMPARE(kept->particles.size(), started);
         for (const Particle &p : kept->particles) {
-            QVERIFY(p.birthMs <= 2000);
+            QVERIFY(p.wordStartMs <= 2000);
         }
         QVERIFY(field.aliveUntilMs() <= 2000 + kBirthSpreadMs + kLifeMs);
-        QVERIFY(field.aliveUntilMs() <= 2000 + kLifeMs);
         QCOMPARE(kept->aliveUntilMs(), kept->lastBirthMs + kLifeMs);
+        double last = 0;
+        for (const Particle &p : kept->particles) {
+            last = std::max(last, p.birthMs);
+        }
+        QCOMPARE(kept->lastBirthMs, last);
 
-        // A particle born exactly at the switch is in the air, and stays.
-        Snapshot edge;
-        edge.startMs = 1000;
-        edge.text = QStringLiteral("edge");
-        Particle atSwitch;
-        atSwitch.birthMs = 2000;
-        edge.particles = {atSwitch};
-        edge.lastBirthMs = 2000;
+        // A word starting exactly at the switch has started, and keeps all.
+        LineLayout atSwitch;
+        atSwitch.startMs = 2000;
+        atSwitch.text = QStringLiteral("at the switch");
+        atSwitch.words = {span(2000, 2400)};
+        const Snapshot exact = capture(atSwitch);
         Field boundary;
-        boundary.setLive(edge);
+        boundary.setLive(exact);
         boundary.detach(2000);
         boundary.setLive(Snapshot());
         QCOMPARE(boundary.snapshots().size(), 1);
+        QCOMPARE(boundary.snapshots().first()->particles.size(), exact.particles.size());
 
         // Switched away from before its first word: nothing is kept at all.
         Field early;
         early.setLive(line);
-        early.detach(1000);
+        early.detach(999);
         early.setLive(Snapshot());
         QCOMPARE(early.snapshots().size(), 0);
     }

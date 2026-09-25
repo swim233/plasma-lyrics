@@ -855,7 +855,8 @@ TestCase {
     // over the moment it starts, so a line can be switched away from with a
     // word still to come ("ef" at 3000 here, the switch at 2000). That word
     // must not rise later from where the line was, over whatever the slot
-    // shows by then, and the clock must stop within 2050 ms of the switch.
+    // shows by then, and the clock must stop within 90 + 2050 ms of the
+    // switch.
     function test_aWordStillToComeWhenTheLineGoesNeverSpawns() {
         const overlapping = [
             { startMs: 1000, endMs: 1400, text: "ab" },
@@ -873,8 +874,44 @@ TestCase {
         switchToPlainLine(t, "next line");
         compare(t.layer.snapshotCount, 1);
         verify(t.layer.particlesAliveUntilMs <= 2000 + 90 + 2050, t.layer.particlesAliveUntilMs);
-        verify(t.layer.describeSnapshots()[0].birthTimes.every(ms => ms <= 2000));
-        step(view, source, 2000 + 2050);
+        verify(t.layer.describeSnapshots()[0].birthTimes.every(ms => ms < 3000));
+        step(view, source, 2000 + 90 + 2050);
+        compare(view.wordClockRunning, false);
+        compare(t.layer.snapshotCount, 0);
+    }
+
+    // QQ often ends a line before its last word ends: the slot empties while
+    // that held last note is still being sung, 50 ms into it here. The word
+    // has started, so all of its particles rise, the ones its 90 ms birth
+    // window puts after the switch included; and the clock still stops
+    // within 90 + 2050 ms of the switch.
+    function test_aHeldLastNoteKeepsAllItsParticlesWhenTheLineEnds() {
+        const held = [
+            { startMs: 1000, endMs: 1400, text: "ab" },
+            { startMs: 1400, endMs: 2400, text: "cd" }
+        ];
+        const source = createTemporaryObject(fakeSourceComponent, this,
+            { currentText: "abcd", currentWords: held, positionMs: 1450 });
+        const view = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: true });
+        const t = { source: source, view: view, layer: layerOf(view), lyric: lyricOf(view) };
+        tryCompare(t.layer, "snapshotCount", 1);
+        const before = current(t.layer).birthTimes;
+        const lastWord = before.filter(ms => ms >= 1400);
+        verify(lastWord.length > 0);
+        verify(lastWord.some(ms => ms > 1450), JSON.stringify(lastWord));
+
+        // The line ends: nothing on the slot.
+        source.currentWords = [];
+        source.currentText = "";
+        tryVerify(() => t.lyric.shownText === "");
+        compare(t.layer.snapshotCount, 1);
+        const kept = t.layer.describeSnapshots()[0];
+        compare(kept.birthTimes.length, before.length);
+        compare(kept.birthTimes.filter(ms => ms >= 1400).length, lastWord.length);
+        verify(t.layer.particlesAliveUntilMs <= 1450 + 90 + 2050, t.layer.particlesAliveUntilMs);
+        compare(view.wordClockRunning, true);
+        step(view, source, 1450 + 90 + 2050);
         compare(view.wordClockRunning, false);
         compare(t.layer.snapshotCount, 0);
     }
@@ -936,8 +973,8 @@ TestCase {
         verify(live.birthTimes.length > 0);
         verify(live.birthTimes.every(ms => ms >= 2300), JSON.stringify(live.birthTimes));
         verify(t.layer.particlesAliveUntilMs >= 2300 + 2050);
-        // The line switch that follows keeps what was born by then, and
-        // nothing had been since the drop.
+        // The line switch that follows keeps only the words started by then:
+        // the drop left nothing of "ef", and "gh" has not started.
         switchToPlainLine(t, "new track");
         compare(t.layer.snapshotCount, 0);
         compare(t.view.wordClockRunning, false);

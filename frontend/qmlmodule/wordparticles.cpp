@@ -145,6 +145,7 @@ QList<Particle> spawn(qint64 lineStartMs, int wordIndex, const WordSpan &word,
     // every particle of every line.
     for (int i = 0; i < count; ++i) {
         Particle p;
+        p.wordStartMs = static_cast<double>(word.startMs);
         p.birthMs = word.startMs + random.unit() * spreadMs;
         p.size = std::pow(kMaxSize, random.unit());
         p.x = word.left + word.width * (kInkFrom + (kInkTo - kInkFrom) * random.unit());
@@ -202,13 +203,16 @@ void Field::setLiveFollow(double offsetX, double offsetY, double opacity)
 
 void Field::detach(double positionMs)
 {
-    // Only what has been born by now. Lines overlap -- duets and backing
-    // vocals in AMLL, some QRC -- and the next one takes over the moment it
-    // starts, so a line can be switched away from with words still to come;
-    // born later, those would rise from where the line was, over whatever
-    // the slot shows by then.
+    // Only the words started by now, each with all of its particles. Lines
+    // overlap -- duets and backing vocals in AMLL, some QRC -- and the next
+    // one takes over the moment it starts, so a line can be switched away
+    // from with words still to come; born later, those would rise from where
+    // the line was, over whatever the slot shows by then. A word that has
+    // just started is being sung, though, and keeps the particles its 90 ms
+    // birth window still holds: most often it is a QQ line's held last
+    // note, whose line ends before the word does.
     Snapshot kept = m_live;
-    kept.particles.removeIf([positionMs](const Particle &p) { return p.birthMs > positionMs; });
+    kept.particles.removeIf([positionMs](const Particle &p) { return p.wordStartMs > positionMs; });
     if (!kept.particles.isEmpty()) {
         kept.lastBirthMs = -std::numeric_limits<double>::infinity();
         for (const Particle &p : std::as_const(kept.particles)) {

@@ -59,6 +59,9 @@ quint64 seedFor(qint64 lineStartMs, int wordIndex);
 struct Particle
 {
     double birthMs = 0;
+    // The start of the word it rose from: a line switched away from keeps
+    // the particles of the words it had started singing.
+    double wordStartMs = 0;
     // Birth point in the layer, before any offset the line is following.
     double x = 0;
     double y = 0;
@@ -164,13 +167,15 @@ public:
     /// same line goes: the current line's snapshot replaces an older one.
     void setLive(const Snapshot &live);
     void setLiveFollow(double offsetX, double offsetY, double opacity);
-    /// The current line stops being current: a copy holding its particles
-    /// born by positionMs is kept, frozen where it was, in place of any
-    /// older copy of the same line -- unless at positionMs it would already
-    /// fail the condition prune() keeps lines by, as after a seek back
-    /// before the line or past its last particle. Words not started yet
-    /// spawn nothing from the copy, so the last of it goes out 2050 ms after
-    /// positionMs at the latest. The current line itself is left alone until
+    /// The current line stops being current: a copy holding every particle
+    /// of the words started by positionMs is kept, frozen where it was, in
+    /// place of any older copy of the same line -- unless at positionMs it
+    /// would already fail the condition prune() keeps lines by, as after a
+    /// seek back before the line or past its last particle. A started word
+    /// keeps all its particles, even those born within its 90 ms after the
+    /// switch; a word not started yet spawns nothing from the copy. So the
+    /// last of it goes out 90 + 2050 ms after positionMs at the latest. The
+    /// current line itself is left alone until
     /// the next setLive() or dedupe(), which is where a line switch that
     /// turns out to land on the same line again (only the second line
     /// changed) drops that copy, the line going on with all its words.
