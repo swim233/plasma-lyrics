@@ -2415,88 +2415,103 @@ TestCase {
         }
     }
 
-    // DESIGN.md decision 77's three rows, on both pages and both tabs. They
-    // go with the rest of the word-by-word group, the colour switch shows
-    // only while the particles are on, and the colour only while that switch
-    // is on as well. A click on either check box writes the key of the set
-    // on screen and no other.
+    // DESIGN.md decision 77's three rows, on both pages and both tabs, from
+    // each of three stored states: everything on, the dark default (particles
+    // on, their own colour off) and the light default (both off). They go
+    // with the rest of the word-by-word group, the colour switch shows only
+    // while the particles are on, and the colour only while that switch is
+    // on as well; each check box shows its key as stored. A click on either
+    // check box writes the key of the set on screen and no other.
     function test_particleRowsShowWithWordByWordAndEachOther() {
+        const seeds = [
+            { tag: "both on", particles: true, colorEnabled: true },
+            { tag: "dark default", particles: true, colorEnabled: false },
+            { tag: "light default", particles: false, colorEnabled: false }
+        ];
         for (const form of ["desktop", "panel"]) {
             for (const dark of [false, true]) {
-                const tag = form + (dark ? " dark" : " light");
-                const props = distinctConfiguration(form, dark ? "dark" : "light");
-                const key = suffix => "cfg_" + ThemePolicy.keyPrefix(form, dark) + suffix;
-                const otherKey = suffix => "cfg_" + ThemePolicy.keyPrefix(form, !dark) + suffix;
-                props[key("WordByWord")] = true;
-                props[key("WordParticles")] = true;
-                props[key("WordParticleColorEnabled")] = true;
-                props[key("WordParticleColor")] = "#ff8800";
-                const page = createWindowedPage(form, props);
-                compare(page.editingDark, dark, tag);
-                const particles = named(page, "wordParticlesCheckBox");
-                const colorSwitch = named(page, "wordParticleColorCheckBox");
-                const colorField = named(page, "wordParticleColorField");
-                const shown = () => [particles.visible, colorSwitch.visible, colorField.visible];
-                compare(particles.Kirigami.FormData.label, i18n("Particles:"), tag);
-                compare(colorSwitch.Kirigami.FormData.label, i18n("Particle color:"), tag);
-                compare(colorField.Kirigami.FormData.label, i18n("Color:"), tag);
-                compare(particles.text, i18n("Float particles up from each word as it is sung"), tag);
-                compare(colorSwitch.text, i18n("Set it separately from the current word color"), tag);
-                // Right after "Blurred glow:", the last row of the group
-                // before them, and in this order down the form.
-                const sectionChildren = sectionOf(page).children;
-                const rows = [];
-                for (let i = 0; i < sectionChildren.length; ++i) {
-                    if (sectionChildren[i].Kirigami.FormData.label !== "") {
-                        rows.push(sectionChildren[i]);
+                for (const seed of seeds) {
+                    const tag = form + (dark ? " dark, " : " light, ") + seed.tag;
+                    const props = distinctConfiguration(form, dark ? "dark" : "light");
+                    const key = suffix => "cfg_" + ThemePolicy.keyPrefix(form, dark) + suffix;
+                    const otherKey = suffix => "cfg_" + ThemePolicy.keyPrefix(form, !dark) + suffix;
+                    props[key("WordByWord")] = true;
+                    props[key("WordParticles")] = seed.particles;
+                    props[key("WordParticleColorEnabled")] = seed.colorEnabled;
+                    props[key("WordParticleColor")] = "#ff8800";
+                    const page = createWindowedPage(form, props);
+                    compare(page.editingDark, dark, tag);
+                    const particles = named(page, "wordParticlesCheckBox");
+                    const colorSwitch = named(page, "wordParticleColorCheckBox");
+                    const colorField = named(page, "wordParticleColorField");
+                    // Which of the three rows show, then whether each check
+                    // box is checked.
+                    const state = () => [particles.visible, colorSwitch.visible, colorField.visible,
+                                         particles.checked, colorSwitch.checked];
+                    const expected = (wordByWord, on, colorEnabled) =>
+                        [wordByWord, wordByWord && on, wordByWord && on && colorEnabled, on, colorEnabled];
+                    compare(particles.Kirigami.FormData.label, i18n("Particles:"), tag);
+                    compare(colorSwitch.Kirigami.FormData.label, i18n("Particle color:"), tag);
+                    compare(colorField.Kirigami.FormData.label, i18n("Color:"), tag);
+                    compare(particles.text, i18n("Float particles up from each word as it is sung"), tag);
+                    compare(colorSwitch.text, i18n("Set it separately from the current word color"), tag);
+                    // Right after "Blurred glow:", the last row of the group
+                    // before them, and in this order down the form.
+                    const sectionChildren = sectionOf(page).children;
+                    const rows = [];
+                    for (let i = 0; i < sectionChildren.length; ++i) {
+                        if (sectionChildren[i].Kirigami.FormData.label !== "") {
+                            rows.push(sectionChildren[i]);
+                        }
                     }
+                    const glowAt = rows.findIndex(item => item.Kirigami.FormData.label === i18n("Blurred glow:"));
+                    verify(glowAt >= 0, tag);
+                    compare(rows.indexOf(particles), glowAt + 1, tag);
+                    compare(rows.indexOf(colorSwitch), glowAt + 2, tag);
+                    compare(rows.indexOf(colorField), glowAt + 3, tag);
+                    compare(state(), expected(true, seed.particles, seed.colorEnabled), tag);
+                    compare(colorField.value, "#ff8800", tag);
+
+                    page[key("WordParticles")] = true;
+                    page[key("WordParticleColorEnabled")] = true;
+                    compare(state(), expected(true, true, true), tag);
+                    page[key("WordParticleColorEnabled")] = false;
+                    compare(state(), expected(true, true, false), tag);
+                    page[key("WordParticles")] = false;
+                    compare(state(), expected(true, false, false), tag);
+                    page[key("WordParticleColorEnabled")] = true;
+                    compare(state(), expected(true, false, true), tag);
+                    page[key("WordParticles")] = true;
+                    compare(state(), expected(true, true, true), tag);
+                    page[key("WordByWord")] = false;
+                    compare(state(), expected(false, true, true), tag);
+                    page[key("WordByWord")] = true;
+                    compare(state(), expected(true, true, true), tag);
+
+                    const others = ["WordParticles", "WordParticleColorEnabled", "WordParticleColor"]
+                        .map(suffix => page[otherKey(suffix)]);
+                    const othersUnchanged = () => ["WordParticles", "WordParticleColorEnabled", "WordParticleColor"]
+                        .every((suffix, i) => page[otherKey(suffix)] === others[i]);
+
+                    settle(colorSwitch);
+                    scrollIntoView(page, colorSwitch);
+                    mouseClick(colorSwitch);
+                    compare(page[key("WordParticleColorEnabled")], false, tag);
+                    compare(state(), expected(true, true, false), tag);
+
+                    settle(particles);
+                    scrollIntoView(page, particles);
+                    mouseClick(particles);
+                    compare(page[key("WordParticles")], false, tag);
+                    compare(state(), expected(true, false, false), tag);
+                    mouseClick(particles);
+                    compare(page[key("WordParticles")], true, tag);
+                    compare(state(), expected(true, true, false), tag);
+
+                    colorField.edited("#123456");
+                    compare(page[key("WordParticleColor")], "#123456", tag);
+                    verify(othersUnchanged(), tag);
                 }
-                const glowAt = rows.findIndex(item => item.Kirigami.FormData.label === i18n("Blurred glow:"));
-                verify(glowAt >= 0, tag);
-                compare(rows.indexOf(particles), glowAt + 1, tag);
-                compare(rows.indexOf(colorSwitch), glowAt + 2, tag);
-                compare(rows.indexOf(colorField), glowAt + 3, tag);
-                compare(shown(), [true, true, true], tag);
-                verify(particles.checked, tag);
-                verify(colorSwitch.checked, tag);
-                compare(colorField.value, "#ff8800", tag);
-
-                page[key("WordParticleColorEnabled")] = false;
-                compare(shown(), [true, true, false], tag);
-                page[key("WordParticles")] = false;
-                compare(shown(), [true, false, false], tag);
-                page[key("WordParticleColorEnabled")] = true;
-                compare(shown(), [true, false, false], tag);
-                page[key("WordParticles")] = true;
-                compare(shown(), [true, true, true], tag);
-                page[key("WordByWord")] = false;
-                compare(shown(), [false, false, false], tag);
-                page[key("WordByWord")] = true;
-                compare(shown(), [true, true, true], tag);
-
-                const others = ["WordParticles", "WordParticleColorEnabled", "WordParticleColor"]
-                    .map(suffix => page[otherKey(suffix)]);
-                const othersUnchanged = () => ["WordParticles", "WordParticleColorEnabled", "WordParticleColor"]
-                    .every((suffix, i) => page[otherKey(suffix)] === others[i]);
-
-                settle(colorSwitch);
-                scrollIntoView(page, colorSwitch);
-                mouseClick(colorSwitch);
-                compare(page[key("WordParticleColorEnabled")], false, tag);
-                compare(shown(), [true, true, false], tag);
-
-                settle(particles);
-                scrollIntoView(page, particles);
-                mouseClick(particles);
-                compare(page[key("WordParticles")], false, tag);
-                compare(shown(), [true, false, false], tag);
-                mouseClick(particles);
-                compare(page[key("WordParticles")], true, tag);
-                compare(shown(), [true, true, false], tag);
-
-                colorField.edited("#123456");
-                compare(page[key("WordParticleColor")], "#123456", tag);
-                verify(othersUnchanged(), tag);
             }
         }
     }
