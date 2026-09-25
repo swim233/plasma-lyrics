@@ -187,6 +187,15 @@ TestCase {
         }
     }
 
+    // What Kirigami.Theme.smallFont resolves to on a Label, for
+    // test_descriptionsAreStyledAsSecondaryCopy.
+    Component {
+        id: smallFontLabelComponent
+        QQC2.Label {
+            font: Kirigami.Theme.smallFont
+        }
+    }
+
     Component {
         id: configTextComponent
         LyricsConfig.ConfigText {}
@@ -1871,12 +1880,47 @@ TestCase {
 
         for (let i = 0; i < descriptions.length; ++i) {
             const description = descriptions[i];
-            // Uncapped, this reads Infinity.
-            verify(description.Layout.maximumWidth < Infinity);
+            // Uncapped, this reads Infinity; AppearanceSection.qml's
+            // formDescription comment has the measurements behind the 24.
+            verify(description.Layout.maximumWidth <= Kirigami.Units.gridUnit * 24);
             // And the cap has to be tight enough to matter: a description
             // allowed the whole content width is back to being what the
             // page sizes itself to.
             verify(description.width < section.width);
+        }
+    }
+
+    // Every description is secondary copy under its row, styled as the
+    // "Record debug details" description on the Lyrics Service page is, and
+    // wraps: without WordWrap the English glow sentence stays one 604 px
+    // line, past its 432 px box and the right edge of the form (measured
+    // in this test's window, which is just wide enough to still hold it).
+    //
+    // The font is compared with a Label given Kirigami.Theme.smallFont, not
+    // with smallFont's own fields: this binary gets Kirigami's basic theme,
+    // and what a Label makes of its smallFont depends on the Kirigami
+    // version. Measured on Arch (Kirigami 6.30): smallFont reads Noto Sans
+    // 12 pt, a Label given it renders Noto Sans 9 pt -- only the family
+    // carries over -- and one without it Sans Serif 9 pt. In the Debian 13
+    // container (Kirigami 6.13): smallFont reads Sans Serif 7 pt, a Label
+    // takes it whole, and one without it renders 9 pt. A lost font shows in
+    // the family on one and in the size on the other, so all three compares
+    // are needed.
+    function test_descriptionsAreStyledAsSecondaryCopy() {
+        const win = createTemporaryObject(windowedAppearanceSectionComponent, this);
+        verify(win !== null);
+        const reference = createTemporaryObject(smallFontLabelComponent, win.contentItem);
+        verify(reference !== null);
+        const descriptions = findAll(win.section, o => o.objectName === "formDescription");
+        verify(descriptions.length > 0);
+        for (let i = 0; i < descriptions.length; ++i) {
+            const description = descriptions[i];
+            const tag = description.text;
+            verify(Qt.colorEqual(description.color, description.Kirigami.Theme.disabledTextColor), tag);
+            compare(description.font.family, reference.font.family, tag);
+            compare(description.font.pointSize, reference.font.pointSize, tag);
+            compare(description.font.pixelSize, reference.font.pixelSize, tag);
+            compare(description.wrapMode, Text.WordWrap, tag);
         }
     }
 

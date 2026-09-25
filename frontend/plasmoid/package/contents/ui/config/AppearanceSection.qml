@@ -313,10 +313,11 @@ Kirigami.FormLayout {
         // and 806px, against the 653px the rest of the page needs, and the
         // page's implicitWidth went 761 -> 938 (+23%) when they were added.
         // Layout.preferredWidth: 0 does NOT help (measured: still 938); only
-        // an explicit cap does. 24 gridUnits keeps every description
-        // comfortably under the ~653px the controls themselves already need,
-        // so a control stays the binding constraint and no future wording
-        // change can move the page width again.
+        // an explicit cap does. 24 gridUnits bounds how wide any description
+        // can make the field column. Below the cap a description can still
+        // be the widest item there (the first one on this form is, in
+        // Chinese), so a wording change can move the page width, but never
+        // past the cap.
         Layout.maximumWidth: Kirigami.Units.gridUnit * 24
         wrapMode: Text.WordWrap
         // Same styling as the "Record debug details" description on the
@@ -353,10 +354,11 @@ Kirigami.FormLayout {
         // and 806px, against the 653px the rest of the page needs, and the
         // page's implicitWidth went 761 -> 938 (+23%) when they were added.
         // Layout.preferredWidth: 0 does NOT help (measured: still 938); only
-        // an explicit cap does. 24 gridUnits keeps every description
-        // comfortably under the ~653px the controls themselves already need,
-        // so a control stays the binding constraint and no future wording
-        // change can move the page width again.
+        // an explicit cap does. 24 gridUnits bounds how wide any description
+        // can make the field column. Below the cap a description can still
+        // be the widest item there (the first one on this form is, in
+        // Chinese), so a wording change can move the page width, but never
+        // past the cap.
         Layout.maximumWidth: Kirigami.Units.gridUnit * 24
         wrapMode: Text.WordWrap
         visible: root.wordByWord
