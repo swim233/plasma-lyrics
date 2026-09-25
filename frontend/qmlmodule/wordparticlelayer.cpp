@@ -132,7 +132,7 @@ void WordParticleLayer::setFontSize(int value)
         return;
     }
     m_fontSize = value;
-    update();
+    redraw();
     Q_EMIT fontSizeChanged();
 }
 
@@ -142,7 +142,7 @@ void WordParticleLayer::setColor(const QColor &value)
         return;
     }
     m_color = value;
-    update();
+    redraw();
     Q_EMIT colorChanged();
 }
 
@@ -170,7 +170,7 @@ void WordParticleLayer::setLineOffset(const QPointF &value)
     }
     m_lineOffset = value;
     m_field.setLiveFollow(m_lineOffset.x(), m_lineOffset.y(), m_lineOpacity);
-    update();
+    redraw();
     Q_EMIT lineOffsetChanged();
 }
 
@@ -181,7 +181,7 @@ void WordParticleLayer::setLineOpacity(qreal value)
     }
     m_lineOpacity = value;
     m_field.setLiveFollow(m_lineOffset.x(), m_lineOffset.y(), m_lineOpacity);
-    update();
+    redraw();
     Q_EMIT lineOpacityChanged();
 }
 
@@ -286,6 +286,15 @@ void WordParticleLayer::recaptureLine()
     }
     m_field.setLive(m_active ? WordParticles::capture(layoutOfLine()) : WordParticles::Snapshot());
     fieldChanged();
+}
+
+// Only while there is something to draw: with particles off, or between
+// songs, a sliding block or a colour fade asks for no work here at all.
+void WordParticleLayer::redraw()
+{
+    if (m_snapshotCount > 0) {
+        update();
+    }
 }
 
 void WordParticleLayer::fieldChanged()

@@ -107,6 +107,7 @@ protected:
 private:
     WordParticles::LineLayout layoutOfLine();
     void recaptureLine();
+    void redraw();
     void fieldChanged();
 
     bool m_active = false;
