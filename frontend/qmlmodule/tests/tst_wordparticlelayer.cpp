@@ -1,5 +1,6 @@
 #include "frontend/qmlmodule/wordparticlelayer.h"
 
+#include <QFontMetricsF>
 #include <QSGGeometryNode>
 #include <QTest>
 
@@ -69,6 +70,19 @@ void setUp(Layer &layer, const QVariant &value, double positionMs)
 double distance(const QSGGeometry::ColoredPoint2D &a, const QSGGeometry::ColoredPoint2D &b)
 {
     return std::hypot(double(a.x) - b.x, double(a.y) - b.y);
+}
+
+QList<QPointF> births(const Layer &layer)
+{
+    QList<QPointF> out;
+    for (const QVariant &snapshot : layer.describeSnapshots()) {
+        if (snapshot.toMap().value(QStringLiteral("current")).toBool()) {
+            for (const QVariant &birth : snapshot.toMap().value(QStringLiteral("births")).toList()) {
+                out.append(birth.toPointF());
+            }
+        }
+    }
+    return out;
 }
 
 } // namespace
@@ -189,6 +203,72 @@ private Q_SLOTS:
         QVERIFY(v[core].a > v[0].a);
         // Premultiplied: no channel above alpha.
         QVERIFY(v[core].r <= v[core].a);
+    }
+
+    // Measured once per line, from the words' own text: the ink leaves out
+    // trailing whitespace, and a new line with as many words as the last one
+    // is measured again.
+    void eachLineIsMeasuredFromItsOwnWords()
+    {
+        const QFontMetricsF metrics(lineFont());
+        Layer layer;
+        setUp(layer, line(1000, {word(1000, 1400, QStringLiteral("i "), 0), word(1400, 1800, QStringLiteral("i"), 60)}), 1500);
+        QList<QVariant> words = layer.describeLine().value(QStringLiteral("words")).toList();
+        QCOMPARE(words.size(), 2);
+        QCOMPARE(words.at(0).toMap().value(QStringLiteral("ink")).toDouble(), metrics.horizontalAdvance(QStringLiteral("i")));
+
+        const QString wide = QStringLiteral("WWWWWWWW");
+        layer.setLine(line(5000, {word(5000, 5400, wide, 0), word(5400, 5800, wide + QStringLiteral("  "), 400)}));
+        layer.setPositionMs(5500);
+        words = layer.describeLine().value(QStringLiteral("words")).toList();
+        const double ink = metrics.horizontalAdvance(wide);
+        QCOMPARE(words.at(0).toMap().value(QStringLiteral("ink")).toDouble(), ink);
+        QCOMPARE(words.at(1).toMap().value(QStringLiteral("ink")).toDouble(), ink);
+        for (const QPointF &birth : births(layer)) {
+            const double left = birth.x() < 400 ? 0 : 400;
+            QVERIFY(birth.x() >= left + 0.1 * ink - 1e-9);
+            QVERIFY(birth.x() <= left + 0.9 * ink + 1e-9);
+        }
+
+        // The same words at another size -- "fit" shrinking them -- are
+        // measured again too.
+        QVariantMap smaller = line(5000, {word(5000, 5400, wide, 0), word(5400, 5800, wide + QStringLiteral("  "), 400)});
+        QFont font = lineFont();
+        font.setPixelSize(17);
+        smaller.insert(QStringLiteral("font"), font);
+        layer.setLine(smaller);
+        words = layer.describeLine().value(QStringLiteral("words")).toList();
+        QCOMPARE(words.at(0).toMap().value(QStringLiteral("ink")).toDouble(), QFontMetricsF(font).horizontalAdvance(wide));
+    }
+
+    // A move of the whole line (a translation appearing, the widget resized)
+    // moves the births of the line being sung with it.
+    void theLineBeingSungFollowsItsOrigin()
+    {
+        Layer layer;
+        setUp(layer, twoWords(), 1500);
+        const QList<QPointF> before = births(layer);
+        QVERIFY(!before.isEmpty());
+        layer.setLineOrigin(QPointF(100, 50));
+        const QList<QPointF> after = births(layer);
+        QCOMPARE(after.size(), before.size());
+        for (int i = 0; i < before.size(); ++i) {
+            QCOMPARE(after.at(i), before.at(i) + QPointF(100, 50));
+        }
+        QCOMPARE(layer.describeLine().value(QStringLiteral("x")).toDouble(), 100.0);
+    }
+
+    // The same line set again is no change at all.
+    void anUnchangedLineIsIgnored()
+    {
+        Layer layer;
+        setUp(layer, twoWords(), 1500);
+        int changes = 0;
+        connect(&layer, &WordParticleLayer::lineChanged, this, [&changes] { ++changes; });
+        layer.setLine(twoWords());
+        QCOMPARE(changes, 0);
+        layer.setLine(line(1000, {word(1000, 1400, QStringLiteral("ab"), 0), word(1400, 1800, QStringLiteral("cd"), 61)}));
+        QCOMPARE(changes, 1);
     }
 
     // Frames are asked for only while there is something to draw, plus the

@@ -148,7 +148,11 @@ void WordParticleLayer::setColor(const QColor &value)
 
 void WordParticleLayer::setLine(const QVariant &value)
 {
+    if (value == m_line) {
+        return;
+    }
     m_line = value;
+    measureLine();
     recaptureLine();
     Q_EMIT lineChanged();
 }
@@ -217,6 +221,7 @@ QVariantList WordParticleLayer::describeSnapshots() const
 void WordParticleLayer::componentComplete()
 {
     QQuickItem::componentComplete();
+    measureLine();
     recaptureLine();
 }
 
@@ -230,13 +235,16 @@ void WordParticleLayer::updatePolish()
     fieldChanged();
 }
 
-WordParticles::LineLayout WordParticleLayer::layoutOfLine()
+void WordParticleLayer::measureLine()
 {
-    WordParticles::LineLayout layout;
     const QVariantMap line = m_line.toMap();
     const QVariantList words = line.value(QStringLiteral("words")).toList();
+    m_words.clear();
+    m_lineStartMs = line.value(QStringLiteral("startMs")).toLongLong();
+    m_lineText = line.value(QStringLiteral("text")).toString();
+    m_rowPosition = QPointF(line.value(QStringLiteral("x")).toDouble(), line.value(QStringLiteral("y")).toDouble());
     if (words.isEmpty()) {
-        return layout;
+        return;
     }
 
     const QFont font = line.value(QStringLiteral("font")).value<QFont>();
@@ -260,20 +268,39 @@ WordParticles::LineLayout WordParticleLayer::layoutOfLine()
         m_measuredTexts = texts;
     }
 
-    const double rowX = m_lineOrigin.x() + line.value(QStringLiteral("x")).toDouble();
-    const double rowY = m_lineOrigin.y() + line.value(QStringLiteral("y")).toDouble();
-    layout.startMs = line.value(QStringLiteral("startMs")).toLongLong();
-    layout.text = line.value(QStringLiteral("text")).toString();
-    layout.ascent = m_cjkAscent;
-    layout.words.reserve(words.size());
+    m_words.reserve(words.size());
     for (int i = 0; i < words.size(); ++i) {
         const QVariantMap word = words.at(i).toMap();
+        MeasuredWord measured;
+        measured.startMs = word.value(QStringLiteral("startMs")).toLongLong();
+        measured.endMs = word.value(QStringLiteral("endMs")).toLongLong();
+        measured.inkWidth = m_inkWidths.at(i);
+        if (const auto *item = qobject_cast<QQuickItem *>(word.value(QStringLiteral("item")).value<QObject *>())) {
+            measured.x = item->x();
+            measured.baseline = item->baselineOffset();
+        } else {
+            measured.x = word.value(QStringLiteral("x")).toDouble();
+            measured.baseline = word.value(QStringLiteral("baseline")).toDouble();
+        }
+        m_words.append(measured);
+    }
+}
+
+WordParticles::LineLayout WordParticleLayer::layoutOfLine() const
+{
+    WordParticles::LineLayout layout;
+    const QPointF row = m_lineOrigin + m_rowPosition;
+    layout.startMs = m_lineStartMs;
+    layout.text = m_lineText;
+    layout.ascent = m_cjkAscent;
+    layout.words.reserve(m_words.size());
+    for (const MeasuredWord &word : m_words) {
         WordParticles::WordSpan span;
-        span.startMs = word.value(QStringLiteral("startMs")).toLongLong();
-        span.endMs = word.value(QStringLiteral("endMs")).toLongLong();
-        span.left = rowX + word.value(QStringLiteral("x")).toDouble();
-        span.width = m_inkWidths.at(i);
-        span.top = rowY + word.value(QStringLiteral("baseline")).toDouble() - m_cjkAscent;
+        span.startMs = word.startMs;
+        span.endMs = word.endMs;
+        span.left = row.x() + word.x;
+        span.width = word.inkWidth;
+        span.top = row.y() + word.baseline - m_cjkAscent;
         layout.words.append(span);
     }
     return layout;
@@ -286,6 +313,27 @@ void WordParticleLayer::recaptureLine()
     }
     m_field.setLive(m_active ? WordParticles::capture(layoutOfLine()) : WordParticles::Snapshot());
     fieldChanged();
+}
+
+QVariantMap WordParticleLayer::describeLine() const
+{
+    QVariantList words;
+    for (const MeasuredWord &word : m_words) {
+        words.append(QVariantMap{
+            {QStringLiteral("x"), word.x},
+            {QStringLiteral("baseline"), word.baseline},
+            {QStringLiteral("ink"), word.inkWidth},
+        });
+    }
+    const QPointF row = m_lineOrigin + m_rowPosition;
+    return {
+        {QStringLiteral("startMs"), m_lineStartMs},
+        {QStringLiteral("text"), m_lineText},
+        {QStringLiteral("x"), row.x()},
+        {QStringLiteral("y"), row.y()},
+        {QStringLiteral("ascent"), m_cjkAscent},
+        {QStringLiteral("words"), words},
+    };
 }
 
 int WordParticleLayer::updateRequests() const

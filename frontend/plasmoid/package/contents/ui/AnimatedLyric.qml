@@ -193,6 +193,9 @@ Item {
         brightnessStrength: root.brightnessStrength
         blurGlowEnabled: root.blurGlowEnabled
         lineHeightFactor: root.lineHeightFactor
+        // Never the previous block: its particles were detached at the
+        // switch, and its line would only be measured for nothing.
+        particlesWanted: root.particlesEnabled
     }
 
     // Every particle of the widget in one scene-graph node. Declared after

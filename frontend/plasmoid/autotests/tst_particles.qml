@@ -116,6 +116,225 @@ TestCase {
         tryVerify(() => t.lyric.shownText === text);
     }
 
+    function wordsOf(texts, start, duration) {
+        return texts.map((text, i) => ({ startMs: start + duration * i,
+                                         endMs: start + duration * (i + 1), text: text }));
+    }
+    function latinWords(prefix, count) {
+        const out = [];
+        for (let i = 0; i < count; ++i) {
+            out.push(prefix + i + " ");
+        }
+        return out;
+    }
+
+    // "" when the layer measured the current line exactly as it is drawn:
+    // each word's x and resting baseline -- the glyph's own, taken from the
+    // delegate the lift does not move -- plus what the line is following
+    // right now, the ink at the glyphs' own font without trailing
+    // whitespace, and the CJK ascent at that font. Font metrics are asked of
+    // the glyphs, never assumed, so this holds on any machine.
+    function currentBlock(view) {
+        const shown = lyricOf(view).shownText;
+        return findAll(view, o => o.slideOffset !== undefined && o.lyricText === shown)[0];
+    }
+    function drawnMismatch(view, layer) {
+        const line = layer.describeLine();
+        const block = currentBlock(view);
+        const glyphs = findAll(block, o => o.objectName === "lyricWord");
+        if (!line.words || line.words.length !== glyphs.length) {
+            return "measured " + (line.words ? line.words.length : "none") + " of " + glyphs.length;
+        }
+        const font = glyphs[0].font;
+        const cjk = createTemporaryObject(textMetricsComponent, this, { font: font, text: "国" });
+        const ascent = cjk.tightBoundingRect.height > 0 ? -cjk.tightBoundingRect.y
+            : createTemporaryObject(fontMetricsComponent, this, { font: font }).ascent;
+        if (Math.abs(line.ascent - ascent) > 0.01) {
+            return "ascent " + line.ascent + " against " + ascent;
+        }
+        for (let i = 0; i < glyphs.length; ++i) {
+            const glyph = glyphs[i];
+            const drawn = glyph.parent.mapToItem(layer, 0, glyph.baselineOffset);
+            const x = line.x + line.words[i].x + layer.lineOffset.x;
+            const baseline = line.y + line.words[i].baseline + layer.lineOffset.y;
+            if (Math.abs(x - drawn.x) > 0.01 || Math.abs(baseline - drawn.y) > 0.01) {
+                return "word " + i + " measured at " + x + "," + baseline + ", drawn at " + drawn.x + "," + drawn.y;
+            }
+            const ink = createTemporaryObject(textMetricsComponent, this,
+                { font: glyph.font, text: glyph.text.replace(/\s+$/, "") }).advanceWidth;
+            if (Math.abs(line.words[i].ink - ink) > 0.01) {
+                return "word " + i + " ink " + line.words[i].ink + " against " + ink;
+            }
+        }
+        return "";
+    }
+    // Settled: the Row has placed every word of the current block.
+    function waitForLayout(view) {
+        tryVerify(() => {
+            const glyphs = findAll(currentBlock(view), o => o.objectName === "lyricWord");
+            return glyphs.length > 0 && glyphs.every((g, i) => g.baselineOffset > 0
+                && (i === 0 || g.parent.x > glyphs[i - 1].parent.x));
+        });
+        wait(50);
+    }
+    function measuredView(properties, texts, positionMs) {
+        const source = createTemporaryObject(fakeSourceComponent, this, {
+            currentText: texts.join(""), currentWords: wordsOf(texts, 1000, 100),
+            positionMs: positionMs === undefined ? 1050 : positionMs });
+        const view = createTemporaryObject(lyricsViewComponent, this,
+            Object.assign({ source: source, width: 800 }, properties));
+        const t = { source: source, view: view, layer: layerOf(view), lyric: lyricOf(view) };
+        tryCompare(t.layer, "snapshotCount", 1);
+        waitForLayout(view);
+        return t;
+    }
+
+    // Lines with the same number of words and different widths, in every
+    // overflow mode word-by-word renders: measured anew each time, never
+    // from the last line of the same length.
+    function test_eachLineIsMeasuredAsDrawn_data() {
+        return [
+            { tag: "fit-panel", props: { panelMode: true, overflowMode: "fit" } },
+            { tag: "fit-desktop", props: { panelMode: false, overflowMode: "fit" } },
+            { tag: "elide-desktop", props: { panelMode: false, overflowMode: "elide" } },
+            { tag: "marquee-panel", props: { panelMode: true, overflowMode: "marquee" } },
+            { tag: "marquee-desktop", props: { panelMode: false, overflowMode: "marquee" } },
+        ];
+    }
+    function test_eachLineIsMeasuredAsDrawn(data) {
+        const narrow = latinWords("i", 10);
+        const wide = latinWords("Wm", 10);
+        const t = measuredView(data.props, narrow);
+        compare(drawnMismatch(t.view, t.layer), "", "first line");
+        step(t.view, t.source, 50000);
+        switchTo(t, wide.join(""), wordsOf(wide, 40000, 100));
+        waitForLayout(t.view);
+        compare(drawnMismatch(t.view, t.layer), "", "a wider line of as many words");
+        step(t.view, t.source, 90000);
+        switchTo(t, narrow.join(""), wordsOf(narrow, 80000, 100));
+        waitForLayout(t.view);
+        compare(drawnMismatch(t.view, t.layer), "", "back to the narrow one");
+        const cjk = "粒子从每个字上飘起来".split("");
+        step(t.view, t.source, 130000);
+        switchTo(t, cjk.join(""), wordsOf(cjk, 120000, 100));
+        waitForLayout(t.view);
+        compare(drawnMismatch(t.view, t.layer), "", "CJK");
+        // Exactly as wide as the last one: the row neither grows nor moves,
+        // and only the Row's own report of its layout says the words are in
+        // place.
+        const same = "唱到每个词时从字上飘".split("");
+        step(t.view, t.source, 170000);
+        switchTo(t, same.join(""), wordsOf(same, 160000, 100));
+        waitForLayout(t.view);
+        compare(drawnMismatch(t.view, t.layer), "", "CJK of the same width");
+    }
+
+    // "fit" shrinks the glyphs: the ink and ascent are measured at the size
+    // they are drawn at, not at fontSize.
+    function test_aShrunkLineIsMeasuredAtItsDrawnSize() {
+        // About 1.3 times the room there is, whatever this machine's font:
+        // shrunk, and still inside the 0.6 floor that keeps it word-by-word.
+        const metrics = createTemporaryObject(textMetricsComponent, this,
+            { font: Qt.font({ pixelSize: 34 }) });
+        const texts = [];
+        do {
+            texts.push("Wide" + texts.length + " ");
+            metrics.text = texts.join("");
+        } while (metrics.advanceWidth < 1.3 * 760);
+        const t = measuredView({ panelMode: false, overflowMode: "fit" }, texts);
+        const glyphs = findAll(t.view, o => o.objectName === "lyricWord");
+        verify(glyphs[0].font.pixelSize < t.view.fontSize, glyphs[0].font.pixelSize);
+        compare(drawnMismatch(t.view, t.layer), "");
+    }
+
+    function test_aHeavyWeightIsMeasuredAsDrawn() {
+        const t = measuredView({ panelMode: false, fontWeight: Font.Black }, latinWords("Wm", 8));
+        compare(drawnMismatch(t.view, t.layer), "");
+    }
+
+    // The block moves after the line was captured: a translation appears and
+    // re-centres it, or the widget grows.
+    function test_aMovedLineIsFollowed() {
+        const t = measuredView({ panelMode: false }, "粒子从每个字上飘起来".split(""));
+        compare(drawnMismatch(t.view, t.layer), "", "before");
+        t.source.currentTranslation = "a translation";
+        tryVerify(() => t.lyric.shownTranslation === "a translation");
+        waitForLayout(t.view);
+        compare(drawnMismatch(t.view, t.layer), "", "after the translation");
+        t.view.height = 420;
+        waitForLayout(t.view);
+        compare(drawnMismatch(t.view, t.layer), "", "after a resize");
+    }
+
+    // Mid slide-in the line is where its block is drawn, the slide counted
+    // once.
+    function test_aSlidingLineIsMeasuredWhereItIsDrawn() {
+        const a = "粒子从每个字上飘起来".split("");
+        const t = measuredView({ panelMode: false, animationMode: "slide" }, a);
+        const b = "唱到每个词时从字上飘".split("");
+        step(t.view, t.source, 50000);
+        switchTo(t, b.join(""), wordsOf(b, 40000, 100));
+        tryVerify(() => t.layer.lineOffset.y > 1 && drawnMismatch(t.view, t.layer) === "", 1000,
+                  drawnMismatch(t.view, t.layer));
+        verify(t.layer.lineOffset.y > 1);
+        compare(drawnMismatch(t.view, t.layer), "");
+    }
+
+    // A line re-captured while a word is lifted still takes the resting
+    // baseline: births come from the glyph, not from where the lift has it.
+    function test_aLiftedWordIsMeasuredAtRest() {
+        const texts = "粒子从每个字上飘起来".split("");
+        // Mid-way through the fourth word: lifted and holding.
+        const t = measuredView({ panelMode: false }, texts, 1350);
+        const glyphs = findAll(t.view, o => o.objectName === "lyricWord");
+        tryVerify(() => glyphs[3].y < -1, 1000, String(glyphs[3].y));
+        // Anything that re-centres the row re-captures the line.
+        t.view.width = 780;
+        waitForLayout(t.view);
+        verify(glyphs[3].y < -1);
+        compare(drawnMismatch(t.view, t.layer), "");
+    }
+
+    // How many times the layer took a new line over one switch to a line of
+    // `count` CJK words, and over the 100 frames after it.
+    function capturesOf(t, count, at) {
+        const texts = "唱到每个词时从字上飘起粒子一颗颗光点".repeat(20).split("").slice(0, count);
+        let captures = 0;
+        const counter = () => { ++captures; };
+        t.layer.lineChanged.connect(counter);
+        step(t.view, t.source, at + 10);
+        switchTo(t, texts.join(""), wordsOf(texts, at, 20));
+        waitForLayout(t.view);
+        const perSwitch = captures;
+        captures = 0;
+        for (let i = 0; i < 100; ++i) {
+            step(t.view, t.source, at + 20 + i * 16);
+        }
+        wait(50);
+        t.layer.lineChanged.disconnect(counter);
+        return { perSwitch: perSwitch, perFrames: captures };
+    }
+
+    // The line is captured a handful of times per switch -- when its words
+    // or text change and once the Row has laid it out -- however many words
+    // it has, and never per frame. It used to be once per word placed. Off,
+    // never at all.
+    function test_aSwitchCapturesTheLineAFewTimesAndAFrameNever() {
+        const t = measuredView({ panelMode: false, overflowMode: "marquee" }, latinWords("w", 3));
+        const few = capturesOf(t, 10, 100000);
+        const many = capturesOf(t, 80, 200000);
+        verify(few.perSwitch >= 1 && few.perSwitch <= 6, few.perSwitch);
+        verify(many.perSwitch <= few.perSwitch + 1, many.perSwitch + " against " + few.perSwitch);
+        compare(few.perFrames, 0);
+        compare(many.perFrames, 0);
+
+        t.view.wordParticles = false;
+        const off = capturesOf(t, 80, 300000);
+        compare(off.perSwitch, 0);
+        compare(off.perFrames, 0);
+        compare(t.layer.line, null);
+    }
+
     function test_theLineBeingSungIsCapturedWithItsLastBirth() {
         const t = createView();
         verify(t.layer !== undefined);
@@ -343,14 +562,20 @@ TestCase {
     }
 
     function test_noParticlesWhileAnimationsAreOff() {
-        const line = createTemporaryObject(lyricLineComponent, this, { words: lineA });
+        const line = createTemporaryObject(lyricLineComponent, this,
+            { words: lineA, particlesWanted: true });
         tryVerify(() => line.particleLine !== null);
         compare(line.particleLine.startMs, 1000);
         compare(line.particleLine.text, "abcd");
         compare(line.particleLine.words.length, 2);
         compare(line.particleLine.words[1].text, "cd");
-        tryVerify(() => line.particleLine.words[1].x > line.particleLine.words[0].x);
+        tryVerify(() => line.particleLine.words[1].item.x > line.particleLine.words[0].item.x);
         line.envelopesAnimate = false;
+        compare(line.particleLine, null);
+        line.envelopesAnimate = true;
+        verify(line.particleLine !== null);
+        // Not wanted -- a previous block, or particles off -- is null too.
+        line.particlesWanted = false;
         compare(line.particleLine, null);
 
         const t = createView();
@@ -431,6 +656,12 @@ TestCase {
         // The new line follows its block through the slide-in, whatever point
         // of it this runs at.
         const block = blockShowing(t.view, "efgh");
+        // The outgoing block still shows its words, and only the current
+        // one's line is measured.
+        verify(blockShowing(t.view, "abcd") !== undefined);
+        const measured = linesOf(t.view).filter(l => l.particleLine !== null);
+        compare(measured.length, 1);
+        compare(measured[0].lineText, "efgh");
         const live = current(t.layer);
         compare(live.startMs, 2000);
         compare(live.offsetY, block.slideOffset);

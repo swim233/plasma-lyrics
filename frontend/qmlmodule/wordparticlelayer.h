@@ -42,8 +42,11 @@ class WordParticleLayer : public QQuickItem
     // Only the RGB is used; the brightness envelope stands in for alpha.
     Q_PROPERTY(QColor color READ color WRITE setColor NOTIFY colorChanged)
     // LyricLine.particleLine of the line being sung, or null: { startMs, text,
-    // words: [{ startMs, endMs, text, x, baseline }], x, y, font }: the row's
-    // position in that line's coordinates, and each word's within the row.
+    // words: [{ startMs, endMs, text, item }], x, y, font, layout }: the row's
+    // position in that line's coordinates, and each word's delegate, whose x
+    // and baselineOffset in the row are read when the line is set. A word
+    // may carry numeric x and baseline instead of an item. An unchanged line
+    // is ignored.
     Q_PROPERTY(QVariant line READ line WRITE setLine NOTIFY lineChanged)
     // That line's top left in this item, leaving out what lineOffset carries.
     Q_PROPERTY(QPointF lineOrigin READ lineOrigin WRITE setLineOrigin NOTIFY lineOriginChanged)
@@ -93,6 +96,11 @@ public:
     /// snapshot, births being every particle's birth point. For tests: the
     /// software backend the QML suite runs on draws none of the geometry.
     Q_INVOKABLE QVariantList describeSnapshots() const;
+    /// The current line as the layer measured it: { startMs, text, x, y,
+    /// ascent, words: [{ x, baseline, ink }] }, x and y being the row's top
+    /// left in this item, each word's x and baseline within the row, and its
+    /// ink width. For tests, like the above.
+    Q_INVOKABLE QVariantMap describeLine() const;
     /// How many frames this item has asked for. For tests, like the above.
     int updateRequests() const;
 
@@ -114,7 +122,17 @@ protected:
     QSGNode *updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data) override;
 
 private:
-    WordParticles::LineLayout layoutOfLine();
+    struct MeasuredWord
+    {
+        qint64 startMs = 0;
+        qint64 endMs = 0;
+        double x = 0;
+        double baseline = 0;
+        double inkWidth = 0;
+    };
+
+    void measureLine();
+    WordParticles::LineLayout layoutOfLine() const;
     void recaptureLine();
     void requestUpdate();
     void redraw();
@@ -135,9 +153,15 @@ private:
     int m_snapshotCount = 0;
     int m_updateRequests = 0;
 
-    // Glyph measurements for the line last captured. A line is captured
-    // again every time the Row moves a word while laying it out, so they
-    // are kept until the font or the words change.
+    // m_line as read when it was set: the delegates' places at that moment,
+    // so that a move of the whole line (lineOrigin) needs nothing from them.
+    qint64 m_lineStartMs = 0;
+    QString m_lineText;
+    QPointF m_rowPosition;
+    QList<MeasuredWord> m_words;
+
+    // Glyph measurements, kept until the font or the words' texts change: a
+    // line is set again each time the Row lays it out.
     QFont m_measuredFont;
     QStringList m_measuredTexts;
     QList<double> m_inkWidths;
