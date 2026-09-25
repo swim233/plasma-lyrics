@@ -1,6 +1,7 @@
 #include "frontend/qmlmodule/wordparticlelayer.h"
 
 #include <QFontMetricsF>
+#include <QQuickWindow>
 #include <QSGGeometryNode>
 #include <QTest>
 
@@ -17,6 +18,7 @@ namespace {
 class Layer : public WordParticleLayer
 {
 public:
+    using WordParticleLayer::WordParticleLayer;
     using WordParticleLayer::updatePaintNode;
 
     // What the scene graph does with the returned node: keeps it for the
@@ -72,6 +74,28 @@ double distance(const QSGGeometry::ColoredPoint2D &a, const QSGGeometry::Colored
     return std::hypot(double(a.x) - b.x, double(a.y) - b.y);
 }
 
+// How far the sprite whose centre is vertex `centre` is, on any ring but the
+// outermost, from carrying p with its core held at `floor` logical pixels,
+// in colour steps. Its size and each ring's radius are read back from the
+// vertices; red only: #fffaf5's red is 1, so the centre's red is b and a
+// ring's b × p.
+double ringError(const QSGGeometry::ColoredPoint2D *v, int centre, double floor)
+{
+    const int rings = WordParticles::kRings;
+    const int segments = WordParticles::kRingSegments;
+    const double radius = distance(v[centre], v[centre + 1 + (rings - 1) * segments]);
+    const double sigma = std::max(radius / 3.5, floor) / 2.355;
+    double worst = 0;
+    for (int ring = 1; ring < rings; ++ring) {
+        const QSGGeometry::ColoredPoint2D &vertex = v[centre + 1 + (ring - 1) * segments];
+        const double r = distance(v[centre], vertex);
+        const double q = r / radius;
+        const double p = (std::exp(-r * r / (2 * sigma * sigma)) + 0.8 * (1 - q * q) * (1 - q * q)) / 1.8;
+        worst = std::max(worst, std::abs(vertex.r - v[centre].r * p));
+    }
+    return worst;
+}
+
 QList<QPointF> births(const Layer &layer)
 {
     QList<QPointF> out;
@@ -90,6 +114,12 @@ QList<QPointF> births(const Layer &layer)
 class WordParticleLayerTest : public QObject
 {
     Q_OBJECT
+
+public:
+    // Before the application exists: every window is then of ratio 2, which
+    // the offscreen platform honours too. A layer with no window, as in all
+    // but one case, still draws at ratio 1.
+    static void initMain() { qputenv("QT_SCALE_FACTOR", "2"); }
 
 private Q_SLOTS:
     void nothingToDrawIsNoNode()
@@ -200,25 +230,41 @@ private Q_SLOTS:
         int floored = 0;
         for (int sprite = 0; sprite < node->geometry()->vertexCount() / WordParticles::kVerticesPerSprite; ++sprite) {
             const int centre = sprite * WordParticles::kVerticesPerSprite;
-            const int middle = centre + 1 + 4 * WordParticles::kRingSegments;
-            const double radius = distance(v[centre], v[centre + 1 + 9 * WordParticles::kRingSegments]);
-            const double size = radius / 3.5;
-            const double r = distance(v[centre], v[middle]);
-            const double q = r / radius;
-            const auto p = [&](double width) {
-                const double sigma = width / 2.355;
-                return (std::exp(-r * r / (2 * sigma * sigma)) + 0.8 * (1 - q * q) * (1 - q * q)) / 1.8;
-            };
-            // #fffaf5: red is 1, so the centre's red is b and the ring's b × p.
-            const double centreRed = v[centre].r;
-            QVERIFY2(std::abs(v[middle].r - centreRed * p(std::max(size, 1.5))) <= 1.01,
-                     qPrintable(QStringLiteral("size %1: %2 vs %3").arg(size).arg(v[middle].r).arg(centreRed * p(std::max(size, 1.5)))));
+            const double size = distance(v[centre], v[centre + 1 + 9 * WordParticles::kRingSegments]) / 3.5;
+            QVERIFY2(ringError(v, centre, 1.5) <= 1.01, qPrintable(QStringLiteral("size %1").arg(size)));
             // Well under the floor and bright enough to tell: neither the
             // bare core nor a ratio-2 floor would give this.
-            if (size < 1 && centreRed > 40) {
+            if (size < 1 && v[centre].r > 40) {
                 ++floored;
-                QVERIFY(std::abs(v[middle].r - centreRed * p(size)) > 2);
-                QVERIFY(std::abs(v[middle].r - centreRed * p(std::max(size, 0.75))) > 2);
+                QVERIFY(ringError(v, centre, 0) > 2);
+                QVERIFY(ringError(v, centre, 0.75) > 2);
+            }
+        }
+        QVERIFY(floored > 0);
+    }
+
+    // In a window the floor is 1.5 of its device pixels: at ratio 2 (see
+    // initMain()), 0.75 logical pixels -- neither the ratio-1 floor nor one
+    // of 1.5 times the ratio.
+    void aWindowsRatioSetsTheCoresFloor()
+    {
+        QQuickWindow window;
+        QCOMPARE(window.effectiveDevicePixelRatio(), 2.0);
+        Layer layer(window.contentItem());
+        setUp(layer, twoWords(), 1500);
+        layer.setFontSize(17);
+        const QSGGeometryNode *node = layer.paint();
+        QVERIFY(node);
+        const auto *v = node->geometry()->vertexDataAsColoredPoint2D();
+        int floored = 0;
+        for (int sprite = 0; sprite < node->geometry()->vertexCount() / WordParticles::kVerticesPerSprite; ++sprite) {
+            const int centre = sprite * WordParticles::kVerticesPerSprite;
+            const double size = distance(v[centre], v[centre + 1 + 9 * WordParticles::kRingSegments]) / 3.5;
+            QVERIFY2(ringError(v, centre, 0.75) <= 1.01, qPrintable(QStringLiteral("size %1").arg(size)));
+            if (size < 1 && v[centre].r > 40) {
+                ++floored;
+                QVERIFY(ringError(v, centre, 1.5) > 2);
+                QVERIFY(ringError(v, centre, 3) > 2);
             }
         }
         QVERIFY(floored > 0);
