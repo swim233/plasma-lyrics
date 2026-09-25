@@ -35,7 +35,8 @@ Item {
     // already in the air. The colour arrives resolved, alpha already 1.
     property bool particlesEnabled: false
     property color particleColor: root.activeColor
-    // A change is a new track, and drops every particle.
+    // A change is a new track, and drops what is in the air; the words of
+    // the line being sung that are still to come spawn as usual.
     property string particleFingerprint: ""
     // Where the particles may go, in this item's coordinates. LyricsView
     // makes it cover the whole widget: the words' own clipper leaves only a
