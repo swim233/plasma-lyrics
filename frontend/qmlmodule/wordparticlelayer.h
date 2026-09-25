@@ -16,6 +16,13 @@
 // positionMs, so pausing freezes them and a seek lands where playing would
 // have.
 //
+// The node exists only while some particle is visible: with nothing to draw
+// the node is deleted, and the next visible particle gets a fresh one. A node
+// left in the scene with no vertices drops out of the batch renderer's
+// batches, and the renderer does not rebuild them when that node's geometry
+// fills up again -- such a node stays invisible until something unrelated
+// changes the scene's structure.
+//
 // The software backend (QT_QUICK_BACKEND=software, and QT_QPA_PLATFORM=
 // offscreen, which the QML suite runs on) draws no custom geometry node at
 // all: there the particles are simply not seen, and nothing else changes.
@@ -86,6 +93,8 @@ public:
     /// snapshot, births being every particle's birth point. For tests: the
     /// software backend the QML suite runs on draws none of the geometry.
     Q_INVOKABLE QVariantList describeSnapshots() const;
+    /// How many frames this item has asked for. For tests, like the above.
+    int updateRequests() const;
 
 Q_SIGNALS:
     void activeChanged();
@@ -107,6 +116,7 @@ protected:
 private:
     WordParticles::LineLayout layoutOfLine();
     void recaptureLine();
+    void requestUpdate();
     void redraw();
     void fieldChanged();
 
@@ -123,6 +133,7 @@ private:
     WordParticles::Field m_field;
     qreal m_aliveUntilMs;
     int m_snapshotCount = 0;
+    int m_updateRequests = 0;
 
     // Glyph measurements for the line last captured. A line is captured
     // again every time the Row moves a word while laying it out, so they

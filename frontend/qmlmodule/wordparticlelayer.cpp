@@ -288,12 +288,23 @@ void WordParticleLayer::recaptureLine()
     fieldChanged();
 }
 
+int WordParticleLayer::updateRequests() const
+{
+    return m_updateRequests;
+}
+
+void WordParticleLayer::requestUpdate()
+{
+    ++m_updateRequests;
+    update();
+}
+
 // Only while there is something to draw: with particles off, or between
 // songs, a sliding block or a colour fade asks for no work here at all.
 void WordParticleLayer::redraw()
 {
     if (m_snapshotCount > 0) {
-        update();
+        requestUpdate();
     }
 }
 
@@ -304,7 +315,7 @@ void WordParticleLayer::fieldChanged()
     const int count = static_cast<int>(snapshots.size());
     // One more frame after the last line goes, to clear what it drew.
     if (count > 0 || m_snapshotCount > 0) {
-        update();
+        requestUpdate();
     }
     if (aliveUntilMs != m_aliveUntilMs || count != m_snapshotCount) {
         m_aliveUntilMs = aliveUntilMs;
@@ -315,6 +326,25 @@ void WordParticleLayer::fieldChanged()
 
 QSGNode *WordParticleLayer::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 {
+    m_sprites.clear();
+    const double scale = m_fontSize / WordParticles::kReferencePixelSize;
+    for (const WordParticles::Snapshot *snapshot : m_field.snapshots()) {
+        for (const WordParticles::Particle &particle : snapshot->particles) {
+            WordParticles::Sprite sprite;
+            if (WordParticles::evaluate(particle, m_positionMs, scale, snapshot->offsetX,
+                                        snapshot->offsetY, snapshot->opacity, &sprite)) {
+                m_sprites.append(sprite);
+            }
+        }
+    }
+    // Deleted rather than emptied: see the class comment. Deleting a node
+    // takes it out of its parent; the window never deletes a node an item
+    // replaces, which is why QQuickItem's own default does the same.
+    if (m_sprites.isEmpty()) {
+        delete oldNode;
+        return nullptr;
+    }
+
     auto *node = static_cast<QSGGeometryNode *>(oldNode);
     if (!node) {
         node = new QSGGeometryNode;
@@ -327,18 +357,6 @@ QSGNode *WordParticleLayer::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDat
         node->setFlag(QSGNode::OwnsGeometry);
         node->setMaterial(new QSGVertexColorMaterial);
         node->setFlag(QSGNode::OwnsMaterial);
-    }
-
-    m_sprites.clear();
-    const double scale = m_fontSize / WordParticles::kReferencePixelSize;
-    for (const WordParticles::Snapshot *snapshot : m_field.snapshots()) {
-        for (const WordParticles::Particle &particle : snapshot->particles) {
-            WordParticles::Sprite sprite;
-            if (WordParticles::evaluate(particle, m_positionMs, scale, snapshot->offsetX,
-                                        snapshot->offsetY, snapshot->opacity, &sprite)) {
-                m_sprites.append(sprite);
-            }
-        }
     }
 
     const double red = m_color.redF();

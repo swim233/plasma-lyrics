@@ -180,4 +180,19 @@ if(BUILD_TESTING)
     target_compile_options(tst_wordparticles PRIVATE -Wno-missing-field-initializers)
     add_test(NAME tst_wordparticles COMMAND tst_wordparticles)
     set_tests_properties(tst_wordparticles PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
+
+    # The layer's node, driven without GL: the QML suite's software backend
+    # never draws it (DESIGN.md decision 77).
+    add_executable(tst_wordparticlelayer
+        tests/tst_wordparticlelayer.cpp
+        wordparticlelayer.cpp
+        wordparticles.cpp
+    )
+    target_include_directories(tst_wordparticlelayer PRIVATE ${CMAKE_SOURCE_DIR})
+    target_link_libraries(tst_wordparticlelayer PRIVATE Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Test)
+    target_compile_options(tst_wordparticlelayer PRIVATE -Wno-missing-field-initializers)
+    add_test(NAME tst_wordparticlelayer COMMAND tst_wordparticlelayer)
+    # QFontMetricsF needs a QGuiApplication, and so a platform plugin.
+    set_tests_properties(tst_wordparticlelayer PROPERTIES
+        ENVIRONMENT "LC_ALL=C.UTF-8;QT_QPA_PLATFORM=offscreen")
 endif()
