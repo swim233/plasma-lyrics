@@ -49,10 +49,17 @@
     <entry name="desktopLineHeight" type="Int"><default>125</default></entry>
 
     <!-- Off restores DESIGN.md decision 38's wakeup profile exactly: it empties
-         the word Repeater's model, which is also what stops the per-frame
-         FrameAnimation. No combination of the colour and effect settings below
-         substitutes for it: three identical colours neutralise the look, but
-         the clock keeps running because nothing can tell it the colours match.
+         the word Repeater's model and the particle layer, which is also what
+         stops the per-frame FrameAnimation. Since decision 77 that clock runs
+         while (effectiveWords.length > 0 || positionMs < particlesAliveUntilMs)
+         && Playing && (panelMode || shouldBeVisible): with this entry on, it
+         no longer stops the moment the line without words (an interlude, a
+         blank line, the end of the track) begins, but runs on until the last
+         particle of the lines before has faded, up to about 2050 ms after
+         them; desktopWordParticles off drops that extension. No combination
+         of the colour and effect settings below substitutes for this entry:
+         three identical colours neutralise the look, but the clock keeps
+         running because nothing can tell it the colours match.
          desktopWordByWordSynthetic below does not weaken this claim: it is only
          ever consulted while this entry is true (see LyricsView.qml's
          effectiveWords), so turning this off silences the synthesized clock
@@ -83,6 +90,16 @@
     <entry name="desktopWordBrightness" type="Bool"><default>true</default></entry>
     <entry name="desktopWordBrightnessPercent" type="Int"><default>60</default></entry>
     <entry name="desktopWordBlurGlow" type="Bool"><default>false</default></entry>
+    <!-- DESIGN.md decision 77. With desktopWordParticleColorEnabled off, the
+         particles take desktopWordActiveColor at full opacity.
+         desktopWordParticleColor defaults to that key's default at full
+         opacity, so turning desktopWordParticleColorEnabled on leaves the
+         particles as they were only while desktopWordActiveColor is still at
+         its default; once that has been edited, the particles take
+         desktopWordParticleColor instead. -->
+    <entry name="desktopWordParticles" type="Bool"><default>true</default></entry>
+    <entry name="desktopWordParticleColorEnabled" type="Bool"><default>false</default></entry>
+    <entry name="desktopWordParticleColor" type="String"><default>#fffaf5</default></entry>
 
     <entry name="desktopShowTrackInfo" type="Bool"><default>true</default></entry>
     <entry name="desktopTrackInfoLayout" type="String"><default>single</default></entry>
@@ -119,7 +136,8 @@
          plate a light style draws; the solid plate and outline turn white.
          Brightening is off because it fades a word toward opaque white,
          which on dark ink makes the word being sung the palest one on the
-         line. -->
+         line. Particles are off for the same kind of reason: in the colour
+         of dark ink they are specks on the plate, not points of light. -->
     <entry name="desktopThemeMode" type="String"><default>auto</default></entry>
     <entry name="desktopLightPlateMode" type="String"><default>ksvg</default></entry>
     <entry name="desktopLightSolidColor" type="String"><default>#99ffffff</default></entry>
@@ -146,6 +164,9 @@
     <entry name="desktopLightWordBrightness" type="Bool"><default>false</default></entry>
     <entry name="desktopLightWordBrightnessPercent" type="Int"><default>60</default></entry>
     <entry name="desktopLightWordBlurGlow" type="Bool"><default>false</default></entry>
+    <entry name="desktopLightWordParticles" type="Bool"><default>false</default></entry>
+    <entry name="desktopLightWordParticleColorEnabled" type="Bool"><default>false</default></entry>
+    <entry name="desktopLightWordParticleColor" type="String"><default>#1f1b16</default></entry>
     <entry name="desktopLightTrackInfoColor" type="String"><default>#b31f1b16</default></entry>
     <entry name="desktopLightTrackInfoStroke" type="Bool"><default>false</default></entry>
     <entry name="desktopLightTrackInfoStrokeColor" type="String"><default>#ccffffff</default></entry>
@@ -177,6 +198,13 @@
     <entry name="panelWordBrightness" type="Bool"><default>true</default></entry>
     <entry name="panelWordBrightnessPercent" type="Int"><default>60</default></entry>
     <entry name="panelWordBlurGlow" type="Bool"><default>false</default></entry>
+    <!-- See desktopWordParticles's comment above; same decision, panel copy.
+         Unlike the lift keys these do have one: in a panel the particle layer
+         is clipped to the widget's own bounds, and the particles show within
+         them. -->
+    <entry name="panelWordParticles" type="Bool"><default>true</default></entry>
+    <entry name="panelWordParticleColorEnabled" type="Bool"><default>false</default></entry>
+    <entry name="panelWordParticleColor" type="String"><default>#fffaf5</default></entry>
 
     <entry name="panelShowTrackInfo" type="Bool"><default>false</default></entry>
     <entry name="panelTrackInfoLayout" type="String"><default>single</default></entry>
@@ -220,6 +248,9 @@
     <entry name="panelLightWordBrightness" type="Bool"><default>false</default></entry>
     <entry name="panelLightWordBrightnessPercent" type="Int"><default>60</default></entry>
     <entry name="panelLightWordBlurGlow" type="Bool"><default>false</default></entry>
+    <entry name="panelLightWordParticles" type="Bool"><default>false</default></entry>
+    <entry name="panelLightWordParticleColorEnabled" type="Bool"><default>false</default></entry>
+    <entry name="panelLightWordParticleColor" type="String"><default>#1f1b16</default></entry>
     <entry name="panelLightTrackInfoColor" type="String"><default>#b31f1b16</default></entry>
     <entry name="panelLightTrackInfoStroke" type="Bool"><default>false</default></entry>
     <entry name="panelLightTrackInfoStrokeColor" type="String"><default>#ccffffff</default></entry>

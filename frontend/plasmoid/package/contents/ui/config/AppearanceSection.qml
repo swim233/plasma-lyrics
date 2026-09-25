@@ -66,6 +66,9 @@ Kirigami.FormLayout {
     property bool wordBrightness: true
     property int wordBrightnessPercent: 60
     property bool wordBlurGlow: false
+    property bool wordParticles: true
+    property bool wordParticleColorEnabled: false
+    property string wordParticleColor: "#fffaf5"
 
     // DESIGN.md decision 76: the track info's colours come in a light and a
     // dark copy like every row above, so their three rows close this form;
@@ -108,6 +111,9 @@ Kirigami.FormLayout {
     signal wordBrightnessEdited(bool value)
     signal wordBrightnessPercentEdited(int value)
     signal wordBlurGlowEdited(bool value)
+    signal wordParticlesEdited(bool value)
+    signal wordParticleColorEnabledEdited(bool value)
+    signal wordParticleColorEdited(string value)
 
     signal trackInfoColorEdited(string value)
     signal trackInfoStrokeEnabledEdited(bool value)
@@ -451,6 +457,33 @@ Kirigami.FormLayout {
         text: i18n("Overlay a glow on the word-by-word lyrics for a more elegant look, at a slight performance cost.")
         checked: root.wordBlurGlow
         onToggled: root.wordBlurGlowEdited(checked)
+    }
+    // DESIGN.md decision 77. The three rows are named for the tests that
+    // check which of them show.
+    QQC2.CheckBox {
+        objectName: "wordParticlesCheckBox"
+        Kirigami.FormData.label: i18n("Particles:")
+        visible: root.wordByWord
+        text: i18n("Float particles up from each word as it is sung")
+        checked: root.wordParticles
+        onToggled: root.wordParticlesEdited(checked)
+    }
+    QQC2.CheckBox {
+        objectName: "wordParticleColorCheckBox"
+        Kirigami.FormData.label: i18n("Particle color:")
+        visible: root.wordByWord && root.wordParticles
+        text: i18n("Set it separately from the current word color")
+        checked: root.wordParticleColorEnabled
+        onToggled: root.wordParticleColorEnabledEdited(checked)
+    }
+    ColorField {
+        objectName: "wordParticleColorField"
+        Kirigami.FormData.label: i18n("Color:")
+        // The particles are drawn opaque whatever this holds.
+        alphaEnabled: false
+        visible: root.wordByWord && root.wordParticles && root.wordParticleColorEnabled
+        value: root.wordParticleColor
+        onEdited: hexColor => root.wordParticleColorEdited(hexColor)
     }
 
     Kirigami.Separator {

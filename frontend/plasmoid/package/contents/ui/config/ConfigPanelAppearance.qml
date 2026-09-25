@@ -34,6 +34,9 @@ Kirigami.ScrollablePage {
     property bool cfg_panelWordBrightness
     property int cfg_panelWordBrightnessPercent
     property bool cfg_panelWordBlurGlow
+    property bool cfg_panelWordParticles
+    property bool cfg_panelWordParticleColorEnabled
+    property string cfg_panelWordParticleColor
 
     property bool cfg_panelShowTrackInfo
     property string cfg_panelTrackInfoLayout
@@ -75,6 +78,9 @@ Kirigami.ScrollablePage {
     property bool cfg_panelLightWordBrightness
     property int cfg_panelLightWordBrightnessPercent
     property bool cfg_panelLightWordBlurGlow
+    property bool cfg_panelLightWordParticles
+    property bool cfg_panelLightWordParticleColorEnabled
+    property string cfg_panelLightWordParticleColor
     property string cfg_panelLightTrackInfoColor
     property bool cfg_panelLightTrackInfoStroke
     property string cfg_panelLightTrackInfoStrokeColor
@@ -191,6 +197,9 @@ Kirigami.ScrollablePage {
                 wordBrightness: page.themed("WordBrightness")
                 wordBrightnessPercent: page.themed("WordBrightnessPercent")
                 wordBlurGlow: page.themed("WordBlurGlow")
+                wordParticles: page.themed("WordParticles")
+                wordParticleColorEnabled: page.themed("WordParticleColorEnabled")
+                wordParticleColor: page.themed("WordParticleColor")
                 onSecondLineSourceEdited: value => page.editThemed("SecondLineSource", value)
                 onSecondLineColorEnabledEdited: value => page.editThemed("SecondLineColorEnabled", value)
                 onSecondLineColorEdited: value => page.editThemed("SecondLineColor", value)
@@ -203,6 +212,9 @@ Kirigami.ScrollablePage {
                 onWordBrightnessEdited: value => page.editThemed("WordBrightness", value)
                 onWordBrightnessPercentEdited: value => page.editThemed("WordBrightnessPercent", value)
                 onWordBlurGlowEdited: value => page.editThemed("WordBlurGlow", value)
+                onWordParticlesEdited: value => page.editThemed("WordParticles", value)
+                onWordParticleColorEnabledEdited: value => page.editThemed("WordParticleColorEnabled", value)
+                onWordParticleColorEdited: value => page.editThemed("WordParticleColor", value)
                 onPlateModeEdited: value => page.editThemed("PlateMode", value)
                 onSolidColorEdited: value => page.editThemed("SolidColor", value)
                 onTextColorEdited: value => page.editThemed("TextColor", value)
