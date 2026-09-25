@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-25 16:36+0800\n"
+"POT-Creation-Date: 2026-09-25 22:04+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -43,17 +43,17 @@ msgstr ""
 msgid "No media is playing"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:152
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:156
 msgid "Searching for lyrics…"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:344
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:380
 msgid ""
 "The lyrics service stopped. Restart it with:\n"
 "systemctl --user restart plasma-lyricsd"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/LyricsView.qml:345
+#: frontend/plasmoid/package/contents/ui/LyricsView.qml:381
 msgid ""
 "The lyrics service is not running. Start it with:\n"
 "systemctl --user enable --now plasma-lyricsd"
