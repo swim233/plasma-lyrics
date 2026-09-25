@@ -335,6 +335,38 @@ TestCase {
         compare(t.layer.line, null);
     }
 
+    // The lyric slot showing anything but lyrics drops every particle; a
+    // pause keeps them where they are.
+    function test_particlesGoWhenTheSlotStopsShowingLyrics_data() {
+        return [
+            { tag: "stopped", property: "playbackStatus", value: "Stopped" },
+            { tag: "searching", property: "lyricState", value: "searching" },
+            { tag: "not-found", property: "lyricState", value: "not-found" },
+            { tag: "no-lyric", property: "lyricState", value: "no-lyric" },
+            { tag: "network-error", property: "lyricState", value: "network-error" },
+            { tag: "filtered", property: "lyricState", value: "filtered" },
+            { tag: "no-title", property: "trackTitle", value: "" },
+            { tag: "service-gone", property: "serviceAvailable", value: false },
+        ];
+    }
+    function test_particlesGoWhenTheSlotStopsShowingLyrics(data) {
+        const t = createView();
+        tryCompare(t.layer, "snapshotCount", 1);
+        switchToPlainLine(t);
+        compare(t.layer.snapshotCount, 1);
+
+        t.source.playbackStatus = "Paused";
+        compare(t.layer.snapshotCount, 1);
+        compare(t.view.wordClockRunning, false);
+        t.source.playbackStatus = "Playing";
+
+        t.source[data.property] = data.value;
+        compare(t.view.showingLyrics, false);
+        compare(t.layer.snapshotCount, 0);
+        compare(t.layer.particlesAliveUntilMs, -Infinity);
+        compare(t.view.wordClockRunning, false);
+    }
+
     function test_theLineBeingSungIsCapturedWithItsLastBirth() {
         const t = createView();
         verify(t.layer !== undefined);

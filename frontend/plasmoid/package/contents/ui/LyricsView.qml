@@ -174,6 +174,16 @@ Item {
     readonly property color effectiveSecondLineColor: root.secondLineColorEnabled
         ? root.secondLineColor
         : Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.68)
+    // Whether the lyric slot is showing the track's lyrics: exactly the
+    // branch of effectiveText above that returns source.currentText, a line
+    // without words and a filtered-out one aside. Anything else there -- the
+    // idle text after a Stop, a search, a not-found or error message --
+    // drops every particle rather than leaving them frozen over it. Paused
+    // is still lyrics, and the particles stay where they are.
+    readonly property bool showingLyrics: root.source.serviceAvailable && !root.source.stale
+        && root.source.lyricState === "ok"
+        && root.source.playbackStatus !== "Stopped" && root.source.trackTitle.length > 0
+
     // Opaque whichever colour it follows: each particle's own brightness
     // envelope is its alpha, and the 10% translucency the current-word colour
     // carries by default would only dim every particle once more. Fades with
@@ -239,9 +249,10 @@ Item {
     // 2050 ms of lyric time after it was born, so each switch to a line
     // without words costs up to about that much more of this clock (about
     // 295 frames at 144 Hz), and decision 38's wakeup count rises
-    // accordingly on tracks with particles. Nothing more: switching particles or word-by-word off
-    // clears them at once, and -Infinity makes the clause false, so off still
-    // means decision 38's profile exactly.
+    // accordingly on tracks with particles. Nothing more: particles off,
+    // word-by-word off and anything but lyrics in this slot all clear them
+    // at once, and -Infinity makes the clause false, so off still means
+    // decision 38's profile exactly.
     //
     // syntheticWordByWord does not weaken this: effectiveWords only ever
     // reads source.currentSyntheticWords inside the wordByWord-gated branch
@@ -425,7 +436,7 @@ Item {
             brightnessStrength: root.wordBrightnessPercent / 100
             blurGlowEnabled: root.wordBlurGlow
             lineHeightFactor: Math.max(root.lineHeightMinPercent, root.lineHeightPercent) / 100
-            particlesEnabled: root.wordParticles && root.wordByWord
+            particlesEnabled: root.wordParticles && root.wordByWord && root.showingLyrics
             particleColor: root.effectiveWordParticleColor
             // The test stand-ins for LyricSource carry no fingerprint.
             particleFingerprint: root.source.fingerprint ?? ""
