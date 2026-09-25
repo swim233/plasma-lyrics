@@ -2437,8 +2437,25 @@ TestCase {
                 const colorSwitch = named(page, "wordParticleColorCheckBox");
                 const colorField = named(page, "wordParticleColorField");
                 const shown = () => [particles.visible, colorSwitch.visible, colorField.visible];
+                compare(particles.Kirigami.FormData.label, i18n("Particles:"), tag);
+                compare(colorSwitch.Kirigami.FormData.label, i18n("Particle color:"), tag);
+                compare(colorField.Kirigami.FormData.label, i18n("Color:"), tag);
                 compare(particles.text, i18n("Float particles up from each word as it is sung"), tag);
                 compare(colorSwitch.text, i18n("Set it separately from the current word color"), tag);
+                // Right after "Blurred glow:", the last row of the group
+                // before them, and in this order down the form.
+                const sectionChildren = sectionOf(page).children;
+                const rows = [];
+                for (let i = 0; i < sectionChildren.length; ++i) {
+                    if (sectionChildren[i].Kirigami.FormData.label !== "") {
+                        rows.push(sectionChildren[i]);
+                    }
+                }
+                const glowAt = rows.findIndex(item => item.Kirigami.FormData.label === i18n("Blurred glow:"));
+                verify(glowAt >= 0, tag);
+                compare(rows.indexOf(particles), glowAt + 1, tag);
+                compare(rows.indexOf(colorSwitch), glowAt + 2, tag);
+                compare(rows.indexOf(colorField), glowAt + 3, tag);
                 compare(shown(), [true, true, true], tag);
                 verify(particles.checked, tag);
                 verify(colorSwitch.checked, tag);
