@@ -161,8 +161,8 @@ ignored. A pair where either line looks like a production credit (for example
 The same context menu can prefer local files, NetEase, or AMLL for the current song, restore
 automatic ordering, or force a fresh search. A temporary fallback never
 overwrites the saved per-song preference. AMLL word timing and provenance are
-preserved in storage and snapshots, while the current UI intentionally remains
-line-based rather than showing word-level highlighting.
+preserved in storage and snapshots; the timing drives word-by-word highlighting
+with lift, brightening, blurred glow and particles.
 
 AMLL TTML DB is a CC0 community database; rights in lyrics and other third-party
 works remain with their respective owners. See the
