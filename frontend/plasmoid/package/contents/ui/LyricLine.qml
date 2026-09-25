@@ -312,13 +312,16 @@ Item {
     }
 
     // What AnimatedLyric's particle layer needs to know about this line
-    // (DESIGN.md decision 77): each word's timing, text and x in the row,
-    // the row's x before any marquee scroll, the words' resting baseline --
-    // both in this item's coordinates, through clipper -- and the font the
-    // glyphs are drawn in, which the layer measures the ink and the CJK
-    // ascent with. startMs is the first word's: the line's own timestamp
-    // never reaches the renderer. null whenever the line spawns nothing: not
-    // in word mode (wrap, or a line too long to fit) or with animations off.
+    // (DESIGN.md decision 77): each word's timing, text, x and resting
+    // baseline in the row; the row's position in this item, through clipper
+    // and before any marquee scroll; and the font the glyphs are drawn in,
+    // which the layer measures the ink and the CJK ascent with. The baseline
+    // is per word because each word is its own Text centred on its own line
+    // height: a word drawn in the fallback CJK font sits a pixel or two
+    // lower than a Latin one. startMs is the first word's: the line's own
+    // timestamp never reaches the renderer. null whenever the line spawns
+    // nothing: not in word mode (wrap, or a line too long to fit) or with
+    // animations off.
     //
     // Reads Repeater.count for the reason activeWordItem does, and every
     // delegate's x so that it settles once the Row has laid the words out.
@@ -329,15 +332,16 @@ Item {
         const words = [];
         for (let i = 0; i < wordRepeater.count; ++i) {
             const word = root.words[i];
+            const item = wordRepeater.itemAt(i);
             words.push({ startMs: word.startMs, endMs: word.endMs, text: word.text,
-                         x: wordRepeater.itemAt(i).x });
+                         x: item.x, baseline: item.baselineOffset });
         }
         return {
             startMs: root.words[0].startMs,
             text: root.lineText,
             words: words,
             x: clipper.x + (root.marqueeApplies ? 0 : wordRow.x),
-            baseline: clipper.y + wordRow.y + wordRepeater.itemAt(0).baselineOffset,
+            y: clipper.y + wordRow.y,
             font: Qt.font({ family: root.fontFamily, pixelSize: root.wordPixelSize,
                             weight: root.fontWeight })
         };

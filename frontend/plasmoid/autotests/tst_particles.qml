@@ -123,7 +123,7 @@ TestCase {
         const live = current(t.layer);
         compare(live.startMs, 1000);
         compare(live.text, "abcd");
-        verify(live.particles >= 2 && live.particles <= 6, live.particles);
+        verify(live.births.length >= 2 && live.births.length <= 6, live.births.length);
         verify(t.layer.particlesAliveUntilMs >= 1400 + 2050, t.layer.particlesAliveUntilMs);
         verify(t.layer.particlesAliveUntilMs < 1490 + 2050, t.layer.particlesAliveUntilMs);
         compare(t.lyric.particlesAliveUntilMs, t.layer.particlesAliveUntilMs);
@@ -142,31 +142,97 @@ TestCase {
         verify(t.layer.clip);
     }
 
-    // Every birth point lies on the words' glyphs as laid out, mapped into
-    // the layer: across the words' ink, and above their baseline by no more
-    // than a CJK glyph is tall. Only relations, never pixel values -- the CI
-    // container has no CJK font at all.
+    Component {
+        id: fontMetricsComponent
+        FontMetrics {}
+    }
+
+    // Every birth point lies on a word's glyphs as laid out, mapped into the
+    // layer: across the middle 80% of that word's ink and in the top 35% of
+    // the line's CJK ascent. Measured here with the glyphs' own font, never
+    // compared against pixel values -- the CI container has no CJK font and
+    // draws boxes of whatever size its fallback has.
     function test_particlesAreBornOnTheGlyphs() {
-        const t = createView({ fontSize: 40 });
-        tryCompare(t.layer, "snapshotCount", 1);
-        const glyphs = findAll(t.view, o => o.objectName === "lyricWord");
-        compare(glyphs.length, 2);
-        function inside() {
-            // The delegates, which the lift does not move.
-            let left = Infinity, right = -Infinity, baseline = 0;
-            for (const glyph of glyphs) {
-                const word = glyph.parent;
-                const box = word.mapToItem(t.layer, 0, 0, word.width, word.height);
-                left = Math.min(left, box.x);
-                right = Math.max(right, box.x + box.width);
-                baseline = word.mapToItem(t.layer, 0, word.baselineOffset).y;
+        // A Latin word first: it sits on a baseline of its own, apart from
+        // the CJK words after it.
+        const texts = ["up "].concat("粒子从每个字上飘起来一颗颗光点".split(""));
+        const words = texts.map((text, i) => ({ startMs: 1000 + 30 * i, endMs: 1030 + 30 * i, text: text }));
+        const source = createTemporaryObject(fakeSourceComponent, this,
+            { currentText: texts.join(""), currentWords: words, positionMs: 1500 });
+        const view = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: true, fontSize: 40, width: 800 });
+        const layer = layerOf(view);
+        compare(layer.fontSize, 40);
+        tryCompare(layer, "snapshotCount", 1);
+        const glyphs = findAll(view, o => o.objectName === "lyricWord");
+        compare(glyphs.length, texts.length);
+        const font = glyphs[0].font;
+        const cjk = createTemporaryObject(textMetricsComponent, this, { font: font, text: "国" });
+        const ascent = cjk.tightBoundingRect.height > 0
+            ? -cjk.tightBoundingRect.y
+            : createTemporaryObject(fontMetricsComponent, this, { font: font }).ascent;
+        verify(ascent > 0);
+        const inks = glyphs.map(glyph => createTemporaryObject(textMetricsComponent, this,
+            { font: font, text: glyph.text.replace(/\s+$/, "") }).advanceWidth);
+        function misplaced() {
+            const bands = [];
+            for (let i = 0; i < glyphs.length; ++i) {
+                // Nothing is lifted in a panel, so the glyphs are at rest.
+                // Each word has a baseline of its own.
+                const glyph = glyphs[i];
+                const left = glyph.mapToItem(layer, 0, 0).x;
+                const baseline = glyph.mapToItem(layer, 0, glyph.baselineOffset).y;
+                bands.push({ left: left + 0.1 * inks[i], right: left + 0.9 * inks[i],
+                             top: baseline - ascent, bottom: baseline - 0.65 * ascent });
             }
-            const births = current(t.layer).births;
-            return births.width > 0
-                && births.x >= left && births.x + births.width <= right
-                && births.y + births.height < baseline && births.y > baseline - 1.5 * 40;
+            const births = current(layer).births;
+            if (births.length < texts.length) {
+                return "too few: " + births.length;
+            }
+            for (const p of births) {
+                const band = bands.find(b => p.x >= b.left - 0.01 && p.x <= b.right + 0.01);
+                if (!band) {
+                    return "x " + p.x + " outside " + JSON.stringify(bands);
+                }
+                if (p.y < band.top - 0.01 || p.y > band.bottom + 0.01) {
+                    return "y " + p.y + " outside " + JSON.stringify(band);
+                }
+            }
+            return "";
         }
-        tryVerify(inside, 2000, JSON.stringify(current(t.layer).births));
+        // Laid out first, then checked once: before the Row has placed the
+        // words, births and glyphs would agree just as well at x 0.
+        tryVerify(() => glyphs.every((g, i) => g.baselineOffset > 0
+            && (i === 0 || g.parent.x > glyphs[i - 1].parent.x)));
+        compare(misplaced(), "");
+    }
+
+    Component {
+        id: textMetricsComponent
+        TextMetrics {}
+    }
+
+    // Measured without the trailing whitespace a Latin word carries: the
+    // delegate is as wide as the spaces too, the ink is not.
+    function test_trailingSpaceIsNotInk() {
+        const spaces = " ".repeat(30);
+        const source = createTemporaryObject(fakeSourceComponent, this, {
+            currentText: "ab cd" + spaces, positionMs: 1500,
+            currentWords: [{ startMs: 1000, endMs: 1400, text: "ab " },
+                           { startMs: 1400, endMs: 1800, text: "cd" + spaces }] });
+        const view = createTemporaryObject(lyricsViewComponent, this,
+            { source: source, panelMode: true, fontSize: 40 });
+        const layer = layerOf(view);
+        tryCompare(layer, "snapshotCount", 1);
+        const glyphs = findAll(view, o => o.objectName === "lyricWord");
+        compare(glyphs.length, 2);
+        const last = glyphs[1].parent;
+        const ink = createTemporaryObject(textMetricsComponent, this,
+            { font: glyphs[1].font, text: "cd" });
+        verify(last.width > 2 * ink.advanceWidth, last.width + " " + ink.advanceWidth);
+        tryVerify(() => last.x > glyphs[0].parent.x);
+        const right = last.mapToItem(layer, 0.9 * ink.advanceWidth, 0).x;
+        verify(current(layer).births.every(p => p.x <= right + 0.01), JSON.stringify(current(layer).births));
     }
 
     // DESIGN.md decision 77's clock extension: switching to a line without
@@ -445,6 +511,33 @@ TestCase {
         tryVerify(() => t.lyric.shownTranslation === "two");
         tryCompare(t.layer, "snapshotCount", 1);
         compare(t.layer.describeSnapshots().filter(s => s.startMs === 1000).length, 1);
+    }
+
+    Component {
+        id: layerComponent
+        WordParticleLayer {
+            width: 400
+            height: 200
+            active: true
+            positionMs: 1500
+            line: ({
+                startMs: 1000, text: "abcd", x: 20, y: 40,
+                font: Qt.font({ pixelSize: 34 }),
+                words: [{ startMs: 1000, endMs: 1400, text: "ab", x: 0, baseline: 30 },
+                        { startMs: 1400, endMs: 1800, text: "cd", x: 40, baseline: 30 }]
+            })
+        }
+    }
+
+    // The layer's own half of that: when nothing about the line changes at
+    // all after detach(), the copy still goes before the next frame.
+    function test_aDetachThatLandsOnTheSameLineIsUndoneBeforeTheNextFrame() {
+        const layer = createTemporaryObject(layerComponent, this);
+        compare(layer.snapshotCount, 1);
+        layer.detach();
+        compare(layer.snapshotCount, 2);
+        tryCompare(layer, "snapshotCount", 1);
+        verify(current(layer));
     }
 
     // A repeated line with its own timings is a line of its own.

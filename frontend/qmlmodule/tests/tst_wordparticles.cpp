@@ -41,7 +41,6 @@ class WordParticlesTest : public QObject
         LineLayout line;
         line.startMs = startMs;
         line.text = text;
-        line.glyphTop = 10;
         line.ascent = 30;
         line.words = {span(startMs, startMs + wordMs), span(startMs + wordMs, startMs + 2 * wordMs, 30)};
         return capture(line);
@@ -387,6 +386,26 @@ private Q_SLOTS:
         QVERIFY(std::abs(small.coreRadius - scale) < 1e-12);
         QVERIFY(std::abs(small.haloRadius - 7 * scale) < 1e-12);
         QCOMPARE(small.brightness, 0.5 * brightness(p, 500));
+    }
+
+    // Each word's particles rise from that word's own glyph top.
+    void captureUsesEachWordsOwnTop()
+    {
+        LineLayout line;
+        line.startMs = 0;
+        line.ascent = 20;
+        for (int i = 0; i < 40; ++i) {
+            WordSpan word = span(i * 100, i * 100 + 100, i * 40, 40);
+            word.top = i % 2 ? 50 : 10;
+            line.words.append(word);
+        }
+        const Snapshot snapshot = capture(line);
+        for (const Particle &p : snapshot.particles) {
+            const int word = static_cast<int>(p.x / 40);
+            const double top = word % 2 ? 50 : 10;
+            QVERIFY(p.y >= top);
+            QVERIFY(p.y < top + 0.35 * 20);
+        }
     }
 
     void capturePinsTheLastBirth()

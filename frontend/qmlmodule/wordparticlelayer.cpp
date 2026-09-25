@@ -5,7 +5,6 @@
 #include <QSGGeometryNode>
 #include <QSGVertexColorMaterial>
 
-#include <algorithm>
 #include <cstddef>
 #include <limits>
 
@@ -198,17 +197,13 @@ QVariantList WordParticleLayer::describeSnapshots() const
     QVariantList out;
     const QList<const WordParticles::Snapshot *> snapshots = m_field.snapshots();
     for (const WordParticles::Snapshot *snapshot : snapshots) {
-        QPointF topLeft = {std::numeric_limits<qreal>::infinity(), std::numeric_limits<qreal>::infinity()};
-        QPointF bottomRight = -topLeft;
+        QVariantList births;
         for (const WordParticles::Particle &particle : snapshot->particles) {
-            topLeft = {std::min(topLeft.x(), particle.x), std::min(topLeft.y(), particle.y)};
-            bottomRight = {std::max(bottomRight.x(), particle.x), std::max(bottomRight.y(), particle.y)};
+            births.append(QPointF(particle.x, particle.y));
         }
-        const QRectF births(topLeft, bottomRight);
         out.append(QVariantMap{
             {QStringLiteral("startMs"), snapshot->startMs},
             {QStringLiteral("text"), snapshot->text},
-            {QStringLiteral("particles"), snapshot->particles.size()},
             {QStringLiteral("births"), births},
             {QStringLiteral("offsetX"), snapshot->offsetX},
             {QStringLiteral("offsetY"), snapshot->offsetY},
@@ -266,10 +261,10 @@ WordParticles::LineLayout WordParticleLayer::layoutOfLine()
     }
 
     const double rowX = m_lineOrigin.x() + line.value(QStringLiteral("x")).toDouble();
+    const double rowY = m_lineOrigin.y() + line.value(QStringLiteral("y")).toDouble();
     layout.startMs = line.value(QStringLiteral("startMs")).toLongLong();
     layout.text = line.value(QStringLiteral("text")).toString();
     layout.ascent = m_cjkAscent;
-    layout.glyphTop = m_lineOrigin.y() + line.value(QStringLiteral("baseline")).toDouble() - m_cjkAscent;
     layout.words.reserve(words.size());
     for (int i = 0; i < words.size(); ++i) {
         const QVariantMap word = words.at(i).toMap();
@@ -278,6 +273,7 @@ WordParticles::LineLayout WordParticleLayer::layoutOfLine()
         span.endMs = word.value(QStringLiteral("endMs")).toLongLong();
         span.left = rowX + word.value(QStringLiteral("x")).toDouble();
         span.width = m_inkWidths.at(i);
+        span.top = rowY + word.value(QStringLiteral("baseline")).toDouble() - m_cjkAscent;
         layout.words.append(span);
     }
     return layout;

@@ -100,12 +100,17 @@ struct WordSpan
     // left out.
     double left = 0;
     double width = 0;
+    // Where a CJK glyph's top is on this word's baseline, in the layer. Per
+    // word, not per line: every word is its own Text, vertically centred on
+    // its own line height, and a word the fallback CJK font draws sits on a
+    // baseline a pixel or two away from a Latin word's.
+    double top = 0;
 };
 
 /// A word's particles: none for a zero-length token, otherwise 1, 2 or 3
 /// with equal odds, each born within the first min(90, endMs - startMs) ms.
-/// glyphTop and ascent are the line's CJK ascent line in the layer and that
-/// ascent's height.
+/// glyphTop is the word's CJK glyph top in the layer, ascent the height of
+/// that glyph above its baseline.
 QList<Particle> spawn(qint64 lineStartMs, int wordIndex, const WordSpan &word,
                       double glyphTop, double ascent);
 
@@ -115,7 +120,7 @@ struct LineLayout
     // hands the renderer words, not the line's own timestamp.
     qint64 startMs = 0;
     QString text;
-    double glyphTop = 0;
+    // The CJK ascent at the line's font size.
     double ascent = 0;
     QList<WordSpan> words;
 };

@@ -167,7 +167,8 @@ Snapshot capture(const LineLayout &line)
     snapshot.text = line.text;
     snapshot.lastBirthMs = -std::numeric_limits<double>::infinity();
     for (int i = 0; i < line.words.size(); ++i) {
-        const QList<Particle> born = spawn(line.startMs, i, line.words.at(i), line.glyphTop, line.ascent);
+        const WordSpan &word = line.words.at(i);
+        const QList<Particle> born = spawn(line.startMs, i, word, word.top, line.ascent);
         for (const Particle &p : born) {
             snapshot.lastBirthMs = std::max(snapshot.lastBirthMs, p.birthMs);
         }

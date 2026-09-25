@@ -35,8 +35,8 @@ class WordParticleLayer : public QQuickItem
     // Only the RGB is used; the brightness envelope stands in for alpha.
     Q_PROPERTY(QColor color READ color WRITE setColor NOTIFY colorChanged)
     // LyricLine.particleLine of the line being sung, or null: { startMs, text,
-    // words: [{ startMs, endMs, text, x }], x, baseline, font }, positions in
-    // that line's coordinates.
+    // words: [{ startMs, endMs, text, x, baseline }], x, y, font }: the row's
+    // position in that line's coordinates, and each word's within the row.
     Q_PROPERTY(QVariant line READ line WRITE setLine NOTIFY lineChanged)
     // That line's top left in this item, leaving out what lineOffset carries.
     Q_PROPERTY(QPointF lineOrigin READ lineOrigin WRITE setLineOrigin NOTIFY lineOriginChanged)
@@ -82,10 +82,9 @@ public:
     /// moves anything; a switch that lands on the same line again is sorted
     /// out once it is complete, before the next frame.
     Q_INVOKABLE void detach();
-    /// [{ startMs, text, particles, births, offsetX, offsetY, opacity,
-    /// current }] per snapshot, births being the rectangle every birth point
-    /// lies in. For tests: the software backend the QML suite runs on draws
-    /// none of the geometry.
+    /// [{ startMs, text, births, offsetX, offsetY, opacity, current }] per
+    /// snapshot, births being every particle's birth point. For tests: the
+    /// software backend the QML suite runs on draws none of the geometry.
     Q_INVOKABLE QVariantList describeSnapshots() const;
 
 Q_SIGNALS:
