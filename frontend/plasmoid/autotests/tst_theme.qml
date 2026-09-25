@@ -339,6 +339,7 @@ TestCase {
             wordUnsungColor: "#8c1f1b16",
             wordActiveColor: "#e61f1b16",
             wordSungColor: "#c41f1b16",
+            wordParticleColor: "#1f1b16",
             trackInfoColor: "#b31f1b16",
             trackInfoStrokeColor: "#ccffffff",
         };
