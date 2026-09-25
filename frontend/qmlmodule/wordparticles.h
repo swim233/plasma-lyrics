@@ -10,9 +10,10 @@
 // on draws no custom geometry at all. Everything here is a pure function of
 // the lyric position: the same line, played or replayed, gives the same
 // particles, and after a seek every line still held shows what playing up
-// to that point would have. The lines a seek jumped over were never
-// captured, so their particles, which playing would have left in the air,
-// do not appear.
+// to that point would have. Only those lines can come back: a line a seek
+// jumped over was never captured, and one already pruned -- the line before
+// the target of a backward seek, say -- is gone, so neither shows the
+// particles that playing would have left in the air.
 //
 // Lengths are logical pixels at the 34 px reference font size unless a name
 // says otherwise, and are scaled by fontSize / 34 when evaluated. Birth

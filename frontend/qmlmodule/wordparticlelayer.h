@@ -13,9 +13,10 @@
 // QSGGeometryNode with Qt's own QSGVertexColorMaterial -- no shader of our
 // own. AnimatedLyric feeds it the line being sung and calls detach() on every
 // line switch; the particles themselves are WordParticles' pure functions of
-// positionMs, so pausing freezes them and every line the layer holds lands,
-// after a seek, where playing would have put it. Lines it never captured --
-// ones a seek jumped over -- have no particles.
+// positionMs, so pausing freezes them and every line the layer still holds
+// lands, after a seek, where playing would have put it. No other line comes
+// back: not one a seek jumped over, which was never captured, nor one
+// already pruned, such as the line before the target of a backward seek.
 //
 // The node exists only while some particle is visible: with nothing to draw
 // the node is deleted, and the next visible particle gets a fresh one. A node
