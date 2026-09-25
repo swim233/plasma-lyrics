@@ -366,8 +366,11 @@ Item {
     // The row's x without the marquee scroll, and the scroll: the particles
     // are born where the unscrolled row puts them and follow the scroll for
     // as long as the line is current. particleRowX is a property of its own
-    // so that particleLine only sees it change when its value does -- read
-    // inline, a marquee scrolling wordRow.x re-ran particleLine every frame.
+    // so that particleLine only sees it change when its value does. Read
+    // inline as `marqueeApplies ? 0 : wordRow.x`, particleLine was measured
+    // to re-run on 92 of 100 rendered frames of an 80-word marquee line --
+    // one whose switch passed through marqueeApplies false -- with the
+    // scroll moving wordRow.x, although that branch was no longer taken.
     readonly property real particleRowX: root.marqueeApplies ? 0 : wordRow.x
     readonly property real particleScrollOffset: root.marqueeApplies ? root.wordScrollOffset : 0
 
