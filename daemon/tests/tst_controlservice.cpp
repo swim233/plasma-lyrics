@@ -111,32 +111,46 @@ private Q_SLOTS:
         bus.unregisterService(ControlService::serviceName());
     }
 
-    void globalOffsetCanBeAdjustedWithoutACurrentTrack()
+    // DESIGN.md decision 79: the menu's offset commands change the current
+    // song's own offset in global mode too, so they need the same song and
+    // lyric ref as in per-track mode, and never touch the global value.
+    void offsetCommandsChangeOnlyTheSongsOwnOffsetInGlobalMode()
     {
         QTemporaryDir directory;
         LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
         QVERIFY(store.open());
         QVERIFY(store.setGlobalOffsetEnabled(true));
+        QVERIFY(store.setGlobalOffsetMs(2000));
         TestProvider provider(QStringLiteral("local"));
         Resolver resolver(store, {&provider});
         int publications = 0;
         std::optional<MprisState> current;
+        std::optional<TrackRef> currentRef;
         ControlService service(store, resolver, [&] { return current; },
                                [](const MprisState &, const QString &,
-                                  ControlService::CachePolicy) {}, {}, [&] { ++publications; });
+                                  ControlService::CachePolicy) {},
+                               [&] { return currentRef; }, [&] { ++publications; });
 
-        QCOMPARE(service.AdjustOffset(QString(), 500), QString());
-        QCOMPARE(store.globalOffsetMs(), 500);
-        QCOMPARE(service.ResetOffset(QString()), QString());
-        QCOMPARE(store.globalOffsetMs(), 0);
-        QCOMPARE(publications, 2);
+        QCOMPARE(service.AdjustOffset(QString(), 500), QStringLiteral("no-current-song"));
+        QCOMPARE(service.ResetOffset(QString()), QStringLiteral("no-current-song"));
 
         current = MprisState{};
         current->fingerprint = QStringLiteral("mediaSrc:current");
+        QCOMPARE(service.AdjustOffset(QString(), 500), QStringLiteral("song-changed"));
         QCOMPARE(service.AdjustOffset(QStringLiteral("mediaSrc:old"), 500),
                  QStringLiteral("song-changed"));
-        QCOMPARE(store.globalOffsetMs(), 0);
-        QCOMPARE(publications, 2);
+        QCOMPARE(service.AdjustOffset(current->fingerprint, 500), QStringLiteral("no-track-ref"));
+        QCOMPARE(service.ResetOffset(current->fingerprint), QStringLiteral("no-track-ref"));
+        QCOMPARE(publications, 0);
+
+        currentRef = TrackRef{QStringLiteral("local"), QStringLiteral("song"), 1.0};
+        QCOMPARE(service.AdjustOffset(current->fingerprint, 500), QString());
+        QCOMPARE(service.AdjustOffset(current->fingerprint, 500), QString());
+        QCOMPARE(store.offset(*currentRef), 1000);
+        QCOMPARE(service.ResetOffset(current->fingerprint), QString());
+        QCOMPARE(store.offset(*currentRef), 0);
+        QCOMPARE(publications, 3);
+        QCOMPARE(store.globalOffsetMs(), 2000);
     }
 
     void reportsBuildCapabilitiesOutsideTheEnabledResolverChain()
@@ -345,6 +359,8 @@ private Q_SLOTS:
             call->deleteLater();
         }
         QVERIFY(!store.preferredProvider(current.fingerprint));
+        // Offset commands in global mode write only the song's own offset,
+        // whose final value depends on dispatch order.
         QCOMPARE(store.globalOffsetMs(), 0);
         QCOMPARE(requests, 60);
         QCOMPARE(publications, 60);

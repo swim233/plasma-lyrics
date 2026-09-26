@@ -44,6 +44,8 @@ public Q_SLOTS:
                                  const QString &provider);
     QString ClearPreferredProvider(const QString &expectedFingerprint);
     QString Research(const QString &expectedFingerprint);
+    // Both change only the current song's own offset, in either global
+    // offset mode (DESIGN.md decision 79), and so need its lyric ref.
     QString AdjustOffset(const QString &expectedFingerprint, int deltaMs);
     QString ResetOffset(const QString &expectedFingerprint);
     QString RefreshGlobalOffset();
@@ -65,7 +67,8 @@ public Q_SLOTS:
 private:
     std::optional<MprisState> checkedState(const QString &expectedFingerprint,
                                            QString *error) const;
-    bool checkedOffsetContext(const QString &expectedFingerprint, QString *error) const;
+    std::optional<TrackRef> checkedOffsetRef(const QString &expectedFingerprint,
+                                             QString *error) const;
 
     LyricStore &m_store;
     Resolver &m_resolver;
