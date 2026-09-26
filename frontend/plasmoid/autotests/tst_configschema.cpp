@@ -761,6 +761,37 @@ private Q_SLOTS:
                                     .arg(representation.property, expected, representation.form, suffix);
                 }
             }
+            // DESIGN.md decision 78. Reading the right key is not enough for
+            // the secondary lyrics' family and weight: the family has to
+            // resolve as the lyric family does, and the weight has to snap
+            // onto the faces of that family -- not the lyric's -- in their
+            // own slant. So the whole right-hand side of each is pinned,
+            // whitespace aside, against the view's own id.
+            const QString view = bindings.value(QStringLiteral("id")).trimmed();
+            if (view.isEmpty()) {
+                problems << QStringLiteral("%1 has no id").arg(representation.property);
+            }
+            const auto compact = [](QString text) {
+                static const QRegularExpression whitespace(QStringLiteral("\\s"));
+                return text.remove(whitespace);
+            };
+            const QList<std::pair<QString, QString>> pinned = {
+                {QStringLiteral("secondaryLyricFontFamily"),
+                 QStringLiteral("FontPolicy.lyricFamily(FontCatalog,%1Theme.value(\"SecondaryLyricFontFamily\"),"
+                                "Kirigami.Theme.defaultFont.family)")
+                     .arg(representation.form)},
+                {QStringLiteral("secondaryLyricFontWeight"),
+                 QStringLiteral("FontPolicy.renderWeight(FontCatalog,%1.secondaryLyricFontFamily,"
+                                "%2Theme.value(\"SecondaryLyricFontWeight\"),%1.secondaryLyricFontItalic)")
+                     .arg(view, representation.form)},
+            };
+            for (const auto &[property, expected] : pinned) {
+                const QString actual = compact(bindings.value(property));
+                if (actual != expected) {
+                    problems << QStringLiteral("%1: %2 is \"%3\", expected \"%4\"")
+                                    .arg(representation.property, property, actual, expected);
+                }
+            }
             if (block.contains(representation.otherForm + QStringLiteral("Theme."))) {
                 problems << QStringLiteral("%1 reads %2Theme").arg(representation.property, representation.otherForm);
             }
