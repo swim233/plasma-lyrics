@@ -194,11 +194,23 @@ Kirigami.FormLayout {
     // copies the text colour in, at the alpha the secondary lyrics take from
     // it while the switch is off (decision 78), so nothing on screen moves.
     // A colour set before is kept, so turning the switch off and on again
-    // brings it back. Only from the check box, never from a binding.
+    // brings it back. A text colour that is no colour at all, as a
+    // configuration edited by hand can hold, makes Qt.color() throw: then
+    // nothing is copied, and the switch is written all the same, so the
+    // check box never shows a state the configuration does not have. Only
+    // from the check box, never from a binding.
     function editSecondaryLyricColorEnabled(enabled) {
         if (enabled && ThemePolicy.isDefaultValue(root.secondaryLyricColor, root.secondaryLyricColorDefault)) {
-            const text = Qt.color(root.textColor);
-            root.secondaryLyricColorEdited(Qt.rgba(text.r, text.g, text.b, 0xad / 255).toString());
+            let copy = "";
+            try {
+                const text = Qt.color(root.textColor);
+                copy = Qt.rgba(text.r, text.g, text.b, 0xad / 255).toString();
+            } catch (error) {
+                copy = "";
+            }
+            if (copy.length > 0) {
+                root.secondaryLyricColorEdited(copy);
+            }
         }
         root.secondaryLyricColorEnabledEdited(enabled);
     }

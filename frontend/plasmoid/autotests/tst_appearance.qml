@@ -2922,6 +2922,36 @@ TestCase {
         }
     }
 
+    // A text colour that is no colour at all -- a configuration edited by
+    // hand -- has nothing to copy: the switch still turns on, the colour
+    // stays as stored, and the check box shows what the configuration holds.
+    function test_theSecondaryLyricColorSwitchTurnsOnOverAnInvalidTextColor() {
+        for (const form of ["desktop", "panel"]) {
+            for (const dark of [false, true]) {
+                const tag = form + (dark ? " dark" : " light");
+                const key = suffix => "cfg_" + ThemePolicy.keyPrefix(form, dark) + suffix;
+                const props = modeProperties(form, dark ? "dark" : "light");
+                props[key("SecondaryLyricColorDefault")] = secondaryLyricColorDefault(form, dark);
+                props[key("SecondaryLyricColor")] = secondaryLyricColorDefault(form, dark);
+                props[key("SecondaryLyricColorEnabled")] = false;
+                props[key("SecondaryLyricSource")] = "translation";
+                props[key("TextColor")] = "not a colour";
+                const page = createWindowedPage(form, props);
+                compare(page.editingDark, dark, tag);
+                const colorSwitch = named(page, "secondaryLyricColorCheckBox");
+
+                scrollIntoView(page, colorSwitch);
+                mouseClick(colorSwitch);
+                compare(page[key("SecondaryLyricColorEnabled")], true, tag);
+                compare(colorSwitch.checked, true, tag);
+                compare(page[key("SecondaryLyricColor")], secondaryLyricColorDefault(form, dark), tag);
+                mouseClick(colorSwitch);
+                compare(page[key("SecondaryLyricColorEnabled")], false, tag);
+                compare(colorSwitch.checked, false, tag);
+            }
+        }
+    }
+
     // The font switch copies the main lyrics' family as stored, their size
     // and their weight in when it is turned on while the secondary lyrics'
     // family, size, weight and italic are all at their keys' defaults, and
