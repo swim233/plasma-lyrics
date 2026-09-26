@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-26 17:06+0800\n"
+"POT-Creation-Date: 2026-09-26 17:15+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -448,8 +448,8 @@ msgstr ""
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:172
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:191
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:334
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:114
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:135
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:120
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:141
 #: frontend/plasmoid/package/contents/ui/config/OffsetSaver.qml:31
 msgid "%1 ms"
 msgstr ""
@@ -623,48 +623,48 @@ msgstr ""
 msgid "Also hide while playing non-music media"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:66
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:72
 msgid ""
 "This setting affects every Desktop Lyrics widget and takes effect "
 "immediately, without restarting the lyrics service."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:73
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:79
 msgid "Could not save the global offset. The setting was not applied."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:83
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:85
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:89
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:91
 msgid "Could not save this song's offset. The setting was not applied."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:91
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:97
 msgid "Lyric offset:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:92
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:98
 msgid "Use one offset for all songs"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:105
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:111
 msgid ""
 "Each song's effective offset is the global offset plus its own offset. The "
 "context menu only changes the song's own offset."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:108
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:114
 msgid "Global offset:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:118
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:124
 msgid "Current song:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:126
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:132
 msgid "This song's offset:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:145
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:151
 msgid "Effective offset:"
 msgstr ""
 

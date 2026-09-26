@@ -16,6 +16,12 @@ Kirigami.ScrollablePage {
     id: page
 
     // Both read by AppletConfiguration.qml; OffsetSaver holds the rules.
+    // unsavedChanges has to stay an alias, not a binding to
+    // saver.unsavedChanges: after a failed global save OffsetSaver re-sends
+    // unsavedChangesChanged with the value unchanged, and only an alias
+    // passes that on to AppletConfiguration.qml. Behind a binding the page
+    // would not notify, Apply would stay disabled, and no test would notice:
+    // the QML tests never instantiate this page.
     readonly property alias unsavedChanges: saver.unsavedChanges
     function saveConfig() { saver.save(); }
 
