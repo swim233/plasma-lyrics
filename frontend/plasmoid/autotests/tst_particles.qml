@@ -622,9 +622,9 @@ TestCase {
         compare(t.layer.snapshotCount, 0);
     }
 
-    // Only the lyric's own line spawns; the second line carries no words and
-    // is never read.
-    function test_theSecondLineNeverSpawns() {
+    // Only the lyric's own line spawns; the secondary lyrics carry no words
+    // and are never read.
+    function test_theSecondaryLyricsNeverSpawn() {
         const t = createView();
         t.source.currentTranslation = "translation";
         tryVerify(() => t.lyric.shownSecondaryLyric === "translation");
@@ -791,9 +791,9 @@ TestCase {
         compare(t.layer.snapshotCount, 1);
     }
 
-    // A switch that only changes the second line lands on the same line; the
-    // copy detach() kept must not stay beside the line being sung.
-    function test_aSecondLineChangeDoesNotDoubleTheParticles() {
+    // A switch that only changes the secondary lyrics lands on the same
+    // line; the copy detach() kept must not stay beside the line being sung.
+    function test_aSecondaryLyricChangeDoesNotDoubleTheParticles() {
         const t = createView();
         t.source.currentTranslation = "one";
         tryVerify(() => t.lyric.shownSecondaryLyric === "one");
