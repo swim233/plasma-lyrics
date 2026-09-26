@@ -144,10 +144,7 @@ Kirigami.ScrollablePage {
             QQC2.Label {
                 Kirigami.FormData.label: i18n("Effective offset:")
                 visible: globalConfig.enabled
-                // What the two SpinBoxes add up to, applied or not.
-                text: page.unsavedChanges
-                    ? i18n("%1 ms (after applying)", globalConfig.offsetMs + trackOffset.value)
-                    : i18n("%1 ms", globalConfig.offsetMs + trackOffset.value)
+                text: saver.effectiveOffsetText
             }
         }
     }

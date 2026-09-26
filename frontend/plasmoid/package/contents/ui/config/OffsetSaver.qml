@@ -1,8 +1,9 @@
 import QtQuick
 
 // What the Global settings page's Apply does (DESIGN.md decisions 41 and
-// 79), kept out of ConfigGlobal.qml for the same reason as
-// TrackOffsetEditor: the QML tests drive it with stand-ins. The global value
+// 79), and the readout that adds up the page's two values, kept out of
+// ConfigGlobal.qml for the same reason as TrackOffsetEditor: the QML tests
+// drive it with stand-ins. The global value
 // and the current song's own offset are saved and reported separately; one
 // failing neither undoes nor blocks the other, and the failed one stays
 // unsaved so Apply can retry it.
@@ -16,6 +17,19 @@ QtObject {
 
     readonly property bool unsavedChanges: config.unsavedChanges || editor.unsaved
     property bool saveFailed: false
+
+    // The "Effective offset" readout: what the two SpinBoxes add up to,
+    // applied or not. Unlike the SpinBoxes it signs a positive value, so the
+    // sum reads as a shift ("+800 ms"); 0 carries no sign.
+    readonly property int effectiveOffsetMs: config.offsetMs + editor.value
+    readonly property string effectiveOffsetText: {
+        const value = effectiveOffsetMs;
+        if (unsavedChanges) {
+            return value > 0 ? i18n("+%1 ms (after applying)", value)
+                             : i18n("%1 ms (after applying)", value);
+        }
+        return value > 0 ? i18n("+%1 ms", value) : i18n("%1 ms", value);
+    }
 
     function save() {
         // Only a changed global value is written, so an Apply for the song's

@@ -54,6 +54,7 @@ TestCase {
         id: configComponent
         QtObject {
             property bool unsavedChanges: false
+            property int offsetMs: 0
             property bool saveSucceeds: true
             property int saves: 0
             function save() {
@@ -323,5 +324,24 @@ TestCase {
         compare(signals, 1);
         // Nothing edited, nothing sent for the song.
         compare(saver.editor.source.requests.length, 0);
+    }
+    function test_theEffectiveOffsetSignsAPositiveSum() {
+        const saver = createSaver();
+        // The song's own offset in the stand-in source is 200.
+        saver.config.offsetMs = 600;
+        compare(saver.effectiveOffsetText, "+800 ms");
+        saver.config.offsetMs = -200;
+        compare(saver.effectiveOffsetText, "0 ms");
+        saver.config.offsetMs = -500;
+        compare(saver.effectiveOffsetText, "-300 ms");
+
+        // Either value unsaved: the same, marked.
+        saver.config.unsavedChanges = true;
+        compare(saver.effectiveOffsetText, "-300 ms (after applying)");
+        saver.config.offsetMs = -200;
+        compare(saver.effectiveOffsetText, "0 ms (after applying)");
+        saver.config.unsavedChanges = false;
+        saver.editor.edit(300);
+        compare(saver.effectiveOffsetText, "+100 ms (after applying)");
     }
 }

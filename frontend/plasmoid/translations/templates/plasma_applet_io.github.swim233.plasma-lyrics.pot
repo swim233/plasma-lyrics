@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-26 17:02+0800\n"
+"POT-Creation-Date: 2026-09-26 17:06+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -450,7 +450,7 @@ msgstr ""
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:334
 #: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:114
 #: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:135
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:150
+#: frontend/plasmoid/package/contents/ui/config/OffsetSaver.qml:31
 msgid "%1 ms"
 msgstr ""
 
@@ -668,10 +668,6 @@ msgstr ""
 msgid "Effective offset:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:149
-msgid "%1 ms (after applying)"
-msgstr ""
-
 #: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:290
 msgctxt "@label:spinbox"
 msgid "Width:"
@@ -719,6 +715,18 @@ msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:360
 msgid "No matching fonts"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/OffsetSaver.qml:28
+msgid "+%1 ms (after applying)"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/OffsetSaver.qml:29
+msgid "%1 ms (after applying)"
+msgstr ""
+
+#: frontend/plasmoid/package/contents/ui/config/OffsetSaver.qml:31
+msgid "+%1 ms"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/RestartFeedback.qml:14
