@@ -37,6 +37,16 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(Qt6 6.6 REQUIRED COMPONENTS Core Sql)
 
+if(BUILD_TESTING)
+    # The tests that turn on QStandardPaths test mode write under
+    # $HOME/.qttest. They get HOME pointed here instead, so they stay out of
+    # the developer's real home and every build directory -- and so every
+    # worktree -- has its own copy: two worktrees running ctest at the same
+    # time used to overwrite each other's settings file in ~/.qttest.
+    set(PLASMA_LYRICS_TEST_HOME "${CMAKE_BINARY_DIR}/test-home")
+    file(MAKE_DIRECTORY "${PLASMA_LYRICS_TEST_HOME}")
+endif()
+
 add_subdirectory(core)
 add_subdirectory(providers)
 

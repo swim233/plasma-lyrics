@@ -56,6 +56,15 @@ always has -- its only output is "Not installed yet, skipping"; a directory
 that has been installed from takes a different branch and prints nothing).
 The `sd_journal_send()` rationale above does not apply to it either way.
 
+A test that calls `QStandardPaths::setTestModeEnabled(true)` must also carry
+`HOME=${PLASMA_LYRICS_TEST_HOME}` in the same `ENVIRONMENT` list (the
+variable is set in the top-level `CMakeLists.txt`, under the build
+directory). Test mode writes under `$HOME/.qttest`; with the real `HOME`
+that is the developer's home directory, shared by every worktree, so two
+agents running ctest at the same time overwrote each other's settings file
+there and `tst_backendconfig` failed at random. When running such a test
+binary directly, set `HOME` to a scratch directory yourself.
+
 A test that simulates a crashing child must kill it with `SIGKILL`
 (`kill -KILL $$` inside a `/bin/sh -c` command), never with a core-dumping
 signal such as `SIGSEGV` or `SIGABRT`. `QProcess` reports `CrashExit` for

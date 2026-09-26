@@ -73,7 +73,7 @@ if(BUILD_TESTING)
     add_test(NAME tst_config COMMAND tst_config)
     set_tests_properties(tst_config PROPERTIES
         RESOURCE_LOCK plasma_lyrics_config
-        ENVIRONMENT "LC_ALL=C.UTF-8")
+        ENVIRONMENT "LC_ALL=C.UTF-8;HOME=${PLASMA_LYRICS_TEST_HOME}")
 
     add_executable(tst_mprispolicy
         tests/tst_mprispolicy.cpp
@@ -99,7 +99,7 @@ if(BUILD_TESTING)
     add_test(NAME tst_mprispolicy COMMAND tst_mprispolicy)
     set_tests_properties(tst_mprispolicy PROPERTIES
         RESOURCE_LOCK plasma_lyrics_config
-        ENVIRONMENT "LC_ALL=C.UTF-8")
+        ENVIRONMENT "LC_ALL=C.UTF-8;HOME=${PLASMA_LYRICS_TEST_HOME}")
 
     # The bug this covers lives in the D-Bus wiring itself, so the test needs a
     # real bus. dbus-run-session gives it a private one, which also keeps the
