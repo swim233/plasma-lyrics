@@ -187,6 +187,15 @@ TestCase {
         }
     }
 
+    // What Kirigami.Theme.smallFont resolves to on a Label, for
+    // test_descriptionsAreStyledAsSecondaryCopy.
+    Component {
+        id: smallFontLabelComponent
+        QQC2.Label {
+            font: Kirigami.Theme.smallFont
+        }
+    }
+
     Component {
         id: configTextComponent
         LyricsConfig.ConfigText {}
@@ -1843,16 +1852,16 @@ TestCase {
         // WHAT THIS DOES NOT DO, and why. The obvious test -- lengthen a
         // description at runtime and assert the page does not move -- passes
         // just as well with the bug fully present, measured: uncapped, the
-        // page sits at 914 for text repeated 1x, 40x and 720x alike. The
+        // form sits at 846 for text repeated 1x, 40x and 720x alike. The
         // page width is fixed at load time by the *declared* text; assigning
         // `text` afterwards never moves it. A pixel budget is out too: every
         // absolute width here scales with the platform font, which is what
         // the line-height fixtures in this file had to be rewritten for.
         // So this asserts the mechanism, with both clauses measured to
         // discriminate: uncapped reads Infinity and takes the full content
-        // width (702 of 702), capped reads 432 and takes 432 of 702.
+        // width (702 of 702), capped reads 468 and takes 468 of 702.
         // Layout.preferredWidth: 0 does not substitute for the cap
-        // (measured: the page stayed at 938).
+        // (measured: the form stays at 846).
         const win = createTemporaryObject(windowedAppearanceSectionComponent, this);
         verify(win !== null);
         const section = win.section;
@@ -1860,22 +1869,70 @@ TestCase {
         wait(150);
 
         const descriptions = findAll(section, o => o.objectName === "formDescription");
-        // Two today. Asserted as non-empty rather than exactly two so adding
-        // a third description does not fail this, but deleting an
-        // objectName -- which would silently drop that label out of this
-        // check -- does.
+        // Four today. Asserted as non-empty rather than exactly four so
+        // adding a fifth description does not fail this; only every label
+        // losing its objectName does. One label losing it just drops out of
+        // this check: test_glowAndParticleDescriptionsShowWithTheirRows
+        // fails for the glow and particle descriptions, nothing does for
+        // the other two.
         verify(descriptions.length > 0);
         verify(section.width > 0);
 
         for (let i = 0; i < descriptions.length; ++i) {
             const description = descriptions[i];
-            // Uncapped, this reads Infinity.
-            verify(description.Layout.maximumWidth < Infinity);
+            // Uncapped, this reads Infinity; the first formDescription
+            // comment in AppearanceSection.qml has the measurements behind
+            // the 26.
+            verify(description.Layout.maximumWidth <= Kirigami.Units.gridUnit * 26);
             // And the cap has to be tight enough to matter: a description
             // allowed the whole content width is back to being what the
             // page sizes itself to.
             verify(description.width < section.width);
         }
+    }
+
+    // Every description -- AppearanceSection's and the theme mode row's in
+    // ThemeTabs.qml -- is secondary copy under its row, styled as the
+    // "Record debug details" description on the Lyrics Service page is, and
+    // wraps: without WordWrap the English glow sentence stays one 604 px
+    // line, past its 468 px box and the right edge of the form (measured
+    // in this test's window, which is just wide enough to still hold it).
+    //
+    // The font is compared with a Label given Kirigami.Theme.smallFont, not
+    // with smallFont's own fields: this binary gets Kirigami's basic theme,
+    // and what a Label makes of its smallFont depends on the Kirigami
+    // version. Measured on Arch (Kirigami 6.30): smallFont reads Noto Sans
+    // 12 pt, a Label given it renders Noto Sans 9 pt -- only the family
+    // carries over -- and one without it Sans Serif 9 pt. In the Debian 13
+    // container (Kirigami 6.13): smallFont reads Sans Serif 7 pt, a Label
+    // takes it whole, and one without it renders 9 pt. A lost font shows in
+    // the family on one and in the size on the other, so all three compares
+    // are needed. Each reference sits where its descriptions inherit their
+    // font from: the window for the section, the page for the mode row.
+    function test_descriptionsAreStyledAsSecondaryCopy() {
+        const win = createTemporaryObject(windowedAppearanceSectionComponent, this);
+        verify(win !== null);
+        const reference = createTemporaryObject(smallFontLabelComponent, win.contentItem);
+        verify(reference !== null);
+        const descriptions = findAll(win.section, o => o.objectName === "formDescription");
+        verify(descriptions.length > 0);
+        for (let i = 0; i < descriptions.length; ++i) {
+            verifyStyledAsSecondaryCopy(descriptions[i], reference, descriptions[i].text);
+        }
+        for (const form of ["desktop", "panel"]) {
+            const page = createWindowedPage(form, modeProperties(form, "auto"));
+            const pageReference = createTemporaryObject(smallFontLabelComponent, page, { visible: false });
+            verify(pageReference !== null, form);
+            verifyStyledAsSecondaryCopy(modeDescriptionOf(page, form), pageReference, form);
+        }
+    }
+
+    function verifyStyledAsSecondaryCopy(description, reference, tag) {
+        verify(Qt.colorEqual(description.color, description.Kirigami.Theme.disabledTextColor), tag);
+        compare(description.font.family, reference.font.family, tag);
+        compare(description.font.pointSize, reference.font.pointSize, tag);
+        compare(description.font.pixelSize, reference.font.pixelSize, tag);
+        compare(description.wrapMode, Text.WordWrap, tag);
     }
 
     // ---- light and dark sets (DESIGN.md decision 76) ----
@@ -1896,6 +1953,17 @@ TestCase {
 
     function trackInfoSectionOf(page) {
         return findAll(page, o => typeof o.trackInfoFontFamilyEdited === "function")[0];
+    }
+
+    // The theme mode row's description, the one formDescription of
+    // ThemeTabs.qml itself; AppearanceSection's own are inside its frame.
+    function modeDescriptionOf(page, form) {
+        const themeTabs = findAll(page, o => o.syncDialog !== undefined)[0];
+        const section = sectionOf(page);
+        const descriptions = findAll(themeTabs, o => o.objectName === "formDescription")
+            .filter(label => findAll(section, o => o === label).length === 0);
+        compare(descriptions.length, 1, form);
+        return descriptions[0];
     }
 
     // The mode and, for "auto" to follow, whether the Plasma style is
@@ -2453,8 +2521,8 @@ TestCase {
                     compare(particles.Kirigami.FormData.label, i18n("Particles:"), tag);
                     compare(colorSwitch.Kirigami.FormData.label, i18n("Particle color:"), tag);
                     compare(colorField.Kirigami.FormData.label, i18n("Color:"), tag);
-                    compare(particles.text, i18n("Float particles up from each word as it is sung"), tag);
-                    compare(colorSwitch.text, i18n("Set it separately from the current word color"), tag);
+                    compare(particles.text, i18n("Turn on lyric particle animation"), tag);
+                    compare(colorSwitch.text, i18n("Use a separate particle color"), tag);
                     // Right after "Blurred glow:", the last row of the group
                     // before them, and in this order down the form.
                     const sectionChildren = sectionOf(page).children;
@@ -2512,6 +2580,80 @@ TestCase {
                     compare(page[key("WordParticleColor")], "#123456", tag);
                     verify(othersUnchanged(), tag);
                 }
+            }
+        }
+    }
+
+    // Decision 77's descriptions: one directly below the glow row and one
+    // directly below the particle row, in the field column, each shown with
+    // its row -- so with word-by-word on it stays while its own switch is
+    // off. The particle colour row has none: its colour field follows it.
+    function test_glowAndParticleDescriptionsShowWithTheirRows() {
+        for (const form of ["desktop", "panel"]) {
+            for (const dark of [false, true]) {
+                const tag = form + (dark ? " dark" : " light");
+                const props = distinctConfiguration(form, dark ? "dark" : "light");
+                const key = suffix => "cfg_" + ThemePolicy.keyPrefix(form, dark) + suffix;
+                props[key("WordByWord")] = true;
+                props[key("WordBlurGlow")] = true;
+                props[key("WordParticles")] = true;
+                props[key("WordParticleColorEnabled")] = true;
+                // Wide enough for the two-column layout in any locale and
+                // font, as for test_theFormsInsideAndOutsideTheFrameLineUp.
+                const page = createWindowedPage(form, props, { width: Kirigami.Units.gridUnit * 80 });
+                compare(page.editingDark, dark, tag);
+                // Every row of the form in declaration order, those without a
+                // label (the descriptions) included.
+                const sectionChildren = sectionOf(page).children;
+                const items = [];
+                for (let i = 0; i < sectionChildren.length; ++i) {
+                    items.push(sectionChildren[i]);
+                }
+                const glow = items.find(item => item.Kirigami.FormData.label === i18n("Blurred glow:"));
+                verify(glow !== undefined, tag);
+                const particles = named(page, "wordParticlesCheckBox");
+                const colorSwitch = named(page, "wordParticleColorCheckBox");
+                const colorField = named(page, "wordParticleColorField");
+                const glowAt = items.indexOf(glow);
+                const particlesAt = items.indexOf(particles);
+                const glowDescription = items[glowAt + 1];
+                const particlesDescription = items[particlesAt + 1];
+
+                compare(glow.text, i18n("Turn on lyric glow"), tag);
+                compare(glowDescription.objectName, "formDescription", tag);
+                compare(glowDescription.text, i18n("With this on, a glow is overlaid on word-by-word lyrics for a more elegant look, at a slight performance cost."), tag);
+                compare(particlesAt, glowAt + 2, tag);
+                compare(particlesDescription.objectName, "formDescription", tag);
+                compare(particlesDescription.text, i18n("With this on, particles show the live progress of word-by-word lyrics, at a slight performance cost."), tag);
+                compare(items.indexOf(colorSwitch), particlesAt + 2, tag);
+                compare(items.indexOf(colorField), particlesAt + 3, tag);
+
+                // Laid out below its row and above the next, starting where
+                // the row's check box does.
+                const rows = [[glow, glowDescription, particles],
+                              [particles, particlesDescription, colorSwitch]];
+                for (const [row, description, next] of rows) {
+                    settle(row);
+                    settle(description);
+                    settle(next);
+                    const rowAt = row.mapToItem(null, 0, 0);
+                    const descriptionAt = description.mapToItem(null, 0, 0);
+                    const nextAt = next.mapToItem(null, 0, 0);
+                    fuzzyCompare(descriptionAt.x, rowAt.x, 1, tag);
+                    verify(descriptionAt.y >= rowAt.y + row.height, tag);
+                    verify(nextAt.y >= descriptionAt.y + description.height, tag);
+                }
+
+                const state = () => [glow.visible, glowDescription.visible,
+                                     particles.visible, particlesDescription.visible];
+                compare(state(), [true, true, true, true], tag);
+                page[key("WordBlurGlow")] = false;
+                page[key("WordParticles")] = false;
+                compare(state(), [true, true, true, true], tag);
+                page[key("WordByWord")] = false;
+                compare(state(), [false, false, false, false], tag);
+                page[key("WordByWord")] = true;
+                compare(state(), [true, true, true, true], tag);
             }
         }
     }
@@ -2578,27 +2720,23 @@ TestCase {
         }
     }
 
-    // The mode row's description is capped like AppearanceSection's (see
-    // test_aDescriptionCannotWidenTheConfigPage for why the cap is the
-    // mechanism to check), and has a positive preferred width, which is what
-    // FormLayout then sizes the column from instead of the text. The cap
-    // alone lets the Chinese text widen every form on the page (ThemeTabs.qml
-    // has the measurement); in this suite's English the cap is narrower than
-    // the controls, so only the mechanism can be checked here.
+    // The mode row's description is capped at the same 26 gridUnits as
+    // AppearanceSection's (see test_aDescriptionCannotWidenTheConfigPage for
+    // why the cap is the mechanism to check), and has a positive preferred
+    // width, which is what FormLayout then sizes the column from instead of
+    // the text. Only the mechanism can be checked here: with today's wording
+    // the preferred width changes no width in this suite (ThemeTabs.qml has
+    // the history).
     function test_theModeDescriptionCannotWidenThePage() {
         for (const form of ["desktop", "panel"]) {
             const page = createWindowedPage(form, modeProperties(form, "auto"));
             const themeTabs = findAll(page, o => o.syncDialog !== undefined)[0];
             wait(150);
-            // AppearanceSection's own are inside the frame.
-            const section = sectionOf(page);
-            const descriptions = findAll(themeTabs, o => o.objectName === "formDescription")
-                .filter(label => findAll(section, o => o === label).length === 0);
-            compare(descriptions.length, 1, form);
-            verify(descriptions[0].Layout.maximumWidth < Infinity, form);
-            verify(descriptions[0].Layout.preferredWidth > 0, form);
-            verify(descriptions[0].Layout.preferredWidth < descriptions[0].width, form);
-            verify(descriptions[0].width < themeTabs.width, form);
+            const description = modeDescriptionOf(page, form);
+            verify(description.Layout.maximumWidth <= Kirigami.Units.gridUnit * 26, form);
+            verify(description.Layout.preferredWidth > 0, form);
+            verify(description.Layout.preferredWidth < description.width, form);
+            verify(description.width < themeTabs.width, form);
         }
     }
 }

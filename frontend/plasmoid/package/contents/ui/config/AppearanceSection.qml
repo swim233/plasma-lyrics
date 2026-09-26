@@ -299,25 +299,32 @@ Kirigami.FormLayout {
         onToggled: root.wordByWordEdited(checked)
     }
     QQC2.Label {
-        // Named so the regression test can find these two without a shape
-        // check that would also match every other Label on the page, the
-        // same reason LyricLine.qml's word glyphs carry one.
+        // Named so the regression test can find these descriptions without a
+        // shape check that would also match every other Label on the page,
+        // the same reason LyricLine.qml's word glyphs carry one.
         objectName: "formDescription"
         Layout.fillWidth: true
         // A wrapping Text still reports its *unwrapped* single-line width as
         // implicitWidth, and Layout.fillWidth does not cap that -- it only
         // lets the item grow. FormLayout then sizes itself to the widest
         // child's preferred width, so a long enough sentence here silently
-        // widens the whole config page. Measured on this form when these
-        // descriptions were added: the two sentences it held then wanted 790
-        // and 806px, against the 653px the rest of the page needs, and the
-        // page's implicitWidth went 761 -> 938 (+23%) when they were added.
-        // Layout.preferredWidth: 0 does NOT help (measured: still 938); only
-        // an explicit cap does. 24 gridUnits keeps every description
-        // comfortably under the ~653px the controls themselves already need,
-        // so a control stays the binding constraint and no future wording
-        // change can move the page width again.
-        Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+        // widens the whole config page. Measured in tst_appearance's English
+        // with this label uncapped: it wants 722 px and the form's
+        // implicitWidth goes 592 -> 846, too wide for two columns in the
+        // test's 702 px. Layout.preferredWidth: 0 does NOT help (still 846);
+        // only an explicit cap does. 26 gridUnits bounds how wide any
+        // description can make the field column. A description can still be
+        // the widest item there -- measured, the first one is in Chinese, and
+        // in English with Plasma's default fonts the capped ones are -- so a
+        // wording change can move the page width, but never past the cap.
+        // Why 26: Plasma's applet config dialog is gridUnit * 45 = 810 px
+        // wide and does not grow with its content, which leaves this section
+        // 614 px, and FormLayout drops to one column once the section's
+        // implicitWidth exceeds that. Measured in zh_CN with Noto Sans CJK SC
+        // 12 (small font 11) under org.kde.desktop: the section is 588 px at
+        // 26 and 615 px -- one column -- at 28, and at 26 the glow (465 px)
+        // and particle (435 px) descriptions each fit on one line.
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 26
         wrapMode: Text.WordWrap
         // Same styling as the "Record debug details" description on the
         // Lyrics Service page: this is secondary copy about the checkbox
@@ -339,25 +346,14 @@ Kirigami.FormLayout {
         onToggled: root.syntheticWordByWordEdited(checked)
     }
     QQC2.Label {
-        // Named so the regression test can find these two without a shape
-        // check that would also match every other Label on the page, the
-        // same reason LyricLine.qml's word glyphs carry one.
+        // Named so the regression test can find these descriptions without a
+        // shape check that would also match every other Label on the page,
+        // the same reason LyricLine.qml's word glyphs carry one.
         objectName: "formDescription"
         Layout.fillWidth: true
-        // A wrapping Text still reports its *unwrapped* single-line width as
-        // implicitWidth, and Layout.fillWidth does not cap that -- it only
-        // lets the item grow. FormLayout then sizes itself to the widest
-        // child's preferred width, so a long enough sentence here silently
-        // widens the whole config page. Measured on this form when these
-        // descriptions were added: the two sentences it held then wanted 790
-        // and 806px, against the 653px the rest of the page needs, and the
-        // page's implicitWidth went 761 -> 938 (+23%) when they were added.
-        // Layout.preferredWidth: 0 does NOT help (measured: still 938); only
-        // an explicit cap does. 24 gridUnits keeps every description
-        // comfortably under the ~653px the controls themselves already need,
-        // so a control stays the binding constraint and no future wording
-        // change can move the page width again.
-        Layout.maximumWidth: Kirigami.Units.gridUnit * 24
+        // Capped as the first formDescription is; its comment has the
+        // measurements behind the cap.
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 26
         wrapMode: Text.WordWrap
         visible: root.wordByWord
         // Same styling as the "Record debug details" description on the
@@ -454,25 +450,49 @@ Kirigami.FormLayout {
     QQC2.CheckBox {
         Kirigami.FormData.label: i18n("Blurred glow:")
         visible: root.wordByWord
-        text: i18n("Overlay a glow on the word-by-word lyrics for a more elegant look, at a slight performance cost.")
+        text: i18n("Turn on lyric glow")
         checked: root.wordBlurGlow
         onToggled: root.wordBlurGlowEdited(checked)
     }
-    // DESIGN.md decision 77. The three rows are named for the tests that
-    // check which of them show.
+    QQC2.Label {
+        // Named, capped and styled like the formDescription labels above;
+        // the first one's comment has the measurements behind the cap.
+        objectName: "formDescription"
+        Layout.fillWidth: true
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 26
+        wrapMode: Text.WordWrap
+        visible: root.wordByWord
+        color: Kirigami.Theme.disabledTextColor
+        font: Kirigami.Theme.smallFont
+        text: i18n("With this on, a glow is overlaid on word-by-word lyrics for a more elegant look, at a slight performance cost.")
+    }
+    // DESIGN.md decision 77. The three control rows are named for the tests
+    // that check which of them show.
     QQC2.CheckBox {
         objectName: "wordParticlesCheckBox"
         Kirigami.FormData.label: i18n("Particles:")
         visible: root.wordByWord
-        text: i18n("Float particles up from each word as it is sung")
+        text: i18n("Turn on lyric particle animation")
         checked: root.wordParticles
         onToggled: root.wordParticlesEdited(checked)
+    }
+    QQC2.Label {
+        // As the glow's description above. Shown with its row, so it stays
+        // while the particles themselves are off.
+        objectName: "formDescription"
+        Layout.fillWidth: true
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 26
+        wrapMode: Text.WordWrap
+        visible: root.wordByWord
+        color: Kirigami.Theme.disabledTextColor
+        font: Kirigami.Theme.smallFont
+        text: i18n("With this on, particles show the live progress of word-by-word lyrics, at a slight performance cost.")
     }
     QQC2.CheckBox {
         objectName: "wordParticleColorCheckBox"
         Kirigami.FormData.label: i18n("Particle color:")
         visible: root.wordByWord && root.wordParticles
-        text: i18n("Set it separately from the current word color")
+        text: i18n("Use a separate particle color")
         checked: root.wordParticleColorEnabled
         onToggled: root.wordParticleColorEnabledEdited(checked)
     }
