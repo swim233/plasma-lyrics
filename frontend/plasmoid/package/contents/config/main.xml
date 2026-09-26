@@ -62,7 +62,9 @@
     <entry name="desktopSecondaryLyricFontItalic" type="Bool"><default>false</default></entry>
     <!-- The four entries below are retained only so that
          ThemePolicy.migrateConfiguration can carry a version 0 or 1 instance
-         over to the three above; nothing reads them after that.
+         over to desktopSecondaryLyricSource,
+         desktopSecondaryLyricColorEnabled and desktopSecondaryLyricColor;
+         nothing reads them after that.
          desktopShowTranslation said whether to show the second line and
          desktopSecondLineSource which line it was. -->
     <entry name="desktopShowTranslation" type="Bool"><default>true</default></entry>
