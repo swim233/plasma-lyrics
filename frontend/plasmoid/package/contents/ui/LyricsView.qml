@@ -24,14 +24,12 @@ Item {
     property int fontWeight: Font.Normal
     property string overflowMode: "fit"
     property string animationMode: "slide"
-    property bool showTranslation: true
-    // Which of the two second lines to show when showTranslation is on. The
-    // pair is one three-way user choice -- translation / romanization / off --
-    // kept as two keys so the existing on/off setting survives an upgrade
-    // untouched instead of needing a migration to read it back.
-    property string secondLineSource: "translation"
-    property bool secondLineColorEnabled: false
-    property color secondLineColor: "#adfffaf5"
+    // DESIGN.md decision 78: what the secondary lyrics under each line show,
+    // "translation", "romanization" or "none". Any other value shows the
+    // translation, as the appearance pages' combo box reads it.
+    property string secondaryLyricSource: "translation"
+    property bool secondaryLyricColorEnabled: false
+    property color secondaryLyricColor: "#adfffaf5"
     property int lineHeightPercent: 125
     // Floor applied at render time, independent of what is actually stored
     // in the configuration -- see main.qml's fullRepresentation (125, the
@@ -104,7 +102,7 @@ Item {
     // colours below fade into the other set's and every other edit applies
     // at once. The Behaviors sit on this item's own colour properties rather
     // than on each word: everything drawn reads its colour from one of them,
-    // effectiveSecondLineColor included. Nothing that is not a colour
+    // effectiveSecondaryLyricColor included. Nothing that is not a colour
     // animates -- the plate mode, stroke switches and fonts switch
     // immediately.
     property bool animateColors: false
@@ -122,7 +120,7 @@ Item {
         enabled: root.animateColors
         ColorAnimation { duration: root.colorTransitionMs }
     }
-    Behavior on secondLineColor {
+    Behavior on secondaryLyricColor {
         enabled: root.animateColors
         ColorAnimation { duration: root.colorTransitionMs }
     }
@@ -161,18 +159,18 @@ Item {
         if (source.lyricState === "filtered") return "";
         return source.currentText;
     }
-    readonly property string effectiveSecondLine: {
-        if (!root.showTranslation || source.lyricState !== "ok") return "";
-        return root.secondLineSource === "romanization"
+    readonly property string effectiveSecondaryLyric: {
+        if (root.secondaryLyricSource === "none" || source.lyricState !== "ok") return "";
+        return root.secondaryLyricSource === "romanization"
             ? source.currentRomanization : source.currentTranslation;
     }
     // A line with no romanization at all is the normal case, not a failure:
     // only one source carries any, so picking romanization on a track from
-    // anywhere else leaves the second line empty rather than falling back to
-    // the translation, which would make the setting mean two different things
-    // depending on the track.
-    readonly property color effectiveSecondLineColor: root.secondLineColorEnabled
-        ? root.secondLineColor
+    // anywhere else leaves the secondary lyrics empty rather than falling
+    // back to the translation, which would make the setting mean two
+    // different things depending on the track.
+    readonly property color effectiveSecondaryLyricColor: root.secondaryLyricColorEnabled
+        ? root.secondaryLyricColor
         : Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.68)
     // Whether the lyric slot is showing the track's lyrics: exactly the
     // branch of effectiveText above that returns source.currentText, a line
@@ -415,9 +413,9 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             lyricText: root.effectiveText
-            translationText: root.effectiveSecondLine
+            secondaryLyricText: root.effectiveSecondaryLyric
             textColor: root.textColor
-            secondLineColor: root.effectiveSecondLineColor
+            secondaryLyricColor: root.effectiveSecondaryLyricColor
             strokeEnabled: root.strokeEnabled
             strokeColor: root.strokeColor
             fontFamily: root.fontFamily

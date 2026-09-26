@@ -98,7 +98,7 @@ TestCase {
             width: 320
             height: 120
             lyricText: "first"
-            translationText: "translation one"
+            secondaryLyricText: "translation one"
             animationMode: "none"
         }
     }
@@ -168,7 +168,6 @@ TestCase {
     // so the section's implicitWidth there is a fraction of the real
     // dialog's and the form lays out differently.
     QtObject { id: stubFontSize; property int value: 34 }
-    QtObject { id: stubTranslation; property bool checked: true }
     Component {
         id: windowedAppearanceSectionComponent
         Window {
@@ -182,7 +181,6 @@ TestCase {
                 fontCatalog: FontCatalog
                 lyricEffectiveFamily: Kirigami.Theme.defaultFont.family
                 fontSizeControl: stubFontSize
-                translationControl: stubTranslation
             }
         }
     }
@@ -370,9 +368,9 @@ TestCase {
         compare(texts[0].x, 0);
     }
 
-    // The faded-out block keeps both of its lines alive and `visible`, so a
-    // translation left behind there goes on driving an infinite marquee that
-    // nobody can see. Passes on either animation path: with animations off,
+    // The faded-out block keeps both of its lines alive and `visible`, so
+    // secondary lyrics left behind there go on driving an infinite marquee
+    // that nobody can see. Passes on either animation path: with animations off,
     // switchLine releases the block synchronously instead.
     function test_transitionReleasesBothHalvesOfThePreviousBlock() {
         const lyric = createTemporaryObject(animatedLyricComponent, this,
@@ -380,9 +378,9 @@ TestCase {
         verify(lyric !== null);
         tryVerify(() => lyric.shownText === "first");
         lyric.lyricText = "second";
-        lyric.translationText = "translation two";
+        lyric.secondaryLyricText = "translation two";
         tryVerify(() => lyric.shownText === "second");
-        tryVerify(() => lyric.previousText === "" && lyric.previousTranslation === "");
+        tryVerify(() => lyric.previousText === "" && lyric.previousSecondaryLyric === "");
     }
 
     function test_outlineIsOptIn() {
@@ -391,14 +389,14 @@ TestCase {
         compare(line.directions.length, 8);
     }
 
-    function test_lineAndTranslationSwitchTogether() {
+    function test_lineAndSecondaryLyricSwitchTogether() {
         const lyric = createTemporaryObject(animatedLyricComponent, this);
         verify(lyric !== null);
         compare(lyric.shownText, "first");
         lyric.lyricText = "second";
-        lyric.translationText = "translation two";
+        lyric.secondaryLyricText = "translation two";
         tryCompare(lyric, "shownText", "second");
-        compare(lyric.shownTranslation, "translation two");
+        compare(lyric.shownSecondaryLyric, "translation two");
     }
 
     function test_fontFamilyFollowsPlasmaButWeightDoesNot() {
@@ -503,7 +501,7 @@ TestCase {
         const desktopSections = findAll(desktopPage, o => typeof o.textColorEdited === "function");
         const panelSections = findAll(panelPage, o => typeof o.textColorEdited === "function");
         desktopPage.cfg_desktopTextColor = "#0f0f0f";
-        // Background, text, outline, second line, the three word-state
+        // Background, text, outline, secondary lyrics, the three word-state
         // colours, particles, track-info text, track-info outline -- in that
         // order down the form. The track-info section took this from 3 rows
         // to 5, word-by-word from 5 to 9, and the particles to 10.
@@ -1012,42 +1010,51 @@ TestCase {
         tryCompare(line, "wordScrollOffset", 0);
     }
 
-    function test_secondLineSelectorPicksTranslationRomanizationOrNothing() {
+    function test_secondaryLyricSourcePicksTranslationRomanizationOrNothing() {
         const source = createTemporaryObject(fakeSourceComponent, this,
             { currentTranslation: "translated", currentRomanization: "romanized" });
         const view = createTemporaryObject(lyricsViewComponent, this, { source: source });
         verify(view !== null);
 
-        compare(view.effectiveSecondLine, "translated");
-        view.secondLineSource = "romanization";
-        compare(view.effectiveSecondLine, "romanized");
-        view.showTranslation = false;
-        compare(view.effectiveSecondLine, "");
+        compare(view.effectiveSecondaryLyric, "translated");
+        view.secondaryLyricSource = "romanization";
+        compare(view.effectiveSecondaryLyric, "romanized");
+        view.secondaryLyricSource = "none";
+        compare(view.effectiveSecondaryLyric, "");
+        // A value of no known kind shows the translation, as the pages'
+        // combo box reads it.
+        view.secondaryLyricSource = "hand edited";
+        compare(view.effectiveSecondaryLyric, "translated");
+        // Only the lyrics themselves have secondary lyrics.
+        source.lyricState = "searching";
+        compare(view.effectiveSecondaryLyric, "");
     }
 
     // Every source but one carries no romanization at all, so this is the
     // normal case rather than a transient one: the row goes empty instead of
     // quietly falling back to the translation, which would make the setting
     // mean different things on different tracks.
-    function test_romanizationMissingLeavesTheSecondLineEmpty() {
+    function test_romanizationMissingLeavesTheSecondaryLyricsEmpty() {
         const source = createTemporaryObject(fakeSourceComponent, this,
             { currentTranslation: "translated", currentRomanization: "" });
         const view = createTemporaryObject(lyricsViewComponent, this,
-            { source: source, secondLineSource: "romanization" });
-        compare(view.effectiveSecondLine, "");
+            { source: source, secondaryLyricSource: "romanization" });
+        compare(view.effectiveSecondaryLyric, "");
     }
 
-    function test_secondLineColorFollowsTheLyricUnlessOverridden() {
+    function test_secondaryLyricColorFollowsTheLyricUnlessOverridden() {
         const source = createTemporaryObject(fakeSourceComponent, this);
         const view = createTemporaryObject(lyricsViewComponent, this,
             { source: source, textColor: "#ff3366" });
-        // Unset, it keeps the derived alpha the second line has always used.
-        fuzzyCompare(view.effectiveSecondLineColor.r, 1, 0.01);
-        fuzzyCompare(view.effectiveSecondLineColor.a, 0.68, 0.01);
+        // Unset, it takes the text colour at the alpha the secondary lyrics
+        // have always had, 0xad.
+        fuzzyCompare(view.effectiveSecondaryLyricColor.r, 1, 0.01);
+        fuzzyCompare(view.effectiveSecondaryLyricColor.a, 0.68, 0.01);
+        compare(view.effectiveSecondaryLyricColor.toString(), "#adff3366");
 
-        view.secondLineColorEnabled = true;
-        view.secondLineColor = "#8000ff00";
-        compare(view.effectiveSecondLineColor.toString(), "#8000ff00");
+        view.secondaryLyricColorEnabled = true;
+        view.secondaryLyricColor = "#8000ff00";
+        compare(view.effectiveSecondaryLyricColor.toString(), "#8000ff00");
     }
 
     // The setting exists to restore DESIGN.md decision 38's wakeup profile, so
@@ -1405,7 +1412,7 @@ TestCase {
         const first = [{ startMs: 0, endMs: 100, text: "a" }];
         const second = [{ startMs: 5000, endMs: 5100, text: "a" }];
         const lyric = createTemporaryObject(animatedLyricComponent, this,
-            { lyricText: "chorus", translationText: "", words: first });
+            { lyricText: "chorus", secondaryLyricText: "", words: first });
         verify(lyric !== null);
         tryCompare(lyric, "shownText", "chorus");
         tryVerify(() => lyric.shownWords.length === 1 && lyric.shownWords[0].startMs === 0);
@@ -1459,9 +1466,9 @@ TestCase {
         desktop.wordParticleColorEnabledEdited(true);
         desktop.wordParticleColorEdited("#ff8800");
         desktop.lineHeightPercentEdited(160);
-        desktop.secondLineSourceEdited("romanization");
-        desktop.secondLineColorEnabledEdited(true);
-        desktop.secondLineColorEdited("#80ff0000");
+        desktop.secondaryLyricSourceEdited("romanization");
+        desktop.secondaryLyricColorEnabledEdited(true);
+        desktop.secondaryLyricColorEdited("#80ff0000");
         compare(desktopPage.cfg_desktopWordByWord, false);
         compare(desktopPage.cfg_desktopWordByWordSynthetic, true);
         compare(desktopPage.cfg_desktopWordUnsungColor, "#11223344");
@@ -1475,9 +1482,9 @@ TestCase {
         compare(desktopPage.cfg_desktopWordParticleColorEnabled, true);
         compare(desktopPage.cfg_desktopWordParticleColor, "#ff8800");
         compare(desktopPage.cfg_desktopLineHeight, 160);
-        compare(desktopPage.cfg_desktopSecondLineSource, "romanization");
-        compare(desktopPage.cfg_desktopSecondLineColorEnabled, true);
-        compare(desktopPage.cfg_desktopSecondLineColor, "#80ff0000");
+        compare(desktopPage.cfg_desktopSecondaryLyricSource, "romanization");
+        compare(desktopPage.cfg_desktopSecondaryLyricColorEnabled, true);
+        compare(desktopPage.cfg_desktopSecondaryLyricColor, "#80ff0000");
 
         // The panel tab carries no lift keys at all -- decision 40's precedent
         // for panelHideAnimationMs -- so its row stands disabled instead.
@@ -2069,11 +2076,10 @@ TestCase {
         FontWeight: { property: "fontWeight", signal: "fontWeightEdited" },
         Overflow: { property: "overflowMode", signal: "overflowModeEdited" },
         Animation: { property: "animationMode", signal: "animationModeEdited" },
-        ShowTranslation: { control: "translationControl", controlProperty: "checked" },
-        SecondLineSource: { property: "secondLineSource", signal: "secondLineSourceEdited" },
-        SecondLineColorEnabled: { property: "secondLineColorEnabled", signal: "secondLineColorEnabledEdited" },
-        SecondLineColor: { property: "secondLineColor", signal: "secondLineColorEdited" },
         LineHeight: { property: "lineHeightPercent", signal: "lineHeightPercentEdited" },
+        SecondaryLyricSource: { property: "secondaryLyricSource", signal: "secondaryLyricSourceEdited" },
+        SecondaryLyricColorEnabled: { property: "secondaryLyricColorEnabled", signal: "secondaryLyricColorEnabledEdited" },
+        SecondaryLyricColor: { property: "secondaryLyricColor", signal: "secondaryLyricColorEdited" },
         WordByWord: { property: "wordByWord", signal: "wordByWordEdited" },
         WordByWordSynthetic: { property: "syntheticWordByWord", signal: "syntheticWordByWordEdited" },
         WordUnsungColor: { property: "wordUnsungColor", signal: "wordUnsungColorEdited" },
@@ -2101,7 +2107,7 @@ TestCase {
             const page = createTemporaryObject(pageComponent(form), this);
             verify(page !== null, form);
             const suffixes = ThemePolicy.themedSuffixes(form);
-            compare(suffixes.length, form === "desktop" ? 31 : 29, form);
+            compare(suffixes.length, form === "desktop" ? 30 : 28, form);
             const keys = ["cfg_" + ThemePolicy.modeKey(form)];
             for (const suffix of suffixes) {
                 keys.push("cfg_" + ThemePolicy.keyPrefix(form, false) + suffix);
@@ -2110,6 +2116,17 @@ TestCase {
             for (const key of keys) {
                 verify(key in page, key);
                 verify(page.hasOwnProperty(key), key);
+            }
+            // DESIGN.md decision 78: the retired second line keys are left
+            // to the migration, and the colour default the switch compares
+            // against is loaded for both sets.
+            for (const dark of [false, true]) {
+                const prefix = "cfg_" + ThemePolicy.keyPrefix(form, dark);
+                for (const suffix of ["ShowTranslation", "SecondLineSource", "SecondLineColorEnabled",
+                                      "SecondLineColor"]) {
+                    verify(!(prefix + suffix in page), prefix + suffix);
+                }
+                verify(page.hasOwnProperty(prefix + "SecondaryLyricColorDefault"), prefix);
             }
         }
     }
@@ -2661,17 +2678,17 @@ TestCase {
     // Decision 77 draws the particles opaque, so their colour field offers
     // no alpha: not in the dialog, not in the hex field, and a pick that
     // comes back with one is stored without it. Every other colour field
-    // keeps its alpha, the second line's among them.
+    // keeps its alpha, the secondary lyrics' among them.
     function test_theParticleColorFieldOffersNoAlpha() {
         for (const form of ["desktop", "panel"]) {
             const props = {};
-            props["cfg_" + form + "SecondLineColor"] = "#80123456";
+            props["cfg_" + form + "SecondaryLyricColor"] = "#80123456";
             const page = createDarkPage(pageComponent(form), form, props);
             const particleField = named(page, "wordParticleColorField");
             const fields = findAll(sectionOf(page), o => typeof o.edited === "function");
-            const secondLineFields = fields.filter(field => field.value === "#80123456");
-            compare(secondLineFields.length, 1, form);
-            const secondLineField = secondLineFields[0];
+            const secondaryLyricFields = fields.filter(field => field.value === "#80123456");
+            compare(secondaryLyricFields.length, 1, form);
+            const secondaryLyricField = secondaryLyricFields[0];
             // Declaration order inside the row: the swatch, then the hex field.
             const swatchOf = field => field.children[0];
             const hexFieldOf = field => field.children[1];
@@ -2687,16 +2704,176 @@ TestCase {
             verify(!hexFieldOf(particleField).acceptableInput, form);
             hexFieldOf(particleField).text = "#ff8800";
             verify(hexFieldOf(particleField).acceptableInput, form);
-            hexFieldOf(secondLineField).text = "#80ff8800";
-            verify(hexFieldOf(secondLineField).acceptableInput, form);
+            hexFieldOf(secondaryLyricField).text = "#80ff8800";
+            verify(hexFieldOf(secondaryLyricField).acceptableInput, form);
 
             // What accepting the colour dialog does.
             swatchOf(particleField).color = "#80ff8800";
             swatchOf(particleField).accepted(swatchOf(particleField).color);
             compare(page["cfg_" + form + "WordParticleColor"], "#ff8800", form);
-            swatchOf(secondLineField).color = "#80ff8800";
-            swatchOf(secondLineField).accepted(swatchOf(secondLineField).color);
-            compare(page["cfg_" + form + "SecondLineColor"], "#80ff8800", form);
+            swatchOf(secondaryLyricField).color = "#80ff8800";
+            swatchOf(secondaryLyricField).accepted(swatchOf(secondaryLyricField).color);
+            compare(page["cfg_" + form + "SecondaryLyricColor"], "#80ff8800", form);
+        }
+    }
+
+    // ---- secondary lyrics (DESIGN.md decision 78) ----
+
+    // The labelled rows of a page's AppearanceSection, in declaration order;
+    // the descriptions, which carry no label, left out.
+    function labelledRows(page) {
+        const children = sectionOf(page).children;
+        const rows = [];
+        for (let i = 0; i < children.length; ++i) {
+            if (children[i].Kirigami.FormData.label !== "") {
+                rows.push(children[i]);
+            }
+        }
+        return rows;
+    }
+
+    // What main.xml gives the secondary lyric colour key of each set, which
+    // the config dialog hands a page as cfg_<key>Default.
+    function secondaryLyricColorDefault(form, dark) {
+        return dark ? ThemePolicy.darkDefaults[form].SecondaryLyricColor : "#ad1f1b16";
+    }
+
+    // "Long lyrics" and "Line transition" come straight after the outline
+    // rows, above the new section's heading, and the section's rows follow
+    // the heading in the order decision 78 gives, up to the word-by-word
+    // heading.
+    function test_secondaryLyricSectionFollowsTheLongLyricsRows() {
+        for (const form of ["desktop", "panel"]) {
+            const page = createDarkPage(pageComponent(form), form);
+            const labels = labelledRows(page).map(row => row.Kirigami.FormData.label);
+            const outlineAt = labels.indexOf(i18n("Outline color:"));
+            verify(outlineAt >= 0, form);
+            compare(labels.slice(outlineAt + 1, outlineAt + 8), [
+                i18n("Long lyrics:"),
+                i18n("Line transition:"),
+                i18n("Secondary lyrics"),
+                i18n("Secondary lyrics:"),
+                i18n("Secondary lyrics color:"),
+                i18n("Color:"),
+                i18n("Word-by-word")
+            ], form);
+            const heading = named(page, "secondaryLyricSeparator");
+            verify(heading.Kirigami.FormData.isSection, form);
+            compare(named(page, "secondaryLyricSourceComboBox").model,
+                [i18n("Translation"), i18n("Romanization"), i18n("None")], form);
+            compare(named(page, "secondaryLyricColorCheckBox").text,
+                i18n("Set it separately from the main lyrics color"), form);
+        }
+    }
+
+    // Everything below the combo box goes with the secondary lyrics, hidden
+    // for "None"; the colour field shows only while its switch is on. The
+    // combo box shows the stored source, an unknown value as the
+    // translation LyricsView draws, and writes the set on screen alone.
+    function test_secondaryLyricRowsShowWithTheSource() {
+        for (const form of ["desktop", "panel"]) {
+            for (const dark of [false, true]) {
+                const tag = form + (dark ? " dark" : " light");
+                const key = suffix => "cfg_" + ThemePolicy.keyPrefix(form, dark) + suffix;
+                const otherKey = suffix => "cfg_" + ThemePolicy.keyPrefix(form, !dark) + suffix;
+                const props = distinctConfiguration(form, dark ? "dark" : "light");
+                props[key("SecondaryLyricSource")] = "translation";
+                props[key("SecondaryLyricColorEnabled")] = false;
+                const page = createWindowedPage(form, props);
+                compare(page.editingDark, dark, tag);
+                const heading = named(page, "secondaryLyricSeparator");
+                const combo = named(page, "secondaryLyricSourceComboBox");
+                const colorSwitch = named(page, "secondaryLyricColorCheckBox");
+                const colorField = named(page, "secondaryLyricColorField");
+                const state = () => [heading.visible, combo.visible, colorSwitch.visible, colorField.visible];
+
+                compare(combo.currentIndex, 0, tag);
+                compare(state(), [true, true, true, false], tag);
+                page[key("SecondaryLyricColorEnabled")] = true;
+                compare(state(), [true, true, true, true], tag);
+                page[key("SecondaryLyricSource")] = "romanization";
+                compare(combo.currentIndex, 1, tag);
+                compare(state(), [true, true, true, true], tag);
+                page[key("SecondaryLyricSource")] = "none";
+                compare(combo.currentIndex, 2, tag);
+                compare(state(), [true, true, false, false], tag);
+                page[key("SecondaryLyricSource")] = "hand edited";
+                compare(combo.currentIndex, 0, tag);
+                compare(state(), [true, true, true, true], tag);
+
+                const other = page[otherKey("SecondaryLyricSource")];
+                for (const [index, value] of [[2, "none"], [1, "romanization"], [0, "translation"]]) {
+                    combo.activated(index);
+                    compare(page[key("SecondaryLyricSource")], value, tag);
+                    compare(combo.currentIndex, index, tag);
+                }
+                compare(page[otherKey("SecondaryLyricSource")], other, tag);
+            }
+        }
+    }
+
+    // Turning the colour switch on over the key's default copies the text
+    // colour in at 0xad, the alpha the secondary lyrics take from it with
+    // the switch off, so the preview does not move; a colour of its own is
+    // kept, and so is the copy once made. "The key's default" is that of the
+    // set on screen: the light set's own for the light tab.
+    function test_theSecondaryLyricColorSwitchCopiesTheTextColorOverTheDefault() {
+        for (const form of ["desktop", "panel"]) {
+            for (const dark of [false, true]) {
+                const tag = form + (dark ? " dark" : " light");
+                const key = suffix => "cfg_" + ThemePolicy.keyPrefix(form, dark) + suffix;
+                const otherKey = suffix => "cfg_" + ThemePolicy.keyPrefix(form, !dark) + suffix;
+                const props = modeProperties(form, dark ? "dark" : "light");
+                for (const either of [false, true]) {
+                    props["cfg_" + ThemePolicy.keyPrefix(form, either) + "SecondaryLyricColorDefault"]
+                        = secondaryLyricColorDefault(form, either);
+                    props["cfg_" + ThemePolicy.keyPrefix(form, either) + "SecondaryLyricColor"]
+                        = secondaryLyricColorDefault(form, either);
+                    props["cfg_" + ThemePolicy.keyPrefix(form, either) + "SecondaryLyricColorEnabled"] = false;
+                    props["cfg_" + ThemePolicy.keyPrefix(form, either) + "SecondaryLyricSource"] = "translation";
+                }
+                props[key("TextColor")] = "#80123456";
+                const page = createWindowedPage(form, props);
+                compare(page.editingDark, dark, tag);
+                const colorSwitch = named(page, "secondaryLyricColorCheckBox");
+                const colorField = named(page, "secondaryLyricColorField");
+                const other = [page[otherKey("SecondaryLyricColor")], page[otherKey("SecondaryLyricColorEnabled")]];
+
+                // Through the check box, as the user turns it on.
+                scrollIntoView(page, colorSwitch);
+                mouseClick(colorSwitch);
+                compare(page[key("SecondaryLyricColorEnabled")], true, tag);
+                compare(page[key("SecondaryLyricColor")], "#ad123456", tag);
+                compare(colorField.value, "#ad123456", tag);
+                // Off and on again: the copy is its own colour now.
+                page[key("TextColor")] = "#fedcba";
+                mouseClick(colorSwitch);
+                compare(page[key("SecondaryLyricColorEnabled")], false, tag);
+                compare(page[key("SecondaryLyricColor")], "#ad123456", tag);
+                mouseClick(colorSwitch);
+                compare(page[key("SecondaryLyricColor")], "#ad123456", tag);
+                compare([page[otherKey("SecondaryLyricColor")], page[otherKey("SecondaryLyricColorEnabled")]],
+                        other, tag);
+
+                // A colour edited before is kept.
+                const section = sectionOf(page);
+                section.secondaryLyricColorEnabledEdited(false);
+                section.secondaryLyricColorEdited("#80ff0000");
+                section.editSecondaryLyricColorEnabled(true);
+                compare(page[key("SecondaryLyricColor")], "#80ff0000", tag);
+                // The other set's default is not this set's: kept too.
+                section.secondaryLyricColorEnabledEdited(false);
+                section.secondaryLyricColorEdited(secondaryLyricColorDefault(form, !dark));
+                section.editSecondaryLyricColorEnabled(true);
+                compare(page[key("SecondaryLyricColor")], secondaryLyricColorDefault(form, !dark), tag);
+                // Its own default, in capitals as a hand edit may leave it,
+                // is copied over.
+                section.secondaryLyricColorEnabledEdited(false);
+                section.secondaryLyricColorEdited(secondaryLyricColorDefault(form, dark).toUpperCase());
+                section.editSecondaryLyricColorEnabled(true);
+                compare(page[key("SecondaryLyricColor")], "#adfedcba", tag);
+                compare(page[key("SecondaryLyricColorEnabled")], true, tag);
+            }
         }
     }
 

@@ -158,7 +158,6 @@ TestCase {
             visible: true
 
             QtObject { id: stubFontSize; property int value: 34 }
-            QtObject { id: stubTranslation; property bool checked: false }
             QtObject { id: stubTrackInfoFontSize; property int value: 18 }
 
             // The two sections one above the other, as on the pages.
@@ -169,7 +168,6 @@ TestCase {
                     id: section
                     fontCatalog: harness.catalog
                     fontSizeControl: stubFontSize
-                    translationControl: stubTranslation
                     wordByWord: false
 
                     fontFamily: harness.fontFamily

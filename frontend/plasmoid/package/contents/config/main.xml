@@ -16,8 +16,10 @@
          0/1 instances can be migrated into this shared version 2 policy. -->
     <entry name="emptyTextUseDefault" type="Bool"><default>true</default></entry>
     <entry name="textConfigVersion" type="Int"><default>0</default></entry>
-    <!-- DESIGN.md decision 76. 0 until ThemePolicy.migrateConfiguration has
-         run once; see that function for what the first run copies. -->
+    <!-- DESIGN.md decisions 76 and 78. The version
+         ThemePolicy.migrateConfiguration last brought this instance to, 0
+         until it has run once; see that function for what each version
+         copies. -->
     <entry name="themeConfigVersion" type="Int"><default>0</default></entry>
 
     <entry name="desktopPlateMode" type="String"><default>ksvg</default></entry>
@@ -35,16 +37,24 @@
     <entry name="desktopFontWeight" type="Int"><default>700</default></entry>
     <entry name="desktopOverflow" type="String"><default>fit</default></entry>
     <entry name="desktopAnimation" type="String"><default>slide</default></entry>
+    <!-- DESIGN.md decision 78: what the secondary lyrics under each line
+         show, translation, romanization or none. -->
+    <entry name="desktopSecondaryLyricSource" type="String"><default>translation</default></entry>
+    <entry name="desktopSecondaryLyricColorEnabled" type="Bool"><default>false</default></entry>
+    <!-- Matches the alpha the secondary lyrics take from the text colour
+         while desktopSecondaryLyricColorEnabled is off, and the appearance
+         pages copy the text colour in at that alpha when the switch is
+         turned on over this default, so turning it on changes nothing until
+         the colour is actually edited. -->
+    <entry name="desktopSecondaryLyricColor" type="String"><default>#adfffaf5</default></entry>
+    <!-- The four entries below are retained only so that
+         ThemePolicy.migrateConfiguration can carry a version 0 or 1 instance
+         over to the three above; nothing reads them after that.
+         desktopShowTranslation said whether to show the second line and
+         desktopSecondLineSource which line it was. -->
     <entry name="desktopShowTranslation" type="Bool"><default>true</default></entry>
-    <!-- desktopShowTranslation keeps its original meaning, "show the second
-         line"; desktopSecondLineSource says which line that is. Two keys
-         rather than one three-way string so an existing instance's on/off
-         choice carries over with no migration. -->
     <entry name="desktopSecondLineSource" type="String"><default>translation</default></entry>
     <entry name="desktopSecondLineColorEnabled" type="Bool"><default>false</default></entry>
-    <!-- Matches the alpha the second line has always derived from the text
-         colour, so turning this on changes nothing until the colour is
-         actually edited. -->
     <entry name="desktopSecondLineColor" type="String"><default>#adfffaf5</default></entry>
     <entry name="desktopLineHeight" type="Int"><default>125</default></entry>
 
@@ -106,8 +116,9 @@
     <!-- True: track info uses whatever family the lyrics actually render in,
          and desktopTrackInfoFontFamily is ignored. False: that key applies,
          with the same empty-means-Plasma-font rule as desktopFontFamily. Two
-         keys, like desktopSecondLineColorEnabled/desktopSecondLineColor,
-         rather than one string with a reserved marker value. -->
+         keys, like desktopSecondaryLyricColorEnabled and
+         desktopSecondaryLyricColor, rather than one string with a reserved
+         marker value. -->
     <entry name="desktopTrackInfoFontSameAsLyrics" type="Bool"><default>true</default></entry>
     <entry name="desktopTrackInfoFontFamily" type="String"><default></default></entry>
     <entry name="desktopTrackInfoFontSize" type="Int"><default>19</default></entry>
@@ -149,6 +160,10 @@
     <entry name="desktopLightFontWeight" type="Int"><default>700</default></entry>
     <entry name="desktopLightOverflow" type="String"><default>fit</default></entry>
     <entry name="desktopLightAnimation" type="String"><default>slide</default></entry>
+    <entry name="desktopLightSecondaryLyricSource" type="String"><default>translation</default></entry>
+    <entry name="desktopLightSecondaryLyricColorEnabled" type="Bool"><default>false</default></entry>
+    <entry name="desktopLightSecondaryLyricColor" type="String"><default>#ad1f1b16</default></entry>
+    <!-- Retained only for the migration, as the dark four above. -->
     <entry name="desktopLightShowTranslation" type="Bool"><default>true</default></entry>
     <entry name="desktopLightSecondLineSource" type="String"><default>translation</default></entry>
     <entry name="desktopLightSecondLineColorEnabled" type="Bool"><default>false</default></entry>
@@ -183,6 +198,12 @@
     <entry name="panelFontWeight" type="Int"><default>400</default></entry>
     <entry name="panelOverflow" type="String"><default>fit</default></entry>
     <entry name="panelAnimation" type="String"><default>fade</default></entry>
+    <!-- See desktopSecondaryLyricSource's comment above; panel copy, off by
+         default. -->
+    <entry name="panelSecondaryLyricSource" type="String"><default>none</default></entry>
+    <entry name="panelSecondaryLyricColorEnabled" type="Bool"><default>false</default></entry>
+    <entry name="panelSecondaryLyricColor" type="String"><default>#adfffaf5</default></entry>
+    <!-- Retained only for the migration, as the desktop four above. -->
     <entry name="panelShowTranslation" type="Bool"><default>false</default></entry>
     <entry name="panelSecondLineSource" type="String"><default>translation</default></entry>
     <entry name="panelSecondLineColorEnabled" type="Bool"><default>false</default></entry>
@@ -235,6 +256,10 @@
     <entry name="panelLightFontWeight" type="Int"><default>400</default></entry>
     <entry name="panelLightOverflow" type="String"><default>fit</default></entry>
     <entry name="panelLightAnimation" type="String"><default>fade</default></entry>
+    <entry name="panelLightSecondaryLyricSource" type="String"><default>none</default></entry>
+    <entry name="panelLightSecondaryLyricColorEnabled" type="Bool"><default>false</default></entry>
+    <entry name="panelLightSecondaryLyricColor" type="String"><default>#ad1f1b16</default></entry>
+    <!-- Retained only for the migration, as the desktop four above. -->
     <entry name="panelLightShowTranslation" type="Bool"><default>false</default></entry>
     <entry name="panelLightSecondLineSource" type="String"><default>translation</default></entry>
     <entry name="panelLightSecondLineColorEnabled" type="Bool"><default>false</default></entry>

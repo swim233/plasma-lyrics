@@ -199,6 +199,15 @@ QHash<QString, QString> bindingsOf(const QString &block)
     return bindings;
 }
 
+// DESIGN.md decision 78: the suffixes of the second line's keys, which
+// ThemePolicy.migrateConfiguration folds into the secondary lyric keys and
+// nothing reads after that. Their entries stay in main.xml for it.
+QStringList legacySecondLineSuffixes()
+{
+    return {QStringLiteral("ShowTranslation"), QStringLiteral("SecondLineSource"),
+            QStringLiteral("SecondLineColorEnabled"), QStringLiteral("SecondLineColor")};
+}
+
 QStringList filesUnder(const QString &dir, const QStringList &nameFilters)
 {
     QStringList result;
@@ -252,8 +261,12 @@ private Q_SLOTS:
     // Covers Plasmoid.configuration.<key> reads in every ui/ QML file,
     // configuration.<key> in ui/ JS files (TextPolicy.js takes the map as a
     // parameter), and cfg_<key> property declarations in the config pages.
-    // Deliberately not the reverse direction: a key can legitimately be read
-    // only through an indirect path this scan cannot see.
+    // A cfg_<key>Default declaration counts as declared when <key> is: the
+    // configuration map lists every key's default under that name, and the
+    // config dialog hands it to a page that declares it (DESIGN.md decision
+    // 78's switches compare against it). Deliberately not the reverse
+    // direction: a key can legitimately be read only through an indirect
+    // path this scan cannot see.
     void everyReferencedKeyIsDeclared()
     {
         const QByteArray xml = readAll(schemaPath());
@@ -272,23 +285,26 @@ private Q_SLOTS:
 
         QStringList missing;
         int referencesSeen = 0;
-        const auto scan = [&](const QString &path, const QRegularExpression &pattern) {
+        const QString defaultSuffix = QStringLiteral("Default");
+        const auto scan = [&](const QString &path, const QRegularExpression &pattern, bool defaults) {
             const QString text = QString::fromUtf8(readAll(path));
             auto it = pattern.globalMatch(text);
             while (it.hasNext()) {
                 const QString key = it.next().captured(1);
                 ++referencesSeen;
-                if (!declared.contains(key)) {
+                const bool companion = defaults && key.endsWith(defaultSuffix)
+                    && declared.contains(key.chopped(defaultSuffix.size()));
+                if (!declared.contains(key) && !companion) {
                     missing << QStringLiteral("%1: %2").arg(QDir(packageDir).relativeFilePath(path), key);
                 }
             }
         };
         for (const QString &path : filesUnder(uiDir, {QStringLiteral("*.qml")})) {
-            scan(path, qmlRead);
-            scan(path, cfgDeclaration);
+            scan(path, qmlRead, false);
+            scan(path, cfgDeclaration, true);
         }
         for (const QString &path : filesUnder(uiDir, {QStringLiteral("*.js")})) {
-            scan(path, jsRead);
+            scan(path, jsRead, false);
         }
 
         QVERIFY2(referencesSeen > 0, "the scan found no configuration references at all -- pattern or path drift");
@@ -303,7 +319,8 @@ private Q_SLOTS:
     // cannot see, so ThemePolicy.js's table stands in for them: every suffix
     // it lists needs its dark key, with the default the table gives for it,
     // and a light key of the same type; and no light key may exist without a
-    // suffix in the table.
+    // suffix in the table, except the ones decision 78 keeps for the
+    // migration alone (legacySecondLineEntries below).
     void themeTableMatchesSchema()
     {
         const QHash<QString, SchemaEntry> entries = parsedEntries(readAll(schemaPath()));
@@ -337,14 +354,15 @@ private Q_SLOTS:
                                 .arg(lightKey, entries.value(lightKey).type, darkKey, entries.value(darkKey).type);
             }
         }
-        QCOMPARE(suffixes.value(QStringLiteral("desktop")).size(), 31);
-        QCOMPARE(suffixes.value(QStringLiteral("panel")).size(), 29);
+        QCOMPARE(suffixes.value(QStringLiteral("desktop")).size(), 30);
+        QCOMPARE(suffixes.value(QStringLiteral("panel")).size(), 28);
 
         for (auto it = entries.cbegin(); it != entries.cend(); ++it) {
             for (const QString &prefix : {QStringLiteral("desktopLight"), QStringLiteral("panelLight")}) {
                 if (it.key().startsWith(prefix)) {
                     const QString formOf = prefix.chopped(5);
-                    if (!suffixes.value(formOf).contains(it.key().mid(prefix.size()))) {
+                    const QString suffix = it.key().mid(prefix.size());
+                    if (!suffixes.value(formOf).contains(suffix) && !legacySecondLineSuffixes().contains(suffix)) {
                         problems << QStringLiteral("%1: no suffix in ThemePolicy.js").arg(it.key());
                     }
                 }
@@ -446,6 +464,101 @@ private Q_SLOTS:
         QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
     }
 
+    // DESIGN.md decision 78's keys in all four sets, spelled out for the
+    // reason wordParticleEntries gives. The source defaults to the old pair's
+    // default combination, translation on the desktop and none in a panel;
+    // the colour keys keep the old ones' defaults.
+    void secondaryLyricEntries()
+    {
+        const QHash<QString, SchemaEntry> entries = parsedEntries(readAll(schemaPath()));
+        QVERIFY(!entries.isEmpty());
+
+        struct Expected {
+            QString name;
+            QString type;
+            QString defaultValue;
+        };
+        QList<Expected> expected;
+        for (const QString &form : {QStringLiteral("desktop"), QStringLiteral("panel")}) {
+            const bool desktop = form == QLatin1String("desktop");
+            for (const bool light : {false, true}) {
+                const QString prefix = light ? form + QStringLiteral("Light") : form;
+                expected.append({prefix + QStringLiteral("SecondaryLyricSource"), QStringLiteral("String"),
+                                 desktop ? QStringLiteral("translation") : QStringLiteral("none")});
+                expected.append({prefix + QStringLiteral("SecondaryLyricColorEnabled"), QStringLiteral("Bool"),
+                                 QStringLiteral("false")});
+                expected.append({prefix + QStringLiteral("SecondaryLyricColor"), QStringLiteral("String"),
+                                 light ? QStringLiteral("#ad1f1b16") : QStringLiteral("#adfffaf5")});
+            }
+        }
+        QCOMPARE(expected.size(), 12);
+
+        QStringList problems;
+        for (const Expected &key : std::as_const(expected)) {
+            if (!entries.contains(key.name)) {
+                problems << QStringLiteral("%1: not declared").arg(key.name);
+                continue;
+            }
+            const SchemaEntry entry = entries.value(key.name);
+            if (entry.type != key.type || entry.defaultValue != key.defaultValue) {
+                problems << QStringLiteral("%1: %2 \"%3\", expected %4 \"%5\"")
+                                .arg(key.name, entry.type, entry.defaultValue, key.type, key.defaultValue);
+            }
+        }
+        QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
+    }
+
+    // The sixteen entries decision 78 retires stay declared, with the types
+    // and defaults they had: ThemePolicy.migrateConfiguration reads them
+    // through key names built at run time, which neither
+    // everyReferencedKeyIsDeclared nor the theme table sees, and an entry
+    // gone from main.xml reads as undefined there -- every second line
+    // would migrate to "none". Their defaults are also what an instance that
+    // never changed them holds.
+    void legacySecondLineEntries()
+    {
+        const QHash<QString, SchemaEntry> entries = parsedEntries(readAll(schemaPath()));
+        QVERIFY(!entries.isEmpty());
+
+        QStringList problems;
+        int checked = 0;
+        for (const QString &form : {QStringLiteral("desktop"), QStringLiteral("panel")}) {
+            const bool desktop = form == QLatin1String("desktop");
+            for (const bool light : {false, true}) {
+                const QString prefix = light ? form + QStringLiteral("Light") : form;
+                const QHash<QString, SchemaEntry> expected = {
+                    {QStringLiteral("ShowTranslation"),
+                     {QStringLiteral("Bool"), desktop ? QStringLiteral("true") : QStringLiteral("false")}},
+                    {QStringLiteral("SecondLineSource"), {QStringLiteral("String"), QStringLiteral("translation")}},
+                    {QStringLiteral("SecondLineColorEnabled"), {QStringLiteral("Bool"), QStringLiteral("false")}},
+                    {QStringLiteral("SecondLineColor"),
+                     {QStringLiteral("String"), light ? QStringLiteral("#ad1f1b16") : QStringLiteral("#adfffaf5")}},
+                };
+                for (const QString &suffix : legacySecondLineSuffixes()) {
+                    const QString name = prefix + suffix;
+                    const SchemaEntry want = expected.value(suffix);
+                    ++checked;
+                    if (!entries.contains(name)) {
+                        problems << QStringLiteral("%1: not declared").arg(name);
+                        continue;
+                    }
+                    const SchemaEntry entry = entries.value(name);
+                    if (entry.type != want.type || entry.defaultValue != want.defaultValue) {
+                        problems << QStringLiteral("%1: %2 \"%3\", expected %4 \"%5\"")
+                                        .arg(name, entry.type, entry.defaultValue, want.type, want.defaultValue);
+                    }
+                }
+            }
+        }
+        QCOMPARE(checked, 16);
+        QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
+
+        // And they are no themed key: the pages and main.qml never see them.
+        for (const ThemedKey &row : themeTable()) {
+            QVERIFY2(!legacySecondLineSuffixes().contains(row.suffix), qPrintable(row.suffix));
+        }
+    }
+
     // DESIGN.md decision 76, main.qml's side. main.qml is a PlasmoidItem the
     // QML suite cannot instantiate, and qmllint cannot tell one key name from
     // another, so this reads its text. Each form factor has one
@@ -541,10 +654,9 @@ private Q_SLOTS:
             {QStringLiteral("FontWeight"), QStringLiteral("fontWeight")},
             {QStringLiteral("Overflow"), QStringLiteral("overflowMode")},
             {QStringLiteral("Animation"), QStringLiteral("animationMode")},
-            {QStringLiteral("ShowTranslation"), QStringLiteral("showTranslation")},
-            {QStringLiteral("SecondLineSource"), QStringLiteral("secondLineSource")},
-            {QStringLiteral("SecondLineColorEnabled"), QStringLiteral("secondLineColorEnabled")},
-            {QStringLiteral("SecondLineColor"), QStringLiteral("secondLineColor")},
+            {QStringLiteral("SecondaryLyricSource"), QStringLiteral("secondaryLyricSource")},
+            {QStringLiteral("SecondaryLyricColorEnabled"), QStringLiteral("secondaryLyricColorEnabled")},
+            {QStringLiteral("SecondaryLyricColor"), QStringLiteral("secondaryLyricColor")},
             {QStringLiteral("LineHeight"), QStringLiteral("lineHeightPercent")},
             {QStringLiteral("WordByWord"), QStringLiteral("wordByWord")},
             {QStringLiteral("WordByWordSynthetic"), QStringLiteral("syntheticWordByWord")},

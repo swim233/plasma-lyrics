@@ -20,11 +20,10 @@ Kirigami.ScrollablePage {
     property int cfg_panelFontWeight
     property string cfg_panelOverflow
     property string cfg_panelAnimation
-    property alias cfg_panelShowTranslation: panelTranslation.checked
-    property string cfg_panelSecondLineSource
-    property bool cfg_panelSecondLineColorEnabled
-    property string cfg_panelSecondLineColor
     property int cfg_panelLineHeight
+    property string cfg_panelSecondaryLyricSource
+    property bool cfg_panelSecondaryLyricColorEnabled
+    property string cfg_panelSecondaryLyricColor
 
     property bool cfg_panelWordByWord
     property bool cfg_panelWordByWordSynthetic
@@ -65,11 +64,10 @@ Kirigami.ScrollablePage {
     property int cfg_panelLightFontWeight
     property string cfg_panelLightOverflow
     property string cfg_panelLightAnimation
-    property alias cfg_panelLightShowTranslation: panelLightTranslation.checked
-    property string cfg_panelLightSecondLineSource
-    property bool cfg_panelLightSecondLineColorEnabled
-    property string cfg_panelLightSecondLineColor
     property int cfg_panelLightLineHeight
+    property string cfg_panelLightSecondaryLyricSource
+    property bool cfg_panelLightSecondaryLyricColorEnabled
+    property string cfg_panelLightSecondaryLyricColor
     property bool cfg_panelLightWordByWord
     property bool cfg_panelLightWordByWordSynthetic
     property string cfg_panelLightWordUnsungColor
@@ -84,6 +82,11 @@ Kirigami.ScrollablePage {
     property string cfg_panelLightTrackInfoColor
     property bool cfg_panelLightTrackInfoStroke
     property string cfg_panelLightTrackInfoStrokeColor
+
+    // The defaults a secondary lyrics switch compares against, as on the
+    // desktop page.
+    property string cfg_panelSecondaryLyricColorDefault
+    property string cfg_panelLightSecondaryLyricColorDefault
 
     // Whether the Plasma style is dark, as on the desktop page.
     property bool styleDark: PlasmaStyle.isDark()
@@ -179,11 +182,11 @@ Kirigami.ScrollablePage {
                 overflowMode: page.themed("Overflow")
                 animationMode: page.themed("Animation")
                 fontSizeControl: page.editingDark ? panelFontSize : panelLightFontSize
-                translationControl: page.editingDark ? panelTranslation : panelLightTranslation
-                secondLineSource: page.themed("SecondLineSource")
-                secondLineColorEnabled: page.themed("SecondLineColorEnabled")
-                secondLineColor: page.themed("SecondLineColor")
                 lineHeightPercent: page.themed("LineHeight")
+                secondaryLyricSource: page.themed("SecondaryLyricSource")
+                secondaryLyricColorEnabled: page.themed("SecondaryLyricColorEnabled")
+                secondaryLyricColor: page.themed("SecondaryLyricColor")
+                secondaryLyricColorDefault: page.themed("SecondaryLyricColorDefault")
                 liftSupported: false
                 // No panel lift keys exist, so the magnitude row stays hidden
                 // and the toggle above it reads unchecked-and-disabled.
@@ -200,10 +203,10 @@ Kirigami.ScrollablePage {
                 wordParticles: page.themed("WordParticles")
                 wordParticleColorEnabled: page.themed("WordParticleColorEnabled")
                 wordParticleColor: page.themed("WordParticleColor")
-                onSecondLineSourceEdited: value => page.editThemed("SecondLineSource", value)
-                onSecondLineColorEnabledEdited: value => page.editThemed("SecondLineColorEnabled", value)
-                onSecondLineColorEdited: value => page.editThemed("SecondLineColor", value)
                 onLineHeightPercentEdited: value => page.editThemed("LineHeight", value)
+                onSecondaryLyricSourceEdited: value => page.editThemed("SecondaryLyricSource", value)
+                onSecondaryLyricColorEnabledEdited: value => page.editThemed("SecondaryLyricColorEnabled", value)
+                onSecondaryLyricColorEdited: value => page.editThemed("SecondaryLyricColor", value)
                 onWordByWordEdited: value => page.editThemed("WordByWord", value)
                 onSyntheticWordByWordEdited: value => page.editThemed("WordByWordSynthetic", value)
                 onWordUnsungColorEdited: value => page.editThemed("WordUnsungColor", value)
@@ -270,8 +273,6 @@ Kirigami.ScrollablePage {
 
         QQC2.SpinBox { id: panelFontSize; visible: false }
         QQC2.SpinBox { id: panelLightFontSize; visible: false }
-        QQC2.CheckBox { id: panelTranslation; visible: false }
-        QQC2.CheckBox { id: panelLightTranslation; visible: false }
         QQC2.SpinBox { id: panelTrackInfoFontSize; visible: false }
 
         // Plasma 6.7 gives panel applets no drag-resize at all, so this is
