@@ -41,7 +41,8 @@ class WordParticleLayer : public QQuickItem
     // can carry on with the very same line.
     Q_PROPERTY(QString fingerprint READ fingerprint WRITE setFingerprint NOTIFY fingerprintChanged)
     Q_PROPERTY(qreal positionMs READ positionMs WRITE setPositionMs NOTIFY positionMsChanged)
-    // Sizes and motion are defined at 34 px and scale by fontSize / 34.
+    // Motion is defined at 34 px and scales by x = fontSize / 34, the
+    // particles' size by g(x) (WordParticles::sizeScale).
     Q_PROPERTY(int fontSize READ fontSize WRITE setFontSize NOTIFY fontSizeChanged)
     // Only the RGB is used; the brightness envelope stands in for alpha.
     Q_PROPERTY(QColor color READ color WRITE setColor NOTIFY colorChanged)
