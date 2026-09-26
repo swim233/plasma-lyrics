@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-26 16:14+0800\n"
+"POT-Creation-Date: 2026-09-26 17:01+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -448,9 +448,9 @@ msgstr "首次网络超时："
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:172
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:191
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:334
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:119
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:140
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:155
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:112
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:133
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:148
 msgid "%1 ms"
 msgstr "%1 毫秒"
 
@@ -623,51 +623,51 @@ msgstr "非音乐媒体："
 msgid "Also hide while playing non-music media"
 msgstr "播放非音乐媒体时也隐藏"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:73
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:66
 msgid ""
 "This setting affects every Desktop Lyrics widget and takes effect "
 "immediately, without restarting the lyrics service."
 msgstr "此设置会影响所有桌面歌词部件，改动立即生效，无需重启歌词服务。"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:80
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:73
 msgid "Could not save the global offset. The setting was not applied."
 msgstr "全局偏移保存失败，设置未生效。"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:89
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:82
 msgid "Could not save this song's offset. The setting was not applied."
 msgstr "本曲偏移保存失败，设置未生效。"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:96
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:89
 msgid "Lyric offset:"
 msgstr "歌词偏移："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:97
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:90
 msgid "Use one offset for all songs"
 msgstr "所有歌曲共用同一个偏移"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:110
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:103
 msgid ""
 "Each song's effective offset is the global offset plus its own offset. The "
 "context menu only changes the song's own offset."
 msgstr "每首歌的实际偏移 = 全局偏移 + 本曲偏移；右键菜单只调整本曲偏移。"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:113
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:106
 msgid "Global offset:"
 msgstr "全局偏移："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:123
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:116
 msgid "Current song:"
 msgstr "当前歌曲："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:131
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:124
 msgid "This song's offset:"
 msgstr "本曲偏移："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:150
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:143
 msgid "Effective offset:"
 msgstr "实际生效："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:154
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:147
 msgid "%1 ms (after applying)"
 msgstr "%1 毫秒（应用后）"
 

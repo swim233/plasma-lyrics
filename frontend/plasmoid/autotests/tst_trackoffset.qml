@@ -2,9 +2,10 @@ import QtQuick
 import QtTest
 import "../package/contents/ui/config" as LyricsConfig
 
-// DESIGN.md decision 79: the Global settings page's per-song offset rows.
-// TrackOffsetEditor carries their state; ConfigGlobal.qml itself opens the
-// real LyricStore and snapshot and is not instantiated here (decision 41).
+// DESIGN.md decision 79: the Global settings page's per-song offset rows
+// and its Apply. TrackOffsetEditor carries the rows' state and OffsetSaver
+// what Apply does; ConfigGlobal.qml itself opens the real LyricStore and
+// snapshot and is not instantiated here (decision 41).
 TestCase {
     name: "TrackOffset"
 
@@ -45,11 +46,42 @@ TestCase {
         LyricsConfig.TrackOffsetEditor {}
     }
 
+    // Stands in for GlobalConfig: whether it has unsaved changes, and what
+    // its next save() returns.
+    Component {
+        id: configComponent
+        QtObject {
+            property bool unsavedChanges: false
+            property bool saveSucceeds: true
+            property int saves: 0
+            function save() {
+                ++saves;
+                if (saveSucceeds) {
+                    unsavedChanges = false;
+                }
+                return saveSucceeds;
+            }
+        }
+    }
+
+    Component {
+        id: saverComponent
+        LyricsConfig.OffsetSaver {}
+    }
+
     function createEditor() {
         const source = createTemporaryObject(sourceComponent, this);
         const editor = createTemporaryObject(editorComponent, this, { source: source });
         verify(editor !== null);
         return editor;
+    }
+
+    function createSaver() {
+        const editor = createEditor();
+        const config = createTemporaryObject(configComponent, this);
+        const saver = createTemporaryObject(saverComponent, this, { config: config, editor: editor });
+        verify(saver !== null);
+        return saver;
     }
 
     function test_uneditedRowsFollowTheSnapshot() {
@@ -205,5 +237,69 @@ TestCase {
         // Nothing unsaved: Apply does not send again.
         editor.save();
         compare(source.requests.length, 1);
+    }
+    function test_aGlobalFailureStillSavesTheSongsOffset() {
+        const saver = createSaver();
+        const source = saver.editor.source;
+        saver.config.unsavedChanges = true;
+        saver.config.saveSucceeds = false;
+        saver.editor.edit(500);
+
+        saver.save();
+        compare(saver.config.saves, 1);
+        verify(saver.saveFailed);
+        compare(source.requests.length, 1);
+        compare(source.requests[0].offsetMs, 500);
+        verify(saver.unsavedChanges);
+    }
+
+    function test_aGlobalFailureSignalsUnsavedChangesAgainOnTheNextEventLoop() {
+        const saver = createSaver();
+        saver.config.unsavedChanges = true;
+        saver.config.saveSucceeds = false;
+        let signals = 0;
+        saver.unsavedChangesChanged.connect(() => ++signals);
+
+        saver.save();
+        // Not yet: the shell disables Apply right after saveConfig() returns,
+        // and only a later signal turns it back on.
+        compare(signals, 0);
+        tryCompare(saver, "saveFailed", true);
+        tryVerify(() => signals === 1);
+        verify(saver.unsavedChanges);
+    }
+
+    function test_anUnchangedGlobalValueIsNotSaved() {
+        const saver = createSaver();
+        const source = saver.editor.source;
+        saver.editor.edit(300);
+
+        saver.save();
+        compare(saver.config.saves, 0);
+        verify(!saver.saveFailed);
+        compare(source.requests.length, 1);
+        compare(source.requests[0].offsetMs, 300);
+    }
+
+    function test_aSuccessfulGlobalSaveClearsTheFailure() {
+        const saver = createSaver();
+        saver.config.unsavedChanges = true;
+        saver.config.saveSucceeds = false;
+        saver.save();
+        verify(saver.saveFailed);
+        // Let that failure's own resend go out first.
+        wait(0);
+        let signals = 0;
+        saver.unsavedChangesChanged.connect(() => ++signals);
+
+        saver.config.saveSucceeds = true;
+        saver.save();
+        verify(!saver.saveFailed);
+        verify(!saver.unsavedChanges);
+        wait(0);
+        // Only the real change to false; no resend after a success.
+        compare(signals, 1);
+        // Nothing edited, nothing sent for the song.
+        compare(saver.editor.source.requests.length, 0);
     }
 }

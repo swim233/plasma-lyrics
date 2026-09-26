@@ -15,39 +15,27 @@ import io.github.swim233.lyrics
 Kirigami.ScrollablePage {
     id: page
 
-    property bool unsavedChanges: globalConfig.unsavedChanges || trackOffset.unsaved
-    // The global and the per-song value are saved and reported separately:
-    // one failing neither undoes nor blocks the other, and the failed one
-    // stays unsaved so Apply can retry it.
-    //
-    // AppletConfiguration.qml's applyAction (:462-468) calls saveConfig()
-    // and then unconditionally sets applyButton.enabled = false at :467, and
-    // only unsavedChangesChanged turns it back on (settingValueChanged(),
-    // :104-105, hooked up at :197-199). A global save fails synchronously
-    // with unsavedChanges still true, so no change is signalled and Apply
-    // would stay off; the signal is re-sent once the dialog has disabled the
-    // button. The per-song save answers asynchronously, while its value
-    // counts as saved, so its failure flips unsavedChanges back on by itself.
-    //
-    // The error messages are only reliable on the Apply path, though. The OK
-    // button (:454-459, and Enter at :480) calls applyAction.trigger() and
-    // then unconditionally closes the dialog; closing()'s "don't close with
-    // unsaved changes" guard (:42-47) reads applyButton.enabled, which :467
-    // has already cleared, so nothing this page raises reaches it first --
-    // and the per-song answer arrives after the page is gone. Kept anyway
-    // (DESIGN.md decision 41's accepted-residue note): it is free, strictly
-    // better than nothing, and someone dialing in an offset by ear mostly
-    // lives on the Apply path rather than OK/Enter.
-    property bool saveFailed: false
-    function saveConfig() {
-        if (globalConfig.unsavedChanges) {
-            page.saveFailed = !globalConfig.save();
-            if (page.saveFailed) {
-                Qt.callLater(page.unsavedChangesChanged);
-            }
-        }
-        trackOffset.save();
-    }
+    // Both read by AppletConfiguration.qml; OffsetSaver holds the rules.
+    readonly property alias unsavedChanges: saver.unsavedChanges
+    function saveConfig() { saver.save(); }
+
+    // The error messages below only reach the user on the Apply button's own
+    // path (line numbers from plasma-desktop 6.7.5's AppletConfiguration.qml).
+    // Every other way of applying leaves this page before a global failure
+    // can be shown and before the per-song answer arrives. That value is
+    // still written; only its answer is dropped with this page's LyricSource.
+    // - OK (:454-459, and Enter at :480) calls applyAction.trigger() and then
+    //   unconditionally closes the dialog. closing()'s "don't close with
+    //   unsaved changes" guard (:42-47) reads applyButton.enabled, which
+    //   applyAction has already cleared at :467.
+    // - Apply in the shell's "the current page has unsaved changes" prompt
+    //   (:388-391) applies and then goes on to the next page or closes.
+    // - After Apply, Cancel or Escape (:472-481) and switching to another
+    //   page (openCategory(), :290-296) no longer prompt, since Apply
+    //   disabled the button, so a per-song answer still on its way is lost.
+    // Kept anyway (DESIGN.md decision 41's accepted-residue note): it is
+    // free, strictly better than nothing, and someone dialing in an offset by
+    // ear mostly lives on the Apply path.
 
     GlobalConfig { id: globalConfig }
     // A snapshot reader like each widget's own, for the current song and its
@@ -56,6 +44,11 @@ Kirigami.ScrollablePage {
     TrackOffsetEditor {
         id: trackOffset
         source: lyricSource
+    }
+    OffsetSaver {
+        id: saver
+        config: globalConfig
+        editor: trackOffset
     }
 
     ColumnLayout {
@@ -75,7 +68,7 @@ Kirigami.ScrollablePage {
 
         Kirigami.InlineMessage {
             Layout.fillWidth: true
-            visible: page.saveFailed
+            visible: saver.saveFailed
             type: Kirigami.MessageType.Error
             text: i18n("Could not save the global offset. The setting was not applied.")
         }
