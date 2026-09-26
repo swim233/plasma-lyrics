@@ -14,11 +14,16 @@ Item {
                                                 root.textColor.b, 0.68)
     property bool strokeEnabled: false
     property color strokeColor: "black"
-    // The second line shares the lyric's family: it is part of the lyric,
-    // not track info.
     property string fontFamily: Kirigami.Theme.defaultFont.family
     property int fontSize: 34
     property int fontWeight: Font.Normal
+    // The secondary lyrics' font as drawn (DESIGN.md decision 78): LyricsView
+    // passes the lyric's own unless the secondary lyrics have one of their
+    // own, so by default they follow it. Only these are ever italic.
+    property string secondaryLyricFontFamily: root.fontFamily
+    property int secondaryLyricFontSize: root.fontSize
+    property int secondaryLyricFontWeight: root.fontWeight
+    property bool secondaryLyricFontItalic: false
     property string overflowMode: "fit"
 
     property var words: []
@@ -85,9 +90,10 @@ Item {
         textColor: root.secondaryLyricColor
         strokeEnabled: root.strokeEnabled
         strokeColor: root.strokeColor
-        fontFamily: root.fontFamily
-        fontSize: root.fontSize
-        fontWeight: root.fontWeight
+        fontFamily: root.secondaryLyricFontFamily
+        fontSize: root.secondaryLyricFontSize
+        fontWeight: root.secondaryLyricFontWeight
+        fontItalic: root.secondaryLyricFontItalic
         overflowMode: root.overflowMode
         lineHeightFactor: root.lineHeightFactor
     }

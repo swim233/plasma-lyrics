@@ -94,6 +94,17 @@ TestCase {
                 }
                 return catalog.faces[family] || [];
             }
+            // Only Beta Serif has italics, at weights its upright faces
+            // lack; every other family is one Qt slants itself.
+            property var italicFaces: ({
+                "Beta Serif": [
+                    { weight: 400, styleName: "Italic" },
+                    { weight: 600, styleName: "SemiBold Italic" }
+                ]
+            })
+            function italicWeights(family) {
+                return catalog.italicFaces[family] || [];
+            }
             // FontCatalog::snapWeight()'s documented rule.
             function snapWeight(available, target) {
                 const present = available.map(face => face.weight);
@@ -138,6 +149,14 @@ TestCase {
             // Whether the sections show the set in effect (DESIGN.md
             // decision 76); false stands for the other tab of the page.
             property bool setInEffect: true
+            // The secondary lyrics (DESIGN.md decision 78), hidden unless a
+            // test shows them: their rows would push the track-info section
+            // down the window.
+            property string secondaryLyricSource: "none"
+            property bool secondaryLyricFontEnabled: false
+            property string secondaryLyricFontFamily: ""
+            property int secondaryLyricFontWeight: 700
+            property bool secondaryLyricFontItalic: false
             // Every edit the section emitted, in order, as "key=value".
             property var edits: []
 
@@ -146,6 +165,8 @@ TestCase {
             readonly property string trackInfoFamily: FontPolicy.trackInfoFamily(harness.catalog,
                 harness.trackInfoFontSameAsLyrics, harness.trackInfoFontFamily,
                 harness.lyricFamily, Kirigami.Theme.defaultFont.family)
+            readonly property string secondaryLyricFamily: FontPolicy.lyricFamily(harness.catalog,
+                harness.secondaryLyricFontFamily, Kirigami.Theme.defaultFont.family)
             property alias section: section
             property alias trackInfoSection: trackInfoSection
 
@@ -177,6 +198,13 @@ TestCase {
                     trackInfoFontWeight: harness.trackInfoFontWeight
                     setInEffect: harness.setInEffect
 
+                    secondaryLyricSource: harness.secondaryLyricSource
+                    secondaryLyricFontEnabled: harness.secondaryLyricFontEnabled
+                    secondaryLyricFontFamily: harness.secondaryLyricFontFamily
+                    secondaryLyricEffectiveFamily: harness.secondaryLyricFamily
+                    secondaryLyricFontWeight: harness.secondaryLyricFontWeight
+                    secondaryLyricFontItalic: harness.secondaryLyricFontItalic
+
                     onFontFamilyEdited: value => {
                         harness.log("fontFamily=" + value);
                         harness.fontFamily = value;
@@ -188,6 +216,18 @@ TestCase {
                     onTrackInfoFontWeightEdited: value => {
                         harness.log("trackInfoFontWeight=" + value);
                         harness.trackInfoFontWeight = value;
+                    }
+                    onSecondaryLyricFontFamilyEdited: value => {
+                        harness.log("secondaryLyricFontFamily=" + value);
+                        harness.secondaryLyricFontFamily = value;
+                    }
+                    onSecondaryLyricFontWeightEdited: value => {
+                        harness.log("secondaryLyricFontWeight=" + value);
+                        harness.secondaryLyricFontWeight = value;
+                    }
+                    onSecondaryLyricFontItalicEdited: value => {
+                        harness.log("secondaryLyricFontItalic=" + value);
+                        harness.secondaryLyricFontItalic = value;
                     }
                 }
 
@@ -891,14 +931,132 @@ TestCase {
         compare(named(win.trackInfoSection, "trackInfoWeightComboBox").currentText, "316");
     }
 
+    // ---- the secondary lyrics' own font (DESIGN.md decision 78) ----
+
+    function secondaryHarness(properties, catalogProperties) {
+        return makeHarness(Object.assign({
+            secondaryLyricSource: "translation",
+            secondaryLyricFontEnabled: true
+        }, properties || {}), catalogProperties);
+    }
+
+    // A secondary pick writes the secondary weight, snapped onto the new
+    // family, and leaves the main lyrics' family and both other weights as
+    // they are, whatever the track info follows.
+    function test_pickingASecondaryFamilySnapsOnlyItsOwnWeight() {
+        const win = secondaryHarness({
+            fontFamily: "Alpha Sans",
+            fontWeight: 700,
+            trackInfoFontSameAsLyrics: true,
+            trackInfoFontWeight: 400,
+            secondaryLyricFontFamily: "",
+            secondaryLyricFontWeight: 700
+        });
+        const picker = named(win.section, "secondaryLyricFontPicker");
+        openPicker(picker);
+        typeText("beta");
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !picker.popup.visible);
+        compare(win.edits, ["secondaryLyricFontFamily=Beta Serif", "secondaryLyricFontWeight=800"]);
+        compare(named(win.section, "secondaryLyricWeightComboBox").currentText, "Extra bold");
+        compare(named(win.section, "lyricWeightComboBox").family, "Alpha Sans");
+
+        // Back to the Plasma font, which has every standard step.
+        win.edits = [];
+        openPicker(picker);
+        clickRow(picker, 0);
+        tryVerify(() => !picker.popup.visible);
+        compare(win.edits, ["secondaryLyricFontFamily=", "secondaryLyricFontWeight=800"]);
+        compare(win.fontFamily, "Alpha Sans");
+        compare(win.fontWeight, 700);
+        compare(win.trackInfoFontWeight, 400);
+    }
+
+    // In italic the weight snaps among the family's italic faces when it has
+    // any, and among its upright ones when it has none.
+    function test_anItalicSecondaryPickSnapsWithinTheSlantDrawn() {
+        const win = secondaryHarness({
+            secondaryLyricFontFamily: "Alpha Sans",
+            secondaryLyricFontWeight: 700,
+            secondaryLyricFontItalic: true
+        });
+        const picker = named(win.section, "secondaryLyricFontPicker");
+        openPicker(picker);
+        typeText("beta");
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !picker.popup.visible);
+        // Beta Serif's italics are 400 and 600: 700 takes the heaviest below.
+        compare(win.edits, ["secondaryLyricFontFamily=Beta Serif", "secondaryLyricFontWeight=600"]);
+
+        win.edits = [];
+        openPicker(picker);
+        typeText("gamma");
+        keyClick(Qt.Key_Return);
+        tryVerify(() => !picker.popup.visible);
+        // Gamma Mono has no italics: its upright 400 and 700, and 600 takes
+        // the lightest heavier one.
+        compare(win.edits, ["secondaryLyricFontFamily=Gamma Mono", "secondaryLyricFontWeight=700"]);
+    }
+
+    // The weight row lists the faces of the slant drawn and shows the
+    // stored weight snapped among them; turning italic on or off writes the
+    // italic key alone, never the weight.
+    function test_theSecondaryWeightRowListsTheFacesOfTheSlantDrawn() {
+        const win = secondaryHarness({
+            secondaryLyricFontFamily: "Beta Serif",
+            secondaryLyricFontWeight: 700
+        });
+        const weight = named(win.section, "secondaryLyricWeightComboBox");
+        const italic = named(win.section, "secondaryLyricItalicCheckBox");
+        compare(weight.model, ["Light", "DemiLight", "Regular", "Extra bold"]);
+        compare(weight.currentText, "Extra bold");
+        verify(weight.enabled);
+
+        settle(italic);
+        mouseClick(italic);
+        compare(win.edits, ["secondaryLyricFontItalic=true"]);
+        compare(weight.model, ["Regular", "Demi bold"]);
+        compare(weight.currentText, "Demi bold");
+        compare(win.secondaryLyricFontWeight, 700);
+        weight.activated(0);
+        compare(win.edits, ["secondaryLyricFontItalic=true", "secondaryLyricFontWeight=400"]);
+
+        // A family without italics lists its upright faces in italic too.
+        win.secondaryLyricFontFamily = "Gamma Mono";
+        compare(weight.model, ["Regular", "Bold"]);
+        mouseClick(italic);
+        compare(win.secondaryLyricFontItalic, false);
+        compare(weight.model, ["Regular", "Bold"]);
+        compare(win.secondaryLyricFontWeight, 400);
+    }
+
+    // The row keeps WeightComboBox's own rule: a single face leaves nothing
+    // to choose, italic or not.
+    function test_aSingleFaceSecondaryFamilyDisablesItsWeightRow() {
+        const win = secondaryHarness({
+            secondaryLyricFontFamily: "Single Face",
+            secondaryLyricFontItalic: true
+        });
+        const weight = named(win.section, "secondaryLyricWeightComboBox");
+        compare(weight.count, 1);
+        verify(!weight.enabled);
+        win.secondaryLyricFontFamily = "Beta Serif";
+        compare(weight.count, 2);
+        verify(weight.enabled);
+    }
+
     function test_theFontControlsCannotWidenThePage() {
         // The page sizes itself to its widest row (AppearanceSection's
         // formDescription comment has the measurements). Neither picker
         // nor weight row may be the one that sets it, whatever the names.
-        const shortName = makeHarness({ fontFamily: "Alpha Sans" });
+        // The secondary lyrics' rows are shown, and in the long-named
+        // harness their family is the long one as well.
+        const shortName = makeHarness({ fontFamily: "Alpha Sans", secondaryLyricSource: "translation",
+                                        secondaryLyricFontEnabled: true, secondaryLyricFontFamily: "Alpha Sans" });
         wait(100);
         const longFamily = "A Family Whose Name Goes On ".repeat(8).trim();
-        const longName = makeHarness({ fontFamily: longFamily },
+        const longName = makeHarness({ fontFamily: longFamily, secondaryLyricSource: "translation",
+                                       secondaryLyricFontEnabled: true, secondaryLyricFontFamily: longFamily },
             { listed: ["Alpha Sans", longFamily], faces: ({ [longFamily]: [
                 { weight: 400, styleName: "Regular" },
                 { weight: 450, styleName: "An Unusually Long Style Name For A Single Face ".repeat(4) }
@@ -909,8 +1067,10 @@ TestCase {
         const controls = [
             named(longName.section, "lyricFontPicker"),
             named(longName.trackInfoSection, "trackInfoFontPicker"),
+            named(longName.section, "secondaryLyricFontPicker"),
             named(longName.section, "lyricWeightComboBox"),
-            named(longName.trackInfoSection, "trackInfoWeightComboBox")
+            named(longName.trackInfoSection, "trackInfoWeightComboBox"),
+            named(longName.section, "secondaryLyricWeightComboBox")
         ];
         for (const control of controls) {
             verify(control.Layout.maximumWidth < Infinity, control.objectName);
@@ -955,6 +1115,13 @@ TestCase {
                 props["cfg_" + ThemePolicy.modeKey(form)] = dark ? "dark" : "light";
                 props["cfg_" + prefix + "FontFamily"] = data.family;
                 props["cfg_" + prefix + "FontWeight"] = 700;
+                // The secondary lyrics with a font of their own, in italic,
+                // in the family the track info has (DESIGN.md decision 78).
+                props["cfg_" + prefix + "SecondaryLyricSource"] = "translation";
+                props["cfg_" + prefix + "SecondaryLyricFontEnabled"] = true;
+                props["cfg_" + prefix + "SecondaryLyricFontFamily"] = data.trackInfoFamily;
+                props["cfg_" + prefix + "SecondaryLyricFontWeight"] = 500;
+                props["cfg_" + prefix + "SecondaryLyricFontItalic"] = true;
                 props["cfg_" + form + "ShowTrackInfo"] = true;
                 props["cfg_" + form + "TrackInfoFontSameAsLyrics"] = data.sameAsLyrics;
                 props["cfg_" + form + "TrackInfoFontFamily"] = data.trackInfoFamily;
@@ -974,10 +1141,17 @@ TestCase {
                 compare(trackInfoSection.trackInfoEffectiveFamily,
                     FontPolicy.trackInfoFamily(FontCatalog, data.sameAsLyrics, data.trackInfoFamily,
                         section.lyricEffectiveFamily, systemFamily()), tag);
+                compare(section.secondaryLyricEffectiveFamily,
+                    FontPolicy.lyricFamily(FontCatalog, data.trackInfoFamily, systemFamily()), tag);
+                compare(named(section, "secondaryLyricWeightComboBox").family,
+                    section.secondaryLyricEffectiveFamily, tag);
+                compare(named(section, "secondaryLyricWeightComboBox").italic, true, tag);
                 // Displaying the pages wrote nothing back.
                 compare(page["cfg_" + prefix + "FontFamily"], data.family, tag);
                 compare(page["cfg_" + prefix + "FontWeight"], 700, tag);
                 compare(page["cfg_" + form + "TrackInfoFontWeight"], 300, tag);
+                compare(page["cfg_" + prefix + "SecondaryLyricFontFamily"], data.trackInfoFamily, tag);
+                compare(page["cfg_" + prefix + "SecondaryLyricFontWeight"], 500, tag);
             }
         }
     }
@@ -1037,16 +1211,25 @@ TestCase {
         verify(desktopTrackInfo.fontCatalog === FontCatalog);
 
         desktop.fontFamilyEdited("Desktop Family");
+        desktop.secondaryLyricFontFamilyEdited("Desktop Secondary Family");
+        desktop.secondaryLyricFontWeightEdited(300);
+        desktop.secondaryLyricFontItalicEdited(true);
         desktopTrackInfo.trackInfoFontSameAsLyricsEdited(true);
         desktopTrackInfo.trackInfoFontFamilyEdited("Desktop Track Family");
         compare(desktopPage.cfg_desktopFontFamily, "Desktop Family");
+        compare(desktopPage.cfg_desktopSecondaryLyricFontFamily, "Desktop Secondary Family");
+        compare(desktopPage.cfg_desktopSecondaryLyricFontWeight, 300);
+        compare(desktopPage.cfg_desktopSecondaryLyricFontItalic, true);
         compare(desktopPage.cfg_desktopTrackInfoFontSameAsLyrics, true);
         compare(desktopPage.cfg_desktopTrackInfoFontFamily, "Desktop Track Family");
 
         panel.fontFamilyEdited("Panel Family");
+        panel.secondaryLyricFontFamilyEdited("Panel Secondary Family");
         panelTrackInfo.trackInfoFontSameAsLyricsEdited(false);
         panelTrackInfo.trackInfoFontFamilyEdited("Panel Track Family");
         compare(panelPage.cfg_panelFontFamily, "Panel Family");
+        compare(panelPage.cfg_panelSecondaryLyricFontFamily, "Panel Secondary Family");
+        compare(desktopPage.cfg_desktopSecondaryLyricFontFamily, "Desktop Secondary Family");
         compare(panelPage.cfg_panelTrackInfoFontSameAsLyrics, false);
         compare(panelPage.cfg_panelTrackInfoFontFamily, "Panel Track Family");
         // The two tabs are separate page instances; neither reaches into

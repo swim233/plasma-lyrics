@@ -180,6 +180,7 @@ TestCase {
                 width: Kirigami.Units.gridUnit * 39
                 fontCatalog: FontCatalog
                 lyricEffectiveFamily: Kirigami.Theme.defaultFont.family
+                secondaryLyricEffectiveFamily: Kirigami.Theme.defaultFont.family
                 fontSizeControl: stubFontSize
             }
         }
@@ -2080,6 +2081,11 @@ TestCase {
         SecondaryLyricSource: { property: "secondaryLyricSource", signal: "secondaryLyricSourceEdited" },
         SecondaryLyricColorEnabled: { property: "secondaryLyricColorEnabled", signal: "secondaryLyricColorEnabledEdited" },
         SecondaryLyricColor: { property: "secondaryLyricColor", signal: "secondaryLyricColorEdited" },
+        SecondaryLyricFontEnabled: { property: "secondaryLyricFontEnabled", signal: "secondaryLyricFontEnabledEdited" },
+        SecondaryLyricFontFamily: { property: "secondaryLyricFontFamily", signal: "secondaryLyricFontFamilyEdited" },
+        SecondaryLyricFontSize: { property: "secondaryLyricFontSize", signal: "secondaryLyricFontSizeEdited" },
+        SecondaryLyricFontWeight: { property: "secondaryLyricFontWeight", signal: "secondaryLyricFontWeightEdited" },
+        SecondaryLyricFontItalic: { property: "secondaryLyricFontItalic", signal: "secondaryLyricFontItalicEdited" },
         WordByWord: { property: "wordByWord", signal: "wordByWordEdited" },
         WordByWordSynthetic: { property: "syntheticWordByWord", signal: "syntheticWordByWordEdited" },
         WordUnsungColor: { property: "wordUnsungColor", signal: "wordUnsungColorEdited" },
@@ -2107,7 +2113,7 @@ TestCase {
             const page = createTemporaryObject(pageComponent(form), this);
             verify(page !== null, form);
             const suffixes = ThemePolicy.themedSuffixes(form);
-            compare(suffixes.length, form === "desktop" ? 30 : 28, form);
+            compare(suffixes.length, form === "desktop" ? 35 : 33, form);
             const keys = ["cfg_" + ThemePolicy.modeKey(form)];
             for (const suffix of suffixes) {
                 keys.push("cfg_" + ThemePolicy.keyPrefix(form, false) + suffix);
@@ -2118,15 +2124,18 @@ TestCase {
                 verify(page.hasOwnProperty(key), key);
             }
             // DESIGN.md decision 78: the retired second line keys are left
-            // to the migration, and the colour default the switch compares
-            // against is loaded for both sets.
+            // to the migration, and the defaults the two switches compare
+            // against are loaded for both sets.
             for (const dark of [false, true]) {
                 const prefix = "cfg_" + ThemePolicy.keyPrefix(form, dark);
                 for (const suffix of ["ShowTranslation", "SecondLineSource", "SecondLineColorEnabled",
                                       "SecondLineColor"]) {
                     verify(!(prefix + suffix in page), prefix + suffix);
                 }
-                verify(page.hasOwnProperty(prefix + "SecondaryLyricColorDefault"), prefix);
+                for (const suffix of ["SecondaryLyricColor", "SecondaryLyricFontFamily", "SecondaryLyricFontSize",
+                                      "SecondaryLyricFontWeight", "SecondaryLyricFontItalic"]) {
+                    verify(page.hasOwnProperty(prefix + suffix + "Default"), prefix + suffix);
+                }
             }
         }
     }
@@ -2748,13 +2757,18 @@ TestCase {
             const labels = labelledRows(page).map(row => row.Kirigami.FormData.label);
             const outlineAt = labels.indexOf(i18n("Outline color:"));
             verify(outlineAt >= 0, form);
-            compare(labels.slice(outlineAt + 1, outlineAt + 8), [
+            compare(labels.slice(outlineAt + 1, outlineAt + 13), [
                 i18n("Long lyrics:"),
                 i18n("Line transition:"),
                 i18n("Secondary lyrics"),
                 i18n("Secondary lyrics:"),
                 i18n("Secondary lyrics color:"),
                 i18n("Color:"),
+                i18n("Secondary lyrics font:"),
+                i18n("Font:"),
+                i18n("Font size:"),
+                i18n("Font weight:"),
+                i18n("Italic:"),
                 i18n("Word-by-word")
             ], form);
             const heading = named(page, "secondaryLyricSeparator");
@@ -2763,6 +2777,14 @@ TestCase {
                 [i18n("Translation"), i18n("Romanization"), i18n("None")], form);
             compare(named(page, "secondaryLyricColorCheckBox").text,
                 i18n("Set it separately from the main lyrics color"), form);
+            compare(named(page, "secondaryLyricFontCheckBox").text,
+                i18n("Set it separately from the main lyrics"), form);
+            // The family, size and weight rows are the main lyrics' own
+            // kinds of control.
+            compare(named(page, "secondaryLyricFontPicker").Layout.maximumWidth,
+                named(page, "lyricFontPicker").Layout.maximumWidth, form);
+            compare(named(page, "secondaryLyricWeightComboBox").Layout.maximumWidth,
+                named(page, "lyricWeightComboBox").Layout.maximumWidth, form);
         }
     }
 
@@ -2779,27 +2801,50 @@ TestCase {
                 const props = distinctConfiguration(form, dark ? "dark" : "light");
                 props[key("SecondaryLyricSource")] = "translation";
                 props[key("SecondaryLyricColorEnabled")] = false;
+                props[key("SecondaryLyricFontEnabled")] = false;
                 const page = createWindowedPage(form, props);
                 compare(page.editingDark, dark, tag);
                 const heading = named(page, "secondaryLyricSeparator");
                 const combo = named(page, "secondaryLyricSourceComboBox");
                 const colorSwitch = named(page, "secondaryLyricColorCheckBox");
                 const colorField = named(page, "secondaryLyricColorField");
-                const state = () => [heading.visible, combo.visible, colorSwitch.visible, colorField.visible];
+                const fontSwitch = named(page, "secondaryLyricFontCheckBox");
+                const fontRows = ["secondaryLyricFontPicker", "secondaryLyricFontSizeSpinBox",
+                                  "secondaryLyricWeightComboBox", "secondaryLyricItalicCheckBox"]
+                    .map(name => named(page, name));
+                // The heading and combo box, the colour switch and field, the
+                // font switch, and whether all four font rows show.
+                const state = () => [heading.visible, combo.visible, colorSwitch.visible, colorField.visible,
+                                     fontSwitch.visible, fontRows.every(row => row.visible),
+                                     fontRows.some(row => row.visible)];
+                const shown = (color, font) => [true, true, true, color, true, font, font];
+                const hidden = [true, true, false, false, false, false, false];
 
                 compare(combo.currentIndex, 0, tag);
-                compare(state(), [true, true, true, false], tag);
+                compare(state(), shown(false, false), tag);
                 page[key("SecondaryLyricColorEnabled")] = true;
-                compare(state(), [true, true, true, true], tag);
+                compare(state(), shown(true, false), tag);
+                page[key("SecondaryLyricFontEnabled")] = true;
+                compare(state(), shown(true, true), tag);
+                page[key("SecondaryLyricColorEnabled")] = false;
+                compare(state(), shown(false, true), tag);
+                page[key("SecondaryLyricColorEnabled")] = true;
                 page[key("SecondaryLyricSource")] = "romanization";
                 compare(combo.currentIndex, 1, tag);
-                compare(state(), [true, true, true, true], tag);
+                compare(state(), shown(true, true), tag);
                 page[key("SecondaryLyricSource")] = "none";
                 compare(combo.currentIndex, 2, tag);
-                compare(state(), [true, true, false, false], tag);
+                compare(state(), hidden, tag);
                 page[key("SecondaryLyricSource")] = "hand edited";
                 compare(combo.currentIndex, 0, tag);
-                compare(state(), [true, true, true, true], tag);
+                compare(state(), shown(true, true), tag);
+                // The check boxes show their keys as stored.
+                compare(colorSwitch.checked, true, tag);
+                compare(fontSwitch.checked, true, tag);
+                page[key("SecondaryLyricFontItalic")] = true;
+                compare(fontRows[3].checked, true, tag);
+                page[key("SecondaryLyricFontItalic")] = false;
+                compare(fontRows[3].checked, false, tag);
 
                 const other = page[otherKey("SecondaryLyricSource")];
                 for (const [index, value] of [[2, "none"], [1, "romanization"], [0, "translation"]]) {
@@ -2875,6 +2920,106 @@ TestCase {
                 compare(page[key("SecondaryLyricColorEnabled")], true, tag);
             }
         }
+    }
+
+    // The font switch copies the main lyrics' family as stored, their size
+    // and their weight in when it is turned on while the secondary lyrics'
+    // family, size, weight and italic are all at their keys' defaults, and
+    // otherwise keeps what is stored: the preview does not jump the first
+    // time, and off and on again restores a font set before.
+    function test_theSecondaryLyricFontSwitchCopiesTheMainFontOverTheDefaults() {
+        const fontSuffixes = ["SecondaryLyricFontFamily", "SecondaryLyricFontSize",
+                              "SecondaryLyricFontWeight", "SecondaryLyricFontItalic"];
+        for (const form of ["desktop", "panel"]) {
+            for (const dark of [false, true]) {
+                const tag = form + (dark ? " dark" : " light");
+                const key = suffix => "cfg_" + ThemePolicy.keyPrefix(form, dark) + suffix;
+                const otherKey = suffix => "cfg_" + ThemePolicy.keyPrefix(form, !dark) + suffix;
+                const defaults = ThemePolicy.darkDefaults[form];
+                const props = modeProperties(form, dark ? "dark" : "light");
+                for (const either of [false, true]) {
+                    const prefix = "cfg_" + ThemePolicy.keyPrefix(form, either);
+                    // What the config dialog hands the page: the light keys'
+                    // defaults are the dark ones' for the font.
+                    for (const suffix of fontSuffixes) {
+                        props[prefix + suffix + "Default"] = defaults[suffix];
+                        props[prefix + suffix] = defaults[suffix];
+                    }
+                    props[prefix + "SecondaryLyricFontEnabled"] = false;
+                    props[prefix + "SecondaryLyricSource"] = "translation";
+                }
+                props[key("FontFamily")] = "Main Family";
+                props[key("FontSize")] = 40;
+                props[key("FontWeight")] = 600;
+                const page = createWindowedPage(form, props);
+                compare(page.editingDark, dark, tag);
+                const fontSwitch = named(page, "secondaryLyricFontCheckBox");
+                const section = sectionOf(page);
+                const stored = () => fontSuffixes.map(suffix => page[key(suffix)]);
+                const others = () => fontSuffixes.concat(["SecondaryLyricFontEnabled"]).map(suffix => page[otherKey(suffix)]);
+                const otherBefore = others();
+
+                scrollIntoView(page, fontSwitch);
+                mouseClick(fontSwitch);
+                compare(page[key("SecondaryLyricFontEnabled")], true, tag);
+                compare(stored(), ["Main Family", 40, 600, false], tag);
+                compare(named(page, "secondaryLyricFontPicker").storedFamily, "Main Family", tag);
+                compare(named(page, "secondaryLyricFontSizeSpinBox").value, 40, tag);
+
+                // Off and on again: what is stored now is its own.
+                page[key("FontFamily")] = "";
+                page[key("FontWeight")] = 300;
+                mouseClick(fontSwitch);
+                compare(page[key("SecondaryLyricFontEnabled")], false, tag);
+                compare(stored(), ["Main Family", 40, 600, false], tag);
+                mouseClick(fontSwitch);
+                compare(page[key("SecondaryLyricFontEnabled")], true, tag);
+                compare(stored(), ["Main Family", 40, 600, false], tag);
+                compare(others(), otherBefore, tag);
+
+                // Any one of the four off its default keeps all four.
+                for (const [suffix, value] of [["SecondaryLyricFontFamily", "Own Family"],
+                                               ["SecondaryLyricFontSize", 22],
+                                               ["SecondaryLyricFontWeight", 900],
+                                               ["SecondaryLyricFontItalic", true]]) {
+                    section.secondaryLyricFontEnabledEdited(false);
+                    for (const each of fontSuffixes) {
+                        page[key(each)] = defaults[each];
+                    }
+                    page[key(suffix)] = value;
+                    const before = stored();
+                    section.editSecondaryLyricFontEnabled(true);
+                    compare(page[key("SecondaryLyricFontEnabled")], true, tag + ", " + suffix);
+                    compare(stored(), before, tag + ", " + suffix);
+                }
+            }
+        }
+    }
+
+    // LyricsView's side of the switch: off, the secondary lyrics take the
+    // main lyrics' family, size and weight and are never italic; on, all
+    // four are their own, the size in pixels whatever the lyric's.
+    function test_secondaryLyricFontFollowsTheLyricUnlessItsOwnIsOn() {
+        const source = createTemporaryObject(fakeSourceComponent, this, { currentTranslation: "second" });
+        const view = createTemporaryObject(lyricsViewComponent, this, {
+            source: source,
+            fontFamily: "Main Family", fontSize: 30, fontWeight: 600,
+            secondaryLyricFontFamily: "Own Family", secondaryLyricFontSize: 18,
+            secondaryLyricFontWeight: 300, secondaryLyricFontItalic: true
+        });
+        verify(view !== null);
+        const effective = () => [view.effectiveSecondaryLyricFontFamily, view.effectiveSecondaryLyricFontSize,
+                                 view.effectiveSecondaryLyricFontWeight, view.effectiveSecondaryLyricFontItalic];
+        compare(effective(), ["Main Family", 30, 600, false]);
+        view.fontSize = 40;
+        compare(effective(), ["Main Family", 40, 600, false]);
+
+        view.secondaryLyricFontEnabled = true;
+        compare(effective(), ["Own Family", 18, 300, true]);
+        view.fontSize = 50;
+        compare(effective(), ["Own Family", 18, 300, true]);
+        view.secondaryLyricFontItalic = false;
+        compare(effective(), ["Own Family", 18, 300, false]);
     }
 
     // The rows inside the frame share the label and field columns of the

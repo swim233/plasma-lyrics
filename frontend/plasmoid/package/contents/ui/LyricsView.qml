@@ -30,6 +30,16 @@ Item {
     property string secondaryLyricSource: "translation"
     property bool secondaryLyricColorEnabled: false
     property color secondaryLyricColor: "#adfffaf5"
+    // The secondary lyrics' own font, which applies only while
+    // secondaryLyricFontEnabled is on (decision 78). main.qml resolves the
+    // family and weight through FontPolicy.js as it does the lyric's: an
+    // installed family, and one of its real faces in the slant drawn. The
+    // size is in pixels, not relative to fontSize.
+    property bool secondaryLyricFontEnabled: false
+    property string secondaryLyricFontFamily: Kirigami.Theme.defaultFont.family
+    property int secondaryLyricFontSize: 34
+    property int secondaryLyricFontWeight: Font.Normal
+    property bool secondaryLyricFontItalic: false
     property int lineHeightPercent: 125
     // Floor applied at render time, independent of what is actually stored
     // in the configuration -- see main.qml's fullRepresentation (125, the
@@ -172,6 +182,18 @@ Item {
     readonly property color effectiveSecondaryLyricColor: root.secondaryLyricColorEnabled
         ? root.secondaryLyricColor
         : Qt.rgba(root.textColor.r, root.textColor.g, root.textColor.b, 0.68)
+    // What the secondary lyrics are drawn in: their own font while its
+    // switch is on, otherwise the lyric's family, size and weight, upright.
+    // The weight need not be snapped again when it is the lyric's: the same
+    // family and the same upright faces give the same face.
+    readonly property string effectiveSecondaryLyricFontFamily: root.secondaryLyricFontEnabled
+        ? root.secondaryLyricFontFamily : root.fontFamily
+    readonly property int effectiveSecondaryLyricFontSize: root.secondaryLyricFontEnabled
+        ? root.secondaryLyricFontSize : root.fontSize
+    readonly property int effectiveSecondaryLyricFontWeight: root.secondaryLyricFontEnabled
+        ? root.secondaryLyricFontWeight : root.fontWeight
+    readonly property bool effectiveSecondaryLyricFontItalic: root.secondaryLyricFontEnabled
+        && root.secondaryLyricFontItalic
     // Whether the lyric slot is showing the track's lyrics: exactly the
     // branch of effectiveText above that returns source.currentText, a line
     // without words and a filtered-out one aside. Anything else there -- the
@@ -421,6 +443,10 @@ Item {
             fontFamily: root.fontFamily
             fontSize: root.fontSize
             fontWeight: root.fontWeight
+            secondaryLyricFontFamily: root.effectiveSecondaryLyricFontFamily
+            secondaryLyricFontSize: root.effectiveSecondaryLyricFontSize
+            secondaryLyricFontWeight: root.effectiveSecondaryLyricFontWeight
+            secondaryLyricFontItalic: root.effectiveSecondaryLyricFontItalic
             overflowMode: root.overflowMode
             animationMode: root.animationMode
             words: root.effectiveWords

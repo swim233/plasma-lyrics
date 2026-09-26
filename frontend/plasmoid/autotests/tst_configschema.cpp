@@ -354,8 +354,8 @@ private Q_SLOTS:
                                 .arg(lightKey, entries.value(lightKey).type, darkKey, entries.value(darkKey).type);
             }
         }
-        QCOMPARE(suffixes.value(QStringLiteral("desktop")).size(), 30);
-        QCOMPARE(suffixes.value(QStringLiteral("panel")).size(), 28);
+        QCOMPARE(suffixes.value(QStringLiteral("desktop")).size(), 35);
+        QCOMPARE(suffixes.value(QStringLiteral("panel")).size(), 33);
 
         for (auto it = entries.cbegin(); it != entries.cend(); ++it) {
             for (const QString &prefix : {QStringLiteral("desktopLight"), QStringLiteral("panelLight")}) {
@@ -467,7 +467,9 @@ private Q_SLOTS:
     // DESIGN.md decision 78's keys in all four sets, spelled out for the
     // reason wordParticleEntries gives. The source defaults to the old pair's
     // default combination, translation on the desktop and none in a panel;
-    // the colour keys keep the old ones' defaults.
+    // the colour keys keep the old ones' defaults; the font is off, and its
+    // family, size and weight default to those of the main lyrics (34 px
+    // bold on the desktop, 16 px regular in a panel), light sets alike.
     void secondaryLyricEntries()
     {
         const QHash<QString, SchemaEntry> entries = parsedEntries(readAll(schemaPath()));
@@ -489,9 +491,19 @@ private Q_SLOTS:
                                  QStringLiteral("false")});
                 expected.append({prefix + QStringLiteral("SecondaryLyricColor"), QStringLiteral("String"),
                                  light ? QStringLiteral("#ad1f1b16") : QStringLiteral("#adfffaf5")});
+                expected.append({prefix + QStringLiteral("SecondaryLyricFontEnabled"), QStringLiteral("Bool"),
+                                 QStringLiteral("false")});
+                expected.append({prefix + QStringLiteral("SecondaryLyricFontFamily"), QStringLiteral("String"),
+                                 QString()});
+                expected.append({prefix + QStringLiteral("SecondaryLyricFontSize"), QStringLiteral("Int"),
+                                 desktop ? QStringLiteral("34") : QStringLiteral("16")});
+                expected.append({prefix + QStringLiteral("SecondaryLyricFontWeight"), QStringLiteral("Int"),
+                                 desktop ? QStringLiteral("700") : QStringLiteral("400")});
+                expected.append({prefix + QStringLiteral("SecondaryLyricFontItalic"), QStringLiteral("Bool"),
+                                 QStringLiteral("false")});
             }
         }
-        QCOMPARE(expected.size(), 12);
+        QCOMPARE(expected.size(), 32);
 
         QStringList problems;
         for (const Expected &key : std::as_const(expected)) {
@@ -657,6 +669,11 @@ private Q_SLOTS:
             {QStringLiteral("SecondaryLyricSource"), QStringLiteral("secondaryLyricSource")},
             {QStringLiteral("SecondaryLyricColorEnabled"), QStringLiteral("secondaryLyricColorEnabled")},
             {QStringLiteral("SecondaryLyricColor"), QStringLiteral("secondaryLyricColor")},
+            {QStringLiteral("SecondaryLyricFontEnabled"), QStringLiteral("secondaryLyricFontEnabled")},
+            {QStringLiteral("SecondaryLyricFontFamily"), QStringLiteral("secondaryLyricFontFamily")},
+            {QStringLiteral("SecondaryLyricFontSize"), QStringLiteral("secondaryLyricFontSize")},
+            {QStringLiteral("SecondaryLyricFontWeight"), QStringLiteral("secondaryLyricFontWeight")},
+            {QStringLiteral("SecondaryLyricFontItalic"), QStringLiteral("secondaryLyricFontItalic")},
             {QStringLiteral("LineHeight"), QStringLiteral("lineHeightPercent")},
             {QStringLiteral("WordByWord"), QStringLiteral("wordByWord")},
             {QStringLiteral("WordByWordSynthetic"), QStringLiteral("syntheticWordByWord")},

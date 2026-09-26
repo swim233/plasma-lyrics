@@ -47,6 +47,19 @@
          turned on over this default, so turning it on changes nothing until
          the colour is actually edited. -->
     <entry name="desktopSecondaryLyricColor" type="String"><default>#adfffaf5</default></entry>
+    <!-- Off: the secondary lyrics take the family, size and weight the main
+         lyrics are drawn in, upright. On: the four entries after it apply
+         instead. The family follows desktopFontFamily's rule; the size is in
+         pixels, not relative to the main lyrics'; the weight snaps onto a
+         real face of the family in the slant drawn. Size and weight default
+         to the main lyrics' defaults, and the appearance pages copy the
+         main lyrics' family, size and weight in when the switch is turned on
+         while all four are still at their defaults. -->
+    <entry name="desktopSecondaryLyricFontEnabled" type="Bool"><default>false</default></entry>
+    <entry name="desktopSecondaryLyricFontFamily" type="String"><default></default></entry>
+    <entry name="desktopSecondaryLyricFontSize" type="Int"><default>34</default></entry>
+    <entry name="desktopSecondaryLyricFontWeight" type="Int"><default>700</default></entry>
+    <entry name="desktopSecondaryLyricFontItalic" type="Bool"><default>false</default></entry>
     <!-- The four entries below are retained only so that
          ThemePolicy.migrateConfiguration can carry a version 0 or 1 instance
          over to the three above; nothing reads them after that.
@@ -163,6 +176,11 @@
     <entry name="desktopLightSecondaryLyricSource" type="String"><default>translation</default></entry>
     <entry name="desktopLightSecondaryLyricColorEnabled" type="Bool"><default>false</default></entry>
     <entry name="desktopLightSecondaryLyricColor" type="String"><default>#ad1f1b16</default></entry>
+    <entry name="desktopLightSecondaryLyricFontEnabled" type="Bool"><default>false</default></entry>
+    <entry name="desktopLightSecondaryLyricFontFamily" type="String"><default></default></entry>
+    <entry name="desktopLightSecondaryLyricFontSize" type="Int"><default>34</default></entry>
+    <entry name="desktopLightSecondaryLyricFontWeight" type="Int"><default>700</default></entry>
+    <entry name="desktopLightSecondaryLyricFontItalic" type="Bool"><default>false</default></entry>
     <!-- Retained only for the migration, as the dark four above. -->
     <entry name="desktopLightShowTranslation" type="Bool"><default>true</default></entry>
     <entry name="desktopLightSecondLineSource" type="String"><default>translation</default></entry>
@@ -203,6 +221,13 @@
     <entry name="panelSecondaryLyricSource" type="String"><default>none</default></entry>
     <entry name="panelSecondaryLyricColorEnabled" type="Bool"><default>false</default></entry>
     <entry name="panelSecondaryLyricColor" type="String"><default>#adfffaf5</default></entry>
+    <!-- See desktopSecondaryLyricFontEnabled's comment above; panel copy,
+         with the panel's main lyric defaults. -->
+    <entry name="panelSecondaryLyricFontEnabled" type="Bool"><default>false</default></entry>
+    <entry name="panelSecondaryLyricFontFamily" type="String"><default></default></entry>
+    <entry name="panelSecondaryLyricFontSize" type="Int"><default>16</default></entry>
+    <entry name="panelSecondaryLyricFontWeight" type="Int"><default>400</default></entry>
+    <entry name="panelSecondaryLyricFontItalic" type="Bool"><default>false</default></entry>
     <!-- Retained only for the migration, as the desktop four above. -->
     <entry name="panelShowTranslation" type="Bool"><default>false</default></entry>
     <entry name="panelSecondLineSource" type="String"><default>translation</default></entry>
@@ -259,6 +284,11 @@
     <entry name="panelLightSecondaryLyricSource" type="String"><default>none</default></entry>
     <entry name="panelLightSecondaryLyricColorEnabled" type="Bool"><default>false</default></entry>
     <entry name="panelLightSecondaryLyricColor" type="String"><default>#ad1f1b16</default></entry>
+    <entry name="panelLightSecondaryLyricFontEnabled" type="Bool"><default>false</default></entry>
+    <entry name="panelLightSecondaryLyricFontFamily" type="String"><default></default></entry>
+    <entry name="panelLightSecondaryLyricFontSize" type="Int"><default>16</default></entry>
+    <entry name="panelLightSecondaryLyricFontWeight" type="Int"><default>400</default></entry>
+    <entry name="panelLightSecondaryLyricFontItalic" type="Bool"><default>false</default></entry>
     <!-- Retained only for the migration, as the desktop four above. -->
     <entry name="panelLightShowTranslation" type="Bool"><default>false</default></entry>
     <entry name="panelLightSecondLineSource" type="String"><default>translation</default></entry>

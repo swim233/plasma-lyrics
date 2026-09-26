@@ -74,8 +74,8 @@ TestCase {
     function test_themedSuffixes() {
         const desktop = ThemePolicy.themedSuffixes("desktop");
         const panel = ThemePolicy.themedSuffixes("panel");
-        compare(desktop.length, 30);
-        compare(panel.length, 28);
+        compare(desktop.length, 35);
+        compare(panel.length, 33);
         verify(desktop.includes("WordLift"));
         verify(desktop.includes("WordLiftPercent"));
         verify(!panel.includes("WordLift"));
@@ -84,7 +84,9 @@ TestCase {
         // copy; decision 78's secondary lyric keys do too.
         for (const suffix of ["TrackInfoColor", "TrackInfoStroke", "TrackInfoStrokeColor",
                               "WordParticles", "WordParticleColorEnabled", "WordParticleColor",
-                              "SecondaryLyricSource", "SecondaryLyricColorEnabled", "SecondaryLyricColor"]) {
+                              "SecondaryLyricSource", "SecondaryLyricColorEnabled", "SecondaryLyricColor",
+                              "SecondaryLyricFontEnabled", "SecondaryLyricFontFamily", "SecondaryLyricFontSize",
+                              "SecondaryLyricFontWeight", "SecondaryLyricFontItalic"]) {
             verify(desktop.includes(suffix), suffix);
             verify(panel.includes(suffix), suffix);
         }
@@ -96,6 +98,16 @@ TestCase {
         }
         compare(ThemePolicy.darkDefaults.desktop.SecondaryLyricSource, "translation");
         compare(ThemePolicy.darkDefaults.panel.SecondaryLyricSource, "none");
+        // The secondary lyric font defaults to the main lyric font's
+        // defaults, its switch off.
+        for (const formFactor of ["desktop", "panel"]) {
+            const defaults = ThemePolicy.darkDefaults[formFactor];
+            compare(defaults.SecondaryLyricFontEnabled, false, formFactor);
+            compare(defaults.SecondaryLyricFontFamily, defaults.FontFamily, formFactor);
+            compare(defaults.SecondaryLyricFontSize, defaults.FontSize, formFactor);
+            compare(defaults.SecondaryLyricFontWeight, defaults.FontWeight, formFactor);
+            compare(defaults.SecondaryLyricFontItalic, false, formFactor);
+        }
         // Shared by both sets: never in the table.
         for (const suffix of ["ShowTrackInfo", "TrackInfoLayout", "TrackInfoFontSameAsLyrics",
                               "TrackInfoFontFamily", "TrackInfoFontSize", "TrackInfoFontWeight",

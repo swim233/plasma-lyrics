@@ -29,6 +29,11 @@ var darkDefaults = {
         SecondaryLyricSource: "translation",
         SecondaryLyricColorEnabled: false,
         SecondaryLyricColor: "#adfffaf5",
+        SecondaryLyricFontEnabled: false,
+        SecondaryLyricFontFamily: "",
+        SecondaryLyricFontSize: 34,
+        SecondaryLyricFontWeight: 700,
+        SecondaryLyricFontItalic: false,
         LineHeight: 125,
         WordByWord: true,
         WordByWordSynthetic: false,
@@ -61,6 +66,11 @@ var darkDefaults = {
         SecondaryLyricSource: "none",
         SecondaryLyricColorEnabled: false,
         SecondaryLyricColor: "#adfffaf5",
+        SecondaryLyricFontEnabled: false,
+        SecondaryLyricFontFamily: "",
+        SecondaryLyricFontSize: 16,
+        SecondaryLyricFontWeight: 400,
+        SecondaryLyricFontItalic: false,
         LineHeight: 125,
         WordByWord: true,
         WordByWordSynthetic: false,
@@ -81,8 +91,8 @@ var darkDefaults = {
 // END darkDefaults
 
 // The suffixes of the keys that come in a light and a dark copy, for
-// "desktop" or "panel" (the key prefix, not Plasmoid.formFactor): 30 for the
-// desktop, 28 for the panel, which has no lift keys.
+// "desktop" or "panel" (the key prefix, not Plasmoid.formFactor): 35 for the
+// desktop, 33 for the panel, which has no lift keys.
 function themedSuffixes(formFactor) {
     return Object.keys(darkDefaults[formFactor]);
 }

@@ -16,6 +16,11 @@ Item {
     property string fontFamily: Kirigami.Theme.defaultFont.family
     property int fontSize: 34
     property int fontWeight: Font.Normal
+    // The secondary lyrics' font as drawn; LyricBlock has the details.
+    property string secondaryLyricFontFamily: root.fontFamily
+    property int secondaryLyricFontSize: root.fontSize
+    property int secondaryLyricFontWeight: root.fontWeight
+    property bool secondaryLyricFontItalic: false
     property string overflowMode: "fit"
     property string animationMode: "slide"
 
@@ -154,6 +159,10 @@ Item {
         fontFamily: root.fontFamily
         fontSize: root.fontSize
         fontWeight: root.fontWeight
+        secondaryLyricFontFamily: root.secondaryLyricFontFamily
+        secondaryLyricFontSize: root.secondaryLyricFontSize
+        secondaryLyricFontWeight: root.secondaryLyricFontWeight
+        secondaryLyricFontItalic: root.secondaryLyricFontItalic
         overflowMode: root.overflowMode
         positionMs: root.positionMs
         unsungColor: root.unsungColor
@@ -183,6 +192,10 @@ Item {
         fontFamily: root.fontFamily
         fontSize: root.fontSize
         fontWeight: root.fontWeight
+        secondaryLyricFontFamily: root.secondaryLyricFontFamily
+        secondaryLyricFontSize: root.secondaryLyricFontSize
+        secondaryLyricFontWeight: root.secondaryLyricFontWeight
+        secondaryLyricFontItalic: root.secondaryLyricFontItalic
         overflowMode: root.overflowMode
         positionMs: root.positionMs
         unsungColor: root.unsungColor

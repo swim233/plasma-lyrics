@@ -39,14 +39,23 @@ Kirigami.FormLayout {
     required property var fontSizeControl
 
     // DESIGN.md decision 78: the secondary lyrics, a section of their own.
-    // secondaryLyricColorDefault is the default of the colour key of the set
-    // on screen (the page reads it from the config dialog, see
-    // ConfigDesktopAppearance.qml); editSecondaryLyricColorEnabled compares
-    // against it.
+    // The *Default properties are the defaults of the keys of the set on
+    // screen (the page reads them from the config dialog, see
+    // ConfigDesktopAppearance.qml), which the two switches compare against
+    // when they are turned on.
     property string secondaryLyricSource: "translation"
     property bool secondaryLyricColorEnabled: false
     property string secondaryLyricColor: "#adfffaf5"
     property string secondaryLyricColorDefault
+    property bool secondaryLyricFontEnabled: false
+    property string secondaryLyricFontFamily: ""
+    property int secondaryLyricFontSize: 34
+    property int secondaryLyricFontWeight: Font.Normal
+    property bool secondaryLyricFontItalic: false
+    property string secondaryLyricFontFamilyDefault
+    property int secondaryLyricFontSizeDefault
+    property int secondaryLyricFontWeightDefault
+    property bool secondaryLyricFontItalicDefault
     readonly property bool secondaryLyricShown: root.secondaryLyricSource !== "none"
 
     // The panel has no lift keys at all, so the row below stands there
@@ -106,6 +115,11 @@ Kirigami.FormLayout {
     signal secondaryLyricSourceEdited(string value)
     signal secondaryLyricColorEnabledEdited(bool value)
     signal secondaryLyricColorEdited(string value)
+    signal secondaryLyricFontEnabledEdited(bool value)
+    signal secondaryLyricFontFamilyEdited(string value)
+    signal secondaryLyricFontSizeEdited(int value)
+    signal secondaryLyricFontWeightEdited(int value)
+    signal secondaryLyricFontItalicEdited(bool value)
 
     signal wordByWordEdited(bool value)
     signal syntheticWordByWordEdited(bool value)
@@ -142,6 +156,10 @@ Kirigami.FormLayout {
     // 10, which is why test_pagesCreatedWithStoredFontKeys passes stored
     // values, not none.
     required property string lyricEffectiveFamily
+    // What the secondary lyrics render in while their font switch is on:
+    // FontPolicy.lyricFamily() of their own family key, computed by the page
+    // for the same reason.
+    required property string secondaryLyricEffectiveFamily
     readonly property string systemFamily: Kirigami.Theme.defaultFont.family
 
     // A pick that moves the lyrics onto another family also writes their
@@ -183,6 +201,45 @@ Kirigami.FormLayout {
             root.secondaryLyricColorEdited(Qt.rgba(text.r, text.g, text.b, 0xad / 255).toString());
         }
         root.secondaryLyricColorEnabledEdited(enabled);
+    }
+
+    // The same for the font switch (decision 78): turned on while family,
+    // size, weight and italic are all still at their keys' defaults, it
+    // copies the main lyrics' family as stored, their size and their weight
+    // in, so the preview does not move -- italic stays off. Values set
+    // before are kept, so turning the switch off and on again brings them
+    // back.
+    function editSecondaryLyricFontEnabled(enabled) {
+        const untouched = root.secondaryLyricFontFamily === root.secondaryLyricFontFamilyDefault
+            && root.secondaryLyricFontSize === root.secondaryLyricFontSizeDefault
+            && root.secondaryLyricFontWeight === root.secondaryLyricFontWeightDefault
+            && root.secondaryLyricFontItalic === root.secondaryLyricFontItalicDefault;
+        if (enabled && untouched) {
+            const family = root.fontFamily;
+            const size = root.fontSizeControl.value;
+            const weight = root.fontWeight;
+            root.secondaryLyricFontFamilyEdited(family);
+            root.secondaryLyricFontSizeEdited(size);
+            root.secondaryLyricFontWeightEdited(weight);
+        }
+        root.secondaryLyricFontEnabledEdited(enabled);
+    }
+
+    // A pick that moves the secondary lyrics onto another family writes
+    // their weight too, snapped onto the new family's faces in the slant
+    // drawn, as editLyricFamily does for the main lyrics. Turning italic on
+    // or off moves no family, so it writes no weight: the weight row and the
+    // renderer snap the stored one.
+    function editSecondaryLyricFamily(stored) {
+        const before = root.secondaryLyricEffectiveFamily;
+        const after = FontPolicy.lyricFamily(root.fontCatalog, stored, root.systemFamily);
+        const weight = root.secondaryLyricFontWeight;
+        const italic = root.secondaryLyricFontItalic;
+        root.secondaryLyricFontFamilyEdited(stored);
+        if (after === before) {
+            return;
+        }
+        root.secondaryLyricFontWeightEdited(FontPolicy.renderWeight(root.fontCatalog, after, weight, italic));
     }
 
     QQC2.ComboBox {
@@ -315,6 +372,52 @@ Kirigami.FormLayout {
         visible: root.secondaryLyricShown && root.secondaryLyricColorEnabled
         value: root.secondaryLyricColor
         onEdited: hexColor => root.secondaryLyricColorEdited(hexColor)
+    }
+    QQC2.CheckBox {
+        objectName: "secondaryLyricFontCheckBox"
+        Kirigami.FormData.label: i18n("Secondary lyrics font:")
+        visible: root.secondaryLyricShown
+        text: i18n("Set it separately from the main lyrics")
+        checked: root.secondaryLyricFontEnabled
+        onToggled: root.editSecondaryLyricFontEnabled(checked)
+    }
+    FontPicker {
+        objectName: "secondaryLyricFontPicker"
+        Kirigami.FormData.label: i18n("Font:")
+        visible: root.secondaryLyricShown && root.secondaryLyricFontEnabled
+        // The same cap as lyricFontPicker's.
+        Layout.fillWidth: true
+        Layout.maximumWidth: Kirigami.Units.gridUnit * 20
+        fontCatalog: root.fontCatalog
+        storedFamily: root.secondaryLyricFontFamily
+        onFollowSystemPicked: root.editSecondaryLyricFamily("")
+        onFamilyPicked: family => root.editSecondaryLyricFamily(family)
+    }
+    QQC2.SpinBox {
+        objectName: "secondaryLyricFontSizeSpinBox"
+        Kirigami.FormData.label: i18n("Font size:")
+        visible: root.secondaryLyricShown && root.secondaryLyricFontEnabled
+        from: 10
+        to: 96
+        value: root.secondaryLyricFontSize
+        onValueModified: root.secondaryLyricFontSizeEdited(value)
+    }
+    WeightComboBox {
+        objectName: "secondaryLyricWeightComboBox"
+        Kirigami.FormData.label: i18n("Font weight:")
+        visible: root.secondaryLyricShown && root.secondaryLyricFontEnabled
+        fontCatalog: root.fontCatalog
+        family: root.secondaryLyricEffectiveFamily
+        storedWeight: root.secondaryLyricFontWeight
+        italic: root.secondaryLyricFontItalic
+        onWeightPicked: weight => root.secondaryLyricFontWeightEdited(weight)
+    }
+    QQC2.CheckBox {
+        objectName: "secondaryLyricItalicCheckBox"
+        Kirigami.FormData.label: i18n("Italic:")
+        visible: root.secondaryLyricShown && root.secondaryLyricFontEnabled
+        checked: root.secondaryLyricFontItalic
+        onToggled: root.secondaryLyricFontItalicEdited(checked)
     }
 
     Kirigami.Separator {
