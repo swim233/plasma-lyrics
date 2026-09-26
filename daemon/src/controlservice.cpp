@@ -170,6 +170,39 @@ QString ControlService::ResetOffset(const QString &expectedFingerprint)
     return {};
 }
 
+QString ControlService::SetOffsetForTrack(const QString &provider, const QString &trackId,
+                                          int offsetMs)
+{
+    const auto log = [&](const QString &result) {
+        qCInfo(lcDaemon).noquote()
+            << QStringLiteral("control SetOffsetForTrack provider=%1 trackId=%2 offsetMs=%3 result=%4")
+                   .arg(quoted(provider), quoted(trackId), QString::number(offsetMs), result);
+    };
+    // Every provider this build can resolve with, enabled or not, plus the
+    // one-time waylyrics import (Resolver's legacy lookup), whose refs reach
+    // snapshots too.
+    if (!m_supportedProviders.contains(provider) && provider != QStringLiteral("waylyrics")) {
+        log(QStringLiteral("provider-unsupported"));
+        return QStringLiteral("provider-unsupported");
+    }
+    if (trackId.isEmpty()) {
+        log(QStringLiteral("track-id-empty"));
+        return QStringLiteral("track-id-empty");
+    }
+    if (!m_store.setOffset(TrackRef{.provider = provider, .trackId = trackId, .score = 0},
+                           offsetMs)) {
+        log(QStringLiteral("offset-save-failed"));
+        return QStringLiteral("offset-save-failed");
+    }
+    const auto current = m_currentRef ? m_currentRef() : std::nullopt;
+    if (current && current->provider == provider && current->trackId == trackId
+        && m_publishCurrent) {
+        m_publishCurrent();
+    }
+    log(QStringLiteral("ok"));
+    return {};
+}
+
 QString ControlService::RefreshGlobalOffset()
 {
     // GlobalConfig deliberately writes SQLite itself so it can report a

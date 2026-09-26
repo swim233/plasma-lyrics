@@ -153,6 +153,129 @@ private Q_SLOTS:
         QCOMPARE(store.globalOffsetMs(), 2000);
     }
 
+    void setOffsetForTrackWritesTheNamedRef()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider local(QStringLiteral("local"));
+        Resolver resolver(store, {&local});
+        int publications = 0;
+        std::optional<MprisState> current;
+        std::optional<TrackRef> currentRef;
+        // netease is supported by the build but not enabled in the resolver
+        // chain; a ref to it can still sit in the store.
+        ControlService service(store, resolver, [&] { return current; },
+                               [](const MprisState &, const QString &,
+                                  ControlService::CachePolicy) {},
+                               [&] { return currentRef; }, [&] { ++publications; },
+                               {QStringLiteral("local"), QStringLiteral("netease")});
+        const TrackRef netease{QStringLiteral("netease"), QStringLiteral("7"), 0};
+
+        // No current song at all: the ref alone decides what is written.
+        {
+            MessageCapture capture;
+            QCOMPARE(service.SetOffsetForTrack(netease.provider, netease.trackId, 1500), QString());
+            QVERIFY(capture.containsAt(QtInfoMsg,
+                QStringLiteral("control SetOffsetForTrack provider=\"netease\" trackId=\"7\" "
+                              "offsetMs=1500 result=ok")));
+        }
+        QCOMPARE(store.offset(netease), 1500);
+        QCOMPARE(service.SetOffsetForTrack(netease.provider, netease.trackId, 50000), QString());
+        QCOMPARE(store.offset(netease), 10000);
+        QCOMPARE(service.SetOffsetForTrack(netease.provider, netease.trackId, -50000), QString());
+        QCOMPARE(store.offset(netease), -10000);
+        QCOMPARE(publications, 0);
+
+        // Refs from the one-time waylyrics import reach snapshots as well.
+        const TrackRef imported{QStringLiteral("waylyrics"), QStringLiteral("123"), 0};
+        QCOMPARE(service.SetOffsetForTrack(imported.provider, imported.trackId, 300), QString());
+        QCOMPARE(store.offset(imported), 300);
+
+        {
+            MessageCapture capture;
+            QCOMPARE(service.SetOffsetForTrack(QStringLiteral("missing"), QStringLiteral("7"), 300),
+                     QStringLiteral("provider-unsupported"));
+            QVERIFY(capture.containsAt(QtInfoMsg,
+                QStringLiteral("control SetOffsetForTrack provider=\"missing\" trackId=\"7\" "
+                              "offsetMs=300 result=provider-unsupported")));
+        }
+        QCOMPARE(store.offset({QStringLiteral("missing"), QStringLiteral("7"), 0}), 0);
+        QCOMPARE(service.SetOffsetForTrack(QString(), QStringLiteral("7"), 300),
+                 QStringLiteral("provider-unsupported"));
+        QCOMPARE(service.SetOffsetForTrack(netease.provider, QString(), 300),
+                 QStringLiteral("track-id-empty"));
+        QCOMPARE(store.offset({netease.provider, QString(), 0}), 0);
+        QCOMPARE(publications, 0);
+
+        // Only a write to the current ref republishes; the score is not part
+        // of the ref's identity.
+        current = MprisState{};
+        current->fingerprint = QStringLiteral("mediaSrc:current");
+        currentRef = TrackRef{QStringLiteral("netease"), QStringLiteral("7"), 0.8};
+        QCOMPARE(service.SetOffsetForTrack(QStringLiteral("netease"), QStringLiteral("8"), 100),
+                 QString());
+        QCOMPARE(service.SetOffsetForTrack(QStringLiteral("local"), QStringLiteral("7"), 100),
+                 QString());
+        QCOMPARE(publications, 0);
+        QCOMPARE(service.SetOffsetForTrack(netease.provider, netease.trackId, -700), QString());
+        QCOMPARE(store.offset(netease), -700);
+        QCOMPARE(publications, 1);
+
+        // Exported over the session bus with the same signature.
+        auto bus = QDBusConnection::sessionBus();
+        QVERIFY(bus.registerService(ControlService::serviceName()));
+        QVERIFY(bus.registerObject(ControlService::objectPath(), &service,
+                                   QDBusConnection::ExportAllSlots));
+        QDBusInterface interface(ControlService::serviceName(), ControlService::objectPath(),
+                                 ControlService::interfaceName(), bus);
+        QVERIFY(interface.isValid());
+        QDBusReply<QString> reply = interface.call(QStringLiteral("SetOffsetForTrack"),
+                                                   netease.provider, netease.trackId, 250);
+        QVERIFY(reply.isValid());
+        QCOMPARE(reply.value(), QString());
+        QCOMPARE(store.offset(netease), 250);
+        QCOMPARE(publications, 2);
+    }
+
+    void setOffsetForTrackReportsAWriteFailure()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        TestProvider local(QStringLiteral("local"));
+        Resolver resolver(store, {&local});
+        int publications = 0;
+        const TrackRef currentRef{QStringLiteral("local"), QStringLiteral("song"), 1.0};
+        ControlService service(store, resolver, [] { return std::optional<MprisState>(); },
+                               [](const MprisState &, const QString &,
+                                  ControlService::CachePolicy) {},
+                               [&] { return std::optional<TrackRef>(currentRef); },
+                               [&] { ++publications; });
+        const QString connectionName = QStringLiteral("control-offset-fault-%1")
+            .arg(QUuid::createUuid().toString(QUuid::WithoutBraces));
+        {
+            auto database = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), connectionName);
+            database.setDatabaseName(store.path());
+            QVERIFY(database.open());
+            QSqlQuery query(database);
+            QVERIFY(query.exec(QStringLiteral(
+                "CREATE TRIGGER fail_offset BEFORE INSERT ON offset "
+                "BEGIN SELECT RAISE(FAIL, 'offset rejected'); END")));
+
+            MessageCapture capture;
+            QCOMPARE(service.SetOffsetForTrack(currentRef.provider, currentRef.trackId, 500),
+                     QStringLiteral("offset-save-failed"));
+            QCOMPARE(store.offset(currentRef), 0);
+            QCOMPARE(publications, 0);
+            QVERIFY(capture.containsAt(QtInfoMsg,
+                QStringLiteral("control SetOffsetForTrack provider=\"local\" trackId=\"song\" "
+                              "offsetMs=500 result=offset-save-failed")));
+            database.close();
+        }
+        QSqlDatabase::removeDatabase(connectionName);
+    }
+
     void reportsBuildCapabilitiesOutsideTheEnabledResolverChain()
     {
         QTemporaryDir directory;
@@ -335,6 +458,9 @@ private Q_SLOTS:
             pending.append(new QDBusPendingCallWatcher(interface.asyncCall(
                 QStringLiteral("ResetOffset"), current.fingerprint), this));
             pending.append(new QDBusPendingCallWatcher(interface.asyncCall(
+                QStringLiteral("SetOffsetForTrack"), currentRef.provider, currentRef.trackId,
+                -1), this));
+            pending.append(new QDBusPendingCallWatcher(interface.asyncCall(
                 QStringLiteral("RefreshGlobalOffset")), this));
             providerQueries.append(new QDBusPendingCallWatcher(interface.asyncCall(
                 QStringLiteral("AvailableProviders")), this));
@@ -363,7 +489,9 @@ private Q_SLOTS:
         // whose final value depends on dispatch order.
         QCOMPARE(store.globalOffsetMs(), 0);
         QCOMPARE(requests, 60);
-        QCOMPARE(publications, 60);
+        // AdjustOffset, ResetOffset, SetOffsetForTrack on the current ref and
+        // RefreshGlobalOffset each republish once.
+        QCOMPARE(publications, 80);
         // 20 iterations x {SetPreferredProvider, ClearPreferredProvider,
         // Research}; order is not guaranteed under concurrent dispatch, so
         // assert per-trigger counts instead of a sequence.

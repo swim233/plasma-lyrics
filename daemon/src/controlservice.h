@@ -48,6 +48,10 @@ public Q_SLOTS:
     // offset mode (DESIGN.md decision 79), and so need its lyric ref.
     QString AdjustOffset(const QString &expectedFingerprint, int deltaMs);
     QString ResetOffset(const QString &expectedFingerprint);
+    // The configuration dialog's write of a song's own offset, an absolute
+    // value. The ref itself names the song, so unlike the methods above it
+    // takes no expected fingerprint and works for any song, current or not.
+    QString SetOffsetForTrack(const QString &provider, const QString &trackId, int offsetMs);
     QString RefreshGlobalOffset();
     QStringList AvailableProviders() const;
 
