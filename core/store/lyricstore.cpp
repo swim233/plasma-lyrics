@@ -15,6 +15,16 @@
 
 namespace PlasmaLyrics {
 
+namespace {
+
+int clampedOffset(qint64 offsetMs)
+{
+    return static_cast<int>(std::clamp<qint64>(offsetMs, -LyricStore::maximumOffsetMs(),
+                                               LyricStore::maximumOffsetMs()));
+}
+
+} // namespace
+
 LyricStore::LyricStore(QString path)
     : m_path(path.isEmpty() ? defaultPath() : std::move(path))
     , m_connectionName(QStringLiteral("plasma-lyrics-%1").arg(QUuid::createUuid().toString(QUuid::WithoutBraces)))
@@ -353,7 +363,7 @@ bool LyricStore::setOffset(const TrackRef &ref, int offsetMs)
     query.prepare(QStringLiteral("INSERT OR REPLACE INTO offset(provider, track_id, offset_ms) VALUES(?, ?, ?)"));
     query.addBindValue(ref.provider);
     query.addBindValue(ref.trackId);
-    query.addBindValue(offsetMs);
+    query.addBindValue(clampedOffset(offsetMs));
     return query.exec();
 }
 
@@ -363,7 +373,7 @@ std::optional<int> LyricStore::adjustOffset(const TrackRef &ref, int deltaMs)
     if (!begin.exec(QStringLiteral("BEGIN IMMEDIATE"))) {
         return std::nullopt;
     }
-    const int adjusted = offset(ref) + deltaMs;
+    const int adjusted = clampedOffset(static_cast<qint64>(offset(ref)) + deltaMs);
     if (!setOffset(ref, adjusted)) {
         m_database.rollback();
         return std::nullopt;
@@ -382,7 +392,7 @@ int LyricStore::offset(const TrackRef &ref) const
     query.prepare(QStringLiteral("SELECT offset_ms FROM offset WHERE provider=? AND track_id=?"));
     query.addBindValue(ref.provider);
     query.addBindValue(ref.trackId);
-    return query.exec() && query.next() ? query.value(0).toInt() : 0;
+    return query.exec() && query.next() ? clampedOffset(query.value(0).toLongLong()) : 0;
 }
 
 std::optional<QString> LyricStore::setting(const QString &key) const
@@ -419,34 +429,12 @@ bool LyricStore::setGlobalOffsetEnabled(bool enabled)
 int LyricStore::globalOffsetMs() const
 {
     const auto value = setting(QStringLiteral("globalOffsetMs"));
-    const qint64 stored = value.has_value() ? value->toLongLong() : 0;
-    return static_cast<int>(std::clamp<qint64>(stored, -maximumGlobalOffsetMs(), maximumGlobalOffsetMs()));
+    return clampedOffset(value.has_value() ? value->toLongLong() : 0);
 }
 
 bool LyricStore::setGlobalOffsetMs(int offsetMs)
 {
-    const int clamped = static_cast<int>(std::clamp<qint64>(offsetMs, -maximumGlobalOffsetMs(), maximumGlobalOffsetMs()));
-    return setSetting(QStringLiteral("globalOffsetMs"), QString::number(clamped));
-}
-
-std::optional<int> LyricStore::adjustGlobalOffset(int deltaMs)
-{
-    QSqlQuery begin(m_database);
-    if (!begin.exec(QStringLiteral("BEGIN IMMEDIATE"))) {
-        return std::nullopt;
-    }
-    const qint64 sum = static_cast<qint64>(globalOffsetMs()) + static_cast<qint64>(deltaMs);
-    const int adjusted = static_cast<int>(std::clamp<qint64>(sum, -maximumGlobalOffsetMs(), maximumGlobalOffsetMs()));
-    if (!setGlobalOffsetMs(adjusted)) {
-        m_database.rollback();
-        return std::nullopt;
-    }
-    QSqlQuery commit(m_database);
-    if (!commit.exec(QStringLiteral("COMMIT"))) {
-        m_database.rollback();
-        return std::nullopt;
-    }
-    return adjusted;
+    return setSetting(QStringLiteral("globalOffsetMs"), QString::number(clampedOffset(offsetMs)));
 }
 
 // Gated by a setting row, not by user_version: every released build since
