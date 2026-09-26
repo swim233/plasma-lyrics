@@ -135,9 +135,11 @@ Q_SIGNALS:
     void controlInProgressChanged();
     void controlErrorChanged();
     void controlFailed(const QString &error);
-    /// `error` is empty on success, otherwise already localized.
+    /// Both are empty on success. `errorCode` is the daemon's stable code,
+    /// or the D-Bus error name when the call itself failed; `error` is the
+    /// localized message for it.
     void offsetForTrackFinished(const QString &provider, const QString &trackId, int offsetMs,
-                                const QString &error);
+                                const QString &errorCode, const QString &error);
 
 private:
     static qint64 monotonicNowNs();

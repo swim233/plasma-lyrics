@@ -24,7 +24,8 @@ TestCase {
             property int trackOffsetMs: 200
             property var requests: []
             property int reloads: 0
-            signal offsetForTrackFinished(string provider, string trackId, int offsetMs, string error)
+            signal offsetForTrackFinished(string provider, string trackId, int offsetMs,
+                                          string errorCode, string error)
             function setOffsetForTrack(provider, trackId, offsetMs) {
                 requests = requests.concat([{ provider: provider, trackId: trackId, offsetMs: offsetMs }]);
             }
@@ -174,7 +175,7 @@ TestCase {
         verify(!editor.unsaved);
         verify(editor.edited);
 
-        source.offsetForTrackFinished("netease", "1", 600, "");
+        source.offsetForTrackFinished("netease", "1", 600, "", "");
         compare(source.reloads, 1);
         verify(!editor.edited);
         verify(!editor.unsaved);
@@ -191,8 +192,11 @@ TestCase {
         editor.save();
         verify(!editor.unsaved);
 
-        source.offsetForTrackFinished("netease", "1", -800, "Could not save the lyric offset.");
+        source.offsetForTrackFinished("netease", "1", -800, "offset-save-failed", "Could not save the lyric offset.");
+        compare(editor.saveErrorCode, "offset-save-failed");
         compare(editor.saveError, "Could not save the lyric offset.");
+        // The page's own sentence already says this much.
+        compare(editor.saveErrorDetail, "");
         verify(editor.edited);
         verify(editor.unsaved);
         compare(editor.value, -800);
@@ -202,9 +206,18 @@ TestCase {
         editor.save();
         compare(source.requests.length, 2);
         compare(editor.saveError, "");
-        source.offsetForTrackFinished("netease", "1", -800, "");
+        compare(editor.saveErrorCode, "");
+        // Any other failure keeps its reason.
+        source.offsetForTrackFinished("netease", "1", -800, "org.freedesktop.DBus.Error.ServiceUnknown",
+                                      "Lyrics source command failed: gone");
+        compare(editor.saveErrorDetail, "Lyrics source command failed: gone");
+        verify(editor.unsaved);
+
+        editor.save();
+        source.offsetForTrackFinished("netease", "1", -800, "", "");
         verify(!editor.edited);
         compare(editor.value, 200);
+        compare(editor.saveError, "");
     }
 
     function test_anEditWhileSavingStaysUnsaved() {
@@ -215,7 +228,7 @@ TestCase {
         editor.edit(900);
         verify(editor.unsaved);
 
-        source.offsetForTrackFinished("netease", "1", 500, "");
+        source.offsetForTrackFinished("netease", "1", 500, "", "");
         verify(editor.edited);
         verify(editor.unsaved);
         compare(editor.value, 900);
@@ -230,15 +243,15 @@ TestCase {
         const editor = createEditor();
         const source = editor.source;
         // Nothing sent yet.
-        source.offsetForTrackFinished("netease", "1", 200, "");
+        source.offsetForTrackFinished("netease", "1", 200, "", "");
         editor.edit(500);
-        source.offsetForTrackFinished("netease", "1", 500, "");
+        source.offsetForTrackFinished("netease", "1", 500, "", "");
         verify(editor.edited);
 
         editor.save();
-        source.offsetForTrackFinished("qq", "1", 500, "");
-        source.offsetForTrackFinished("netease", "2", 500, "");
-        source.offsetForTrackFinished("netease", "1", 400, "boom");
+        source.offsetForTrackFinished("qq", "1", 500, "", "");
+        source.offsetForTrackFinished("netease", "2", 500, "", "");
+        source.offsetForTrackFinished("netease", "1", 400, "boom", "Boom.");
         verify(editor.saving);
         verify(editor.edited);
         compare(editor.saveError, "");

@@ -77,10 +77,12 @@ Kirigami.ScrollablePage {
             Layout.fillWidth: true
             visible: trackOffset.saveError.length > 0
             type: Kirigami.MessageType.Error
-            // Two complete sentences, each translated whole: what failed,
-            // then the daemon's own reason.
-            text: i18n("Could not save this song's offset. The setting was not applied.")
-                + "\n" + trackOffset.saveError
+            // Complete sentences, each translated whole: what failed, then
+            // the daemon's own reason when that says more.
+            text: trackOffset.saveErrorDetail.length > 0
+                ? i18n("Could not save this song's offset. The setting was not applied.")
+                    + "\n" + trackOffset.saveErrorDetail
+                : i18n("Could not save this song's offset. The setting was not applied.")
         }
 
         Kirigami.FormLayout {

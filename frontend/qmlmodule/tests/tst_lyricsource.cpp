@@ -734,27 +734,31 @@ private Q_SLOTS:
         QCOMPARE(control.calls.first().trackId, QStringLiteral("7"));
         QCOMPARE(control.calls.first().offsetMs, -1500);
         QCOMPARE(finished.first(), QVariantList({QStringLiteral("netease"), QStringLiteral("7"),
-                                                 -1500, QString()}));
+                                                 -1500, QString(), QString()}));
 
         control.result = QStringLiteral("provider-unsupported");
         source.setOffsetForTrack(QStringLiteral("other"), QStringLiteral("8"), 100);
         QTRY_COMPARE(finished.size(), 2);
         QCOMPARE(finished.last(), QVariantList({QStringLiteral("other"), QStringLiteral("8"), 100,
+            QStringLiteral("provider-unsupported"),
             QStringLiteral("The lyrics service does not support this song's lyrics source.")}));
         control.result = QStringLiteral("track-id-empty");
         source.setOffsetForTrack(QStringLiteral("netease"), QString(), 100);
         QTRY_COMPARE(finished.size(), 3);
-        QCOMPARE(finished.last().at(3).toString(), QStringLiteral("The song has no lyrics to adjust."));
+        QCOMPARE(finished.last().at(3).toString(), QStringLiteral("track-id-empty"));
+        QCOMPARE(finished.last().at(4).toString(), QStringLiteral("The song has no lyrics to adjust."));
         QCOMPARE(failed.size(), 0);
         QVERIFY(source.controlError().isEmpty());
 
         bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
         bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
 
-        // No daemon on the bus: still one answer, carrying the failure.
+        // No daemon on the bus: still one answer, carrying the failure under
+        // the D-Bus error's name.
         source.setOffsetForTrack(QStringLiteral("netease"), QStringLiteral("7"), 100);
         QTRY_COMPARE(finished.size(), 4);
-        QVERIFY(!finished.last().at(3).toString().isEmpty());
+        QVERIFY(finished.last().at(3).toString().startsWith(QStringLiteral("org.freedesktop.DBus.Error.")));
+        QVERIFY(!finished.last().at(4).toString().isEmpty());
         QCOMPARE(failed.size(), 0);
     }
 };

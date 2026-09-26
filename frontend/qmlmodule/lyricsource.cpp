@@ -588,7 +588,7 @@ void LyricSource::setOffsetForTrack(const QString &provider, const QString &trac
         const QDBusPendingReply<QString> reply = *watcher;
         watcher->deleteLater();
         Q_EMIT offsetForTrackFinished(
-            provider, trackId, offsetMs,
+            provider, trackId, offsetMs, reply.isError() ? reply.error().name() : reply.value(),
             localizedControlError(reply.isError() ? reply.error().message() : reply.value()));
     });
 }

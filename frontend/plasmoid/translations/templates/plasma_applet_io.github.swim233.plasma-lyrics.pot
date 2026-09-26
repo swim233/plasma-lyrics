@@ -60,7 +60,7 @@ msgid ""
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/TrackInfo.qml:39
-#: frontend/plasmoid/package/contents/ui/config/TrackOffsetEditor.qml:61
+#: frontend/plasmoid/package/contents/ui/config/TrackOffsetEditor.qml:66
 msgctxt "@info track info: %1 is the song title, %2 is the artist name(s)"
 msgid "%1 — %2"
 msgstr ""
@@ -448,9 +448,9 @@ msgstr ""
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:172
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:191
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:334
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:112
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:133
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:148
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:114
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:135
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:150
 msgid "%1 ms"
 msgstr ""
 
@@ -633,41 +633,42 @@ msgstr ""
 msgid "Could not save the global offset. The setting was not applied."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:82
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:83
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:85
 msgid "Could not save this song's offset. The setting was not applied."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:89
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:91
 msgid "Lyric offset:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:90
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:92
 msgid "Use one offset for all songs"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:103
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:105
 msgid ""
 "Each song's effective offset is the global offset plus its own offset. The "
 "context menu only changes the song's own offset."
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:106
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:108
 msgid "Global offset:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:116
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:118
 msgid "Current song:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:124
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:126
 msgid "This song's offset:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:143
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:145
 msgid "Effective offset:"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:147
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:149
 msgid "%1 ms (after applying)"
 msgstr ""
 
@@ -865,15 +866,15 @@ msgstr ""
 msgid "Truncate"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/TrackOffsetEditor.qml:56
+#: frontend/plasmoid/package/contents/ui/config/TrackOffsetEditor.qml:61
 msgid "No song is playing"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/TrackOffsetEditor.qml:63
+#: frontend/plasmoid/package/contents/ui/config/TrackOffsetEditor.qml:68
 msgid "%1 (song changed)"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/config/TrackOffsetEditor.qml:70
+#: frontend/plasmoid/package/contents/ui/config/TrackOffsetEditor.qml:75
 msgid "The current song has no lyrics"
 msgstr ""
 

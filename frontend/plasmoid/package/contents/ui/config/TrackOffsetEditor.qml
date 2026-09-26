@@ -30,8 +30,13 @@ QtObject {
     property string sentTrackId: ""
     property int sentValue: 0
 
-    // Localized, empty while the last save has not failed.
+    // Both empty while the last save has not failed: the daemon's error code
+    // (or the D-Bus error name) and its localized message.
+    property string saveErrorCode: ""
     property string saveError: ""
+    // What the message adds to the page's own "could not save" sentence;
+    // for a failed store write it would only say the same again.
+    readonly property string saveErrorDetail: saveErrorCode === "offset-save-failed" ? "" : saveError
 
     readonly property bool hasSong: source.serviceAvailable && source.fingerprint.length > 0
     readonly property bool hasRef: source.lyricRefProvider.length > 0
@@ -89,22 +94,24 @@ QtObject {
         sentTrackId = pinnedTrackId;
         sentValue = editedValue;
         saving = true;
+        saveErrorCode = "";
         saveError = "";
         source.setOffsetForTrack(sentProvider, sentTrackId, sentValue);
     }
 
     readonly property Connections replies: Connections {
         target: editor.source
-        function onOffsetForTrackFinished(provider, trackId, offsetMs, error) {
+        function onOffsetForTrackFinished(provider, trackId, offsetMs, errorCode, error) {
             if (!editor.saving || provider !== editor.sentProvider
                 || trackId !== editor.sentTrackId || offsetMs !== editor.sentValue) {
                 return;
             }
             editor.saving = false;
+            editor.saveErrorCode = errorCode;
             editor.saveError = error;
             // Edited again while this was out: that newer value stays pinned
             // and unsaved.
-            if (error.length > 0 || editor.editedValue !== offsetMs) {
+            if (errorCode.length > 0 || editor.editedValue !== offsetMs) {
                 return;
             }
             // The daemon republished the snapshot before it answered; read
