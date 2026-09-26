@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(plasma-lyrics VERSION 0.4.3 LANGUAGES CXX)
+project(plasma-lyrics VERSION 0.4.4 LANGUAGES CXX)
 
 include(CTest)
 
