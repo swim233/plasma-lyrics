@@ -119,6 +119,25 @@ bool preferStyle(const QString &a, const QString &b)
     return lessCaseInsensitive(a, b);
 }
 
+QList<Weight> weightsOf(const QList<Face> &faces, bool upright)
+{
+    QMap<int, QString> byWeight;
+    for (const Face &face : faces) {
+        if (face.upright != upright || face.weight < 1) {
+            continue;
+        }
+        const auto it = byWeight.constFind(face.weight);
+        if (it == byWeight.cend() || preferStyle(face.styleName, *it)) {
+            byWeight.insert(face.weight, face.styleName);
+        }
+    }
+    QList<Weight> result;
+    for (auto it = byWeight.cbegin(); it != byWeight.cend(); ++it) {
+        result.append({it.key(), it.value()});
+    }
+    return result;
+}
+
 } // namespace
 
 QList<QStringList> groupFamilyNames(const QList<FamilyName> &names)
@@ -357,21 +376,12 @@ QList<qsizetype> fuzzyRank(QStringView query, const QList<QStringList> &candidat
 
 QList<Weight> uprightWeights(const QList<Face> &faces)
 {
-    QMap<int, QString> byWeight;
-    for (const Face &face : faces) {
-        if (!face.upright || face.weight < 1) {
-            continue;
-        }
-        const auto it = byWeight.constFind(face.weight);
-        if (it == byWeight.cend() || preferStyle(face.styleName, *it)) {
-            byWeight.insert(face.weight, face.styleName);
-        }
-    }
-    QList<Weight> result;
-    for (auto it = byWeight.cbegin(); it != byWeight.cend(); ++it) {
-        result.append({it.key(), it.value()});
-    }
-    return result;
+    return weightsOf(faces, true);
+}
+
+QList<Weight> italicWeights(const QList<Face> &faces)
+{
+    return weightsOf(faces, false);
 }
 
 int snapWeight(const QList<int> &available, int target)

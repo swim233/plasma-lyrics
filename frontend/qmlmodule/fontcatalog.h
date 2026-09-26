@@ -59,6 +59,13 @@ public:
     // synthetic 400 face would snap every stored weight to 400.
     Q_INVOKABLE QVariantList weights(const QString &family) const;
 
+    // The same for the family's slanted faces, italic and oblique alike: the
+    // ones Qt draws from when a font asks for italic (DESIGN.md decision
+    // 78). Empty for a family that has none -- Qt then slants an upright
+    // face itself, so weights() is what a weight is chosen from -- and for
+    // everything weights() is empty for.
+    Q_INVOKABLE QVariantList italicWeights(const QString &family) const;
+
     // The weight from `available` (a weights() result) that the CSS Fonts
     // level 4 matching rule picks for `target`. `target` itself when present
     // or when `available` is empty. Otherwise, for a target in [400, 500]:
@@ -70,6 +77,7 @@ public:
 
 private:
     void ensureBuilt() const;
+    QVariantList weightsOf(const QString &family, bool upright) const;
 
     mutable bool m_built = false;
     mutable QStringList m_families;

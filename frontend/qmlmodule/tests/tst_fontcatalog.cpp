@@ -230,6 +230,52 @@ private Q_SLOTS:
                     .isEmpty());
     }
 
+    // --- italicWeights ---
+
+    // The mirror of uprightWeights over the same DejaVu Sans faces: the
+    // oblique ones count as italic, with the same width tie-break.
+    void italicWeightsKeepsSlantedFacesAndPrefersNormalWidth()
+    {
+        const QList<FontMatching::Face> faces = {
+            {u8("Book"), 400, true},
+            {u8("Condensed Oblique"), 400, false},
+            {u8("Oblique"), 400, false},
+            {u8("Bold"), 700, true},
+            {u8("Condensed Bold Oblique"), 700, false},
+            {u8("Bold Oblique"), 700, false},
+        };
+        const auto weights = FontMatching::italicWeights(faces);
+        QCOMPARE(weights.size(), 2);
+        QCOMPARE(weights.at(0).weight, 400);
+        QCOMPARE(weights.at(0).styleName, u8("Oblique"));
+        QCOMPARE(weights.at(1).weight, 700);
+        QCOMPARE(weights.at(1).styleName, u8("Bold Oblique"));
+    }
+
+    // A family's italic weights need not be its upright ones; an italic
+    // weight is chosen among the italics alone.
+    void italicWeightsAreTheirOwnSet()
+    {
+        const QList<FontMatching::Face> faces = {
+            {u8("Light"), 300, true},
+            {u8("Regular"), 400, true},
+            {u8("Bold"), 700, true},
+            {u8("Italic"), 400, false},
+            {u8("Mystery Italic"), 0, false},
+        };
+        const auto italics = FontMatching::italicWeights(faces);
+        QCOMPARE(italics.size(), 1);
+        QCOMPARE(italics.first().weight, 400);
+        QCOMPARE(FontMatching::uprightWeights(faces).size(), 3);
+    }
+
+    // CJK families have no italic faces at all: Qt slants an upright one.
+    void italicWeightsOfAnUprightOnlyFamilyIsEmpty()
+    {
+        QVERIFY(FontMatching::italicWeights({{u8("Regular"), 400, true}, {u8("Bold"), 700, true}}).isEmpty());
+        QVERIFY(FontMatching::italicWeights({}).isEmpty());
+    }
+
     // --- groupFamilyNames ---
 
     void groupFamilyNames()
@@ -530,6 +576,8 @@ private Q_SLOTS:
         QVERIFY(catalog.alternateNames(u8("No Such Family 7f3c")).isEmpty());
         QVERIFY(catalog.weights(u8("No Such Family 7f3c")).isEmpty());
         QVERIFY(catalog.weights(QString()).isEmpty());
+        QVERIFY(catalog.italicWeights(u8("No Such Family 7f3c")).isEmpty());
+        QVERIFY(catalog.italicWeights(QString()).isEmpty());
     }
 
     void installedWeights()
@@ -552,6 +600,27 @@ private Q_SLOTS:
         }
     }
 
+    // Whatever is installed: each italic entry is a real face of the family
+    // that Qt builds slanted, one per weight, lightest first. None at all is
+    // fine -- the Debian CI container may well have no italics.
+    void installedItalicWeights()
+    {
+        const FontCatalog catalog;
+        for (const QString &family : catalog.families()) {
+            int previous = 0;
+            for (const QVariant &entry : catalog.italicWeights(family)) {
+                const QVariantMap face = entry.toMap();
+                const int weight = face.value(QStringLiteral("weight")).toInt();
+                const QString style = face.value(QStringLiteral("styleName")).toString();
+                QVERIFY2(weight > previous, qPrintable(family + u8(": ") + style));
+                previous = weight;
+                QVERIFY2(QFontDatabase::styles(family).contains(style), qPrintable(family + u8(": ") + style));
+                QVERIFY2(QFontDatabase::font(family, style, 12).style() != QFont::StyleNormal,
+                         qPrintable(family + u8(": ") + style));
+            }
+        }
+    }
+
     // A Plasma font set to one of Qt's generic names keeps its stored weight:
     // Qt's one synthetic 400 face is not offered. Debian's CI container has
     // "Sans Serif" as its default font.
@@ -565,6 +634,7 @@ private Q_SLOTS:
             }
             QCOMPARE(catalog.resolveFamily(u8(generic)), u8(generic));
             QVERIFY2(catalog.weights(u8(generic)).isEmpty(), generic);
+            QVERIFY2(catalog.italicWeights(u8(generic)).isEmpty(), generic);
             QCOMPARE(catalog.snapWeight(catalog.weights(u8(generic)), 700), 700);
         }
     }
