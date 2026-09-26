@@ -430,12 +430,19 @@ Item {
             }
         }
 
+        // Marquee lays the line out at its own width, flush left, only while
+        // it overflows (marqueeApplies, whether or not the sweep is running);
+        // a line that fits spans the item and is centred, as in every other
+        // mode and on the word path's Row. The outline copies bind to x,
+        // width and alignment here, so they follow.
+        // Reading marqueeApplies cannot loop: under NoWrap and ElideNone the
+        // implicitWidth it compares does not depend on width.
         Text {
             id: mainText
             visible: !root.wordMode
             x: root.marqueeApplies ? root.marqueeOffset : 0
             y: root.contentTop
-            width: root.overflowMode === "marquee" ? implicitWidth : root.width
+            width: root.marqueeApplies ? implicitWidth : root.width
             height: root.height - root.liftHeadroom
             text: root.lineText
             color: root.textColor
@@ -454,7 +461,7 @@ Item {
             maximumLineCount: root.overflowMode === "wrap" ? 2 : 1
             elide: root.overflowMode === "fit" || root.overflowMode === "wrap" || root.overflowMode === "elide"
                 ? Text.ElideRight : Text.ElideNone
-            horizontalAlignment: root.overflowMode === "marquee" ? Text.AlignLeft : Text.AlignHCenter
+            horizontalAlignment: root.marqueeApplies ? Text.AlignLeft : Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }
 
