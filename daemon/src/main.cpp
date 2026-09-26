@@ -600,10 +600,7 @@ int main(int argc, char **argv)
 
     const auto publish = [&snapshots, &store](const std::optional<MprisState> &state,
                                              ResolvedLyric lyric) {
-        lyric.globalOffsetEnabled = store.globalOffsetEnabled();
-        lyric.document.offsetMs = lyric.globalOffsetEnabled
-            ? store.globalOffsetMs()
-            : lyric.ref ? store.offset(*lyric.ref) : 0;
+        applyStoredOffsets(lyric, store);
         QString error;
         if (!snapshots.write(state, lyric, &error)) {
             qCWarning(lcDaemon).noquote() << "cannot write lyric snapshot:" << error;
@@ -662,9 +659,6 @@ int main(int argc, char **argv)
             resolver.resolve(*state, trigger);
             return;
         }
-        if (resolved.ref) {
-            resolved.document.offsetMs = store.offset(*resolved.ref);
-        }
         publish(state, resolved);
     };
     QObject::connect(&resolver, &Resolver::resolved, &application,
@@ -675,9 +669,6 @@ int main(int argc, char **argv)
             return;
         }
         resolved = lyric;
-        if (resolved.ref) {
-            resolved.document.offsetMs = store.offset(*resolved.ref);
-        }
         publish(state, resolved);
     });
     QObject::connect(&manager, &MprisManager::activeStateChanged, &application, update);

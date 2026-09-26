@@ -2,6 +2,7 @@
 #include "core/lyric/lyricmodel.h"
 
 #include <QCoreApplication>
+#include <QDBusConnection>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -13,6 +14,28 @@
 #include <KLocalizedString>
 
 using namespace PlasmaLyrics;
+
+class FakeOffsetControl final : public QObject
+{
+    Q_OBJECT
+    Q_CLASSINFO("D-Bus Interface", "io.github.swim233.PlasmaLyrics.Control")
+
+public:
+    struct Call {
+        QString provider;
+        QString trackId;
+        int offsetMs;
+    };
+    QList<Call> calls;
+    QString result;
+
+public Q_SLOTS:
+    QString SetOffsetForTrack(const QString &provider, const QString &trackId, int offsetMs)
+    {
+        calls.append({provider, trackId, offsetMs});
+        return result;
+    }
+};
 
 class LyricSourceTest : public QObject
 {
@@ -30,7 +53,8 @@ private:
                               const QStringList &availableProviders = {
                                   QStringLiteral("netease"), QStringLiteral("amll")},
                               bool globalOffsetEnabled = false,
-                              const QString &switchingProvider = {})
+                              const QString &switchingProvider = {},
+                              int trackOffsetMs = 0)
     {
         QDir().mkpath(QFileInfo(path).absolutePath());
         const QJsonObject root{
@@ -48,6 +72,7 @@ private:
                                                       {QStringLiteral("rate"), 1.0}}},
             {QStringLiteral("lyric"), QJsonObject{{QStringLiteral("state"), QStringLiteral("ok")},
                                                    {QStringLiteral("offsetMs"), offsetMs},
+                                                   {QStringLiteral("trackOffsetMs"), trackOffsetMs},
                                                    {QStringLiteral("preferredProvider"), preferredProvider},
                                                    {QStringLiteral("effectivePreferredProvider"), effectivePreferredProvider},
                                                    {QStringLiteral("actualProvider"), actualProvider},
@@ -533,13 +558,45 @@ private Q_SLOTS:
                       QCoreApplication::applicationPid(), 2000, 750,
                       QStringLiteral("netease"), QStringLiteral("1"), {},
                       QStringLiteral("netease"), QStringLiteral("netease"), false,
-                      {QStringLiteral("local"), QStringLiteral("netease")}, true);
+                      {QStringLiteral("local"), QStringLiteral("netease")}, true, {}, 250);
 
         LyricSource source([] { return 1000000000LL; });
         source.setSnapshotPath(snapshotPath);
 
         QVERIFY(source.globalOffsetEnabled());
         QCOMPARE(source.offsetMs(), 750);
+        QCOMPARE(source.trackOffsetMs(), 250);
+        QCOMPARE(source.lyricRefProvider(), QStringLiteral("netease"));
+        QCOMPARE(source.lyricRefTrackId(), QStringLiteral("1"));
+        // The effective offset is what the timeline uses.
+        QCOMPARE(source.lyricPositionMs(), 1000 - 750);
+    }
+
+    void aChangeOfTheSongsOwnOffsetAloneNotifies()
+    {
+        // In global mode a menu adjustment and an equal change of the
+        // global offset elsewhere can leave the effective offset where it
+        // was; the song's own value still has to reach the menu text.
+        QTemporaryDir directory;
+        const QString snapshotPath = directory.filePath(QStringLiteral("runtime/state.json"));
+        writeSnapshot(snapshotPath, 1, 1000000000, QStringLiteral("first"),
+                      QCoreApplication::applicationPid(), 2000, 500,
+                      QStringLiteral("netease"), QStringLiteral("1"), {},
+                      QStringLiteral("netease"), QStringLiteral("netease"), false,
+                      {QStringLiteral("netease")}, true, {}, 0);
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(snapshotPath);
+        QSignalSpy spy(&source, &LyricSource::offsetChanged);
+
+        writeSnapshot(snapshotPath, 2, 1000000000, QStringLiteral("first"),
+                      QCoreApplication::applicationPid(), 2000, 500,
+                      QStringLiteral("netease"), QStringLiteral("1"), {},
+                      QStringLiteral("netease"), QStringLiteral("netease"), false,
+                      {QStringLiteral("netease")}, true, {}, 500);
+
+        QTRY_COMPARE(source.trackOffsetMs(), 500);
+        QCOMPARE(source.offsetMs(), 500);
+        QCOMPARE(spy.size(), 1);
     }
 
     void allInstancesConsumeTheSamePublishedOffset()
@@ -599,7 +656,9 @@ private Q_SLOTS:
         QVERIFY(!source.adjustOffset(200));
     }
 
-    void globalOffsetCanBeAdjustedWithoutACurrentTrack()
+    // DESIGN.md decision 79: the menu changes the song's own offset in
+    // global mode too, so the gate no longer relaxes there.
+    void canAdjustOffsetRequiresASongAndARefInGlobalModeToo()
     {
         QTemporaryDir directory;
         const QString snapshotPath = directory.filePath(QStringLiteral("runtime/state.json"));
@@ -609,18 +668,16 @@ private Q_SLOTS:
             {QStringLiteral("seq"), 1},
             {QStringLiteral("daemon"),
              QJsonObject{{QStringLiteral("pid"), QCoreApplication::applicationPid()}}},
-            {QStringLiteral("track"),
-             QJsonObject{{QStringLiteral("fingerprint"), QString()},
-                         {QStringLiteral("title"), QString()},
-                         {QStringLiteral("artists"), QJsonArray{}}}},
+            {QStringLiteral("track"), QJsonValue::Null},
             {QStringLiteral("playback"),
              QJsonObject{{QStringLiteral("status"), QStringLiteral("Stopped")},
                          {QStringLiteral("positionUs"), 0},
-                         {QStringLiteral("anchorMonotonicNs"), 1000000000LL},
+                         {QStringLiteral("anchorMonotonicNs"), 0},
                          {QStringLiteral("rate"), 1.0}}},
             {QStringLiteral("lyric"),
-             QJsonObject{{QStringLiteral("state"), QStringLiteral("not-found")},
+             QJsonObject{{QStringLiteral("state"), QStringLiteral("filtered")},
                          {QStringLiteral("offsetMs"), 500},
+                         {QStringLiteral("trackOffsetMs"), 0},
                          {QStringLiteral("globalOffsetEnabled"), true},
                          {QStringLiteral("availableProviders"), QJsonArray{}},
                          {QStringLiteral("lines"), QJsonArray{}}}}};
@@ -631,10 +688,78 @@ private Q_SLOTS:
 
         LyricSource source([] { return 1000000000LL; });
         source.setSnapshotPath(snapshotPath);
-
         QVERIFY(source.serviceAvailable());
         QVERIFY(source.globalOffsetEnabled());
-        QVERIFY(source.canAdjustOffset());
+        QVERIFY(!source.canAdjustOffset());
+        QVERIFY(!source.adjustOffset(500));
+
+        // A song without a lyric ref.
+        QSignalSpy spy(&source, &LyricSource::canAdjustOffsetChanged);
+        writeSnapshot(snapshotPath, 2, 1000000000, QStringLiteral("first"),
+                      QCoreApplication::applicationPid(), 2000, 500, QString(), QString(), {},
+                      QStringLiteral("netease"), QString(), false, {QStringLiteral("netease")},
+                      true);
+        QTRY_COMPARE(source.fingerprint(), QStringLiteral("mediaSrc:test"));
+        QVERIFY(!source.canAdjustOffset());
+
+        writeSnapshot(snapshotPath, 3, 1000000000, QStringLiteral("first"),
+                      QCoreApplication::applicationPid(), 2000, 500, QStringLiteral("netease"),
+                      QStringLiteral("1"), {}, QStringLiteral("netease"),
+                      QStringLiteral("netease"), false, {QStringLiteral("netease")}, true);
+        QTRY_VERIFY(source.canAdjustOffset());
+        QVERIFY(spy.size() >= 1);
+    }
+
+    void setOffsetForTrackReportsTheDaemonsAnswer()
+    {
+        auto bus = QDBusConnection::sessionBus();
+        FakeOffsetControl control;
+        QVERIFY(bus.registerService(QStringLiteral("io.github.swim233.PlasmaLyrics")));
+        QVERIFY(bus.registerObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"), &control,
+                                   QDBusConnection::ExportAllSlots));
+        // No snapshot at all: a pinned song can be applied after its player
+        // has gone away.
+        QTemporaryDir directory;
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(directory.filePath(QStringLiteral("runtime/state.json")));
+        QVERIFY(!source.serviceAvailable());
+        QSignalSpy finished(&source, &LyricSource::offsetForTrackFinished);
+        QSignalSpy failed(&source, &LyricSource::controlFailed);
+
+        source.setOffsetForTrack(QStringLiteral("netease"), QStringLiteral("7"), -1500);
+        QVERIFY(!source.controlInProgress());
+        QTRY_COMPARE(finished.size(), 1);
+        QCOMPARE(control.calls.size(), 1);
+        QCOMPARE(control.calls.first().provider, QStringLiteral("netease"));
+        QCOMPARE(control.calls.first().trackId, QStringLiteral("7"));
+        QCOMPARE(control.calls.first().offsetMs, -1500);
+        QCOMPARE(finished.first(), QVariantList({QStringLiteral("netease"), QStringLiteral("7"),
+                                                 -1500, QString(), QString()}));
+
+        control.result = QStringLiteral("provider-unsupported");
+        source.setOffsetForTrack(QStringLiteral("other"), QStringLiteral("8"), 100);
+        QTRY_COMPARE(finished.size(), 2);
+        QCOMPARE(finished.last(), QVariantList({QStringLiteral("other"), QStringLiteral("8"), 100,
+            QStringLiteral("provider-unsupported"),
+            QStringLiteral("The lyrics service does not support this song's lyrics source.")}));
+        control.result = QStringLiteral("track-id-empty");
+        source.setOffsetForTrack(QStringLiteral("netease"), QString(), 100);
+        QTRY_COMPARE(finished.size(), 3);
+        QCOMPARE(finished.last().at(3).toString(), QStringLiteral("track-id-empty"));
+        QCOMPARE(finished.last().at(4).toString(), QStringLiteral("The song has no lyrics to adjust."));
+        QCOMPARE(failed.size(), 0);
+        QVERIFY(source.controlError().isEmpty());
+
+        bus.unregisterObject(QStringLiteral("/io/github/swim233/PlasmaLyrics"));
+        bus.unregisterService(QStringLiteral("io.github.swim233.PlasmaLyrics"));
+
+        // No daemon on the bus: still one answer, carrying the failure under
+        // the D-Bus error's name.
+        source.setOffsetForTrack(QStringLiteral("netease"), QStringLiteral("7"), 100);
+        QTRY_COMPARE(finished.size(), 4);
+        QVERIFY(finished.last().at(3).toString().startsWith(QStringLiteral("org.freedesktop.DBus.Error.")));
+        QVERIFY(!finished.last().at(4).toString().isEmpty());
+        QCOMPARE(failed.size(), 0);
     }
 };
 

@@ -45,22 +45,18 @@ std::optional<MprisState> ControlService::checkedState(const QString &expectedFi
     return state;
 }
 
-bool ControlService::checkedOffsetContext(const QString &expectedFingerprint,
-                                          QString *error) const
+std::optional<TrackRef> ControlService::checkedOffsetRef(const QString &expectedFingerprint,
+                                                         QString *error) const
 {
-    const auto state = m_currentState ? m_currentState() : std::nullopt;
-    if (!state || state->fingerprint.isEmpty()) {
-        if (m_store.globalOffsetEnabled() && expectedFingerprint.isEmpty()) {
-            return true;
-        }
-        *error = QStringLiteral("no-current-song");
-        return false;
+    if (!checkedState(expectedFingerprint, error)) {
+        return std::nullopt;
     }
-    if (expectedFingerprint.isEmpty() || state->fingerprint != expectedFingerprint) {
-        *error = QStringLiteral("song-changed");
-        return false;
+    const auto ref = m_currentRef ? m_currentRef() : std::nullopt;
+    if (!ref) {
+        *error = QStringLiteral("no-track-ref");
+        return std::nullopt;
     }
-    return true;
+    return ref;
 }
 
 QString ControlService::SetPreferredProvider(const QString &expectedFingerprint,
@@ -138,25 +134,14 @@ QString ControlService::AdjustOffset(const QString &expectedFingerprint, int del
                    .arg(quoted(expectedFingerprint), QString::number(deltaMs), result);
     };
     QString error;
-    if (!checkedOffsetContext(expectedFingerprint, &error)) {
+    const auto ref = checkedOffsetRef(expectedFingerprint, &error);
+    if (!ref) {
         log(error);
         return error;
     }
-    if (m_store.globalOffsetEnabled()) {
-        if (!m_store.adjustGlobalOffset(deltaMs)) {
-            log(QStringLiteral("offset-save-failed"));
-            return QStringLiteral("offset-save-failed");
-        }
-    } else {
-        const auto ref = m_currentRef ? m_currentRef() : std::nullopt;
-        if (!ref) {
-            log(QStringLiteral("no-track-ref"));
-            return QStringLiteral("no-track-ref");
-        }
-        if (!m_store.adjustOffset(*ref, deltaMs)) {
-            log(QStringLiteral("offset-save-failed"));
-            return QStringLiteral("offset-save-failed");
-        }
+    if (!m_store.adjustOffset(*ref, deltaMs)) {
+        log(QStringLiteral("offset-save-failed"));
+        return QStringLiteral("offset-save-failed");
     }
     if (m_publishCurrent) m_publishCurrent();
     log(QStringLiteral("ok"));
@@ -171,27 +156,49 @@ QString ControlService::ResetOffset(const QString &expectedFingerprint)
                    .arg(quoted(expectedFingerprint), result);
     };
     QString error;
-    if (!checkedOffsetContext(expectedFingerprint, &error)) {
+    const auto ref = checkedOffsetRef(expectedFingerprint, &error);
+    if (!ref) {
         log(error);
         return error;
     }
-    if (m_store.globalOffsetEnabled()) {
-        if (!m_store.setGlobalOffsetMs(0)) {
-            log(QStringLiteral("offset-save-failed"));
-            return QStringLiteral("offset-save-failed");
-        }
-    } else {
-        const auto ref = m_currentRef ? m_currentRef() : std::nullopt;
-        if (!ref) {
-            log(QStringLiteral("no-track-ref"));
-            return QStringLiteral("no-track-ref");
-        }
-        if (!m_store.setOffset(*ref, 0)) {
-            log(QStringLiteral("offset-save-failed"));
-            return QStringLiteral("offset-save-failed");
-        }
+    if (!m_store.setOffset(*ref, 0)) {
+        log(QStringLiteral("offset-save-failed"));
+        return QStringLiteral("offset-save-failed");
     }
     if (m_publishCurrent) m_publishCurrent();
+    log(QStringLiteral("ok"));
+    return {};
+}
+
+QString ControlService::SetOffsetForTrack(const QString &provider, const QString &trackId,
+                                          int offsetMs)
+{
+    const auto log = [&](const QString &result) {
+        qCInfo(lcDaemon).noquote()
+            << QStringLiteral("control SetOffsetForTrack provider=%1 trackId=%2 offsetMs=%3 result=%4")
+                   .arg(quoted(provider), quoted(trackId), QString::number(offsetMs), result);
+    };
+    // Every provider this build can resolve with, enabled or not, plus the
+    // one-time waylyrics import (Resolver's legacy lookup), whose refs reach
+    // snapshots too.
+    if (!m_supportedProviders.contains(provider) && provider != QStringLiteral("waylyrics")) {
+        log(QStringLiteral("provider-unsupported"));
+        return QStringLiteral("provider-unsupported");
+    }
+    if (trackId.isEmpty()) {
+        log(QStringLiteral("track-id-empty"));
+        return QStringLiteral("track-id-empty");
+    }
+    if (!m_store.setOffset(TrackRef{.provider = provider, .trackId = trackId, .score = 0},
+                           offsetMs)) {
+        log(QStringLiteral("offset-save-failed"));
+        return QStringLiteral("offset-save-failed");
+    }
+    const auto current = m_currentRef ? m_currentRef() : std::nullopt;
+    if (current && current->provider == provider && current->trackId == trackId
+        && m_publishCurrent) {
+        m_publishCurrent();
+    }
     log(QStringLiteral("ok"));
     return {};
 }

@@ -339,33 +339,102 @@ private Q_SLOTS:
     {
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
-        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        const QString path = directory.filePath(QStringLiteral("lyrics.db"));
+        LyricStore store(path);
         QVERIFY(store.open());
+        // The stored row itself, not what the clamping read makes of it.
+        const auto stored = [&path] {
+            return sql(path, QStringLiteral("SELECT value FROM setting WHERE name='globalOffsetMs'"));
+        };
 
         QVERIFY(store.setGlobalOffsetMs(50000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("10000")});
         QCOMPARE(store.globalOffsetMs(), 10000);
         QVERIFY(store.setGlobalOffsetMs(-50000));
-        QCOMPARE(store.globalOffsetMs(), -10000);
-
-        QVERIFY(store.setGlobalOffsetMs(9990));
-        QCOMPARE(store.adjustGlobalOffset(100), std::optional<int>(10000));
-        QCOMPARE(store.globalOffsetMs(), 10000);
-
-        QVERIFY(store.setGlobalOffsetMs(-9990));
-        QCOMPARE(store.adjustGlobalOffset(-100), std::optional<int>(-10000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("-10000")});
         QCOMPARE(store.globalOffsetMs(), -10000);
     }
 
-    void globalOffsetAdjustAccumulates()
+    // DESIGN.md decision 79: the per-track offset shares the global one's
+    // +-10000 ms invariant, on every write path.
+    void trackOffsetClamping()
     {
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
-        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        const QString path = directory.filePath(QStringLiteral("lyrics.db"));
+        LyricStore store(path);
         QVERIFY(store.open());
+        const TrackRef ref{QStringLiteral("netease"), QStringLiteral("42"), 1};
+        // The stored row itself, not what the clamping read makes of it.
+        const auto stored = [&path] {
+            return sql(path, QStringLiteral("SELECT offset_ms FROM offset "
+                                            "WHERE provider='netease' AND track_id='42'"));
+        };
 
-        QCOMPARE(store.adjustGlobalOffset(300), std::optional<int>(300));
-        QCOMPARE(store.adjustGlobalOffset(-100), std::optional<int>(200));
-        QCOMPARE(store.globalOffsetMs(), 200);
+        QVERIFY(store.setOffset(ref, 50000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("10000")});
+        QCOMPARE(store.offset(ref), 10000);
+        QVERIFY(store.setOffset(ref, -50000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("-10000")});
+        QCOMPARE(store.offset(ref), -10000);
+
+        QVERIFY(store.setOffset(ref, 9990));
+        QCOMPARE(store.adjustOffset(ref, 100), std::optional<int>(10000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("10000")});
+        QCOMPARE(store.offset(ref), 10000);
+
+        QVERIFY(store.setOffset(ref, -9990));
+        QCOMPARE(store.adjustOffset(ref, -100), std::optional<int>(-10000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("-10000")});
+        QCOMPARE(store.offset(ref), -10000);
+    }
+
+    void trackOffsetAdjustExtremeDelta()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("lyrics.db"));
+        LyricStore store(path);
+        QVERIFY(store.open());
+        const TrackRef ref{QStringLiteral("netease"), QStringLiteral("42"), 1};
+        const auto stored = [&path] {
+            return sql(path, QStringLiteral("SELECT offset_ms FROM offset "
+                                            "WHERE provider='netease' AND track_id='42'"));
+        };
+
+        QVERIFY(store.setOffset(ref, 5000));
+        QCOMPARE(store.adjustOffset(ref, INT_MAX), std::optional<int>(10000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("10000")});
+        QCOMPARE(store.offset(ref), 10000);
+
+        QVERIFY(store.setOffset(ref, -5000));
+        QCOMPARE(store.adjustOffset(ref, INT_MIN), std::optional<int>(-10000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("-10000")});
+        QCOMPARE(store.offset(ref), -10000);
+    }
+
+    void trackOffsetClampsDirtyRead()
+    {
+        QTemporaryDir directory;
+        QVERIFY(directory.isValid());
+        const QString path = directory.filePath(QStringLiteral("lyrics.db"));
+        LyricStore store(path);
+        QVERIFY(store.open());
+        const TrackRef ref{QStringLiteral("netease"), QStringLiteral("42"), 1};
+        QVERIFY(store.putLyric(ref, oneLine(false)));
+
+        // Rows written before decision 79, by hand or by a bug, can hold
+        // anything, including a value past the range of int.
+        QCOMPARE(sql(path, QStringLiteral("INSERT OR REPLACE INTO offset(provider, track_id, offset_ms) "
+                                          "VALUES('netease', '42', 999999)")),
+                 QStringList());
+        QCOMPARE(store.offset(ref), 10000);
+        QCOMPARE(store.lyric(ref)->offsetMs, 10000);
+        QCOMPARE(sql(path, QStringLiteral("INSERT OR REPLACE INTO offset(provider, track_id, offset_ms) "
+                                          "VALUES('netease', '42', -99999999999)")),
+                 QStringList());
+        QCOMPARE(store.offset(ref), -10000);
+        QCOMPARE(store.adjustOffset(ref, 500), std::optional<int>(-9500));
     }
 
     void globalOffsetPersistsAcrossInstances()
@@ -398,25 +467,11 @@ private Q_SLOTS:
 
         QVERIFY(store.setGlobalOffsetEnabled(true));
         QVERIFY(store.setGlobalOffsetMs(3000));
-        QCOMPARE(store.adjustGlobalOffset(500), std::optional<int>(3500));
+        QCOMPARE(store.globalOffsetMs(), 3000);
 
         QCOMPARE(store.offset(ref), 777);
-    }
-
-    void globalOffsetAdjustExtremeDelta()
-    {
-        QTemporaryDir directory;
-        QVERIFY(directory.isValid());
-        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
-        QVERIFY(store.open());
-
-        QVERIFY(store.setGlobalOffsetMs(5000));
-        QCOMPARE(store.adjustGlobalOffset(INT_MAX), std::optional<int>(10000));
-        QCOMPARE(store.globalOffsetMs(), 10000);
-
-        QVERIFY(store.setGlobalOffsetMs(-5000));
-        QCOMPARE(store.adjustGlobalOffset(INT_MIN), std::optional<int>(-10000));
-        QCOMPARE(store.globalOffsetMs(), -10000);
+        QCOMPARE(store.adjustOffset(ref, 500), std::optional<int>(1277));
+        QCOMPARE(store.globalOffsetMs(), 3000);
     }
 
     void globalOffsetClampsDirtyRead()

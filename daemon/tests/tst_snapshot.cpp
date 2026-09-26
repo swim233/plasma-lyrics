@@ -1,5 +1,7 @@
 #include "daemon/src/snapshot.h"
 
+#include "core/store/lyricstore.h"
+
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -130,6 +132,66 @@ private Q_SLOTS:
         const auto restored = lineFromJson(line);
         QVERIFY(restored.has_value());
         QCOMPARE(*restored, document.lines.first());
+    }
+
+    // DESIGN.md decision 79: global mode adds the global offset to the
+    // song's own instead of replacing it, and the snapshot carries the
+    // song's own offset alongside the effective one.
+    void effectiveOffsetAddsTheGlobalOffsetToTheSongsOwn()
+    {
+        QTemporaryDir directory;
+        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        QVERIFY(store.open());
+        const TrackRef ref{QStringLiteral("netease"), QStringLiteral("1"), 1};
+        QVERIFY(store.setOffset(ref, 300));
+        QVERIFY(store.setGlobalOffsetMs(-1000));
+
+        ResolvedLyric lyric;
+        lyric.ref = ref;
+        // Whatever the resolver left here is replaced.
+        lyric.document.offsetMs = 12345;
+        applyStoredOffsets(lyric, store);
+        QVERIFY(!lyric.globalOffsetEnabled);
+        QCOMPARE(lyric.trackOffsetMs, 300);
+        QCOMPARE(lyric.document.offsetMs, 300);
+
+        QVERIFY(store.setGlobalOffsetEnabled(true));
+        applyStoredOffsets(lyric, store);
+        QVERIFY(lyric.globalOffsetEnabled);
+        QCOMPARE(lyric.trackOffsetMs, 300);
+        QCOMPARE(lyric.document.offsetMs, -700);
+
+        // Without a ref there is no own offset, and the global one still
+        // applies.
+        lyric.ref.reset();
+        applyStoredOffsets(lyric, store);
+        QCOMPARE(lyric.trackOffsetMs, 0);
+        QCOMPARE(lyric.document.offsetMs, -1000);
+        QVERIFY(store.setGlobalOffsetEnabled(false));
+        applyStoredOffsets(lyric, store);
+        QCOMPARE(lyric.document.offsetMs, 0);
+
+        // Each side is clamped by the store; their sum is not clamped again.
+        lyric.ref = ref;
+        QVERIFY(store.setOffset(ref, 50000));
+        QVERIFY(store.setGlobalOffsetMs(50000));
+        QVERIFY(store.setGlobalOffsetEnabled(true));
+        applyStoredOffsets(lyric, store);
+        QCOMPARE(lyric.trackOffsetMs, 10000);
+        QCOMPARE(lyric.document.offsetMs, 20000);
+
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        MprisState player;
+        player.fingerprint = QStringLiteral("mediaSrc:test");
+        SnapshotWriter writer(path);
+        QVERIFY(writer.write(player, lyric));
+        QFile file(path);
+        QVERIFY(file.open(QIODevice::ReadOnly));
+        const auto stored = QJsonDocument::fromJson(file.readAll()).object()
+                                .value(QStringLiteral("lyric")).toObject();
+        QCOMPARE(stored.value(QStringLiteral("offsetMs")).toInt(), 20000);
+        QCOMPARE(stored.value(QStringLiteral("trackOffsetMs")).toInt(), 10000);
+        QVERIFY(stored.value(QStringLiteral("globalOffsetEnabled")).toBool());
     }
 };
 

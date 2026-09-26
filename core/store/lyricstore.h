@@ -76,6 +76,10 @@ public:
     std::optional<MissRecord> freshMiss(const QString &fingerprint, qint64 now = 0,
                                         qint64 ttlSeconds = 7 * 24 * 60 * 60) const;
     bool hasFreshMiss(const QString &fingerprint, qint64 now = 0, qint64 ttlSeconds = 7 * 24 * 60 * 60) const;
+    // Per-track and global offsets alike are clamped to
+    // +-maximumOffsetMs() on write and again on read (DESIGN.md decisions
+    // 41 and 79), so a row written around these setters cannot leak an
+    // out-of-range value either.
     bool setOffset(const TrackRef &ref, int offsetMs);
     std::optional<int> adjustOffset(const TrackRef &ref, int deltaMs);
     int offset(const TrackRef &ref) const;
@@ -84,8 +88,7 @@ public:
     bool setGlobalOffsetEnabled(bool enabled);
     int globalOffsetMs() const;
     bool setGlobalOffsetMs(int offsetMs);
-    std::optional<int> adjustGlobalOffset(int deltaMs);
-    static constexpr int maximumGlobalOffsetMs() { return 10000; }
+    static constexpr int maximumOffsetMs() { return 10000; }
 
     /// Once per marker, drops every word-level lyric row of one provider and
     /// the negative-cache rows that would keep those tracks from being

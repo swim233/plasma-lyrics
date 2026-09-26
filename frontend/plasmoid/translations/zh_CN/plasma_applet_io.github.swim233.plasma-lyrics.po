@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-26 08:15+0800\n"
+"POT-Creation-Date: 2026-09-26 17:15+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -60,13 +60,14 @@ msgstr ""
 "systemctl --user enable --now plasma-lyricsd"
 
 #: frontend/plasmoid/package/contents/ui/TrackInfo.qml:39
+#: frontend/plasmoid/package/contents/ui/config/TrackOffsetEditor.qml:66
 msgctxt "@info track info: %1 is the song title, %2 is the artist name(s)"
 msgid "%1 — %2"
 msgstr "%1 — %2"
 
 #: frontend/plasmoid/package/contents/ui/main.qml:114
 #: frontend/plasmoid/package/contents/ui/main.qml:435
-#: frontend/qmlmodule/lyricsource.cpp:551
+#: frontend/qmlmodule/lyricsource.cpp:561
 msgid "Desktop Lyrics"
 msgstr "桌面歌词"
 
@@ -128,29 +129,17 @@ msgstr "此歌曲首选 QQ音乐"
 msgid "Search for lyrics again"
 msgstr "重新搜索歌词"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:505
-msgid "Lyrics 0.5 s earlier (all songs)"
-msgstr "歌词提前 0.5 秒（所有歌曲）"
-
-#: frontend/plasmoid/package/contents/ui/main.qml:506
+#: frontend/plasmoid/package/contents/ui/main.qml:507
 msgid "Lyrics 0.5 s earlier"
 msgstr "歌词提前 0.5 秒"
 
 #: frontend/plasmoid/package/contents/ui/main.qml:513
-msgid "Lyrics 0.5 s later (all songs)"
-msgstr "歌词延后 0.5 秒（所有歌曲）"
-
-#: frontend/plasmoid/package/contents/ui/main.qml:514
 msgid "Lyrics 0.5 s later"
 msgstr "歌词延后 0.5 秒"
 
-#: frontend/plasmoid/package/contents/ui/main.qml:521
-msgid "Reset global lyric offset (%1 ms)"
-msgstr "重置全局歌词偏移（%1 毫秒）"
-
-#: frontend/plasmoid/package/contents/ui/main.qml:522
-msgid "Reset lyric offset (%1 ms)"
-msgstr "重置歌词偏移（%1 毫秒）"
+#: frontend/plasmoid/package/contents/ui/main.qml:519
+msgid "Reset this song's offset (%1 ms)"
+msgstr "重置本曲偏移（%1 毫秒）"
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:170
 msgid "Background:"
@@ -393,22 +382,22 @@ msgid "Track info colors"
 msgstr "曲目信息颜色"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:23
-#: frontend/qmlmodule/lyricsource.cpp:141
+#: frontend/qmlmodule/lyricsource.cpp:160
 msgid "Local files"
 msgstr "本地文件"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:24
-#: frontend/qmlmodule/lyricsource.cpp:140
+#: frontend/qmlmodule/lyricsource.cpp:159
 msgid "NetEase"
 msgstr "网易云"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:25
-#: frontend/qmlmodule/lyricsource.cpp:139
+#: frontend/qmlmodule/lyricsource.cpp:158
 msgid "AMLL"
 msgstr "AMLL"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:26
-#: frontend/qmlmodule/lyricsource.cpp:142
+#: frontend/qmlmodule/lyricsource.cpp:161
 msgid "QQ Music"
 msgstr "QQ音乐"
 
@@ -459,7 +448,9 @@ msgstr "首次网络超时："
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:172
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:191
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:334
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:76
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:120
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:141
+#: frontend/plasmoid/package/contents/ui/config/OffsetSaver.qml:31
 msgid "%1 ms"
 msgstr "%1 毫秒"
 
@@ -632,27 +623,50 @@ msgstr "非音乐媒体："
 msgid "Also hide while playing non-music media"
 msgstr "播放非音乐媒体时也隐藏"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:51
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:72
 msgid ""
 "This setting affects every Desktop Lyrics widget and takes effect "
 "immediately, without restarting the lyrics service."
 msgstr "此设置会影响所有桌面歌词部件，改动立即生效，无需重启歌词服务。"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:58
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:79
 msgid "Could not save the global offset. The setting was not applied."
 msgstr "全局偏移保存失败，设置未生效。"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:64
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:89
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:91
+msgid "Could not save this song's offset. The setting was not applied."
+msgstr "本曲偏移保存失败，设置未生效。"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:97
 msgid "Lyric offset:"
 msgstr "歌词偏移："
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:65
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:98
 msgid "Use one offset for all songs"
 msgstr "所有歌曲共用同一个偏移"
 
-#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:70
-msgid "Offset:"
-msgstr "偏移："
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:111
+msgid ""
+"Each song's effective offset is the global offset plus its own offset. The "
+"context menu only changes the song's own offset."
+msgstr "每首歌的实际偏移 = 全局偏移 + 本曲偏移；右键菜单只调整本曲偏移。"
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:114
+msgid "Global offset:"
+msgstr "全局偏移："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:124
+msgid "Current song:"
+msgstr "当前歌曲："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:132
+msgid "This song's offset:"
+msgstr "本曲偏移："
+
+#: frontend/plasmoid/package/contents/ui/config/ConfigGlobal.qml:151
+msgid "Effective offset:"
+msgstr "实际生效："
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:290
 msgctxt "@label:spinbox"
@@ -702,6 +716,18 @@ msgstr "搜索字体"
 #: frontend/plasmoid/package/contents/ui/config/FontPicker.qml:360
 msgid "No matching fonts"
 msgstr "没有匹配的字体"
+
+#: frontend/plasmoid/package/contents/ui/config/OffsetSaver.qml:28
+msgid "+%1 ms (after applying)"
+msgstr "+%1 毫秒（应用后）"
+
+#: frontend/plasmoid/package/contents/ui/config/OffsetSaver.qml:29
+msgid "%1 ms (after applying)"
+msgstr "%1 毫秒（应用后）"
+
+#: frontend/plasmoid/package/contents/ui/config/OffsetSaver.qml:31
+msgid "+%1 ms"
+msgstr "+%1 毫秒"
 
 #: frontend/plasmoid/package/contents/ui/config/RestartFeedback.qml:14
 msgid "Lyrics service restarted."
@@ -850,6 +876,18 @@ msgstr "缩放适应"
 msgid "Truncate"
 msgstr "截断"
 
+#: frontend/plasmoid/package/contents/ui/config/TrackOffsetEditor.qml:61
+msgid "No song is playing"
+msgstr "没有正在播放的歌曲"
+
+#: frontend/plasmoid/package/contents/ui/config/TrackOffsetEditor.qml:68
+msgid "%1 (song changed)"
+msgstr "%1（已切歌）"
+
+#: frontend/plasmoid/package/contents/ui/config/TrackOffsetEditor.qml:75
+msgid "The current song has no lyrics"
+msgstr "当前歌曲没有歌词"
+
 #: frontend/plasmoid/package/contents/ui/config/WeightComboBox.qml:49
 msgctxt "@item:inlistbox font weight"
 msgid "Thin"
@@ -923,19 +961,27 @@ msgstr "当前歌曲没有可调整的歌词。"
 msgid "Could not save the lyric offset."
 msgstr "无法保存歌词偏移。"
 
-#: frontend/qmlmodule/lyricsource.cpp:73
+#: frontend/qmlmodule/lyricsource.cpp:72
+msgid "The lyrics service does not support this song's lyrics source."
+msgstr "歌词服务不支持此歌曲的歌词源。"
+
+#: frontend/qmlmodule/lyricsource.cpp:75
+msgid "The song has no lyrics to adjust."
+msgstr "此歌曲没有可调整的歌词。"
+
+#: frontend/qmlmodule/lyricsource.cpp:79
 msgid "Lyrics source command failed: %1"
 msgstr "歌词源操作失败：%1"
 
-#: frontend/qmlmodule/lyricsource.cpp:143
+#: frontend/qmlmodule/lyricsource.cpp:162
 msgid "Waylyrics import"
 msgstr "Waylyrics 导入"
 
-#: frontend/qmlmodule/lyricsource.cpp:144
+#: frontend/qmlmodule/lyricsource.cpp:163
 msgid "No lyrics source"
 msgstr "无歌词源"
 
-#: frontend/qmlmodule/lyricsource.cpp:145
+#: frontend/qmlmodule/lyricsource.cpp:164
 msgid "Other lyrics source (%1)"
 msgstr "其他歌词源（%1）"
 
