@@ -601,12 +601,30 @@ private Q_SLOTS:
     }
 
     // Whatever is installed: each italic entry is a real face of the family
-    // that Qt builds slanted, one per weight, lightest first. None at all is
-    // fine -- the Debian CI container may well have no italics.
+    // that Qt builds slanted, one per weight, lightest first, and the
+    // weights are exactly those of the family's slanted faces as
+    // QFontDatabase reports them, so a family with italics lists them and
+    // one without lists none. A machine with no italic face at all checks
+    // only the latter; installedDejaVuSansMonoItalics pins one family.
     void installedItalicWeights()
     {
         const FontCatalog catalog;
         for (const QString &family : catalog.families()) {
+            QList<int> slanted;
+            for (const QString &style : QFontDatabase::styles(family)) {
+                const int weight = QFontDatabase::weight(family, style);
+                if (weight > 0 && QFontDatabase::font(family, style, 12).style() != QFont::StyleNormal
+                    && !slanted.contains(weight)) {
+                    slanted.append(weight);
+                }
+            }
+            std::sort(slanted.begin(), slanted.end());
+            QList<int> listed;
+            for (const QVariant &entry : catalog.italicWeights(family)) {
+                listed.append(entry.toMap().value(QStringLiteral("weight")).toInt());
+            }
+            QCOMPARE(listed, slanted);
+
             int previous = 0;
             for (const QVariant &entry : catalog.italicWeights(family)) {
                 const QVariantMap face = entry.toMap();
@@ -619,6 +637,33 @@ private Q_SLOTS:
                          qPrintable(family + u8(": ") + style));
             }
         }
+    }
+
+    // One family's two lists spelled out, so the catalog's choice between
+    // its upright and its slanted faces is checked against known data. The
+    // Debian CI container has DejaVu Sans Mono with exactly these four faces
+    // (fc-list there: Book, Bold, Oblique, Bold Oblique), so it runs there
+    // too.
+    void installedDejaVuSansMonoItalics()
+    {
+        const FontCatalog catalog;
+        const QString family = u8("DejaVu Sans Mono");
+        const QStringList styles = QFontDatabase::styles(family);
+        if (!catalog.families().contains(family) || !styles.contains(u8("Oblique"))
+            || !styles.contains(u8("Bold Oblique"))) {
+            QSKIP("DejaVu Sans Mono with its Oblique faces is not installed");
+        }
+        const auto faces = [](const QVariantList &list) {
+            QStringList result;
+            for (const QVariant &entry : list) {
+                const QVariantMap face = entry.toMap();
+                result.append(QString::number(face.value(QStringLiteral("weight")).toInt()) + QLatin1Char(' ')
+                              + face.value(QStringLiteral("styleName")).toString());
+            }
+            return result;
+        };
+        QCOMPARE(faces(catalog.weights(family)), (QStringList{u8("400 Book"), u8("700 Bold")}));
+        QCOMPARE(faces(catalog.italicWeights(family)), (QStringList{u8("400 Oblique"), u8("700 Bold Oblique")}));
     }
 
     // A Plasma font set to one of Qt's generic names keeps its stored weight:
