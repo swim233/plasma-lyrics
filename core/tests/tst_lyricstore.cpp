@@ -339,12 +339,19 @@ private Q_SLOTS:
     {
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
-        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        const QString path = directory.filePath(QStringLiteral("lyrics.db"));
+        LyricStore store(path);
         QVERIFY(store.open());
+        // The stored row itself, not what the clamping read makes of it.
+        const auto stored = [&path] {
+            return sql(path, QStringLiteral("SELECT value FROM setting WHERE name='globalOffsetMs'"));
+        };
 
         QVERIFY(store.setGlobalOffsetMs(50000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("10000")});
         QCOMPARE(store.globalOffsetMs(), 10000);
         QVERIFY(store.setGlobalOffsetMs(-50000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("-10000")});
         QCOMPARE(store.globalOffsetMs(), -10000);
     }
 
@@ -354,21 +361,31 @@ private Q_SLOTS:
     {
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
-        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        const QString path = directory.filePath(QStringLiteral("lyrics.db"));
+        LyricStore store(path);
         QVERIFY(store.open());
         const TrackRef ref{QStringLiteral("netease"), QStringLiteral("42"), 1};
+        // The stored row itself, not what the clamping read makes of it.
+        const auto stored = [&path] {
+            return sql(path, QStringLiteral("SELECT offset_ms FROM offset "
+                                            "WHERE provider='netease' AND track_id='42'"));
+        };
 
         QVERIFY(store.setOffset(ref, 50000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("10000")});
         QCOMPARE(store.offset(ref), 10000);
         QVERIFY(store.setOffset(ref, -50000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("-10000")});
         QCOMPARE(store.offset(ref), -10000);
 
         QVERIFY(store.setOffset(ref, 9990));
         QCOMPARE(store.adjustOffset(ref, 100), std::optional<int>(10000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("10000")});
         QCOMPARE(store.offset(ref), 10000);
 
         QVERIFY(store.setOffset(ref, -9990));
         QCOMPARE(store.adjustOffset(ref, -100), std::optional<int>(-10000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("-10000")});
         QCOMPARE(store.offset(ref), -10000);
     }
 
@@ -376,16 +393,23 @@ private Q_SLOTS:
     {
         QTemporaryDir directory;
         QVERIFY(directory.isValid());
-        LyricStore store(directory.filePath(QStringLiteral("lyrics.db")));
+        const QString path = directory.filePath(QStringLiteral("lyrics.db"));
+        LyricStore store(path);
         QVERIFY(store.open());
         const TrackRef ref{QStringLiteral("netease"), QStringLiteral("42"), 1};
+        const auto stored = [&path] {
+            return sql(path, QStringLiteral("SELECT offset_ms FROM offset "
+                                            "WHERE provider='netease' AND track_id='42'"));
+        };
 
         QVERIFY(store.setOffset(ref, 5000));
         QCOMPARE(store.adjustOffset(ref, INT_MAX), std::optional<int>(10000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("10000")});
         QCOMPARE(store.offset(ref), 10000);
 
         QVERIFY(store.setOffset(ref, -5000));
         QCOMPARE(store.adjustOffset(ref, INT_MIN), std::optional<int>(-10000));
+        QCOMPARE(stored(), QStringList{QStringLiteral("-10000")});
         QCOMPARE(store.offset(ref), -10000);
     }
 
