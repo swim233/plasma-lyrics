@@ -369,6 +369,95 @@ TestCase {
         compare(texts[0].x, 0);
     }
 
+    // Where a whole-line Text's glyphs start, in its parent's coordinates:
+    // x plus whatever its own alignment leaves on the left. Derived from the
+    // alignment rather than read off x so that it pins the drawn position
+    // whether the centring is done by x or by horizontalAlignment.
+    function wholeLineLeft(text) {
+        const slack = text.width - text.contentWidth;
+        if (text.horizontalAlignment === Text.AlignHCenter) {
+            return text.x + slack / 2;
+        }
+        if (text.horizontalAlignment === Text.AlignRight) {
+            return text.x + slack;
+        }
+        return text.x;
+    }
+
+    // Every whole-line Text of the line, outline copies included, within a
+    // pixel of `left` -- the copies sit one pixel off in either direction.
+    function wholeLineStartsAt(line, left) {
+        const texts = textChildrenOf(line);
+        return texts.length > 0 && texts.every(t => Math.abs(wholeLineLeft(t) - left) <= 1);
+    }
+
+    // Marquee used to lay every whole line out at its own width, flush left,
+    // so a line that fits sat against the left edge while every other
+    // overflow mode, and the word path's Row, centred it. Only a line that
+    // is actually scrolling starts at the left edge. Covered from all three
+    // directions: a line that fits from the start, and a scrolling line
+    // that stops overflowing because the text changes or the line widens.
+    function test_marqueeCentresALineThatFits() {
+        const longText = "A deliberately long lyric used to exercise overflow";
+        const line = createTemporaryObject(lyricLineComponent, this,
+            { overflowMode: "marquee", lineText: "short", strokeEnabled: true });
+        verify(line !== null);
+        tryVerify(() => textChildrenOf(line).length === 9);
+        const centre = () => (line.width - line.contentWidth) / 2;
+        verify(!line.marqueeApplies);
+        // Far enough from the left edge that flush left cannot pass for it.
+        verify(centre() > 50);
+        verify(wholeLineStartsAt(line, centre()));
+
+        line.lineText = longText;
+        verify(line.marqueeApplies);
+        verify(wholeLineStartsAt(line, 0));
+        line.marqueeOffset = -40;
+        verify(wholeLineStartsAt(line, -40));
+
+        line.lineText = "short";
+        verify(!line.marqueeApplies);
+        verify(wholeLineStartsAt(line, centre()));
+
+        line.lineText = longText;
+        line.marqueeOffset = -40;
+        line.width = 2000;
+        verify(!line.marqueeApplies);
+        verify(centre() > 50);
+        verify(wholeLineStartsAt(line, centre()));
+    }
+
+    // The secondary lyrics never take the word path, so on a word-timed song
+    // under marquee they were the half of the block left flush left while
+    // the lyric above them was centred. Both halves now share one centre.
+    function test_marqueeCentresBothHalvesOfABlock() {
+        const lyric = createTemporaryObject(animatedLyricComponent, this, {
+            overflowMode: "marquee", animationMode: "none",
+            lyricText: "first", secondaryLyricText: "second",
+            words: [{ startMs: 0, endMs: 500, text: "first" }]
+        });
+        verify(lyric !== null);
+        tryCompare(lyric, "shownText", "first");
+        const isLine = o => o.wordMode !== undefined && o.lineText !== undefined;
+        const origin = findAll(lyric, o => isLine(o) && o.lineText === "first")[0];
+        const secondary = findAll(lyric, o => isLine(o) && o.lineText === "second")[0];
+        verify(origin !== undefined && secondary !== undefined);
+        verify(origin.wordMode);
+        verify(!secondary.wordMode);
+        verify(!origin.marqueeApplies && !secondary.marqueeApplies);
+
+        // The Row lays the word out on a later polish; until then its width
+        // is 0 and it sits at the centre as a point, which would pass.
+        tryVerify(() => origin.contentWidth > 0);
+        const word = wordTextsOf(origin)[0];
+        const originCentre = word.mapToItem(origin, 0, 0).x + word.width / 2;
+        const secondaryLeft = (secondary.width - secondary.contentWidth) / 2;
+        verify(secondaryLeft > 50);
+        verify(wholeLineStartsAt(secondary, secondaryLeft));
+        compare(origin.width, secondary.width);
+        verify(Math.abs(originCentre - secondary.width / 2) <= 1);
+    }
+
     // The faded-out block keeps both of its lines alive and `visible`, so
     // secondary lyrics left behind there go on driving an infinite marquee
     // that nobody can see. Passes on either animation path: with animations off,
