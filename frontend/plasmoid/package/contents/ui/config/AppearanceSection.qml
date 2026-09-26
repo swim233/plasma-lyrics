@@ -468,6 +468,13 @@ Kirigami.FormLayout {
         // 12 (small font 11) under org.kde.desktop: the section is 588 px at
         // 26 and 615 px -- one column -- at 28, and at 26 the glow (465 px)
         // and particle (435 px) descriptions each fit on one line.
+        // English is now the closer of the two: in English with Plasma's
+        // default font, Noto Sans 10, under org.kde.desktop (the kde platform
+        // theme reading a kdeglobals that sets only that font), the section
+        // is 601 px without decision 78's secondary lyrics rows and 612 px
+        // with all of them shown -- 2 px from one column. Their Chinese
+        // labels left the width as it was. A longer English label or check
+        // box text on this page is likely to tip it into one column.
         Layout.maximumWidth: Kirigami.Units.gridUnit * 26
         wrapMode: Text.WordWrap
         // Same styling as the "Record debug details" description on the
