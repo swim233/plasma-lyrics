@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-26 08:15+0800\n"
+"POT-Creation-Date: 2026-09-26 16:09+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -66,7 +66,7 @@ msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/main.qml:114
 #: frontend/plasmoid/package/contents/ui/main.qml:435
-#: frontend/qmlmodule/lyricsource.cpp:551
+#: frontend/qmlmodule/lyricsource.cpp:561
 msgid "Desktop Lyrics"
 msgstr ""
 
@@ -393,22 +393,22 @@ msgid "Track info colors"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:23
-#: frontend/qmlmodule/lyricsource.cpp:141
+#: frontend/qmlmodule/lyricsource.cpp:160
 msgid "Local files"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:24
-#: frontend/qmlmodule/lyricsource.cpp:140
+#: frontend/qmlmodule/lyricsource.cpp:159
 msgid "NetEase"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:25
-#: frontend/qmlmodule/lyricsource.cpp:139
+#: frontend/qmlmodule/lyricsource.cpp:158
 msgid "AMLL"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:26
-#: frontend/qmlmodule/lyricsource.cpp:142
+#: frontend/qmlmodule/lyricsource.cpp:161
 msgid "QQ Music"
 msgstr ""
 
@@ -921,19 +921,27 @@ msgstr ""
 msgid "Could not save the lyric offset."
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:73
+#: frontend/qmlmodule/lyricsource.cpp:72
+msgid "The lyrics service does not support this song's lyrics source."
+msgstr ""
+
+#: frontend/qmlmodule/lyricsource.cpp:75
+msgid "The song has no lyrics to adjust."
+msgstr ""
+
+#: frontend/qmlmodule/lyricsource.cpp:79
 msgid "Lyrics source command failed: %1"
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:143
+#: frontend/qmlmodule/lyricsource.cpp:162
 msgid "Waylyrics import"
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:144
+#: frontend/qmlmodule/lyricsource.cpp:163
 msgid "No lyrics source"
 msgstr ""
 
-#: frontend/qmlmodule/lyricsource.cpp:145
+#: frontend/qmlmodule/lyricsource.cpp:164
 msgid "Other lyrics source (%1)"
 msgstr ""
 

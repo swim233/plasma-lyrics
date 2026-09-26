@@ -39,10 +39,19 @@ class LyricSource : public QObject
     // made per-representation, in LyricsView.
     Q_PROPERTY(QVariantList currentSyntheticWords READ currentSyntheticWords NOTIFY currentLineChanged)
     Q_PROPERTY(qint64 currentPositionMs READ currentPositionMs NOTIFY currentPositionChanged)
+    // The effective offset; in global mode it already includes the global
+    // offset on top of trackOffsetMs (DESIGN.md decision 79).
     Q_PROPERTY(int offsetMs READ offsetMs NOTIFY offsetChanged)
+    // The current lyric ref's own offset, 0 without a ref: the value the
+    // menu's offset actions change and the settings page edits.
+    Q_PROPERTY(int trackOffsetMs READ trackOffsetMs NOTIFY offsetChanged)
     Q_PROPERTY(bool canAdjustOffset READ canAdjustOffset NOTIFY canAdjustOffsetChanged)
     Q_PROPERTY(bool globalOffsetEnabled READ globalOffsetEnabled NOTIFY globalOffsetEnabledChanged)
     Q_PROPERTY(QString fingerprint READ fingerprint NOTIFY trackChanged)
+    // The current lyric ref, both empty without one. The settings page pins
+    // an edited song offset to it and hands it back to setOffsetForTrack().
+    Q_PROPERTY(QString lyricRefProvider READ lyricRefProvider NOTIFY trackChanged)
+    Q_PROPERTY(QString lyricRefTrackId READ lyricRefTrackId NOTIFY trackChanged)
     Q_PROPERTY(QString preferredProvider READ preferredProvider NOTIFY providerStateChanged)
     Q_PROPERTY(QString effectivePreferredProvider READ effectivePreferredProvider NOTIFY providerStateChanged)
     Q_PROPERTY(QString actualProvider READ actualProvider NOTIFY providerStateChanged)
@@ -73,9 +82,12 @@ public:
     QVariantList currentSyntheticWords() const;
     qint64 currentPositionMs() const;
     int offsetMs() const;
+    int trackOffsetMs() const;
     bool canAdjustOffset() const;
     bool globalOffsetEnabled() const;
     QString fingerprint() const;
+    QString lyricRefProvider() const;
+    QString lyricRefTrackId() const;
     QString preferredProvider() const;
     QString effectivePreferredProvider() const;
     QString actualProvider() const;
@@ -96,6 +108,11 @@ public:
     Q_INVOKABLE void reload();
     Q_INVOKABLE bool adjustOffset(int deltaMs);
     Q_INVOKABLE bool resetOffset();
+    /// Writes one song's own offset through the daemon's SetOffsetForTrack.
+    /// The reply arrives as offsetForTrackFinished(), never as controlFailed()
+    /// or a desktop notification: the settings page that calls this shows it.
+    Q_INVOKABLE void setOffsetForTrack(const QString &provider, const QString &trackId,
+                                       int offsetMs);
     Q_INVOKABLE bool setPreferredProvider(const QString &provider);
     Q_INVOKABLE bool clearPreferredProvider();
     Q_INVOKABLE bool research();
@@ -118,6 +135,9 @@ Q_SIGNALS:
     void controlInProgressChanged();
     void controlErrorChanged();
     void controlFailed(const QString &error);
+    /// `error` is empty on success, otherwise already localized.
+    void offsetForTrackFinished(const QString &provider, const QString &trackId, int offsetMs,
+                                const QString &error);
 
 private:
     static qint64 monotonicNowNs();
@@ -168,6 +188,7 @@ private:
     qint64 m_anchorMonotonicNs = 0;
     double m_rate = 1.0;
     int m_offsetMs = 0;
+    int m_trackOffsetMs = 0;
     bool m_globalOffsetEnabled = false;
     int m_currentLine = -1;
     qint64 m_currentPositionMs = 0;

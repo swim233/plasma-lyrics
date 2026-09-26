@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-26 08:15+0800\n"
+"POT-Creation-Date: 2026-09-26 16:09+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -66,7 +66,7 @@ msgstr "%1 — %2"
 
 #: frontend/plasmoid/package/contents/ui/main.qml:114
 #: frontend/plasmoid/package/contents/ui/main.qml:435
-#: frontend/qmlmodule/lyricsource.cpp:551
+#: frontend/qmlmodule/lyricsource.cpp:561
 msgid "Desktop Lyrics"
 msgstr "桌面歌词"
 
@@ -393,22 +393,22 @@ msgid "Track info colors"
 msgstr "曲目信息颜色"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:23
-#: frontend/qmlmodule/lyricsource.cpp:141
+#: frontend/qmlmodule/lyricsource.cpp:160
 msgid "Local files"
 msgstr "本地文件"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:24
-#: frontend/qmlmodule/lyricsource.cpp:140
+#: frontend/qmlmodule/lyricsource.cpp:159
 msgid "NetEase"
 msgstr "网易云"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:25
-#: frontend/qmlmodule/lyricsource.cpp:139
+#: frontend/qmlmodule/lyricsource.cpp:158
 msgid "AMLL"
 msgstr "AMLL"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigBackend.qml:26
-#: frontend/qmlmodule/lyricsource.cpp:142
+#: frontend/qmlmodule/lyricsource.cpp:161
 msgid "QQ Music"
 msgstr "QQ音乐"
 
@@ -923,19 +923,27 @@ msgstr "当前歌曲没有可调整的歌词。"
 msgid "Could not save the lyric offset."
 msgstr "无法保存歌词偏移。"
 
-#: frontend/qmlmodule/lyricsource.cpp:73
+#: frontend/qmlmodule/lyricsource.cpp:72
+msgid "The lyrics service does not support this song's lyrics source."
+msgstr "歌词服务不支持此歌曲的歌词源。"
+
+#: frontend/qmlmodule/lyricsource.cpp:75
+msgid "The song has no lyrics to adjust."
+msgstr "此歌曲没有可调整的歌词。"
+
+#: frontend/qmlmodule/lyricsource.cpp:79
 msgid "Lyrics source command failed: %1"
 msgstr "歌词源操作失败：%1"
 
-#: frontend/qmlmodule/lyricsource.cpp:143
+#: frontend/qmlmodule/lyricsource.cpp:162
 msgid "Waylyrics import"
 msgstr "Waylyrics 导入"
 
-#: frontend/qmlmodule/lyricsource.cpp:144
+#: frontend/qmlmodule/lyricsource.cpp:163
 msgid "No lyrics source"
 msgstr "无歌词源"
 
-#: frontend/qmlmodule/lyricsource.cpp:145
+#: frontend/qmlmodule/lyricsource.cpp:164
 msgid "Other lyrics source (%1)"
 msgstr "其他歌词源（%1）"
 
