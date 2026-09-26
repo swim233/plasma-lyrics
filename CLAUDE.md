@@ -93,6 +93,14 @@ Release work follows `docs/RELEASE.md`: read it before writing any
 `CHANGELOG.md` entry, cutting a release, syncing a GitHub Release body,
 pushing to AUR, or changing `packaging/aur/`.
 
+`CHANGELOG.md` entries are short summaries for users: one sentence per
+feature saying roughly what changed, with ranges, per-menu-item details and
+migration mechanics left to `docs/DESIGN.md`. A change of existing behaviour
+that comes with a new feature (v0.4.4: the global offset now adds to each
+song's own offset, the context menu adjusts only the current song) goes into
+that feature's `Added` entry, not `Breaking Changes`. Keep `Breaking Changes`
+for changes that make users act, such as a removed build option.
+
 ## Agent team workflow
 
 Every agent in this workflow -- `dev`, `qa-1`, `qa-2` and `qa-f` -- runs
