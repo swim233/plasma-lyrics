@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-26 16:09+0800\n"
+"POT-Creation-Date: 2026-09-26 16:10+0800\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -128,28 +128,16 @@ msgstr ""
 msgid "Search for lyrics again"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:505
-msgid "Lyrics 0.5 s earlier (all songs)"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/main.qml:506
+#: frontend/plasmoid/package/contents/ui/main.qml:507
 msgid "Lyrics 0.5 s earlier"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/main.qml:513
-msgid "Lyrics 0.5 s later (all songs)"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/main.qml:514
 msgid "Lyrics 0.5 s later"
 msgstr ""
 
-#: frontend/plasmoid/package/contents/ui/main.qml:521
-msgid "Reset global lyric offset (%1 ms)"
-msgstr ""
-
-#: frontend/plasmoid/package/contents/ui/main.qml:522
-msgid "Reset lyric offset (%1 ms)"
+#: frontend/plasmoid/package/contents/ui/main.qml:519
+msgid "Reset this song's offset (%1 ms)"
 msgstr ""
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:170

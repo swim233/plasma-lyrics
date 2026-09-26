@@ -500,28 +500,25 @@ PlasmoidItem {
             enabled: lyricSource.canControlProvider
             onTriggered: lyricSource.research()
         },
+        // These three change only this song's own offset, with or without
+        // the global offset on; the global value is set on the settings page
+        // (DESIGN.md decision 79).
         PlasmaCore.Action {
-            text: lyricSource.globalOffsetEnabled
-                ? i18n("Lyrics 0.5 s earlier (all songs)")
-                : i18n("Lyrics 0.5 s earlier")
+            text: i18n("Lyrics 0.5 s earlier")
             icon.name: "go-previous"
             enabled: lyricSource.canAdjustOffset
             onTriggered: lyricSource.adjustOffset(-500)
         },
         PlasmaCore.Action {
-            text: lyricSource.globalOffsetEnabled
-                ? i18n("Lyrics 0.5 s later (all songs)")
-                : i18n("Lyrics 0.5 s later")
+            text: i18n("Lyrics 0.5 s later")
             icon.name: "go-next"
             enabled: lyricSource.canAdjustOffset
             onTriggered: lyricSource.adjustOffset(500)
         },
         PlasmaCore.Action {
-            text: lyricSource.globalOffsetEnabled
-                ? i18n("Reset global lyric offset (%1 ms)", lyricSource.offsetMs)
-                : i18n("Reset lyric offset (%1 ms)", lyricSource.offsetMs)
+            text: i18n("Reset this song's offset (%1 ms)", lyricSource.trackOffsetMs)
             icon.name: "edit-undo"
-            enabled: lyricSource.canAdjustOffset && lyricSource.offsetMs !== 0
+            enabled: lyricSource.canAdjustOffset && lyricSource.trackOffsetMs !== 0
             onTriggered: lyricSource.resetOffset()
         }
     ]
