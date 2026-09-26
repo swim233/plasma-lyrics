@@ -208,6 +208,55 @@ QStringList legacySecondLineSuffixes()
             QStringLiteral("SecondLineColorEnabled"), QStringLiteral("SecondLineColor")};
 }
 
+// A gettext catalogue's translations, keyed as gettext keys them: the
+// msgctxt, U+0004, then the msgid. Continuation lines are joined, escapes
+// are left as written, and only the first plural form is kept.
+QHash<QString, QString> catalogueEntries(const QString &po)
+{
+    QHash<QString, QString> entries;
+    QString context;
+    QString id;
+    QString translation;
+    QString *field = nullptr;
+    const auto flush = [&] {
+        if (!id.isEmpty()) {
+            entries.insert(context + QChar(0x04) + id, translation);
+        }
+        context.clear();
+        id.clear();
+        translation.clear();
+        field = nullptr;
+    };
+    const auto quoted = [](const QString &line) {
+        const qsizetype first = line.indexOf(QLatin1Char('"'));
+        const qsizetype last = line.lastIndexOf(QLatin1Char('"'));
+        return first >= 0 && last > first ? line.mid(first + 1, last - first - 1) : QString();
+    };
+    const QStringList lines = po.split(QLatin1Char('\n'));
+    for (const QString &line : lines) {
+        if (line.trimmed().isEmpty()) {
+            flush();
+            continue;
+        }
+        if (line.startsWith(QLatin1String("msgctxt "))) {
+            field = &context;
+        } else if (line.startsWith(QLatin1String("msgid "))) {
+            field = &id;
+        } else if (line.startsWith(QLatin1String("msgstr ")) || line.startsWith(QLatin1String("msgstr[0] "))) {
+            field = &translation;
+        } else if (line.startsWith(QLatin1String("msg"))) {
+            field = nullptr;
+        } else if (!line.startsWith(QLatin1Char('"'))) {
+            continue;
+        }
+        if (field) {
+            field->append(quoted(line));
+        }
+    }
+    flush();
+    return entries;
+}
+
 QStringList filesUnder(const QString &dir, const QStringList &nameFilters)
 {
     QStringList result;
@@ -569,6 +618,33 @@ private Q_SLOTS:
         for (const ThemedKey &row : themeTable()) {
             QVERIFY2(!legacySecondLineSuffixes().contains(row.suffix), qPrintable(row.suffix));
         }
+    }
+
+    // DESIGN.md decision 78 words the secondary lyrics source's "None"
+    // 不显示, while the background and line transition rows' "None" stays
+    // 无, so the secondary one is a message of its own, told apart by its
+    // context. The QML suite runs untranslated, where every one of them
+    // reads "None", so this checks the source and the zh_CN catalogue.
+    void secondaryLyricNoneIsAMessageOfItsOwn()
+    {
+        const QString context = QStringLiteral("@item:inlistbox secondary lyrics source");
+        const QString sectionPath = packageDir + QStringLiteral("/contents/ui/config/AppearanceSection.qml");
+        const QString section = QString::fromUtf8(readAll(sectionPath));
+        QVERIFY2(!section.isEmpty(), qPrintable(QStringLiteral("cannot read %1").arg(sectionPath)));
+        const qsizetype at = section.indexOf(QStringLiteral("objectName: \"secondaryLyricSourceComboBox\""));
+        QVERIFY(at >= 0);
+        const QString combo = withoutComments(braceBlock(section, section.lastIndexOf(QLatin1Char('{'), at)));
+        QVERIFY(!combo.isEmpty());
+        QVERIFY2(combo.contains(QStringLiteral("i18nc(\"%1\", \"None\")").arg(context)), qPrintable(combo));
+        QVERIFY2(!combo.contains(QStringLiteral("i18n(\"None\")")), qPrintable(combo));
+
+        const QString poPath = QDir::cleanPath(packageDir + QStringLiteral(
+            "/../translations/zh_CN/plasma_applet_io.github.swim233.plasma-lyrics.po"));
+        const QHash<QString, QString> zhCN = catalogueEntries(QString::fromUtf8(readAll(poPath)));
+        QVERIFY2(!zhCN.isEmpty(), qPrintable(QStringLiteral("cannot read %1").arg(poPath)));
+        QCOMPARE(zhCN.value(context + QChar(0x04) + QStringLiteral("None")), QStringLiteral("不显示"));
+        QCOMPARE(zhCN.value(QChar(0x04) + QStringLiteral("None")), QStringLiteral("无"));
+        QCOMPARE(zhCN.value(QChar(0x04) + QStringLiteral("Secondary lyrics:")), QStringLiteral("副歌词："));
     }
 
     // DESIGN.md decision 76, main.qml's side. main.qml is a PlasmoidItem the

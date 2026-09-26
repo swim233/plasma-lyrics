@@ -158,7 +158,6 @@ msgstr "背景："
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:259
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:350
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:366
 msgid "None"
 msgstr "无"
 
@@ -175,24 +174,24 @@ msgid "Background color:"
 msgstr "背景颜色："
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:270
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:667
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:670
 msgid "Text color:"
 msgstr "文字颜色："
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:276
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:398
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:401
 #: frontend/plasmoid/package/contents/ui/config/TrackInfoSection.qml:84
 msgid "Font:"
 msgstr "字体："
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:292
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:410
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:413
 #: frontend/plasmoid/package/contents/ui/config/TrackInfoSection.qml:99
 msgid "Font size:"
 msgstr "字号："
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:300
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:419
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:422
 #: frontend/plasmoid/package/contents/ui/config/TrackInfoSection.qml:108
 msgid "Font weight:"
 msgstr "字重："
@@ -208,12 +207,12 @@ msgid "%1%"
 msgstr "%1%"
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:330
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:673
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:676
 msgid "Outline:"
 msgstr "描边："
 
 #: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:335
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:679
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:682
 msgid "Outline color:"
 msgstr "描边颜色："
 
@@ -253,161 +252,166 @@ msgstr "副歌词"
 msgid "Secondary lyrics:"
 msgstr "副歌词："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:366
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:368
 msgid "Translation"
 msgstr "翻译"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:366
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:368
 msgid "Romanization"
 msgstr "罗马音"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:375
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:369
+msgctxt "@item:inlistbox secondary lyrics source"
+msgid "None"
+msgstr "不显示"
+
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:378
 msgid "Secondary lyrics color:"
 msgstr "副歌词颜色："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:377
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:380
 msgid "Set it separately from the main lyrics color"
 msgstr "与主歌词颜色分开设置"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:383
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:652
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:386
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:655
 msgid "Color:"
 msgstr "颜色："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:390
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:393
 msgid "Secondary lyrics font:"
 msgstr "副歌词字体："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:392
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:395
 msgid "Set it separately from the main lyrics"
 msgstr "与主歌词分开设置"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:429
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:432
 msgid "Italic:"
 msgstr "斜体："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:437
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:440
 msgid "Word-by-word"
 msgstr "逐字"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:440
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:443
 msgid "Word-by-word lyrics:"
 msgstr "逐字歌词："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:441
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:444
 msgid "Highlight each word as it is sung"
 msgstr "逐词高亮正在唱的歌词"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:489
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:492
 msgid ""
 "Turn this on for word-by-word lyrics. The lyrics source has to support it "
 "(QQ Music and AMLL are the recommended first choices)."
 msgstr "勾选后启用逐字歌词，需要歌词源支持（推荐首选QQ音乐与AMLL歌词源）"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:492
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:495
 msgid "Simulate timing:"
 msgstr "模拟逐字："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:496
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:499
 msgid ""
 "Turn on simulated word-by-word for lyrics sources that do not support it"
 msgstr "为不支持逐字歌词的歌词源启用模拟逐字"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:514
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:517
 msgid ""
 "With this on, the word-by-word effect is simulated from the line timings, so "
 "it is less accurate."
 msgstr "勾选该选项后，将根据歌词时间来模拟逐字效果，准确性会有所下降"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:518
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:521
 msgid "Upcoming words:"
 msgstr "未唱："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:524
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:527
 msgid "Current word:"
 msgstr "正在唱："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:530
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:533
 msgid "Sung words:"
 msgstr "已唱："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:535
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:538
 msgid "Lift:"
 msgstr "抬升："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:540
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:543
 msgid "Raise the word being sung"
 msgstr "抬起正在唱的词"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:541
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:544
 msgid "Not available in a panel, which sets the widget height"
 msgstr "面板不支持抬升，部件高度由面板决定"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:545
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:548
 msgid "Lift height:"
 msgstr "抬升高度："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:582
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:585
 #, javascript-format
 msgctxt "@item:valuesuffix lift height as a percentage of the font size"
 msgid "%1%"
 msgstr "%1%"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:585
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:588
 msgid "Brightening:"
 msgstr "提亮："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:587
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:590
 msgid "Brighten the word being sung"
 msgstr "提亮正在唱的词"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:592
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:595
 msgid "Brightness:"
 msgstr "提亮强度："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:599
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:602
 #, javascript-format
 msgctxt "@item:valuesuffix how far the sung word is brightened"
 msgid "%1%"
 msgstr "%1%"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:602
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:605
 msgid "Blurred glow:"
 msgstr "光晕："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:604
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:607
 msgid "Turn on lyric glow"
 msgstr "启用歌词光晕"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:618
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:621
 msgid ""
 "With this on, a glow is overlaid on word-by-word lyrics for a more elegant "
 "look, at a slight performance cost."
 msgstr "启用后，逐字歌词上将叠加一层光晕，效果更优雅，略微增加性能开销"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:624
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:627
 msgid "Particles:"
 msgstr "粒子："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:626
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:629
 msgid "Turn on lyric particle animation"
 msgstr "启用歌词粒子动画"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:640
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:643
 msgid ""
 "With this on, particles show the live progress of word-by-word lyrics, at a "
 "slight performance cost."
 msgstr "启用后，逐字歌词的实时进度将呈现粒子效果，略微增加性能开销"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:644
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:647
 msgid "Particle color:"
 msgstr "粒子颜色："
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:646
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:649
 msgid "Use a separate particle color"
 msgstr "启用独立的粒子颜色"
 
-#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:663
+#: frontend/plasmoid/package/contents/ui/config/AppearanceSection.qml:666
 msgid "Track info colors"
 msgstr "曲目信息颜色"
 

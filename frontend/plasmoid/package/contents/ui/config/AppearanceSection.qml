@@ -363,7 +363,10 @@ Kirigami.FormLayout {
     QQC2.ComboBox {
         objectName: "secondaryLyricSourceComboBox"
         Kirigami.FormData.label: i18n("Secondary lyrics:")
-        model: [i18n("Translation"), i18n("Romanization"), i18n("None")]
+        // "None" with a context of its own: decision 78 words it 不显示,
+        // where the background and line transition rows' "None" is 无.
+        model: [i18n("Translation"), i18n("Romanization"),
+                i18nc("@item:inlistbox secondary lyrics source", "None")]
         // What LyricsView shows for each value, an unknown one included.
         currentIndex: root.secondaryLyricSource === "none"
             ? 2
