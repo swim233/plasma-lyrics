@@ -98,6 +98,21 @@ tasks running in parallel. Each dev configures and builds in its own
 worktree (`build/` inside it; ccache is installed) and commits on its branch
 in the commit-message style above.
 
+Every agent in the team works in a git worktree of its own, with its own
+`build/`, so no agent's build products, stray files or checkouts leak into
+another agent's tree. The lead writes groundwork and integrates in a
+worktree of the base/integration branch, never in the main checkout at
+`/home/swim/code/desktop_lyrics`, which stays on `main`. A dev works only in
+its task's worktree. A QA agent adds a detached worktree of the commit it
+reviews (`git worktree add --detach
+/home/swim/code/desktop_lyrics-wt/<name>-<role> feat/<name>`) and builds,
+tests and experiments there; it never builds, runs tests or checks anything
+out in a dev's worktree, where a leftover build directory or file ends up in
+the dev's next commit and a checkout wipes the dev's uncommitted work. On a
+re-review it moves its own worktree to the new head with
+`git checkout --detach feat/<name>`. The lead removes the QA worktrees
+together with the task worktrees when the feature is done.
+
 Each task then passes two reviews in order, each by a fresh agent assigned
 to that task alone:
 
