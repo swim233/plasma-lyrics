@@ -193,7 +193,7 @@
   这样将来实现加密调用后不必迁移缓存格式。
 - **`lyric.offsetMs` 自决策 55 起是守护进程算好的生效值**：决策 79 起为
   （全局偏移开启 ? 全局值 : 0）+ 当前 `(provider, track_id)` 的本曲值；`lyric.trackOffsetMs`
-  是本曲值本身（没有歌词引用时为 0），供菜单与设置页显示；`globalOffsetEnabled` 仍照写，决策 79 起前端不再读它（菜单文案两种模式相同，设置页读 `GlobalConfig`）。
+  是本曲值本身（没有歌词引用时为 0），供菜单与设置页显示；`globalOffsetEnabled` 仍照写，`LyricSource` 也仍解析并暴露它，但决策 79 起部件的 QML 不再读它（菜单文案两种模式相同，设置页读 `GlobalConfig`）。
   部件不再打开 SQLite，偏移变化也通过新快照原子地到达所有实例。
 
 ### 2.3 目录布局
