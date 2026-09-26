@@ -24,6 +24,45 @@ std::array<double, 2 * N> unitCircle()
     return out;
 }
 
+// Ring i + 1's radius over R.
+std::array<double, kRings> ringFractions()
+{
+    std::array<double, kRings> out{};
+    for (int i = 0; i < kRings; ++i) {
+        out[i] = std::pow(static_cast<double>(i + 1) / kRings, kRingSpacing);
+    }
+    return out;
+}
+
+// One sprite's triangles, its centre being vertex 0: the fan around the
+// centre, then each band between two neighbouring rings as one quad per
+// segment, every quad cut along the same diagonal.
+std::array<quint32, kIndicesPerSprite> spriteIndices()
+{
+    const auto at = [](int ring, int segment) {
+        return static_cast<quint32>(1 + ring * kRingSegments + segment % kRingSegments);
+    };
+    std::array<quint32, kIndicesPerSprite> out{};
+    quint32 *index = out.data();
+    for (int i = 0; i < kRingSegments; ++i) {
+        for (quint32 vertex : {0u, at(0, i), at(0, i + 1)}) {
+            *index++ = vertex;
+        }
+    }
+    for (int ring = 0; ring + 1 < kRings; ++ring) {
+        for (int i = 0; i < kRingSegments; ++i) {
+            const quint32 inner = at(ring, i);
+            const quint32 innerNext = at(ring, i + 1);
+            const quint32 outer = at(ring + 1, i);
+            const quint32 outerNext = at(ring + 1, i + 1);
+            for (quint32 vertex : {inner, outer, outerNext, inner, outerNext, innerNext}) {
+                *index++ = vertex;
+            }
+        }
+    }
+    return out;
+}
+
 unsigned char toByte(double value)
 {
     return static_cast<unsigned char>(std::lround(std::clamp(value, 0.0, 1.0) * 255));
@@ -303,10 +342,34 @@ bool evaluate(const Particle &particle, double positionMs, double scale,
     }
     sprite->x = particle.x + offsetX + scale * drift(particle, ageMs);
     sprite->y = particle.y + offsetY + scale * fall(particle, ageMs);
-    sprite->coreRadius = scale * particle.size / 2;
-    sprite->haloRadius = scale * particle.size * kHaloRadius;
+    sprite->size = sizeScale(scale) * particle.size;
     sprite->brightness = amount;
     return true;
+}
+
+double sizeScale(double scale)
+{
+    if (scale <= 1) {
+        return scale;
+    }
+    // The same 0.5 as the headroom and the e-folding, so that the slope at
+    // 34 px is 1 and the curve leaves the straight line without a kink.
+    return 1 + kSizeHeadroom * (1 - std::exp(-(scale - 1) / kSizeHeadroom));
+}
+
+double coreSigma(double size, double devicePixel)
+{
+    return std::max(size, kCoreMinWidth * devicePixel) / kHalfWidthPerSigma;
+}
+
+double profile(double r, double radius, double sigma)
+{
+    if (r >= radius) {
+        return 0;
+    }
+    const double q = r / radius;
+    const double halo = (1 - q * q) * (1 - q * q);
+    return (std::exp(-r * r / (2 * sigma * sigma)) + kHaloStrength * halo) / (1 + kHaloStrength);
 }
 
 bool isAdditive(double red, double green, double blue)
@@ -323,48 +386,30 @@ Vertex colourVertex(double x, double y, double red, double green, double blue,
 }
 
 void writeSprite(const Sprite &sprite, double red, double green, double blue, bool additive,
-                 double feather, Vertex *vertices, quint32 firstVertex, quint32 *indices)
+                 double devicePixel, Vertex *vertices, quint32 firstVertex, quint32 *indices)
 {
-    static const auto halo = unitCircle<kHaloSegments>();
-    static const auto core = unitCircle<kCoreSegments>();
-    const Vertex none{0, 0, 0, 0, 0, 0};
+    static const auto circle = unitCircle<kRingSegments>();
+    static const auto rings = ringFractions();
+    static const auto pattern = spriteIndices();
 
-    quint32 centre = firstVertex;
-    *vertices++ = colourVertex(sprite.x, sprite.y, red, green, blue,
-                               kHaloCentre * sprite.brightness, additive);
-    for (int i = 0; i < kHaloSegments; ++i) {
-        Vertex rim = none;
-        rim.x = static_cast<float>(sprite.x + sprite.haloRadius * halo[2 * i]);
-        rim.y = static_cast<float>(sprite.y + sprite.haloRadius * halo[2 * i + 1]);
-        *vertices++ = rim;
-        *indices++ = centre;
-        *indices++ = centre + 1 + i;
-        *indices++ = centre + 1 + (i + 1) % kHaloSegments;
-    }
-
-    // The centre, then one (solid edge at s / 2, transparent fringe) pair
-    // per segment.
-    centre += 1 + kHaloSegments;
-    const Vertex solid = colourVertex(sprite.x, sprite.y, red, green, blue, sprite.brightness, additive);
-    *vertices++ = solid;
-    const double outer = sprite.coreRadius + feather;
-    for (int i = 0; i < kCoreSegments; ++i) {
-        Vertex edge = solid;
-        edge.x = static_cast<float>(sprite.x + sprite.coreRadius * core[2 * i]);
-        edge.y = static_cast<float>(sprite.y + sprite.coreRadius * core[2 * i + 1]);
-        Vertex fringe = none;
-        fringe.x = static_cast<float>(sprite.x + outer * core[2 * i]);
-        fringe.y = static_cast<float>(sprite.y + outer * core[2 * i + 1]);
-        *vertices++ = edge;
-        *vertices++ = fringe;
-        const quint32 edgeHere = centre + 1 + 2 * i;
-        const quint32 edgeNext = centre + 1 + 2 * ((i + 1) % kCoreSegments);
-        const quint32 triangles[] = {centre, edgeHere, edgeNext,
-                                     edgeHere, edgeHere + 1, edgeNext + 1,
-                                     edgeHere, edgeNext + 1, edgeNext};
-        for (quint32 index : triangles) {
-            *indices++ = index;
+    const double radius = kHaloRadius * sprite.size;
+    const double sigma = coreSigma(sprite.size, devicePixel);
+    *vertices++ = colourVertex(sprite.x, sprite.y, red, green, blue, sprite.brightness, additive);
+    for (int ring = 0; ring < kRings; ++ring) {
+        // The last fraction is exactly 1, so the outermost ring is at R and
+        // p gives it 0.
+        const double r = radius * rings[ring];
+        const Vertex shade = colourVertex(0, 0, red, green, blue,
+                                          profile(r, radius, sigma) * sprite.brightness, additive);
+        for (int i = 0; i < kRingSegments; ++i) {
+            Vertex vertex = shade;
+            vertex.x = static_cast<float>(sprite.x + r * circle[2 * i]);
+            vertex.y = static_cast<float>(sprite.y + r * circle[2 * i + 1]);
+            *vertices++ = vertex;
         }
+    }
+    for (int i = 0; i < kIndicesPerSprite; ++i) {
+        indices[i] = firstVertex + pattern[i];
     }
 }
 

@@ -373,19 +373,134 @@ private Q_SLOTS:
         QVERIFY(evaluate(p, 1500, 1, 0, 0, 1, &sprite));
         QVERIFY(std::abs(sprite.x - (50 + drift(p, 500))) < 1e-9);
         QVERIFY(std::abs(sprite.y - (80 + fall(p, 500))) < 1e-9);
-        QCOMPARE(sprite.coreRadius, 1.0);
-        QCOMPARE(sprite.haloRadius, 7.0);
+        QCOMPARE(sprite.size, 2.0);
         QCOMPARE(sprite.brightness, brightness(p, 500));
 
-        // The panel's 16 px: 16 / 34 of every length, the birth point aside.
+        // The panel's 16 px: 16 / 34 of the motion and of the size, the
+        // birth point aside.
         const double scale = 16.0 / 34;
         Sprite small;
         QVERIFY(evaluate(p, 1500, scale, 7, -3, 0.5, &small));
         QVERIFY(std::abs(small.x - (50 + 7 + scale * drift(p, 500))) < 1e-9);
         QVERIFY(std::abs(small.y - (80 - 3 + scale * fall(p, 500))) < 1e-9);
-        QVERIFY(std::abs(small.coreRadius - scale) < 1e-12);
-        QVERIFY(std::abs(small.haloRadius - 7 * scale) < 1e-12);
+        QVERIFY(std::abs(small.size - 2 * scale) < 1e-12);
         QCOMPARE(small.brightness, 0.5 * brightness(p, 500));
+    }
+
+    // g(x): x itself up to 34 px, then 1 + 0.5 (1 - e^(-(x - 1) / 0.5)),
+    // leaving x = 1 with slope 1 and never reaching 1.5.
+    void theSizeFollowsTheFontSizeThenGrowsEverSlower()
+    {
+        for (double x : {0.1, 10.0 / 34, 16.0 / 34, 0.5, 0.99, 1.0}) {
+            QCOMPARE(sizeScale(x), x);
+        }
+        for (double x : {1.2, 48.0 / 34, 2.0, 96.0 / 34, 5.0}) {
+            QVERIFY(std::abs(sizeScale(x) - (1 + 0.5 * (1 - std::exp(-(x - 1) / 0.5)))) < 1e-12);
+            QVERIFY(sizeScale(x) < x);
+            QVERIFY(sizeScale(x) < 1.5);
+        }
+        // Continuous and tangent at 34 px: the slope is 1 from either side.
+        const double h = 1e-6;
+        QVERIFY(std::abs(sizeScale(1 + h) - 1) < 2 * h);
+        QVERIFY(std::abs((sizeScale(1 + h) - sizeScale(1)) / h - 1) < 1e-5);
+        QVERIFY(std::abs((sizeScale(1) - sizeScale(1 - h)) / h - 1) < 1e-9);
+        double last = 0;
+        for (double x = 0.05; x <= 3; x += 0.01) {
+            QVERIFY(sizeScale(x) > last);
+            last = sizeScale(x);
+        }
+        // The largest particle, 4 px at 34 px: 5.1 px at 48, 5.7 at 64 and
+        // 5.95 at 96, the largest font size -- under 6 px.
+        QVERIFY(std::abs(4 * sizeScale(48.0 / 34) - 5.1) < 0.05);
+        QVERIFY(std::abs(4 * sizeScale(64.0 / 34) - 5.7) < 0.05);
+        QVERIFY(std::abs(4 * sizeScale(96.0 / 34) - 5.95) < 0.005);
+        QVERIFY(4 * sizeScale(96.0 / 34) < 6);
+    }
+
+    // Above 34 px the rise and the sway stay x times the 34 px ones, so the
+    // particles still clear the glyph tops, while the size follows g(x).
+    // 68 px doubles exactly; 96 / 34 is not exact in binary.
+    void aboveThirtyFourPixelsOnlyTheSizeSlowsDown()
+    {
+        Particle p;
+        p.birthMs = 1000;
+        p.size = 3;
+        p.jitter = 0.3;
+        p.amplitude = 1.2;
+        p.periodMs = 1700;
+        p.phase1 = 1.1;
+        p.phase2 = 2.9;
+        p.phase3 = 5.3;
+        for (double t : {1300.0, 1900.0, 2800.0}) {
+            Sprite base;
+            QVERIFY(evaluate(p, t, 1, 0, 0, 1, &base));
+            Sprite twice;
+            QVERIFY(evaluate(p, t, 2, 0, 0, 1, &twice));
+            QVERIFY(base.x != 0 && base.y != 0);
+            QCOMPARE(twice.x, 2 * base.x);
+            QCOMPARE(twice.y, 2 * base.y);
+            QCOMPARE(twice.size, sizeScale(2) * 3);
+            QVERIFY(twice.size < 2 * base.size);
+            QCOMPARE(twice.brightness, base.brightness);
+
+            const double x = 96.0 / 34;
+            Sprite largest;
+            QVERIFY(evaluate(p, t, x, 0, 0, 1, &largest));
+            QVERIFY(std::abs(largest.x - x * base.x) < 1e-9);
+            QVERIFY(std::abs(largest.y - x * base.y) < 1e-9);
+            QCOMPARE(largest.size, sizeScale(x) * 3);
+        }
+    }
+
+    // The Gaussian is s wide at half its height, and never narrower than
+    // 1.5 device pixels.
+    void theCoreIsNeverNarrowerThanOneAndAHalfDevicePixels()
+    {
+        QCOMPARE(coreSigma(4, 1), 4 / 2.355);
+        QCOMPARE(coreSigma(2, 1), 2 / 2.355);
+        QCOMPARE(coreSigma(1.5, 1), 1.5 / 2.355);
+        // Held at 1.5 px on a ratio-1 screen...
+        QCOMPARE(coreSigma(1, 1), 1.5 / 2.355);
+        QCOMPARE(coreSigma(16.0 / 34, 1), 1.5 / 2.355);
+        // ... and at 1.5 device pixels, 0.75 logical, on a ratio-2 one.
+        QCOMPARE(coreSigma(1, 0.5), 1 / 2.355);
+        QCOMPARE(coreSigma(16.0 / 34, 0.5), 0.75 / 2.355);
+        // Half the height at r = s / 2.
+        const double s = 3;
+        const double sigma = coreSigma(s, 1);
+        QVERIFY(std::abs(std::exp(-(s / 2) * (s / 2) / (2 * sigma * sigma)) - 0.5) < 1e-3);
+    }
+
+    // p(r) = (e^(-r² / 2σ²) + 0.8 (1 - q²)²) / 1.8, q = r / R, 0 from R on.
+    void theProfileFallsFromOneAtTheCentreToNothingAtTheHaloRadius()
+    {
+        const auto restated = [](double r, double radius, double sigma) {
+            const double q = r / radius;
+            return (std::exp(-r * r / (2 * sigma * sigma)) + 0.8 * (1 - q * q) * (1 - q * q)) / 1.8;
+        };
+        // Full-size cores, and floored ones at ratio 1 and 2.
+        const double cases[][2] = {{2, 1}, {4, 1}, {1, 1}, {16.0 / 34, 1}, {16.0 / 34, 0.5}, {10.0 / 34, 1}};
+        for (const auto &c : cases) {
+            const double radius = 3.5 * c[0];
+            const double sigma = coreSigma(c[0], c[1]);
+            QCOMPARE(profile(0, radius, sigma), 1.0);
+            QCOMPARE(profile(radius, radius, sigma), 0.0);
+            QCOMPARE(profile(1.5 * radius, radius, sigma), 0.0);
+            double last = 1;
+            for (int i = 1; i < 1000; ++i) {
+                const double r = radius * i / 1000;
+                const double p = profile(r, radius, sigma);
+                QVERIFY2(std::abs(p - restated(r, radius, sigma)) < 1e-12, qPrintable(QString::number(r)));
+                QVERIFY(p <= 1);
+                QVERIFY(p > 0);
+                QVERIFY2(p <= last, qPrintable(QString::number(r)));
+                last = p;
+            }
+            // Flat at the centre.
+            QVERIFY((1 - profile(radius * 1e-4, radius, sigma)) / (radius * 1e-4) < 1e-3);
+        }
+        // At the full σ, flat at R too: next to nothing is left just inside.
+        QVERIFY(profile(3.5 * 2 * 0.999, 3.5 * 2, coreSigma(2, 1)) < 1e-5);
     }
 
     // Each word's particles rise from that word's own glyph top.
@@ -747,72 +862,132 @@ private Q_SLOTS:
         QCOMPARE(int(full.a), 255);
     }
 
-    void aSpriteIsAHaloUnderAFeatheredCore()
+    // A centre vertex and ten rings of 24, ring i at R (i / 10)^1.7, each
+    // vertex p at its radius times the colour and the brightness,
+    // premultiplied; the outermost ring is nothing at all.
+    void aSpriteIsTenRingsAroundItsCentre()
     {
+        QCOMPARE(kVerticesPerSprite, 241);
+        QCOMPARE(kIndicesPerSprite, 1368);
         Sprite sprite;
         sprite.x = 100;
         sprite.y = 50;
-        sprite.coreRadius = 2;
-        sprite.haloRadius = 14;
+        sprite.size = 4; // R = 14
         sprite.brightness = 0.8;
         std::vector<Vertex> vertices(2 * kVerticesPerSprite);
         std::vector<quint32> indices(kIndicesPerSprite);
         // As the second sprite in the buffer, so the indices are offset.
-        writeSprite(sprite, 1, 1, 1, true, 0.8, vertices.data() + kVerticesPerSprite,
-                    kVerticesPerSprite, indices.data());
+        writeSprite(sprite, 1, 0.5, 0.25, true, 1, vertices.data() + kVerticesPerSprite, kVerticesPerSprite,
+                    indices.data());
         const Vertex *v = vertices.data() + kVerticesPerSprite;
+        std::vector<bool> used(kVerticesPerSprite, false);
         for (quint32 index : indices) {
             QVERIFY(index >= quint32(kVerticesPerSprite));
             QVERIFY(index < quint32(2 * kVerticesPerSprite));
+            used[index - kVerticesPerSprite] = true;
         }
         for (int i = 0; i < kVerticesPerSprite; ++i) {
-            QCOMPARE(int(v[i].a), 0);
+            QVERIFY2(used[i], qPrintable(QString::number(i)));
         }
 
-        // Halo: colour × 0.55 at the centre, nothing on the rim at 3.5 s.
+        const double radius = 14;
+        const double sigma = 4 / 2.355;
+        const auto p = [&](double r) {
+            const double q = r / radius;
+            return (std::exp(-r * r / (2 * sigma * sigma)) + 0.8 * (1 - q * q) * (1 - q * q)) / 1.8;
+        };
         QCOMPARE(v[0].x, 100.0f);
-        QCOMPARE(int(v[0].r), int(std::lround(0.55 * 0.8 * 255)));
-        for (int i = 1; i <= kHaloSegments; ++i) {
-            QCOMPARE(int(v[i].r), 0);
-            QVERIFY(std::abs(std::hypot(v[i].x - 100.0, v[i].y - 50.0) - 14) < 1e-4);
-        }
-        // Core: solid out to s / 2, then transparent across the feather.
-        const Vertex *core = v + 1 + kHaloSegments;
-        QCOMPARE(int(core[0].r), int(std::lround(0.8 * 255)));
-        for (int i = 0; i < kCoreSegments; ++i) {
-            const Vertex &edge = core[1 + 2 * i];
-            const Vertex &fringe = core[2 + 2 * i];
-            QCOMPARE(int(edge.r), int(std::lround(0.8 * 255)));
-            QVERIFY(std::abs(std::hypot(edge.x - 100.0, edge.y - 50.0) - 2) < 1e-4);
-            QCOMPARE(int(fringe.r), 0);
-            QVERIFY(std::abs(std::hypot(fringe.x - 100.0, fringe.y - 50.0) - 2.8) < 1e-4);
+        QCOMPARE(v[0].y, 50.0f);
+        QCOMPARE(int(v[0].r), int(std::lround(0.8 * 255)));
+        QCOMPARE(int(v[0].g), int(std::lround(0.4 * 255)));
+        for (int ring = 1; ring <= 10; ++ring) {
+            const double r = radius * std::pow(ring / 10.0, 1.7);
+            for (int i = 0; i < 24; ++i) {
+                const Vertex &here = v[1 + (ring - 1) * 24 + i];
+                const double angle = 2 * std::numbers::pi * i / 24;
+                QVERIFY(std::abs(here.x - (100 + r * std::cos(angle))) < 1e-4);
+                QVERIFY(std::abs(here.y - (50 + r * std::sin(angle))) < 1e-4);
+                QCOMPARE(int(here.a), 0);
+                if (ring == 10) {
+                    QCOMPARE(int(here.r), 0);
+                    QCOMPARE(int(here.g), 0);
+                    QCOMPARE(int(here.b), 0);
+                } else {
+                    QVERIFY2(std::abs(here.r - 255 * 0.8 * p(r)) <= 1, qPrintable(QStringLiteral("ring %1").arg(ring)));
+                    QVERIFY(std::abs(here.g - 255 * 0.8 * 0.5 * p(r)) <= 1);
+                    QVERIFY(std::abs(here.b - 255 * 0.8 * 0.25 * p(r)) <= 1);
+                }
+            }
         }
 
+        // Normal blending: alpha = b × p, and no channel above it.
         std::vector<Vertex> normal(kVerticesPerSprite);
-        writeSprite(sprite, 0.1, 0.1, 0.1, false, 0.8, normal.data(), 0, indices.data());
-        QCOMPARE(int(normal[0].a), int(std::lround(0.55 * 0.8 * 255)));
-        QCOMPARE(int(normal[1 + kHaloSegments].a), int(std::lround(0.8 * 255)));
-        QCOMPARE(int(normal[1].a), 0);
+        writeSprite(sprite, 0.1, 0.1, 0.1, false, 1, normal.data(), 0, indices.data());
+        QCOMPARE(int(normal[0].a), int(std::lround(0.8 * 255)));
+        for (int ring = 1; ring <= 10; ++ring) {
+            const Vertex &here = normal[1 + (ring - 1) * 24];
+            const double r = radius * std::pow(ring / 10.0, 1.7);
+            QVERIFY(std::abs(here.a - 255 * 0.8 * p(r)) <= 1);
+            QVERIFY(here.r <= here.a);
+        }
+        QCOMPARE(int(normal[1 + 9 * 24].a), 0);
     }
 
-    // The triangles tile both discs exactly once: every point inside the
-    // halo lies in one halo triangle, every point inside the feathered core
-    // in one core or fringe triangle. Index ranges alone would pass a fan
-    // that forgets to wrap round (a 22.5° wedge missing) or a fringe quad
-    // split along the wrong diagonal (holes and doubled slivers of the same
-    // total area).
-    void theTrianglesTileTheHaloAndTheCoreOnce()
+    // A small particle's core keeps its 1.5 device pixels, so every ring of
+    // a panel-sized sprite carries that wider Gaussian; the outermost ring is
+    // still nothing, although that Gaussian has not quite died out there.
+    void aSmallSpriteKeepsItsCoresFloor()
+    {
+        Sprite sprite;
+        sprite.size = 16.0 / 34; // the smallest particle on the panel
+        sprite.brightness = 1;
+        const double radius = 3.5 * sprite.size;
+        std::vector<quint32> indices(kIndicesPerSprite);
+        for (double devicePixel : {1.0, 0.5}) {
+            std::vector<Vertex> v(kVerticesPerSprite);
+            writeSprite(sprite, 1, 1, 1, true, devicePixel, v.data(), 0, indices.data());
+            const auto p = [&](double r, double width) {
+                const double sigma = width / 2.355;
+                const double q = r / radius;
+                return (std::exp(-r * r / (2 * sigma * sigma)) + 0.8 * (1 - q * q) * (1 - q * q)) / 1.8;
+            };
+            for (int ring = 1; ring <= 9; ++ring) {
+                const double r = radius * std::pow(ring / 10.0, 1.7);
+                for (int i = 0; i < 24; ++i) {
+                    QVERIFY2(std::abs(v[1 + (ring - 1) * 24 + i].r - 255 * p(r, 1.5 * devicePixel)) <= 1,
+                             qPrintable(QStringLiteral("ring %1").arg(ring)));
+                }
+            }
+            // Without the floor the core would be far narrower.
+            const double middle = radius * std::pow(0.5, 1.7);
+            QVERIFY(std::abs(v[1 + 4 * 24].r - 255 * p(middle, sprite.size)) > 10);
+            for (int i = 0; i < 24; ++i) {
+                QCOMPARE(int(v[1 + 9 * 24 + i].r), 0);
+            }
+        }
+        // On a ratio-1 screen that Gaussian still has 2% of the centre
+        // left at R.
+        const double sigma = 1.5 / 2.355;
+        QVERIFY(std::exp(-radius * radius / (2 * sigma * sigma)) / 1.8 > 0.01);
+    }
+
+    // The triangles tile the sprite exactly once: every point inside the
+    // outermost ring lies in exactly one of them. Index ranges alone would
+    // pass a centre fan that forgets to wrap round (a 15° wedge missing) or
+    // band quads split along inconsistent diagonals (holes and doubled
+    // slivers of the same total area).
+    void theTrianglesTileTheSpriteOnce()
     {
         Sprite sprite;
         sprite.x = 100;
         sprite.y = 50;
-        sprite.coreRadius = 2;
-        sprite.haloRadius = 14;
+        sprite.size = 4;
         sprite.brightness = 1;
-        const double feather = 0.8;
         std::vector<Vertex> v(kVerticesPerSprite);
         std::vector<quint32> index(kIndicesPerSprite);
-        writeSprite(sprite, 1, 1, 1, true, feather, v.data(), 0, index.data());
+        writeSprite(sprite, 1, 1, 1, true, 1, v.data(), 0, index.data());
+        const int triangles = kIndicesPerSprite / 3;
+        QCOMPARE(triangles, 24 + 9 * 24 * 2);
 
         const auto inside = [&](int triangle, double x, double y) {
             const Vertex &a = v[index[3 * triangle]];
@@ -823,33 +998,31 @@ private Q_SLOTS:
             const double d3 = (x - a.x) * (c.y - a.y) - (c.x - a.x) * (y - a.y);
             return (d1 > 0 && d2 > 0 && d3 > 0) || (d1 < 0 && d2 < 0 && d3 < 0);
         };
-        const auto covering = [&](int first, int count, double x, double y) {
-            int n = 0;
-            for (int t = first; t < first + count; ++t) {
-                n += inside(t, x, y);
-            }
-            return n;
-        };
-        const int haloTriangles = kHaloSegments;
-        const int coreTriangles = kIndicesPerSprite / 3 - haloTriangles;
-        QCOMPARE(coreTriangles, 3 * kCoreSegments);
 
-        // Angles between the vertices of both rings, radii inside each
-        // polygon's inscribed circle.
-        const double haloReach = sprite.haloRadius * std::cos(std::numbers::pi / kHaloSegments);
-        const double coreReach = (sprite.coreRadius + feather) * std::cos(std::numbers::pi / kCoreSegments);
+        // Several radii inside every band -- ring 1 is only 0.02 R out, so
+        // evenly spaced radii would never reach the fan -- at angles between
+        // the 15° spokes, all inside the outermost ring's polygon.
+        const double radius = 3.5 * sprite.size;
+        std::vector<double> radii;
+        double inner = 0;
+        for (int ring = 1; ring <= 10; ++ring) {
+            const double outer = radius * std::pow(ring / 10.0, 1.7);
+            for (double f : {0.1, 0.35, 0.65, 0.9}) {
+                radii.push_back(inner + f * (outer - inner));
+            }
+            inner = outer;
+        }
+        QVERIFY(radii.back() < radius * std::cos(std::numbers::pi / 24));
         for (int a = 0; a < 96; ++a) {
             const double angle = 2 * std::numbers::pi * (a + 0.5) / 96;
-            for (int r = 0; r < 20; ++r) {
-                const double fraction = (r + 0.5) / 20;
-                const double hx = sprite.x + haloReach * fraction * std::cos(angle);
-                const double hy = sprite.y + haloReach * fraction * std::sin(angle);
-                QVERIFY2(covering(0, haloTriangles, hx, hy) == 1,
-                         qPrintable(QStringLiteral("halo %1 %2").arg(hx).arg(hy)));
-                const double cx = sprite.x + coreReach * fraction * std::cos(angle);
-                const double cy = sprite.y + coreReach * fraction * std::sin(angle);
-                QVERIFY2(covering(haloTriangles, coreTriangles, cx, cy) == 1,
-                         qPrintable(QStringLiteral("core %1 %2").arg(cx).arg(cy)));
+            for (double r : radii) {
+                const double x = sprite.x + r * std::cos(angle);
+                const double y = sprite.y + r * std::sin(angle);
+                int covering = 0;
+                for (int t = 0; t < triangles; ++t) {
+                    covering += inside(t, x, y);
+                }
+                QVERIFY2(covering == 1, qPrintable(QStringLiteral("%1 at r %2, angle %3").arg(covering).arg(r).arg(angle)));
             }
         }
     }

@@ -16,8 +16,10 @@
 // particles that playing would have left in the air.
 //
 // Lengths are logical pixels at the 34 px reference font size unless a name
-// says otherwise, and are scaled by fontSize / 34 when evaluated. Birth
-// positions and ψ are not: they are measured on the glyphs as drawn.
+// says otherwise. When evaluated, the motion scales by x = fontSize / 34 and
+// the particle's size by g(x) (sizeScale), which follows x up to 34 px and
+// grows ever slower above it. Birth positions and ψ are not scaled: they are
+// measured on the glyphs as drawn.
 namespace WordParticles {
 
 constexpr double kReferencePixelSize = 34;
@@ -34,8 +36,11 @@ constexpr double kSway = 1;
 constexpr double kSwayRampMs = 700;
 constexpr double kWindPeriodMs = 3400;
 constexpr double kWindPhasePerPixel = 0.012; // rad per logical pixel, unscaled
-constexpr double kHaloRadius = 3.5; // times s
-constexpr double kHaloCentre = 0.55;
+constexpr double kSizeHeadroom = 0.5; // g(x) never reaches 1 + this
+constexpr double kHaloRadius = 3.5; // R, times s
+constexpr double kHaloStrength = 0.8; // h
+constexpr double kCoreMinWidth = 1.5; // device pixels, at half the core's height
+constexpr double kHalfWidthPerSigma = 2.355; // a Gaussian's width at half height, in σ
 
 /// splitmix64, with its own mapping to [0, 1). Not std::uniform_*_distribution:
 /// those are implementation-defined, so one seed gives different particles on
@@ -217,19 +222,36 @@ private:
     double m_droppedThroughMs = 0;
 };
 
+/// g(x), what the particle's size is scaled by at x = fontSize / 34: x itself
+/// up to 1, then 1 + 0.5 (1 - e^(-(x - 1) / 0.5)), which leaves x = 1 with
+/// slope 1 and never reaches 1.5.
+double sizeScale(double scale);
+
 struct Sprite
 {
     double x = 0;
     double y = 0;
-    double coreRadius = 0;
-    double haloRadius = 0;
+    // s after g(x), in logical pixels.
+    double size = 0;
     double brightness = 0;
 };
 
-/// Where and how bright the particle is at positionMs, following
+/// Where, how large and how bright the particle is at positionMs, following
 /// (offsetX, offsetY) and dimmed by opacity. False when it is not alive.
 bool evaluate(const Particle &particle, double positionMs, double scale,
               double offsetX, double offsetY, double opacity, Sprite *sprite);
+
+/// σ of a sprite of this size: the Gaussian core is s wide at half its
+/// height, and never narrower than 1.5 device pixels, devicePixel being one
+/// of them in logical pixels -- a narrower one flickers as it moves.
+double coreSigma(double size, double devicePixel);
+
+/// p(r), the sprite's brightness at r from its centre, radius being R:
+/// (e^(-r² / 2σ²) + h (1 - q²)²) / (1 + h), q = r / R, and 0 from R on.
+/// 1 at the centre and never rising outwards. At R the halo term reaches 0
+/// with slope 0 and the Gaussian is e^-34 at the full σ; only a sprite whose
+/// σ is held at its floor keeps a little of it there, which p cuts to 0.
+double profile(double r, double radius, double sigma);
 
 /// Relative luminance of the sRGB components as they are, no linearisation:
 /// 0.2126R + 0.7152G + 0.0722B >= 0.5 is additive, anything darker is
@@ -253,18 +275,21 @@ struct Vertex
 Vertex colourVertex(double x, double y, double red, double green, double blue,
                     double amount, bool additive);
 
-constexpr int kHaloSegments = 16;
-constexpr int kCoreSegments = 12;
-constexpr int kVerticesPerSprite = (1 + kHaloSegments) + (1 + 2 * kCoreSegments);
-constexpr int kIndicesPerSprite = 3 * kHaloSegments + 9 * kCoreSegments;
+constexpr int kRings = 10;
+constexpr int kRingSegments = 24;
+constexpr double kRingSpacing = 1.7; // ring i at R (i / 10)^1.7
+constexpr int kVerticesPerSprite = 1 + kRings * kRingSegments;
+constexpr int kIndicesPerSprite = 3 * kRingSegments + 6 * (kRings - 1) * kRingSegments;
 
 /// Writes one particle's kVerticesPerSprite vertices and kIndicesPerSprite
-/// indices, its first vertex being number firstVertex. Triangle fans written
-/// out as a triangle list, so any number of particles share one draw: the
-/// halo, colour × 0.55 at the centre fading linearly to nothing at 3.5 s, and
-/// over it the core, solid out to s / 2 and then feathered to nothing across
-/// `feather` so that a 1 px particle does not flicker as it moves.
+/// indices, its first vertex being number firstVertex. A triangle list, so
+/// any number of particles share one draw: a centre vertex and ten rings
+/// around it, ring i (1 to 10) at R (i / 10)^1.7, closer together towards
+/// the centre, across the Gaussian core. Every vertex carries p at its radius
+/// times the colour and the brightness, linearly interpolated from ring to
+/// ring; the outermost ring is R itself, where p is 0. devicePixel is one
+/// device pixel in logical pixels, for σ's floor.
 void writeSprite(const Sprite &sprite, double red, double green, double blue, bool additive,
-                 double feather, Vertex *vertices, quint32 firstVertex, quint32 *indices);
+                 double devicePixel, Vertex *vertices, quint32 firstVertex, quint32 *indices);
 
 } // namespace WordParticles
