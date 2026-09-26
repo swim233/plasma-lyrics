@@ -230,6 +230,52 @@ private Q_SLOTS:
                     .isEmpty());
     }
 
+    // --- italicWeights ---
+
+    // The mirror of uprightWeights over the same DejaVu Sans faces: the
+    // oblique ones count as italic, with the same width tie-break.
+    void italicWeightsKeepsSlantedFacesAndPrefersNormalWidth()
+    {
+        const QList<FontMatching::Face> faces = {
+            {u8("Book"), 400, true},
+            {u8("Condensed Oblique"), 400, false},
+            {u8("Oblique"), 400, false},
+            {u8("Bold"), 700, true},
+            {u8("Condensed Bold Oblique"), 700, false},
+            {u8("Bold Oblique"), 700, false},
+        };
+        const auto weights = FontMatching::italicWeights(faces);
+        QCOMPARE(weights.size(), 2);
+        QCOMPARE(weights.at(0).weight, 400);
+        QCOMPARE(weights.at(0).styleName, u8("Oblique"));
+        QCOMPARE(weights.at(1).weight, 700);
+        QCOMPARE(weights.at(1).styleName, u8("Bold Oblique"));
+    }
+
+    // A family's italic weights need not be its upright ones; an italic
+    // weight is chosen among the italics alone.
+    void italicWeightsAreTheirOwnSet()
+    {
+        const QList<FontMatching::Face> faces = {
+            {u8("Light"), 300, true},
+            {u8("Regular"), 400, true},
+            {u8("Bold"), 700, true},
+            {u8("Italic"), 400, false},
+            {u8("Mystery Italic"), 0, false},
+        };
+        const auto italics = FontMatching::italicWeights(faces);
+        QCOMPARE(italics.size(), 1);
+        QCOMPARE(italics.first().weight, 400);
+        QCOMPARE(FontMatching::uprightWeights(faces).size(), 3);
+    }
+
+    // CJK families have no italic faces at all: Qt slants an upright one.
+    void italicWeightsOfAnUprightOnlyFamilyIsEmpty()
+    {
+        QVERIFY(FontMatching::italicWeights({{u8("Regular"), 400, true}, {u8("Bold"), 700, true}}).isEmpty());
+        QVERIFY(FontMatching::italicWeights({}).isEmpty());
+    }
+
     // --- groupFamilyNames ---
 
     void groupFamilyNames()
@@ -530,6 +576,8 @@ private Q_SLOTS:
         QVERIFY(catalog.alternateNames(u8("No Such Family 7f3c")).isEmpty());
         QVERIFY(catalog.weights(u8("No Such Family 7f3c")).isEmpty());
         QVERIFY(catalog.weights(QString()).isEmpty());
+        QVERIFY(catalog.italicWeights(u8("No Such Family 7f3c")).isEmpty());
+        QVERIFY(catalog.italicWeights(QString()).isEmpty());
     }
 
     void installedWeights()
@@ -552,6 +600,72 @@ private Q_SLOTS:
         }
     }
 
+    // Whatever is installed: each italic entry is a real face of the family
+    // that Qt builds slanted, one per weight, lightest first, and the
+    // weights are exactly those of the family's slanted faces as
+    // QFontDatabase reports them, so a family with italics lists them and
+    // one without lists none. A machine with no italic face at all checks
+    // only the latter; installedDejaVuSansMonoItalics pins one family.
+    void installedItalicWeights()
+    {
+        const FontCatalog catalog;
+        for (const QString &family : catalog.families()) {
+            QList<int> slanted;
+            for (const QString &style : QFontDatabase::styles(family)) {
+                const int weight = QFontDatabase::weight(family, style);
+                if (weight > 0 && QFontDatabase::font(family, style, 12).style() != QFont::StyleNormal
+                    && !slanted.contains(weight)) {
+                    slanted.append(weight);
+                }
+            }
+            std::sort(slanted.begin(), slanted.end());
+            QList<int> listed;
+            for (const QVariant &entry : catalog.italicWeights(family)) {
+                listed.append(entry.toMap().value(QStringLiteral("weight")).toInt());
+            }
+            QCOMPARE(listed, slanted);
+
+            int previous = 0;
+            for (const QVariant &entry : catalog.italicWeights(family)) {
+                const QVariantMap face = entry.toMap();
+                const int weight = face.value(QStringLiteral("weight")).toInt();
+                const QString style = face.value(QStringLiteral("styleName")).toString();
+                QVERIFY2(weight > previous, qPrintable(family + u8(": ") + style));
+                previous = weight;
+                QVERIFY2(QFontDatabase::styles(family).contains(style), qPrintable(family + u8(": ") + style));
+                QVERIFY2(QFontDatabase::font(family, style, 12).style() != QFont::StyleNormal,
+                         qPrintable(family + u8(": ") + style));
+            }
+        }
+    }
+
+    // One family's two lists spelled out, so the catalog's choice between
+    // its upright and its slanted faces is checked against known data. The
+    // Debian CI container has DejaVu Sans Mono with exactly these four faces
+    // (fc-list there: Book, Bold, Oblique, Bold Oblique), so it runs there
+    // too.
+    void installedDejaVuSansMonoItalics()
+    {
+        const FontCatalog catalog;
+        const QString family = u8("DejaVu Sans Mono");
+        const QStringList styles = QFontDatabase::styles(family);
+        if (!catalog.families().contains(family) || !styles.contains(u8("Oblique"))
+            || !styles.contains(u8("Bold Oblique"))) {
+            QSKIP("DejaVu Sans Mono with its Oblique faces is not installed");
+        }
+        const auto faces = [](const QVariantList &list) {
+            QStringList result;
+            for (const QVariant &entry : list) {
+                const QVariantMap face = entry.toMap();
+                result.append(QString::number(face.value(QStringLiteral("weight")).toInt()) + QLatin1Char(' ')
+                              + face.value(QStringLiteral("styleName")).toString());
+            }
+            return result;
+        };
+        QCOMPARE(faces(catalog.weights(family)), (QStringList{u8("400 Book"), u8("700 Bold")}));
+        QCOMPARE(faces(catalog.italicWeights(family)), (QStringList{u8("400 Oblique"), u8("700 Bold Oblique")}));
+    }
+
     // A Plasma font set to one of Qt's generic names keeps its stored weight:
     // Qt's one synthetic 400 face is not offered. Debian's CI container has
     // "Sans Serif" as its default font.
@@ -565,6 +679,7 @@ private Q_SLOTS:
             }
             QCOMPARE(catalog.resolveFamily(u8(generic)), u8(generic));
             QVERIFY2(catalog.weights(u8(generic)).isEmpty(), generic);
+            QVERIFY2(catalog.italicWeights(u8(generic)).isEmpty(), generic);
             QCOMPARE(catalog.snapWeight(catalog.weights(u8(generic)), 700), 700);
         }
     }

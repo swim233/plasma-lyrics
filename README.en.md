@@ -130,9 +130,10 @@ line and logs it under `plasmalyrics.daemon`, so it also appears in
 isn't running, only the widget's copy exists. `network/proxyUrl` is logged without
 credentials.
 
-Timing can be adjusted by 500 ms from the widget context menu, per song by
-default; the "Global settings" configuration tab can switch this to one
-shared offset for every song instead. Manual LRC replacements belong in
+Timing can be adjusted by 500 ms from the widget context menu; the offset
+is stored per song. The "Global settings" configuration tab can add one
+global offset shared by every song, which is added to each song's own
+offset, and can edit the current song's offset directly. Manual LRC replacements belong in
 `~/.local/share/plasma-lyrics/overrides/<provider>:<track-id>.lrc`.
 
 The searchable local source first checks for an `.lrc` sidecar beside a local

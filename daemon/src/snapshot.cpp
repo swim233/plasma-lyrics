@@ -13,6 +13,16 @@
 
 namespace PlasmaLyrics {
 
+void applyStoredOffsets(ResolvedLyric &lyric, const LyricStore &store)
+{
+    lyric.globalOffsetEnabled = store.globalOffsetEnabled();
+    lyric.trackOffsetMs = lyric.ref ? store.offset(*lyric.ref) : 0;
+    // Each side is clamped to +-maximumOffsetMs() by the store; the sum is
+    // deliberately not clamped again.
+    lyric.document.offsetMs = (lyric.globalOffsetEnabled ? store.globalOffsetMs() : 0)
+        + lyric.trackOffsetMs;
+}
+
 SnapshotWriter::SnapshotWriter(QString path)
     : m_path(path.isEmpty() ? defaultPath() : std::move(path))
 {
@@ -87,6 +97,7 @@ bool SnapshotWriter::write(const std::optional<MprisState> &player,
     root.insert(QStringLiteral("lyric"),
                 QJsonObject{{QStringLiteral("state"), lyric.state},
                             {QStringLiteral("offsetMs"), lyric.document.offsetMs},
+                            {QStringLiteral("trackOffsetMs"), lyric.trackOffsetMs},
                             {QStringLiteral("lines"), lines},
                             {QStringLiteral("preferredProvider"), lyric.preferredProvider},
                             {QStringLiteral("effectivePreferredProvider"), lyric.effectivePreferredProvider},

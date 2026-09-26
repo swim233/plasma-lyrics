@@ -99,6 +99,11 @@ struct Weight
 // preferred, then the shorter name, then the alphabetically first.
 QList<Weight> uprightWeights(const QList<Face> &faces);
 
+// The same over the slanted faces, italic and oblique alike: the ones Qt
+// draws from when a font asks for italic. Empty for a family that has none,
+// which Qt then slants itself from an upright face.
+QList<Weight> italicWeights(const QList<Face> &faces);
+
 // The CSS Fonts level 4 weight matching rule; FontCatalog::snapWeight()
 // documents it.
 int snapWeight(const QList<int> &available, int target);

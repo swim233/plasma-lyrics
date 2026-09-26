@@ -19,12 +19,22 @@ struct ResolvedLyric {
     QString effectivePreferredProvider;
     bool temporaryFallback = false;
     QStringList availableProviders;
-    // Snapshot consumers use this daemon-computed effective offset instead
-    // of opening the store. The flag is still needed for menu wording.
+    // Snapshot consumers use the daemon-computed effective offset in
+    // document.offsetMs instead of opening the store; the flag says which
+    // mode produced it.
     bool globalOffsetEnabled = false;
+    // This ref's own offset, which the effective one includes; 0 without a
+    // ref. Filled in by applyStoredOffsets().
+    int trackOffsetMs = 0;
     // Non-empty while a forced resolve is replacing/confirming this source.
     QString switchingProvider;
 };
+
+// Fills in the offsets a snapshot carries from the store (DESIGN.md
+// decision 79): trackOffsetMs is the ref's own offset, and
+// document.offsetMs the effective one, which adds the global offset while
+// that is enabled.
+void applyStoredOffsets(ResolvedLyric &lyric, const LyricStore &store);
 
 class SnapshotWriter
 {

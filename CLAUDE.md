@@ -56,6 +56,15 @@ always has -- its only output is "Not installed yet, skipping"; a directory
 that has been installed from takes a different branch and prints nothing).
 The `sd_journal_send()` rationale above does not apply to it either way.
 
+A test that calls `QStandardPaths::setTestModeEnabled(true)` must also carry
+`HOME=${PLASMA_LYRICS_TEST_HOME}` in the same `ENVIRONMENT` list (the
+variable is set in the top-level `CMakeLists.txt`, under the build
+directory). Test mode writes under `$HOME/.qttest`; with the real `HOME`
+that is the developer's home directory, shared by every worktree, so two
+agents running ctest at the same time overwrote each other's settings file
+there and `tst_backendconfig` failed at random. When running such a test
+binary directly, set `HOME` to a scratch directory yourself.
+
 A test that simulates a crashing child must kill it with `SIGKILL`
 (`kill -KILL $$` inside a `/bin/sh -c` command), never with a core-dumping
 signal such as `SIGSEGV` or `SIGABRT`. `QProcess` reports `CrashExit` for
@@ -97,6 +106,21 @@ Each task gets its own `dev` agent working in its own git worktree under
 tasks running in parallel. Each dev configures and builds in its own
 worktree (`build/` inside it; ccache is installed) and commits on its branch
 in the commit-message style above.
+
+Every agent in the team works in a git worktree of its own, with its own
+`build/`, so no agent's build products, stray files or checkouts leak into
+another agent's tree. The lead writes groundwork and integrates in a
+worktree of the base/integration branch, never in the main checkout at
+`/home/swim/code/desktop_lyrics`, which stays on `main`. A dev works only in
+its task's worktree. A QA agent adds a detached worktree of the commit it
+reviews (`git worktree add --detach
+/home/swim/code/desktop_lyrics-wt/<name>-<role> feat/<name>`) and builds,
+tests and experiments there; it never builds, runs tests or checks anything
+out in a dev's worktree, where a leftover build directory or file ends up in
+the dev's next commit and a checkout wipes the dev's uncommitted work. On a
+re-review it moves its own worktree to the new head with
+`git checkout --detach feat/<name>`. The lead removes the QA worktrees
+together with the task worktrees when the feature is done.
 
 Each task then passes two reviews in order, each by a fresh agent assigned
 to that task alone:

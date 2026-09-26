@@ -152,6 +152,16 @@ QString FontCatalog::resolveFamily(const QString &stored) const
 
 QVariantList FontCatalog::weights(const QString &family) const
 {
+    return weightsOf(family, true);
+}
+
+QVariantList FontCatalog::italicWeights(const QString &family) const
+{
+    return weightsOf(family, false);
+}
+
+QVariantList FontCatalog::weightsOf(const QString &family, bool upright) const
+{
     // Resolved even though callers pass a listed name: Qt reports no styles
     // for a name it only knows as an alias, and the Plasma font's family is
     // stored in whatever language it was picked in.
@@ -159,8 +169,10 @@ QVariantList FontCatalog::weights(const QString &family) const
     if (listed.isEmpty() || !m_names.backed.contains(listed)) {
         return {};
     }
+    const QList<FontMatching::Face> faces = facesOf(listed);
     QVariantList result;
-    for (const FontMatching::Weight &face : FontMatching::uprightWeights(facesOf(listed))) {
+    for (const FontMatching::Weight &face :
+         upright ? FontMatching::uprightWeights(faces) : FontMatching::italicWeights(faces)) {
         result.append(QVariantMap{{QStringLiteral("weight"), face.weight},
                                   {QStringLiteral("styleName"), face.styleName}});
     }

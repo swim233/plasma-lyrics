@@ -70,7 +70,7 @@ if(BUILD_TESTING)
     endif()
     set_tests_properties(tst_backendconfig PROPERTIES
         RESOURCE_LOCK plasma_lyrics_config
-        ENVIRONMENT "LC_ALL=C.UTF-8")
+        ENVIRONMENT "LC_ALL=C.UTF-8;HOME=${PLASMA_LYRICS_TEST_HOME}")
 
     add_executable(tst_globalconfig
         tests/tst_globalconfig.cpp
@@ -87,7 +87,8 @@ if(BUILD_TESTING)
     else()
         add_test(NAME tst_globalconfig COMMAND tst_globalconfig)
     endif()
-    set_tests_properties(tst_globalconfig PROPERTIES ENVIRONMENT "LC_ALL=C.UTF-8")
+    set_tests_properties(tst_globalconfig PROPERTIES
+        ENVIRONMENT "LC_ALL=C.UTF-8;HOME=${PLASMA_LYRICS_TEST_HOME}")
 
     add_executable(tst_configchangelogger
         tests/tst_configchangelogger.cpp

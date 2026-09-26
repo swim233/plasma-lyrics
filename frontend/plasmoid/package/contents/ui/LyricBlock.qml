@@ -5,22 +5,25 @@ Item {
     id: root
 
     property string lyricText: ""
-    // Whichever second line the user picked -- translation or romanization.
-    // The property keeps its original name because the second line is still a
-    // single slot; only what may fill it grew.
-    property string translationText: ""
+    // The secondary lyrics the user picked -- translation or romanization.
+    property string secondaryLyricText: ""
     property color textColor: "white"
-    // Defaults to the derived alpha the second line has always used, so an
-    // instance that never sets it looks exactly as before.
-    property color secondLineColor: Qt.rgba(root.textColor.r, root.textColor.g,
-                                            root.textColor.b, 0.68)
+    // Defaults to the alpha the secondary lyrics take from the text colour
+    // while their own colour is off.
+    property color secondaryLyricColor: Qt.rgba(root.textColor.r, root.textColor.g,
+                                                root.textColor.b, 0.68)
     property bool strokeEnabled: false
     property color strokeColor: "black"
-    // The second line shares the lyric's family: it is part of the lyric,
-    // not track info.
     property string fontFamily: Kirigami.Theme.defaultFont.family
     property int fontSize: 34
     property int fontWeight: Font.Normal
+    // The secondary lyrics' font as drawn (DESIGN.md decision 78): LyricsView
+    // passes the lyric's own unless the secondary lyrics have one of their
+    // own, so by default they follow it. Only these are ever italic.
+    property string secondaryLyricFontFamily: root.fontFamily
+    property int secondaryLyricFontSize: root.fontSize
+    property int secondaryLyricFontWeight: root.fontWeight
+    property bool secondaryLyricFontItalic: false
     property string overflowMode: "fit"
 
     property var words: []
@@ -35,12 +38,13 @@ Item {
     property bool blurGlowEnabled: false
     property real lineHeightFactor: 1.25
 
-    implicitHeight: origin.implicitHeight + (translation.visible ? translation.implicitHeight : 0)
+    implicitHeight: origin.implicitHeight + (secondaryLyric.visible ? secondaryLyric.implicitHeight : 0)
     height: implicitHeight
 
     // For AnimatedLyric's particle layer (DESIGN.md decision 77). Only the
-    // lyric itself spawns particles, never the second line; its line sits at
-    // this block's top left. particlesWanted only on the current block.
+    // lyric itself spawns particles, never the secondary lyrics; its line
+    // sits at this block's top left. particlesWanted only on the current
+    // block.
     property bool particlesWanted: false
     readonly property var particleLine: origin.particleLine
     readonly property real particleScrollOffset: origin.particleScrollOffset
@@ -72,23 +76,24 @@ Item {
         particlesWanted: root.particlesWanted
     }
 
-    // The second line stays whole-line on purpose: word timings belong to the
-    // lyric itself, and neither a translation nor a romanization line is
-    // aligned to them (DESIGN.md 26 already treats the second line as the
-    // weaker of the two).
+    // The secondary lyrics stay whole-line on purpose: word timings belong
+    // to the lyric itself, and neither a translation nor a romanization line
+    // is aligned to them (DESIGN.md 26 already treats the secondary lyrics as
+    // the weaker of the two).
     LyricLine {
-        id: translation
+        id: secondaryLyric
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: origin.bottom
-        visible: root.translationText.length > 0
-        lineText: root.translationText
-        textColor: root.secondLineColor
+        visible: root.secondaryLyricText.length > 0
+        lineText: root.secondaryLyricText
+        textColor: root.secondaryLyricColor
         strokeEnabled: root.strokeEnabled
         strokeColor: root.strokeColor
-        fontFamily: root.fontFamily
-        fontSize: root.fontSize
-        fontWeight: root.fontWeight
+        fontFamily: root.secondaryLyricFontFamily
+        fontSize: root.secondaryLyricFontSize
+        fontWeight: root.secondaryLyricFontWeight
+        fontItalic: root.secondaryLyricFontItalic
         overflowMode: root.overflowMode
         lineHeightFactor: root.lineHeightFactor
     }

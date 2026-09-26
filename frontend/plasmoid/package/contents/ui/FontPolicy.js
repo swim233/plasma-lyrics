@@ -24,6 +24,7 @@ function plasmaFamily(catalog, systemFamily) {
 
 // The family the lyrics render in. `stored` is <form>FontFamily: empty
 // follows the Plasma font, and so does a stored family that is not installed.
+// The same rule resolves <form>SecondaryLyricFontFamily (decision 78).
 function lyricFamily(catalog, stored, systemFamily) {
     if (!stored) {
         return plasmaFamily(catalog, systemFamily);
@@ -45,8 +46,24 @@ function isMissing(catalog, stored) {
     return !!stored && catalog.resolveFamily(stored).length === 0;
 }
 
-// The weight to request for `family`, one of its real faces, so fontconfig
-// never synthesizes bold. `storedWeight` is left as it is in the config.
-function renderWeight(catalog, family, storedWeight) {
-    return catalog.snapWeight(catalog.weights(family), storedWeight);
+// The faces a weight for `family` is chosen among, as FontCatalog lists
+// them. DESIGN.md decision 78: in italic, the family's italic faces when it
+// has any; otherwise, and for a family without italics, which Qt slants from
+// an upright face itself, the upright ones.
+function weightFaces(catalog, family, italic) {
+    if (italic) {
+        const italics = catalog.italicWeights(family);
+        if (italics.length > 0) {
+            return italics;
+        }
+    }
+    return catalog.weights(family);
+}
+
+// The weight to request for `family`, one of its real faces in the slant
+// drawn, so fontconfig never synthesizes bold. `storedWeight` is left as it
+// is in the config. `italic` is whether the text is drawn in italic; left
+// out, it is not.
+function renderWeight(catalog, family, storedWeight, italic) {
+    return catalog.snapWeight(weightFaces(catalog, family, italic), storedWeight);
 }

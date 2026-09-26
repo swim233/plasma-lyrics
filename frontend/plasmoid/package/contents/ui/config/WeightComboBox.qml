@@ -5,12 +5,12 @@ import org.kde.kirigami as Kirigami
 
 import "../FontPolicy.js" as FontPolicy
 
-// The weight row for one section: the faces `family` really has,
-// lightest first, so no entry is one fontconfig would have to synthesize
-// (see `faces` for the one case where the family's faces are unknown).
-// It shows the face FontPolicy.renderWeight() draws, which for a stored
-// weight the family lacks is the nearest face it has -- displayed only;
-// the stored value is written by a pick here or in the font picker
+// The weight row for one section: the faces `family` really has in the
+// slant drawn, lightest first, so no entry is one fontconfig would have to
+// synthesize (see `faces` for the one case where the family's faces are
+// unknown). It shows the face FontPolicy.renderWeight() draws, which for a
+// stored weight the family lacks is the nearest face it has -- displayed
+// only; the stored value is written by a pick here or in the font picker
 // above, never by this binding.
 QQC2.ComboBox {
     id: weightBox
@@ -18,10 +18,13 @@ QQC2.ComboBox {
     required property var fontCatalog
     property string family
     property int storedWeight: Font.Normal
+    // Whether the section draws in italic: the row then lists the family's
+    // italic faces, when it has any (FontPolicy.weightFaces()).
+    property bool italic: false
 
     signal weightPicked(int weight)
 
-    // weights() is empty for a family whose faces FontCatalog does not
+    // The face list is empty for a family whose faces FontCatalog does not
     // know, such as one of Qt's generic names ("Sans Serif") set as the
     // Plasma font. The widget then renders the stored weight as it is
     // (snapWeight() of an empty list returns it), so the row offers the
@@ -30,7 +33,7 @@ QQC2.ComboBox {
     // as a weight other than the one drawn.
     readonly property var fallbackWeights: [300, 400, 500, 600, 700, 900]
     readonly property var faces: {
-        const listed = weightBox.fontCatalog.weights(weightBox.family);
+        const listed = FontPolicy.weightFaces(weightBox.fontCatalog, weightBox.family, weightBox.italic);
         if (listed.length > 0) {
             return listed;
         }
@@ -39,7 +42,8 @@ QQC2.ComboBox {
             : weightBox.fallbackWeights.concat([weightBox.storedWeight]).sort((a, b) => a - b);
         return steps.map(weight => ({ weight: weight, styleName: "" }));
     }
-    readonly property int shownWeight: FontPolicy.renderWeight(weightBox.fontCatalog, weightBox.family, weightBox.storedWeight)
+    readonly property int shownWeight: FontPolicy.renderWeight(weightBox.fontCatalog, weightBox.family,
+        weightBox.storedWeight, weightBox.italic)
 
     // The nine CSS weight names for the standard steps; any other
     // weight is a face its designer named, so it keeps that name.

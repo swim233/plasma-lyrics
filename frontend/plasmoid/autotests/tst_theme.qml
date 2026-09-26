@@ -12,7 +12,9 @@ TestCase {
 
     // A configuration object for the migration: every themed key of both
     // form factors, the dark ones at their defaults and the light ones at a
-    // marker, so a test sees exactly which light keys the migration wrote.
+    // marker, so a test sees exactly which light keys the migration wrote;
+    // and the four keys version 2 retires, in all four sets, at their
+    // main.xml defaults.
     readonly property string untouched: "untouched light default"
     function freshConfiguration() {
         const configuration = { themeConfigVersion: 0 };
@@ -21,11 +23,34 @@ TestCase {
                 configuration[formFactor + suffix] = ThemePolicy.darkDefaults[formFactor][suffix];
                 configuration[formFactor + "Light" + suffix] = untouched;
             }
+            for (const dark of [true, false]) {
+                const legacy = legacyDefaults(formFactor, dark);
+                for (const suffix of Object.keys(legacy)) {
+                    configuration[ThemePolicy.keyPrefix(formFactor, dark) + suffix] = legacy[suffix];
+                }
+            }
         }
         return configuration;
     }
+    // DESIGN.md decision 78: what main.xml gives the keys version 2 folds
+    // into the secondary lyric keys.
+    function legacyDefaults(formFactor, dark) {
+        return {
+            ShowTranslation: formFactor === "desktop",
+            SecondLineSource: "translation",
+            SecondLineColorEnabled: false,
+            SecondLineColor: dark ? "#adfffaf5" : "#ad1f1b16"
+        };
+    }
+    // The themed keys version 2 writes in every set, which lightKeysAt()
+    // leaves to secondaryKeysAt() when it looks for the marker.
+    readonly property var secondarySuffixes: ["SecondaryLyricSource", "SecondaryLyricColorEnabled",
+                                              "SecondaryLyricColor"]
     function lightKeysAt(configuration, formFactor, expected) {
         for (const suffix of ThemePolicy.themedSuffixes(formFactor)) {
+            if (expected !== undefined && secondarySuffixes.includes(suffix)) {
+                continue;
+            }
             const key = formFactor + "Light" + suffix;
             const want = expected === undefined ? configuration[formFactor + suffix] : expected;
             if (configuration[key] !== want) {
@@ -34,21 +59,54 @@ TestCase {
         }
         return "";
     }
+    // The three secondary lyric keys of the set `prefix` names.
+    function secondaryKeysAt(configuration, prefix, source, colorEnabled, color) {
+        const want = [source, colorEnabled, color];
+        for (let i = 0; i < secondarySuffixes.length; ++i) {
+            const key = prefix + secondarySuffixes[i];
+            if (configuration[key] !== want[i]) {
+                return key + " is " + configuration[key] + ", expected " + want[i];
+            }
+        }
+        return "";
+    }
 
     function test_themedSuffixes() {
         const desktop = ThemePolicy.themedSuffixes("desktop");
         const panel = ThemePolicy.themedSuffixes("panel");
-        compare(desktop.length, 31);
-        compare(panel.length, 29);
+        compare(desktop.length, 35);
+        compare(panel.length, 33);
         verify(desktop.includes("WordLift"));
         verify(desktop.includes("WordLiftPercent"));
         verify(!panel.includes("WordLift"));
         verify(!panel.includes("WordLiftPercent"));
-        // Decision 77: unlike the lift keys, the particle keys have a panel copy.
+        // Decision 77: unlike the lift keys, the particle keys have a panel
+        // copy; decision 78's secondary lyric keys do too.
         for (const suffix of ["TrackInfoColor", "TrackInfoStroke", "TrackInfoStrokeColor",
-                              "WordParticles", "WordParticleColorEnabled", "WordParticleColor"]) {
+                              "WordParticles", "WordParticleColorEnabled", "WordParticleColor",
+                              "SecondaryLyricSource", "SecondaryLyricColorEnabled", "SecondaryLyricColor",
+                              "SecondaryLyricFontEnabled", "SecondaryLyricFontFamily", "SecondaryLyricFontSize",
+                              "SecondaryLyricFontWeight", "SecondaryLyricFontItalic"]) {
             verify(desktop.includes(suffix), suffix);
             verify(panel.includes(suffix), suffix);
+        }
+        // Decision 78: kept in main.xml for the migration alone.
+        for (const suffix of ["ShowTranslation", "SecondLineSource", "SecondLineColorEnabled",
+                              "SecondLineColor"]) {
+            verify(!desktop.includes(suffix), suffix);
+            verify(!panel.includes(suffix), suffix);
+        }
+        compare(ThemePolicy.darkDefaults.desktop.SecondaryLyricSource, "translation");
+        compare(ThemePolicy.darkDefaults.panel.SecondaryLyricSource, "none");
+        // The secondary lyric font defaults to the main lyric font's
+        // defaults, its switch off.
+        for (const formFactor of ["desktop", "panel"]) {
+            const defaults = ThemePolicy.darkDefaults[formFactor];
+            compare(defaults.SecondaryLyricFontEnabled, false, formFactor);
+            compare(defaults.SecondaryLyricFontFamily, defaults.FontFamily, formFactor);
+            compare(defaults.SecondaryLyricFontSize, defaults.FontSize, formFactor);
+            compare(defaults.SecondaryLyricFontWeight, defaults.FontWeight, formFactor);
+            compare(defaults.SecondaryLyricFontItalic, false, formFactor);
         }
         // Shared by both sets: never in the table.
         for (const suffix of ["ShowTrackInfo", "TrackInfoLayout", "TrackInfoFontSameAsLyrics",
@@ -85,12 +143,18 @@ TestCase {
         compare(ThemePolicy.isDarkBackground(Qt.rgba(191 / 255, 191 / 255, 191 / 255, 1)), true);
     }
 
+    // Also what a freshly added instance goes through: every key ends up at
+    // its main.xml default.
     function test_migrationKeepsLightDefaultsOfUntouchedSets() {
         const configuration = freshConfiguration();
         compare(ThemePolicy.migrateConfiguration(configuration), true);
-        compare(configuration.themeConfigVersion, 1);
+        compare(configuration.themeConfigVersion, 2);
         compare(lightKeysAt(configuration, "desktop", untouched), "");
         compare(lightKeysAt(configuration, "panel", untouched), "");
+        compare(secondaryKeysAt(configuration, "desktop", "translation", false, "#adfffaf5"), "");
+        compare(secondaryKeysAt(configuration, "desktopLight", "translation", false, "#ad1f1b16"), "");
+        compare(secondaryKeysAt(configuration, "panel", "none", false, "#adfffaf5"), "");
+        compare(secondaryKeysAt(configuration, "panelLight", "none", false, "#ad1f1b16"), "");
         compare(ThemePolicy.migrateConfiguration(configuration), false);
     }
 
@@ -127,10 +191,90 @@ TestCase {
 
     function test_migrationRunsOnce() {
         const configuration = freshConfiguration();
-        configuration.themeConfigVersion = 1;
+        configuration.themeConfigVersion = 2;
         configuration.desktopTextColor = "#ffcc00";
+        configuration.desktopShowTranslation = false;
         compare(ThemePolicy.migrateConfiguration(configuration), false);
         compare(configuration.desktopLightTextColor, untouched);
+        compare(configuration.desktopSecondaryLyricSource, "translation");
+        compare(configuration.themeConfigVersion, 2);
+    }
+
+    // DESIGN.md decision 78: in each of the four sets, the source is the old
+    // one while the line was shown and "none" while it was not, whatever the
+    // old source said; the colour keys come across as they are.
+    function test_migrationFoldsTheSecondLineKeys_data() {
+        return [
+            { tag: "translation shown", show: true, source: "translation", expected: "translation" },
+            { tag: "romanization shown", show: true, source: "romanization", expected: "romanization" },
+            { tag: "translation hidden", show: false, source: "translation", expected: "none" },
+            { tag: "romanization hidden", show: false, source: "romanization", expected: "none" },
+        ];
+    }
+    function test_migrationFoldsTheSecondLineKeys(data) {
+        for (const version of [0, 1]) {
+            for (const prefix of ["desktop", "desktopLight", "panel", "panelLight"]) {
+                const tag = data.tag + ", version " + version + ", " + prefix;
+                const configuration = freshConfiguration();
+                configuration.themeConfigVersion = version;
+                configuration[prefix + "ShowTranslation"] = data.show;
+                configuration[prefix + "SecondLineSource"] = data.source;
+                configuration[prefix + "SecondLineColorEnabled"] = true;
+                configuration[prefix + "SecondLineColor"] = "#80123456";
+                compare(ThemePolicy.migrateConfiguration(configuration), true, tag);
+                compare(configuration.themeConfigVersion, 2, tag);
+                compare(secondaryKeysAt(configuration, prefix, data.expected, true, "#80123456"), "", tag);
+                // The old keys are left as they were.
+                compare(configuration[prefix + "ShowTranslation"], data.show, tag);
+                compare(configuration[prefix + "SecondLineSource"], data.source, tag);
+            }
+        }
+    }
+
+    // Version 0: the dark set moves onto the new keys first, so a second line
+    // turned off counts as a customisation, and the light copy of it lands
+    // on the new keys as well.
+    function test_migrationFromVersion0MovesTheKeysBeforeCopying() {
+        const configuration = freshConfiguration();
+        configuration.desktopShowTranslation = false;
+        configuration.desktopSecondLineColorEnabled = true;
+        configuration.desktopSecondLineColor = "#80ff0000";
+        compare(ThemePolicy.migrateConfiguration(configuration), true);
+        compare(secondaryKeysAt(configuration, "desktop", "none", true, "#80ff0000"), "");
+        compare(lightKeysAt(configuration, "desktop"), "");
+        compare(secondaryKeysAt(configuration, "desktopLight", "none", true, "#80ff0000"), "");
+        compare(configuration.desktopLightTextColor, "#fffaf5");
+        // The panel set is untouched and keeps its light defaults.
+        compare(lightKeysAt(configuration, "panel", untouched), "");
+        compare(secondaryKeysAt(configuration, "panelLight", "none", false, "#ad1f1b16"), "");
+    }
+
+    // A source stored while the line was off is no longer a customisation:
+    // it folds into "none", the panel's default.
+    function test_migrationFromVersion0IgnoresTheSourceOfAHiddenLine() {
+        const configuration = freshConfiguration();
+        configuration.panelSecondLineSource = "romanization";
+        compare(ThemePolicy.migrateConfiguration(configuration), true);
+        compare(configuration.panelSecondaryLyricSource, "none");
+        compare(lightKeysAt(configuration, "panel", untouched), "");
+    }
+
+    // Version 1 already has a light set of its own: version 2 moves each set
+    // onto the new keys from its own old ones, and nothing is copied across.
+    function test_migrationFromVersion1KeepsEachSetsOwnKeys() {
+        const configuration = freshConfiguration();
+        configuration.themeConfigVersion = 1;
+        configuration.desktopTextColor = "#ffcc00";
+        configuration.desktopSecondLineSource = "romanization";
+        configuration.desktopLightShowTranslation = false;
+        configuration.desktopLightSecondLineColorEnabled = true;
+        configuration.desktopLightSecondLineColor = "#80112233";
+        compare(ThemePolicy.migrateConfiguration(configuration), true);
+        compare(configuration.themeConfigVersion, 2);
+        compare(secondaryKeysAt(configuration, "desktop", "romanization", false, "#adfffaf5"), "");
+        compare(secondaryKeysAt(configuration, "desktopLight", "none", true, "#80112233"), "");
+        compare(configuration.desktopLightTextColor, untouched);
+        compare(lightKeysAt(configuration, "desktop", untouched), "");
     }
 
     Component {
@@ -335,7 +479,7 @@ TestCase {
             solidColor: "#80336699",
             textColor: "#1f1b16",
             strokeColor: "#ccffffff",
-            secondLineColor: "#ad1f1b16",
+            secondaryLyricColor: "#ad1f1b16",
             wordUnsungColor: "#8c1f1b16",
             wordActiveColor: "#e61f1b16",
             wordSungColor: "#c41f1b16",

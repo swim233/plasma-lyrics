@@ -17,7 +17,7 @@ GlobalConfig::GlobalConfig(QObject *parent)
 
 bool GlobalConfig::enabled() const { return m_enabled; }
 int GlobalConfig::offsetMs() const { return m_offsetMs; }
-int GlobalConfig::maximumOffsetMs() const { return LyricStore::maximumGlobalOffsetMs(); }
+int GlobalConfig::maximumOffsetMs() const { return LyricStore::maximumOffsetMs(); }
 bool GlobalConfig::unsavedChanges() const { return m_unsavedChanges; }
 
 void GlobalConfig::markUnsaved()

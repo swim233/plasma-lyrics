@@ -20,11 +20,15 @@ Kirigami.ScrollablePage {
     property int cfg_desktopFontWeight
     property string cfg_desktopOverflow
     property string cfg_desktopAnimation
-    property alias cfg_desktopShowTranslation: desktopTranslation.checked
-    property string cfg_desktopSecondLineSource
-    property bool cfg_desktopSecondLineColorEnabled
-    property string cfg_desktopSecondLineColor
     property int cfg_desktopLineHeight
+    property string cfg_desktopSecondaryLyricSource
+    property bool cfg_desktopSecondaryLyricColorEnabled
+    property string cfg_desktopSecondaryLyricColor
+    property bool cfg_desktopSecondaryLyricFontEnabled
+    property string cfg_desktopSecondaryLyricFontFamily
+    property int cfg_desktopSecondaryLyricFontSize
+    property int cfg_desktopSecondaryLyricFontWeight
+    property bool cfg_desktopSecondaryLyricFontItalic
 
     property bool cfg_desktopWordByWord
     property bool cfg_desktopWordByWordSynthetic
@@ -67,11 +71,15 @@ Kirigami.ScrollablePage {
     property int cfg_desktopLightFontWeight
     property string cfg_desktopLightOverflow
     property string cfg_desktopLightAnimation
-    property alias cfg_desktopLightShowTranslation: desktopLightTranslation.checked
-    property string cfg_desktopLightSecondLineSource
-    property bool cfg_desktopLightSecondLineColorEnabled
-    property string cfg_desktopLightSecondLineColor
     property int cfg_desktopLightLineHeight
+    property string cfg_desktopLightSecondaryLyricSource
+    property bool cfg_desktopLightSecondaryLyricColorEnabled
+    property string cfg_desktopLightSecondaryLyricColor
+    property bool cfg_desktopLightSecondaryLyricFontEnabled
+    property string cfg_desktopLightSecondaryLyricFontFamily
+    property int cfg_desktopLightSecondaryLyricFontSize
+    property int cfg_desktopLightSecondaryLyricFontWeight
+    property bool cfg_desktopLightSecondaryLyricFontItalic
     property bool cfg_desktopLightWordByWord
     property bool cfg_desktopLightWordByWordSynthetic
     property string cfg_desktopLightWordUnsungColor
@@ -88,6 +96,23 @@ Kirigami.ScrollablePage {
     property string cfg_desktopLightTrackInfoColor
     property bool cfg_desktopLightTrackInfoStroke
     property string cfg_desktopLightTrackInfoStrokeColor
+
+    // The defaults of the keys a secondary lyrics switch compares against
+    // before it copies the main lyrics' values in (DESIGN.md decision 78),
+    // one per set. Plasma's configuration map lists each key's default
+    // beside it as <key>Default, and the config dialog hands a page every
+    // entry of that map it declares a cfg_ property for, these included;
+    // themed() reads the one of the set on screen. Nothing writes them.
+    property string cfg_desktopSecondaryLyricColorDefault
+    property string cfg_desktopSecondaryLyricFontFamilyDefault
+    property int cfg_desktopSecondaryLyricFontSizeDefault
+    property int cfg_desktopSecondaryLyricFontWeightDefault
+    property bool cfg_desktopSecondaryLyricFontItalicDefault
+    property string cfg_desktopLightSecondaryLyricColorDefault
+    property string cfg_desktopLightSecondaryLyricFontFamilyDefault
+    property int cfg_desktopLightSecondaryLyricFontSizeDefault
+    property int cfg_desktopLightSecondaryLyricFontWeightDefault
+    property bool cfg_desktopLightSecondaryLyricFontItalicDefault
 
     // Whether the Plasma style is dark, which "Follow system" follows
     // (DESIGN.md decision 76). Read once as the page opens, and from
@@ -131,9 +156,12 @@ Kirigami.ScrollablePage {
     // rows of AppearanceSection and TrackInfoSection. Computed here, from the
     // plain cfg_ properties above, rather than inside either section: see
     // AppearanceSection's lyricEffectiveFamily. The lyric font is the one of
-    // the set on screen, and so is the track info's "Same as lyrics".
+    // the set on screen, and so is the track info's "Same as lyrics", and
+    // the secondary lyrics' own font (DESIGN.md decision 78).
     readonly property string lyricFamily: FontPolicy.lyricFamily(FontCatalog,
         page.themed("FontFamily"), Kirigami.Theme.defaultFont.family)
+    readonly property string secondaryLyricFamily: FontPolicy.lyricFamily(FontCatalog,
+        page.themed("SecondaryLyricFontFamily"), Kirigami.Theme.defaultFont.family)
     readonly property string trackInfoFamily: FontPolicy.trackInfoFamily(FontCatalog,
         page.cfg_desktopTrackInfoFontSameAsLyrics, page.cfg_desktopTrackInfoFontFamily,
         page.lyricFamily, Kirigami.Theme.defaultFont.family)
@@ -192,11 +220,21 @@ Kirigami.ScrollablePage {
                 overflowMode: page.themed("Overflow")
                 animationMode: page.themed("Animation")
                 fontSizeControl: page.editingDark ? desktopFontSize : desktopLightFontSize
-                translationControl: page.editingDark ? desktopTranslation : desktopLightTranslation
-                secondLineSource: page.themed("SecondLineSource")
-                secondLineColorEnabled: page.themed("SecondLineColorEnabled")
-                secondLineColor: page.themed("SecondLineColor")
                 lineHeightPercent: page.themed("LineHeight")
+                secondaryLyricSource: page.themed("SecondaryLyricSource")
+                secondaryLyricColorEnabled: page.themed("SecondaryLyricColorEnabled")
+                secondaryLyricColor: page.themed("SecondaryLyricColor")
+                secondaryLyricColorDefault: page.themed("SecondaryLyricColorDefault")
+                secondaryLyricFontEnabled: page.themed("SecondaryLyricFontEnabled")
+                secondaryLyricFontFamily: page.themed("SecondaryLyricFontFamily")
+                secondaryLyricEffectiveFamily: page.secondaryLyricFamily
+                secondaryLyricFontSize: page.themed("SecondaryLyricFontSize")
+                secondaryLyricFontWeight: page.themed("SecondaryLyricFontWeight")
+                secondaryLyricFontItalic: page.themed("SecondaryLyricFontItalic")
+                secondaryLyricFontFamilyDefault: page.themed("SecondaryLyricFontFamilyDefault")
+                secondaryLyricFontSizeDefault: page.themed("SecondaryLyricFontSizeDefault")
+                secondaryLyricFontWeightDefault: page.themed("SecondaryLyricFontWeightDefault")
+                secondaryLyricFontItalicDefault: page.themed("SecondaryLyricFontItalicDefault")
                 // Kept as a literal, matching main.qml's fullRepresentation
                 // lineHeightMinPercent: 125 override rather than sharing one
                 // constant -- DESIGN.md decision 69 has the reasoning.
@@ -216,10 +254,15 @@ Kirigami.ScrollablePage {
                 wordParticles: page.themed("WordParticles")
                 wordParticleColorEnabled: page.themed("WordParticleColorEnabled")
                 wordParticleColor: page.themed("WordParticleColor")
-                onSecondLineSourceEdited: value => page.editThemed("SecondLineSource", value)
-                onSecondLineColorEnabledEdited: value => page.editThemed("SecondLineColorEnabled", value)
-                onSecondLineColorEdited: value => page.editThemed("SecondLineColor", value)
                 onLineHeightPercentEdited: value => page.editThemed("LineHeight", value)
+                onSecondaryLyricSourceEdited: value => page.editThemed("SecondaryLyricSource", value)
+                onSecondaryLyricColorEnabledEdited: value => page.editThemed("SecondaryLyricColorEnabled", value)
+                onSecondaryLyricColorEdited: value => page.editThemed("SecondaryLyricColor", value)
+                onSecondaryLyricFontEnabledEdited: value => page.editThemed("SecondaryLyricFontEnabled", value)
+                onSecondaryLyricFontFamilyEdited: value => page.editThemed("SecondaryLyricFontFamily", value)
+                onSecondaryLyricFontSizeEdited: value => page.editThemed("SecondaryLyricFontSize", value)
+                onSecondaryLyricFontWeightEdited: value => page.editThemed("SecondaryLyricFontWeight", value)
+                onSecondaryLyricFontItalicEdited: value => page.editThemed("SecondaryLyricFontItalic", value)
                 onWordByWordEdited: value => page.editThemed("WordByWord", value)
                 onSyntheticWordByWordEdited: value => page.editThemed("WordByWordSynthetic", value)
                 onWordUnsungColorEdited: value => page.editThemed("WordUnsungColor", value)
@@ -288,8 +331,6 @@ Kirigami.ScrollablePage {
 
         QQC2.SpinBox { id: desktopFontSize; visible: false }
         QQC2.SpinBox { id: desktopLightFontSize; visible: false }
-        QQC2.CheckBox { id: desktopTranslation; visible: false }
-        QQC2.CheckBox { id: desktopLightTranslation; visible: false }
         QQC2.SpinBox { id: desktopTrackInfoFontSize; visible: false }
 
         // A second top-level form rather than a section grafted onto
