@@ -261,6 +261,7 @@ TestCase {
         editor.save();
         compare(source.requests.length, 1);
     }
+
     function test_aGlobalFailureStillSavesTheSongsOffset() {
         const saver = createSaver();
         const source = saver.editor.source;
@@ -325,6 +326,7 @@ TestCase {
         // Nothing edited, nothing sent for the song.
         compare(saver.editor.source.requests.length, 0);
     }
+
     function test_theEffectiveOffsetSignsAPositiveSum() {
         const saver = createSaver();
         // The song's own offset in the stand-in source is 200.
