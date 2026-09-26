@@ -1880,8 +1880,9 @@ TestCase {
 
         for (let i = 0; i < descriptions.length; ++i) {
             const description = descriptions[i];
-            // Uncapped, this reads Infinity; AppearanceSection.qml's
-            // formDescription comment has the measurements behind the 26.
+            // Uncapped, this reads Infinity; the first formDescription
+            // comment in AppearanceSection.qml has the measurements behind
+            // the 26.
             verify(description.Layout.maximumWidth <= Kirigami.Units.gridUnit * 26);
             // And the cap has to be tight enough to matter: a description
             // allowed the whole content width is back to being what the
@@ -1890,7 +1891,8 @@ TestCase {
         }
     }
 
-    // Every description is secondary copy under its row, styled as the
+    // Every description -- AppearanceSection's and the theme mode row's in
+    // ThemeTabs.qml -- is secondary copy under its row, styled as the
     // "Record debug details" description on the Lyrics Service page is, and
     // wraps: without WordWrap the English glow sentence stays one 604 px
     // line, past its 468 px box and the right edge of the form (measured
@@ -1905,7 +1907,8 @@ TestCase {
     // container (Kirigami 6.13): smallFont reads Sans Serif 7 pt, a Label
     // takes it whole, and one without it renders 9 pt. A lost font shows in
     // the family on one and in the size on the other, so all three compares
-    // are needed.
+    // are needed. Each reference sits where its descriptions inherit their
+    // font from: the window for the section, the page for the mode row.
     function test_descriptionsAreStyledAsSecondaryCopy() {
         const win = createTemporaryObject(windowedAppearanceSectionComponent, this);
         verify(win !== null);
@@ -1914,14 +1917,22 @@ TestCase {
         const descriptions = findAll(win.section, o => o.objectName === "formDescription");
         verify(descriptions.length > 0);
         for (let i = 0; i < descriptions.length; ++i) {
-            const description = descriptions[i];
-            const tag = description.text;
-            verify(Qt.colorEqual(description.color, description.Kirigami.Theme.disabledTextColor), tag);
-            compare(description.font.family, reference.font.family, tag);
-            compare(description.font.pointSize, reference.font.pointSize, tag);
-            compare(description.font.pixelSize, reference.font.pixelSize, tag);
-            compare(description.wrapMode, Text.WordWrap, tag);
+            verifyStyledAsSecondaryCopy(descriptions[i], reference, descriptions[i].text);
         }
+        for (const form of ["desktop", "panel"]) {
+            const page = createWindowedPage(form, modeProperties(form, "auto"));
+            const pageReference = createTemporaryObject(smallFontLabelComponent, page, { visible: false });
+            verify(pageReference !== null, form);
+            verifyStyledAsSecondaryCopy(modeDescriptionOf(page, form), pageReference, form);
+        }
+    }
+
+    function verifyStyledAsSecondaryCopy(description, reference, tag) {
+        verify(Qt.colorEqual(description.color, description.Kirigami.Theme.disabledTextColor), tag);
+        compare(description.font.family, reference.font.family, tag);
+        compare(description.font.pointSize, reference.font.pointSize, tag);
+        compare(description.font.pixelSize, reference.font.pixelSize, tag);
+        compare(description.wrapMode, Text.WordWrap, tag);
     }
 
     // ---- light and dark sets (DESIGN.md decision 76) ----
@@ -1942,6 +1953,17 @@ TestCase {
 
     function trackInfoSectionOf(page) {
         return findAll(page, o => typeof o.trackInfoFontFamilyEdited === "function")[0];
+    }
+
+    // The theme mode row's description, the one formDescription of
+    // ThemeTabs.qml itself; AppearanceSection's own are inside its frame.
+    function modeDescriptionOf(page, form) {
+        const themeTabs = findAll(page, o => o.syncDialog !== undefined)[0];
+        const section = sectionOf(page);
+        const descriptions = findAll(themeTabs, o => o.objectName === "formDescription")
+            .filter(label => findAll(section, o => o === label).length === 0);
+        compare(descriptions.length, 1, form);
+        return descriptions[0];
     }
 
     // The mode and, for "auto" to follow, whether the Plasma style is
@@ -2698,26 +2720,23 @@ TestCase {
         }
     }
 
-    // The mode row's description is capped like AppearanceSection's (see
-    // test_aDescriptionCannotWidenTheConfigPage for why the cap is the
-    // mechanism to check), and has a positive preferred width, which is what
-    // FormLayout then sizes the column from instead of the text. Only the
-    // mechanism can be checked here: with today's wording the preferred
-    // width changes no width in this suite (ThemeTabs.qml has the history).
+    // The mode row's description is capped at the same 26 gridUnits as
+    // AppearanceSection's (see test_aDescriptionCannotWidenTheConfigPage for
+    // why the cap is the mechanism to check), and has a positive preferred
+    // width, which is what FormLayout then sizes the column from instead of
+    // the text. Only the mechanism can be checked here: with today's wording
+    // the preferred width changes no width in this suite (ThemeTabs.qml has
+    // the history).
     function test_theModeDescriptionCannotWidenThePage() {
         for (const form of ["desktop", "panel"]) {
             const page = createWindowedPage(form, modeProperties(form, "auto"));
             const themeTabs = findAll(page, o => o.syncDialog !== undefined)[0];
             wait(150);
-            // AppearanceSection's own are inside the frame.
-            const section = sectionOf(page);
-            const descriptions = findAll(themeTabs, o => o.objectName === "formDescription")
-                .filter(label => findAll(section, o => o === label).length === 0);
-            compare(descriptions.length, 1, form);
-            verify(descriptions[0].Layout.maximumWidth < Infinity, form);
-            verify(descriptions[0].Layout.preferredWidth > 0, form);
-            verify(descriptions[0].Layout.preferredWidth < descriptions[0].width, form);
-            verify(descriptions[0].width < themeTabs.width, form);
+            const description = modeDescriptionOf(page, form);
+            verify(description.Layout.maximumWidth <= Kirigami.Units.gridUnit * 26, form);
+            verify(description.Layout.preferredWidth > 0, form);
+            verify(description.Layout.preferredWidth < description.width, form);
+            verify(description.width < themeTabs.width, form);
         }
     }
 }

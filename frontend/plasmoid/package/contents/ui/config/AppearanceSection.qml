@@ -317,6 +317,13 @@ Kirigami.FormLayout {
         // the widest item there -- measured, the first one is in Chinese, and
         // in English with Plasma's default fonts the capped ones are -- so a
         // wording change can move the page width, but never past the cap.
+        // Why 26: Plasma's applet config dialog is gridUnit * 45 = 810 px
+        // wide and does not grow with its content, which leaves this section
+        // 614 px, and FormLayout drops to one column once the section's
+        // implicitWidth exceeds that. Measured in zh_CN with Noto Sans CJK SC
+        // 12 (small font 11) under org.kde.desktop: the section is 588 px at
+        // 26 and 615 px -- one column -- at 28, and at 26 the glow (465 px)
+        // and particle (435 px) descriptions each fit on one line.
         Layout.maximumWidth: Kirigami.Units.gridUnit * 26
         wrapMode: Text.WordWrap
         // Same styling as the "Record debug details" description on the
