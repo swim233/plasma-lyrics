@@ -21,6 +21,7 @@
 #include <QSet>
 #include <QTest>
 #include <QXmlStreamReader>
+#include <algorithm>
 
 namespace {
 
@@ -177,14 +178,14 @@ QString withoutComments(const QString &text)
     return lines.join(QLatin1Char('\n'));
 }
 
-// The bindings directly inside a `{ ... }` block of main.qml's, one level
-// in (eight spaces), by property name: each runs from its `name:` line up to
-// the next one, continuation lines included. Comments are left out, whole
-// line or trailing, through withoutComments(), so that one naming a key
-// cannot count as reading it.
-QHash<QString, QString> bindingsOf(const QString &block)
+// The bindings directly inside a `{ ... }` block of main.qml's, `indent`
+// spaces in (eight: one level into a block of the root's), by property
+// name: each runs from its `name:` line up to the next one, continuation
+// lines included. Comments are left out, whole line or trailing, through
+// withoutComments(), so that one naming a key cannot count as reading it.
+QHash<QString, QString> bindingsOf(const QString &block, int indent = 8)
 {
-    const QRegularExpression bindingLine(QStringLiteral("^ {8}([A-Za-z_][A-Za-z0-9_.]*):(.*)$"));
+    const QRegularExpression bindingLine(QStringLiteral("^ {%1}([A-Za-z_][A-Za-z0-9_.]*):(.*)$").arg(indent));
     QHash<QString, QString> bindings;
     QString current;
     const QStringList lines = withoutComments(block).split(QLatin1Char('\n'));
@@ -197,6 +198,14 @@ QHash<QString, QString> bindingsOf(const QString &block)
         }
     }
     return bindings;
+}
+
+// `text` with all its whitespace removed, so that a binding compares the
+// same however it is spaced or wrapped.
+QString compact(QString text)
+{
+    static const QRegularExpression whitespace(QStringLiteral("\\s"));
+    return text.remove(whitespace);
 }
 
 // DESIGN.md decision 78: the suffixes of the second line's keys, which
@@ -847,10 +856,6 @@ private Q_SLOTS:
             if (view.isEmpty()) {
                 problems << QStringLiteral("%1 has no id").arg(representation.property);
             }
-            const auto compact = [](QString text) {
-                static const QRegularExpression whitespace(QStringLiteral("\\s"));
-                return text.remove(whitespace);
-            };
             const QList<std::pair<QString, QString>> pinned = {
                 {QStringLiteral("secondaryLyricFontFamily"),
                  QStringLiteral("FontPolicy.lyricFamily(FontCatalog,%1Theme.value(\"SecondaryLyricFontFamily\"),"
@@ -884,6 +889,86 @@ private Q_SLOTS:
             const QString key = it.next().captured(1);
             if (themedKeys.contains(key)) {
                 problems << QStringLiteral("Plasmoid.configuration.%1: read past the theme").arg(key);
+            }
+        }
+
+        problems.removeDuplicates();
+        QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
+    }
+
+    // DESIGN.md decision 79, the context menu's side, which main.qml holds
+    // and so no QML test reaches. The three offset actions change this
+    // song's own offset alone, with the same text in either mode: all three
+    // are disabled without a current song and lyric reference
+    // (canAdjustOffset), and the reset one also while this song's own
+    // offset, trackOffsetMs, is 0, which its text shows. None reads the
+    // effective offsetMs, which in global mode includes the global offset,
+    // or globalOffsetEnabled. Any action that calls adjustOffset() or
+    // resetOffset() counts as an offset action; each is told apart by its
+    // handler, and its text and enabled are pinned whole, whitespace aside.
+    void mainOffsetActionsReadTheTrackOffset()
+    {
+        const QString mainPath = packageDir + QStringLiteral("/contents/ui/main.qml");
+        const QString main = QString::fromUtf8(readAll(mainPath));
+        QVERIFY2(!main.isEmpty(), qPrintable(QStringLiteral("cannot read %1").arg(mainPath)));
+
+        struct OffsetAction {
+            QString onTriggered;
+            QString text;
+            QString enabled;
+        };
+        const QList<OffsetAction> expected = {
+            {QStringLiteral("lyricSource.adjustOffset(-500)"), QStringLiteral("i18n(\"Lyrics 0.5 s earlier\")"),
+             QStringLiteral("lyricSource.canAdjustOffset")},
+            {QStringLiteral("lyricSource.adjustOffset(500)"), QStringLiteral("i18n(\"Lyrics 0.5 s later\")"),
+             QStringLiteral("lyricSource.canAdjustOffset")},
+            {QStringLiteral("lyricSource.resetOffset()"),
+             QStringLiteral("i18n(\"Reset this song's offset (%1 ms)\", lyricSource.trackOffsetMs)"),
+             QStringLiteral("lyricSource.canAdjustOffset && lyricSource.trackOffsetMs !== 0")},
+        };
+
+        const QRegularExpression actionDeclaration(QStringLiteral("\\bPlasmaCore\\.Action\\s*\\{"));
+        const QRegularExpression offsetCall(QStringLiteral("\\blyricSource\\.(adjustOffset|resetOffset)\\s*\\("));
+        const QRegularExpression forbiddenRead(QStringLiteral("\\blyricSource\\.(offsetMs|globalOffsetEnabled)\\b"));
+        QStringList problems;
+        QStringList found;
+        for (auto it = actionDeclaration.globalMatch(main); it.hasNext();) {
+            const QString block = braceBlock(main, it.next().capturedEnd() - 1);
+            if (!offsetCall.match(withoutComments(block)).hasMatch()) {
+                continue;
+            }
+            // Twelve spaces: an action in the root's contextualActions list.
+            // The braces are left out, or the closing one would be read as
+            // part of the last binding.
+            const QHash<QString, QString> bindings = bindingsOf(block.mid(1, block.size() - 2), 12);
+            const QString handler = compact(bindings.value(QStringLiteral("onTriggered")));
+            const auto action = std::find_if(expected.cbegin(), expected.cend(), [&](const OffsetAction &candidate) {
+                return compact(candidate.onTriggered) == handler;
+            });
+            if (action == expected.cend()) {
+                problems << QStringLiteral("an offset action with onTriggered \"%1\", which this test does not list").arg(handler);
+                continue;
+            }
+            found << handler;
+            const std::pair<QString, QString> pinned[] = {
+                {QStringLiteral("text"), action->text},
+                {QStringLiteral("enabled"), action->enabled},
+            };
+            for (const auto &[property, expectedValue] : pinned) {
+                const QString actual = compact(bindings.value(property));
+                if (actual != compact(expectedValue)) {
+                    problems << QStringLiteral("%1: %2 is \"%3\", expected \"%4\"")
+                                    .arg(handler, property, actual, compact(expectedValue));
+                }
+            }
+            for (auto read = forbiddenRead.globalMatch(withoutComments(block)); read.hasNext();) {
+                problems << QStringLiteral("%1 reads %2").arg(handler, read.next().captured(0));
+            }
+        }
+        for (const OffsetAction &action : expected) {
+            const qsizetype count = found.count(compact(action.onTriggered));
+            if (count != 1) {
+                problems << QStringLiteral("%1 offset actions with onTriggered \"%2\", expected 1").arg(count).arg(action.onTriggered);
             }
         }
 
