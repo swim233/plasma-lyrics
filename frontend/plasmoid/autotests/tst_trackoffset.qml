@@ -18,6 +18,7 @@ TestCase {
             property string fingerprint: "mediaSrc:a"
             property string trackTitle: "Song A"
             property string trackArtists: "Artist A"
+            property string lyricState: "ok"
             property string lyricRefProvider: "netease"
             property string lyricRefTrackId: "1"
             property int trackOffsetMs: 200
@@ -112,6 +113,14 @@ TestCase {
         compare(editor.disabledReason, "no-lyrics");
         compare(editor.disabledReasonText, "The current song has no lyrics");
         compare(editor.songText, "Song A — Artist A");
+
+        // While the daemon is still searching there is no ref yet either;
+        // the value stays disabled without claiming there are no lyrics.
+        source.lyricState = "searching";
+        compare(editor.disabledReason, "no-lyrics");
+        compare(editor.disabledReasonText, "");
+        source.lyricState = "not-found";
+        compare(editor.disabledReasonText, "The current song has no lyrics");
 
         source.fingerprint = "";
         compare(editor.disabledReason, "no-song");

@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-09-26 17:01+0800\n"
+"POT-Creation-Date: 2026-09-26 17:02+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -875,7 +875,7 @@ msgstr "没有正在播放的歌曲"
 msgid "%1 (song changed)"
 msgstr "%1（已切歌）"
 
-#: frontend/plasmoid/package/contents/ui/config/TrackOffsetEditor.qml:66
+#: frontend/plasmoid/package/contents/ui/config/TrackOffsetEditor.qml:70
 msgid "The current song has no lyrics"
 msgstr "当前歌曲没有歌词"
 

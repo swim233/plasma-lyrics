@@ -62,7 +62,11 @@ QtObject {
             : title;
         return songChanged ? i18n("%1 (song changed)", song) : song;
     }
+    // Not while the daemon is still searching: a new song has no lyric ref
+    // until the search ends, and saying it has no lyrics would flash up on
+    // every song change.
     readonly property string disabledReasonText: disabledReason === "no-lyrics"
+        && source.lyricState !== "searching"
         ? i18n("The current song has no lyrics")
         : ""
 
