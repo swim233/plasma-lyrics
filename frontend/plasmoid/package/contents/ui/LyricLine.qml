@@ -18,6 +18,10 @@ Item {
     property string fontFamily: Kirigami.Theme.defaultFont.family
     property int fontSize: 34
     property int fontWeight: Font.Normal
+    // Only the secondary lyrics are ever drawn in italic (DESIGN.md decision
+    // 78). It reaches every font below, the TextMetrics included, for the
+    // reason given for fontFamily.
+    property bool fontItalic: false
     property string overflowMode: "fit"
 
     // Word-by-word. `words` carries LyricSource.currentWords verbatim --
@@ -166,6 +170,7 @@ Item {
         font.family: root.fontFamily
         font.pixelSize: root.fontSize
         font.weight: root.fontWeight
+        font.italic: root.fontItalic
         text: root.lineText
     }
 
@@ -359,7 +364,7 @@ Item {
             x: clipper.x + root.particleRowX,
             y: clipper.y + wordRow.y,
             font: Qt.font({ family: root.fontFamily, pixelSize: root.wordPixelSize,
-                            weight: root.fontWeight }),
+                            weight: root.fontWeight, italic: root.fontItalic }),
             layout: root.particleLayoutRevision
         };
     }
@@ -442,6 +447,7 @@ Item {
             font.family: root.fontFamily
             font.pixelSize: root.fontSize
             font.weight: root.fontWeight
+            font.italic: root.fontItalic
             fontSizeMode: root.overflowMode === "fit" ? Text.HorizontalFit : Text.FixedSize
             minimumPixelSize: root.minimumPixelSize
             wrapMode: root.overflowMode === "wrap" ? Text.WordWrap : Text.NoWrap
@@ -580,6 +586,7 @@ Item {
                         font.family: root.fontFamily
                         font.pixelSize: root.wordPixelSize
                         font.weight: root.fontWeight
+                        font.italic: root.fontItalic
                         // Per-word outlining uses Text's own, not the eight offset
                         // copies the whole line uses. Measured on a 35-token CJK
                         // line: eight copies per word is 316 Text items and 9.5 ms

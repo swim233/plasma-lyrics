@@ -304,10 +304,23 @@ PlasmoidItem {
                                             panelTheme.value("FontWeight"))
         overflowMode: panelTheme.value("Overflow")
         animationMode: panelTheme.value("Animation")
-        showTranslation: panelTheme.value("ShowTranslation")
-        secondLineSource: panelTheme.value("SecondLineSource")
-        secondLineColorEnabled: panelTheme.value("SecondLineColorEnabled")
-        secondLineColor: panelTheme.value("SecondLineColor")
+        secondaryLyricSource: panelTheme.value("SecondaryLyricSource")
+        secondaryLyricColorEnabled: panelTheme.value("SecondaryLyricColorEnabled")
+        secondaryLyricColor: panelTheme.value("SecondaryLyricColor")
+        // DESIGN.md decision 78: the secondary lyrics' own font, which
+        // LyricsView applies only while its switch is on. The family resolves
+        // as the lyric family does, and the weight snaps onto the faces of
+        // that family in the slant drawn -- the italic ones when italic is on
+        // and the family has any -- apart from the lyric weight.
+        secondaryLyricFontEnabled: panelTheme.value("SecondaryLyricFontEnabled")
+        secondaryLyricFontFamily: FontPolicy.lyricFamily(FontCatalog,
+                                                         panelTheme.value("SecondaryLyricFontFamily"),
+                                                         Kirigami.Theme.defaultFont.family)
+        secondaryLyricFontSize: panelTheme.value("SecondaryLyricFontSize")
+        secondaryLyricFontWeight: FontPolicy.renderWeight(FontCatalog, compactView.secondaryLyricFontFamily,
+                                                          panelTheme.value("SecondaryLyricFontWeight"),
+                                                          compactView.secondaryLyricFontItalic)
+        secondaryLyricFontItalic: panelTheme.value("SecondaryLyricFontItalic")
         lineHeightPercent: panelTheme.value("LineHeight")
         wordByWord: panelTheme.value("WordByWord")
         syntheticWordByWord: panelTheme.value("WordByWordSynthetic")
@@ -371,10 +384,19 @@ PlasmoidItem {
                                             desktopTheme.value("FontWeight"))
         overflowMode: desktopTheme.value("Overflow")
         animationMode: desktopTheme.value("Animation")
-        showTranslation: desktopTheme.value("ShowTranslation")
-        secondLineSource: desktopTheme.value("SecondLineSource")
-        secondLineColorEnabled: desktopTheme.value("SecondLineColorEnabled")
-        secondLineColor: desktopTheme.value("SecondLineColor")
+        secondaryLyricSource: desktopTheme.value("SecondaryLyricSource")
+        secondaryLyricColorEnabled: desktopTheme.value("SecondaryLyricColorEnabled")
+        secondaryLyricColor: desktopTheme.value("SecondaryLyricColor")
+        // Same resolution as compactRepresentation's, over the desktop set.
+        secondaryLyricFontEnabled: desktopTheme.value("SecondaryLyricFontEnabled")
+        secondaryLyricFontFamily: FontPolicy.lyricFamily(FontCatalog,
+                                                         desktopTheme.value("SecondaryLyricFontFamily"),
+                                                         Kirigami.Theme.defaultFont.family)
+        secondaryLyricFontSize: desktopTheme.value("SecondaryLyricFontSize")
+        secondaryLyricFontWeight: FontPolicy.renderWeight(FontCatalog, fullView.secondaryLyricFontFamily,
+                                                          desktopTheme.value("SecondaryLyricFontWeight"),
+                                                          fullView.secondaryLyricFontItalic)
+        secondaryLyricFontItalic: desktopTheme.value("SecondaryLyricFontItalic")
         lineHeightPercent: desktopTheme.value("LineHeight")
         // DESIGN.md decision 69/73: the desktop form factor cannot go below
         // 125% -- below it, the previous line's descenders can reach into

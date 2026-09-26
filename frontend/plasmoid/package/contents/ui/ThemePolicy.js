@@ -26,10 +26,14 @@ var darkDefaults = {
         FontWeight: 700,
         Overflow: "fit",
         Animation: "slide",
-        ShowTranslation: true,
-        SecondLineSource: "translation",
-        SecondLineColorEnabled: false,
-        SecondLineColor: "#adfffaf5",
+        SecondaryLyricSource: "translation",
+        SecondaryLyricColorEnabled: false,
+        SecondaryLyricColor: "#adfffaf5",
+        SecondaryLyricFontEnabled: false,
+        SecondaryLyricFontFamily: "",
+        SecondaryLyricFontSize: 34,
+        SecondaryLyricFontWeight: 700,
+        SecondaryLyricFontItalic: false,
         LineHeight: 125,
         WordByWord: true,
         WordByWordSynthetic: false,
@@ -59,10 +63,14 @@ var darkDefaults = {
         FontWeight: 400,
         Overflow: "fit",
         Animation: "fade",
-        ShowTranslation: false,
-        SecondLineSource: "translation",
-        SecondLineColorEnabled: false,
-        SecondLineColor: "#adfffaf5",
+        SecondaryLyricSource: "none",
+        SecondaryLyricColorEnabled: false,
+        SecondaryLyricColor: "#adfffaf5",
+        SecondaryLyricFontEnabled: false,
+        SecondaryLyricFontFamily: "",
+        SecondaryLyricFontSize: 16,
+        SecondaryLyricFontWeight: 400,
+        SecondaryLyricFontItalic: false,
         LineHeight: 125,
         WordByWord: true,
         WordByWordSynthetic: false,
@@ -83,8 +91,8 @@ var darkDefaults = {
 // END darkDefaults
 
 // The suffixes of the keys that come in a light and a dark copy, for
-// "desktop" or "panel" (the key prefix, not Plasmoid.formFactor): 31 for the
-// desktop, 29 for the panel, which has no lift keys.
+// "desktop" or "panel" (the key prefix, not Plasmoid.formFactor): 35 for the
+// desktop, 33 for the panel, which has no lift keys.
 function themedSuffixes(formFactor) {
     return Object.keys(darkDefaults[formFactor]);
 }
@@ -132,6 +140,13 @@ function isDefaultValue(value, defaultValue) {
     return value === defaultValue;
 }
 
+// Version 2 (DESIGN.md decision 78) moves the second line onto the
+// secondary lyric keys, in all four sets: <prefix>ShowTranslation and
+// <prefix>SecondLineSource become the one three-way
+// <prefix>SecondaryLyricSource -- "none" whenever the line was off, whatever
+// the source said -- and the two colour keys are copied as they are. The old
+// keys stay in main.xml for this alone.
+//
 // Version 1 creates the light set. A form factor whose dark set has any key
 // off its default had its look chosen before the light set existed, so the
 // whole set is copied across and the instance looks the same under either
@@ -139,21 +154,38 @@ function isDefaultValue(value, defaultValue) {
 // instance has -- keeps the light defaults from main.xml. Whole sets, never
 // key by key: a custom colour next to a light default of its neighbour would
 // be a combination nobody picked.
+//
+// A version 0 instance takes version 2's step first, so that version 1's
+// judges and copies the dark set by the suffixes above, and the light copy
+// lands on the new keys too.
 function migrateConfiguration(configuration) {
-    const currentVersion = 1;
-    if (configuration.themeConfigVersion >= currentVersion) {
+    const currentVersion = 2;
+    const version = configuration.themeConfigVersion;
+    if (version >= currentVersion) {
         return false;
     }
     for (const formFactor of Object.keys(darkDefaults)) {
-        const defaults = darkDefaults[formFactor];
-        const suffixes = Object.keys(defaults);
-        const customised = suffixes.some(
-            suffix => !isDefaultValue(configuration[formFactor + suffix], defaults[suffix]));
-        if (!customised) {
-            continue;
+        for (const dark of [true, false]) {
+            const prefix = keyPrefix(formFactor, dark);
+            configuration[prefix + "SecondaryLyricSource"] = configuration[prefix + "ShowTranslation"]
+                ? configuration[prefix + "SecondLineSource"]
+                : "none";
+            configuration[prefix + "SecondaryLyricColorEnabled"] = configuration[prefix + "SecondLineColorEnabled"];
+            configuration[prefix + "SecondaryLyricColor"] = configuration[prefix + "SecondLineColor"];
         }
-        for (const suffix of suffixes) {
-            configuration[keyPrefix(formFactor, false) + suffix] = configuration[formFactor + suffix];
+    }
+    if (version < 1) {
+        for (const formFactor of Object.keys(darkDefaults)) {
+            const defaults = darkDefaults[formFactor];
+            const suffixes = Object.keys(defaults);
+            const customised = suffixes.some(
+                suffix => !isDefaultValue(configuration[formFactor + suffix], defaults[suffix]));
+            if (!customised) {
+                continue;
+            }
+            for (const suffix of suffixes) {
+                configuration[keyPrefix(formFactor, false) + suffix] = configuration[formFactor + suffix];
+            }
         }
     }
     configuration.themeConfigVersion = currentVersion;

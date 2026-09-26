@@ -26,13 +26,14 @@ TestCase {
     // do not depend on the fonts of the machine running them.
     readonly property string lyricTestFamily: "Lyric Test Family"
     readonly property string trackTestFamily: "Track Test Family"
+    readonly property string secondaryTestFamily: "Secondary Test Family"
 
     readonly property var twoWords: [
         { startMs: 0, endMs: 1000, text: "ab" },
         { startMs: 1000, endMs: 2000, text: "cd" }
     ]
 
-    // tst_appearance.qml's stand-in for LyricSource, with a second line.
+    // tst_appearance.qml's stand-in for LyricSource, with secondary lyrics.
     Component {
         id: fakeSourceComponent
         QtObject {
@@ -138,7 +139,7 @@ TestCase {
         compareFamilies(metricsUnder(view), plasma);
     }
 
-    function test_wholeLineLyricAndSecondLineUseTheLyricFamily() {
+    function test_wholeLineLyricAndSecondaryLyricsUseTheLyricFamily() {
         const view = createView({}, { fontFamily: lyricTestFamily, trackInfoFontFamily: trackTestFamily });
         const lyric = lyricOf(view);
         // Each line is the Text itself plus eight outline copies; asserting
@@ -147,6 +148,67 @@ TestCase {
         const texts = textsUnder(lyric);
         compare(texts.filter(t => t.text === "second line").length, 9);
         compareFamilies(texts, lyricTestFamily);
+    }
+
+    // The TextMetrics and FontMetrics of the lines showing `text`.
+    function metricsOfLines(item, text) {
+        const out = [];
+        const lines = findAll(item, o => o.lineText === text && o.wordMode !== undefined);
+        for (let i = 0; i < lines.length; ++i) {
+            const resources = lines[i].resources;
+            for (let j = 0; j < resources.length; ++j) {
+                if (resources[j].font !== undefined) {
+                    out.push(resources[j]);
+                }
+            }
+        }
+        return out;
+    }
+
+    function compareFonts(items, family, pixelSize, weight, italic) {
+        verify(items.length > 0);
+        for (let i = 0; i < items.length; ++i) {
+            const what = "\"" + items[i].text + "\" (" + items[i] + ")";
+            compare(items[i].font.family, family, what);
+            compare(items[i].font.pixelSize, pixelSize, what);
+            compare(items[i].font.weight, weight, what);
+            compare(items[i].font.italic, italic, what);
+        }
+    }
+
+    // DESIGN.md decision 78. The secondary lyrics' own font -- here given
+    // to LyricsView already resolved, as main.qml does -- applies only while
+    // its switch is on; off, they draw and measure in the lyric's family,
+    // size and weight, upright, whatever their own keys hold. Either way the
+    // lyric itself is unaffected, and the switch takes effect without a
+    // rebuild.
+    function test_secondaryLyricsTakeTheirOwnFontOnlyWhileItIsOn() {
+        const view = createView({}, {
+            fontFamily: lyricTestFamily, fontSize: 30, fontWeight: Font.Bold,
+            trackInfoFontFamily: trackTestFamily,
+            secondaryLyricFontFamily: secondaryTestFamily, secondaryLyricFontSize: 18,
+            secondaryLyricFontWeight: Font.Light, secondaryLyricFontItalic: true
+        });
+        const lyric = lyricOf(view);
+        tryVerify(() => textsUnder(lyric).filter(t => t.text === "second line").length === 9);
+        const secondary = () => textsUnder(lyric).filter(t => t.text === "second line");
+        const main = () => textsUnder(lyric).filter(t => t.text === "abcd");
+        compare(main().length, 9);
+        compareFonts(secondary(), lyricTestFamily, 30, Font.Bold, false);
+        compareFonts(metricsOfLines(lyric, "second line"), lyricTestFamily, 30, Font.Bold, false);
+
+        view.secondaryLyricFontEnabled = true;
+        compare(secondary().length, 9);
+        compareFonts(secondary(), secondaryTestFamily, 18, Font.Light, true);
+        // One TextMetrics and one FontMetrics for the one block that holds
+        // the secondary lyrics.
+        compare(metricsOfLines(lyric, "second line").length, 2);
+        compareFonts(metricsOfLines(lyric, "second line"), secondaryTestFamily, 18, Font.Light, true);
+        compareFonts(main(), lyricTestFamily, 30, Font.Bold, false);
+        compareFonts(metricsOfLines(lyric, "abcd"), lyricTestFamily, 30, Font.Bold, false);
+
+        view.secondaryLyricFontEnabled = false;
+        compareFonts(secondary(), lyricTestFamily, 30, Font.Bold, false);
     }
 
     function test_wordGlyphsAndTheirHalosUseTheLyricFamily() {
@@ -208,12 +270,14 @@ TestCase {
     // under one locale is listed under another, and "Microsoft YaHei" the
     // same for "微软雅黑". Like FontCatalog's contract, weights() knows only
     // listed names, so a weight snapped against an unlisted name shows up as
-    // an empty face list in snapCalls. snapWeight records its
+    // an empty face list in snapCalls. Only "Beta Sans" has italic faces,
+    // and not the weights of its upright ones. snapWeight records its
     // arguments, keeps a weight that is one of the faces and otherwise
     // returns the heaviest face -- a rule neither nearest-weight nor CSS
     // matching follows, so such a result can only have come from here.
     function fakeCatalog() {
         const faces = { "Alpha": [400], "Beta Sans": [300, 700], "Plasma Sans": [400, 700], "微软雅黑": [400, 700] };
+        const italicFaces = { "Beta Sans": [400, 500] };
         const aliases = { "Beta Alias": "Beta Sans", "Microsoft YaHei": "微软雅黑" };
         return {
             snapCalls: [],
@@ -225,6 +289,10 @@ TestCase {
             },
             weights(family) {
                 const list = faces[family] || [];
+                return list.map(w => ({ weight: w, styleName: "" }));
+            },
+            italicWeights(family) {
+                const list = italicFaces[family] || [];
                 return list.map(w => ({ weight: w, styleName: "" }));
             },
             snapWeight(available, target) {
@@ -285,6 +353,27 @@ TestCase {
         const family = FontPolicy.lyricFamily(catalog, "Gone Font", plasmaFamily);
         FontPolicy.renderWeight(catalog, family, 600);
         compare(catalog.snapCalls[1], { weights: [400, 700], target: 600 });
+    }
+
+    // DESIGN.md decision 78: in italic, a family with italic faces snaps
+    // among those alone; one without, which Qt slants itself, among its
+    // upright faces. Upright never looks at the italics.
+    function test_policyRenderWeightSnapsWithinTheSlantDrawn() {
+        const catalog = fakeCatalog();
+        compare(FontPolicy.renderWeight(catalog, "Beta Sans", 700, true), 500);
+        compare(catalog.snapCalls[0], { weights: [400, 500], target: 700 });
+        compare(FontPolicy.renderWeight(catalog, "Beta Sans", 700, false), 700);
+        compare(catalog.snapCalls[1], { weights: [300, 700], target: 700 });
+        compare(FontPolicy.renderWeight(catalog, "Alpha", 700, true), 400);
+        compare(catalog.snapCalls[2], { weights: [400], target: 700 });
+        // Left out, italic is off: the callers that never draw in italic.
+        compare(FontPolicy.renderWeight(catalog, "Beta Sans", 400), 700);
+        compare(catalog.snapCalls[3], { weights: [300, 700], target: 400 });
+
+        compare(FontPolicy.weightFaces(catalog, "Beta Sans", true).map(f => f.weight), [400, 500]);
+        compare(FontPolicy.weightFaces(catalog, "Beta Sans", false).map(f => f.weight), [300, 700]);
+        compare(FontPolicy.weightFaces(catalog, "Alpha", true).map(f => f.weight), [400]);
+        compare(FontPolicy.weightFaces(catalog, "Gone Font", true), []);
     }
 
     function test_policyLeavesAnUnconfiguredInstanceAsItWas() {

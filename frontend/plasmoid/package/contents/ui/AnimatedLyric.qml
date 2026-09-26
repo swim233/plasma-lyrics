@@ -6,16 +6,21 @@ Item {
     id: root
 
     property string lyricText: ""
-    // Whichever second line the user picked -- translation or romanization.
-    property string translationText: ""
+    // The secondary lyrics the user picked -- translation or romanization.
+    property string secondaryLyricText: ""
     property color textColor: "white"
-    property color secondLineColor: Qt.rgba(root.textColor.r, root.textColor.g,
-                                            root.textColor.b, 0.68)
+    property color secondaryLyricColor: Qt.rgba(root.textColor.r, root.textColor.g,
+                                                root.textColor.b, 0.68)
     property bool strokeEnabled: false
     property color strokeColor: "black"
     property string fontFamily: Kirigami.Theme.defaultFont.family
     property int fontSize: 34
     property int fontWeight: Font.Normal
+    // The secondary lyrics' font as drawn; LyricBlock has the details.
+    property string secondaryLyricFontFamily: root.fontFamily
+    property int secondaryLyricFontSize: root.fontSize
+    property int secondaryLyricFontWeight: root.fontWeight
+    property bool secondaryLyricFontItalic: false
     property string overflowMode: "fit"
     property string animationMode: "slide"
 
@@ -52,10 +57,10 @@ Item {
         ? animationMode : "none"
 
     property string shownText: ""
-    property string shownTranslation: ""
+    property string shownSecondaryLyric: ""
     property var shownWords: []
     property string previousText: ""
-    property string previousTranslation: ""
+    property string previousSecondaryLyric: ""
     property var previousWords: []
 
     // Identity is no use here: reading LyricSource.currentWords builds a fresh
@@ -72,11 +77,11 @@ Item {
     // Both halves, not just the lyric. The previous block stays alive at
     // opacity 0 and, crucially, still `visible`, so whatever text it holds
     // keeps satisfying LyricLine's marquee arm condition -- leaving the
-    // translation behind left an infinite animation scrolling a line nobody
-    // can see, for as long as the widget was up.
+    // secondary lyrics behind left an infinite animation scrolling a line
+    // nobody can see, for as long as the widget was up.
     function releasePrevious() {
         previousText = "";
-        previousTranslation = "";
+        previousSecondaryLyric = "";
         previousWords = [];
     }
 
@@ -84,16 +89,16 @@ Item {
         // Two consecutive lines can carry the same text and different word
         // timings (a repeated refrain line), and those have to transition so
         // the highlight restarts from the first word.
-        if (shownText === lyricText && shownTranslation === translationText
+        if (shownText === lyricText && shownSecondaryLyric === secondaryLyricText
             && wordsKey(shownWords) === wordsKey(words)) return;
         // Before anything below moves: the outgoing line's particles stay
         // where its block is right now instead of following it up and out.
         particles.detach();
         previousText = shownText;
-        previousTranslation = shownTranslation;
+        previousSecondaryLyric = shownSecondaryLyric;
         previousWords = shownWords;
         shownText = lyricText;
-        shownTranslation = translationText;
+        shownSecondaryLyric = secondaryLyricText;
         shownWords = words;
         transition.stop();
         previous.opacity = effectiveAnimationMode === "none" ? 0 : 1;
@@ -109,11 +114,11 @@ Item {
 
     Component.onCompleted: {
         shownText = lyricText;
-        shownTranslation = translationText;
+        shownSecondaryLyric = secondaryLyricText;
         shownWords = words;
     }
     onLyricTextChanged: switchTimer.restart()
-    onTranslationTextChanged: switchTimer.restart()
+    onSecondaryLyricTextChanged: switchTimer.restart()
     onWordsChanged: switchTimer.restart()
 
     // Do not "fix" this delay into a synchronous call. It means the word
@@ -136,7 +141,7 @@ Item {
         anchors.right: parent.right
         y: (parent.height - height) / 2 + slideOffset
         lyricText: root.previousText
-        translationText: root.previousTranslation
+        secondaryLyricText: root.previousSecondaryLyric
         // With a fade or slide transition this block goes on holding its word
         // glyphs for the ~260 ms the animation lasts, which looks wrong in a
         // screenshot and is not. positionMs is past this line's last word by
@@ -148,12 +153,16 @@ Item {
         // its colours mid-fade for no gain.
         words: root.previousWords
         textColor: root.textColor
-        secondLineColor: root.secondLineColor
+        secondaryLyricColor: root.secondaryLyricColor
         strokeEnabled: root.strokeEnabled
         strokeColor: root.strokeColor
         fontFamily: root.fontFamily
         fontSize: root.fontSize
         fontWeight: root.fontWeight
+        secondaryLyricFontFamily: root.secondaryLyricFontFamily
+        secondaryLyricFontSize: root.secondaryLyricFontSize
+        secondaryLyricFontWeight: root.secondaryLyricFontWeight
+        secondaryLyricFontItalic: root.secondaryLyricFontItalic
         overflowMode: root.overflowMode
         positionMs: root.positionMs
         unsungColor: root.unsungColor
@@ -174,15 +183,19 @@ Item {
         anchors.right: parent.right
         y: (parent.height - height) / 2 + slideOffset
         lyricText: root.shownText
-        translationText: root.shownTranslation
+        secondaryLyricText: root.shownSecondaryLyric
         words: root.shownWords
         textColor: root.textColor
-        secondLineColor: root.secondLineColor
+        secondaryLyricColor: root.secondaryLyricColor
         strokeEnabled: root.strokeEnabled
         strokeColor: root.strokeColor
         fontFamily: root.fontFamily
         fontSize: root.fontSize
         fontWeight: root.fontWeight
+        secondaryLyricFontFamily: root.secondaryLyricFontFamily
+        secondaryLyricFontSize: root.secondaryLyricFontSize
+        secondaryLyricFontWeight: root.secondaryLyricFontWeight
+        secondaryLyricFontItalic: root.secondaryLyricFontItalic
         overflowMode: root.overflowMode
         positionMs: root.positionMs
         unsungColor: root.unsungColor

@@ -258,7 +258,7 @@ TestCase {
         const t = measuredView({ panelMode: false }, "粒子从每个字上飘起来".split(""));
         compare(drawnMismatch(t.view, t.layer), "", "before");
         t.source.currentTranslation = "a translation";
-        tryVerify(() => t.lyric.shownTranslation === "a translation");
+        tryVerify(() => t.lyric.shownSecondaryLyric === "a translation");
         waitForLayout(t.view);
         compare(drawnMismatch(t.view, t.layer), "", "after the translation");
         t.view.height = 420;
@@ -622,12 +622,12 @@ TestCase {
         compare(t.layer.snapshotCount, 0);
     }
 
-    // Only the lyric's own line spawns; the second line carries no words and
-    // is never read.
-    function test_theSecondLineNeverSpawns() {
+    // Only the lyric's own line spawns; the secondary lyrics carry no words
+    // and are never read.
+    function test_theSecondaryLyricsNeverSpawn() {
         const t = createView();
         t.source.currentTranslation = "translation";
-        tryVerify(() => t.lyric.shownTranslation === "translation");
+        tryVerify(() => t.lyric.shownSecondaryLyric === "translation");
         tryCompare(t.layer, "snapshotCount", 1);
         compare(current(t.layer).text, "abcd");
         const withLines = linesOf(t.view).filter(l => l.particleLine !== null);
@@ -791,15 +791,15 @@ TestCase {
         compare(t.layer.snapshotCount, 1);
     }
 
-    // A switch that only changes the second line lands on the same line; the
-    // copy detach() kept must not stay beside the line being sung.
-    function test_aSecondLineChangeDoesNotDoubleTheParticles() {
+    // A switch that only changes the secondary lyrics lands on the same
+    // line; the copy detach() kept must not stay beside the line being sung.
+    function test_aSecondaryLyricChangeDoesNotDoubleTheParticles() {
         const t = createView();
         t.source.currentTranslation = "one";
-        tryVerify(() => t.lyric.shownTranslation === "one");
+        tryVerify(() => t.lyric.shownSecondaryLyric === "one");
         tryCompare(t.layer, "snapshotCount", 1);
         t.source.currentTranslation = "two";
-        tryVerify(() => t.lyric.shownTranslation === "two");
+        tryVerify(() => t.lyric.shownSecondaryLyric === "two");
         tryCompare(t.layer, "snapshotCount", 1);
         compare(t.layer.describeSnapshots().filter(s => s.startMs === 1000).length, 1);
     }
