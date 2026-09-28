@@ -473,7 +473,9 @@ Item {
             blurGlowEnabled: root.wordBlurGlow
             lineHeightFactor: Math.max(root.lineHeightMinPercent, root.lineHeightPercent) / 100
             nextText: root.effectiveNextText
-            nextLineBlurPercent: root.nextLineBlurPercent
+            // A value out of range in a hand-edited configuration counts as
+            // the nearest end; the settings page does not guard it.
+            nextLineBlurPercent: Math.max(0, Math.min(100, root.nextLineBlurPercent))
             // Read whether or not the next line is on show: they are what
             // tells a line arriving in sequence from a jump (decision 28).
             // The test stand-ins for LyricSource may carry none of them.

@@ -230,6 +230,17 @@ TestCase {
         compare(effectsUnder(t.lyric.currentBlock).length, 0);
     }
 
+    // A strength edited by hand out of 0-100 counts as the nearest end.
+    function test_anOutOfRangeStrengthCountsAsTheNearestEnd() {
+        const t = createView({}, { nextLineBlurPercent: 250 });
+        compare(t.lyric.nextLineBlurPercent, 100);
+        fuzzyCompare(t.lyric.nextBlock.blurSigma, 8, 1e-9);
+        t.view.nextLineBlurPercent = -20;
+        compare(t.lyric.nextLineBlurPercent, 0);
+        compare(t.lyric.nextBlock.blurSigma, 0);
+        verify(!blurLoaderOf(t.lyric.nextBlock).active);
+    }
+
     // The table LyricBlock turns a standard deviation into MultiEffect's
     // blur × blurMax with: the calibrated points themselves, linear between
     // them, 0 for none and capped at 64.
