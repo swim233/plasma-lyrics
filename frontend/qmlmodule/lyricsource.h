@@ -35,16 +35,19 @@ class LyricSource : public QObject
     Q_PROPERTY(QString nextText READ nextText NOTIFY nextLineChanged)
     // Indices into this document's lines, -1 for none. A new current line
     // arrives in sequence only when its index and currentText both equal the
-    // next line's index and text as last recorded, under an unchanged
-    // fingerprint; anything else is a jump (DESIGN.md decision 28). The index
-    // alone is not enough: another document for the same song (a manual
-    // source switch, a refetch) keeps the fingerprint and can shift every
-    // index by one. Both indices, both texts and the fingerprint already hold
-    // their new values when either signal fires, and currentLineChanged fires
-    // first. Its handler compares against the record and only then refreshes
-    // it, index, text and fingerprint together; nextLineChanged alone cannot
-    // keep the record, since it stays silent when a new document or song
-    // leaves the next line's index and text as they were.
+    // nextLineIndex and nextText last recorded; anything else is a jump
+    // (DESIGN.md decision 28). The index alone is not enough: another
+    // document for the same song (a manual source switch, a refetch) keeps
+    // the fingerprint and can shift every index by one. The fingerprint is
+    // not compared: when it is all that changes -- a player filling in its
+    // metadata in several steps, a cached result whose searching snapshot
+    // was never read -- neither line signal fires, so a recorded fingerprint
+    // would go stale and turn the next line switch into a jump. Both indices
+    // and both texts already hold their new values when either signal
+    // fires, and currentLineChanged fires first. The record is refreshed on
+    // both signals: after the comparison at currentLineChanged, and at
+    // nextLineChanged alone (a seek from the intro into a long interlude,
+    // with the current line at -1 throughout).
     Q_PROPERTY(int currentLineIndex READ currentLineIndex NOTIFY currentLineChanged)
     Q_PROPERTY(int nextLineIndex READ nextLineIndex NOTIFY nextLineChanged)
     // Synthetic per-character words for the current line, populated only

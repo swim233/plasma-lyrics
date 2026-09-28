@@ -341,6 +341,40 @@ private Q_SLOTS:
         QCOMPARE(current.size(), 0);
     }
 
+    void aFingerprintChangeAloneFiresNeitherLineSignal()
+    {
+        // The same document at the same position under another fingerprint,
+        // as when a player fills in its metadata in several steps. Neither
+        // line signal fires, which is why the animation does not compare
+        // fingerprints (DESIGN.md decision 28): a fingerprint it recorded
+        // would never be refreshed.
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        const LyricLines lines{plainLine(1000, 2000, QStringLiteral("one")),
+                               plainLine(2000, 3000, QStringLiteral("two"))};
+        writeDocumentSnapshot(path, 1, lines);
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+        QCOMPARE(source.currentLineIndex(), 0);
+        QCOMPARE(source.currentText(), QStringLiteral("one"));
+        QCOMPARE(source.nextLineIndex(), 1);
+        QCOMPARE(source.nextText(), QStringLiteral("two"));
+        QSignalSpy track(&source, &LyricSource::trackChanged);
+        QSignalSpy current(&source, &LyricSource::currentLineChanged);
+        QSignalSpy next(&source, &LyricSource::nextLineChanged);
+
+        writeDocumentSnapshot(path, 2, lines, 1000, 0, QStringLiteral("ok"),
+                              QStringLiteral("mediaSrc:other"));
+        QTRY_COMPARE(source.fingerprint(), QStringLiteral("mediaSrc:other"));
+        QCOMPARE(track.size(), 1);
+        QCOMPARE(current.size(), 0);
+        QCOMPARE(next.size(), 0);
+        QCOMPARE(source.currentLineIndex(), 0);
+        QCOMPARE(source.currentText(), QStringLiteral("one"));
+        QCOMPARE(source.nextLineIndex(), 1);
+        QCOMPARE(source.nextText(), QStringLiteral("two"));
+    }
+
     void aNewDocumentNotifiesTheNextLineOnlyForOtherText()
     {
         // The next line shows its text and nothing else, so a new document
