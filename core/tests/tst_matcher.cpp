@@ -75,7 +75,7 @@ private Q_SLOTS:
         // before this fix, "BTS" vs "BTS (防弹少年团)" scored as a single
         // merged token via the substring-ratio branch of textSimilarity
         // (measured artists=0.333 via `--explain 春日 BTS`), which sits
-        // below the D-11 alias-artist-gate threshold of 0.5 and would wrongly
+        // below decision 45's alias-artist-gate threshold of 0.5 and would wrongly
         // reject a genuine match. It must now score as an exact match.
         const TrackQuery query{QStringLiteral("Spring Day"), {QStringLiteral("BTS")}, QString(), 0};
         const Candidate candidate{QStringLiteral("2626124904"), QStringLiteral("Spring Day"),
@@ -146,7 +146,7 @@ private Q_SLOTS:
     {
         // us storefront romanizes 群青 as "Gunjou"; netease never romanizes
         // Japanese titles, so transNames is None here and the primary title
-        // path can't see it -- only chooseMatch's fallback path (D-7/D-8)
+        // path can't see it -- only chooseMatch's fallback path (D-7/decision 45)
         // can. Pool is the measured search response verbatim (SPEC-commit3 §6).
         const TrackQuery query{QStringLiteral("Gunjou"), {QStringLiteral("YOASOBI")}, QString(), 248444};
         const QList<Candidate> candidates{
@@ -642,7 +642,7 @@ private Q_SLOTS:
     void dedupeGuardTreatsSameSongUnderDifferentIdsAsOne()
     {
         // netease commonly lists the same song under several track ids
-        // (D-9); the fallback's uniqueness check must dedupe by
+        // (decision 45); the fallback's uniqueness check must dedupe by
         // (title, artists) before counting, or a genuine match gets rejected
         // as ambiguous against itself.
         const TrackQuery query{QStringLiteral("Gunjou"), {QStringLiteral("YOASOBI")}, QString(), 248444};
@@ -710,7 +710,7 @@ private Q_SLOTS:
 
     void dedupeKeyUsesNormalizedTitleAndArtists()
     {
-        // D-9's dedupe key must be built from normalizeSearchText(cleanTitle(...))
+        // Decision 45's dedupe key must be built from normalizeSearchText(cleanTitle(...))
         // and cleanArtists(...), not the raw fields -- two survivor rows for
         // the same song that merely differ in case or incidental whitespace
         // (both realistic netease noise) must still merge into one group
@@ -761,7 +761,7 @@ private Q_SLOTS:
     void poolGateRejectsTooFewCandidates()
     {
         // Only two candidates in the pool -- "unique" would be free even
-        // though both otherwise clear the survivor bar (D-8's pool >= 3 gate).
+        // though both otherwise clear the survivor bar (decision 45's pool >= 3 gate).
         const TrackQuery query{QStringLiteral("Gunjou"), {QStringLiteral("YOASOBI")}, QString(), 248444};
         const QList<Candidate> candidates{
             {QStringLiteral("1472480890"), QStringLiteral("群青"), {QStringLiteral("YOASOBI")}, QString(), 248444},
@@ -789,7 +789,7 @@ private Q_SLOTS:
 
     void aliasArtistGateBlocksWrongArtistCover()
     {
-        // D-11: a cover with the wrong artist can reach score.title=1.0 via
+        // Decision 45: a cover with the wrong artist can reach score.title=1.0 via
         // an alternate title that netease propagates onto covers/remixes,
         // and total~=0.73 clears both isAcceptableMatch thresholds. Measured
         // data: YunFuCola's remix of アイドル carries transNames=['偶像']
@@ -802,7 +802,7 @@ private Q_SLOTS:
         QVERIFY(score.titleViaAlternate);
         QVERIFY(score.artists < 0.5);
         QVERIFY(isAcceptableMatch({candidate, score}));
-        // isAcceptableMatch alone would accept this; chooseMatch's D-11 gate
+        // isAcceptableMatch alone would accept this; chooseMatch's decision 45 gate
         // on its return points must reject it regardless of the fallback flag.
         const QList<RankedCandidate> ranked{{candidate, score}};
         QVERIFY(!chooseMatch(ranked, false).has_value());
@@ -811,7 +811,7 @@ private Q_SLOTS:
     void aliasArtistGateDoesNotRejectTheRealSong()
     {
         // Same alternate-title mechanism, but the real song: artists=1.0
-        // must still be accepted through the D-11 gate.
+        // must still be accepted through the decision 45 gate.
         const TrackQuery query{QStringLiteral("偶像"), {QStringLiteral("YOASOBI")}, QString(), 213234};
         const Candidate candidate{QStringLiteral("2034742057"), QStringLiteral("アイドル"),
                                   {QStringLiteral("YOASOBI")}, QString(), 213233, {QStringLiteral("偶像")}};
@@ -848,7 +848,7 @@ private Q_SLOTS:
 
         QCOMPARE(ranked.first().candidate.trackId, QStringLiteral("wrong-artist-cover"));
         QVERIFY(isAcceptableMatch(ranked.first()));
-        // passesAliasArtistGate's own condition (D-11), spelled out since
+        // passesAliasArtistGate's own condition (decision 45), spelled out since
         // the gate itself isn't exported: titleViaAlternate is true and
         // artists is well under 0.5, so it fails.
         QVERIFY(ranked.first().score.titleViaAlternate);
@@ -1440,7 +1440,7 @@ private Q_SLOTS:
         QCOMPARE(chosen->candidate.trackId, QStringLiteral("second-ok"));
     }
 
-    // B.3b (qa-b-1, 2026-09-12 rework): passesGlossVariantGate/
+    // Decision 66 (qa-b-1, 2026-09-12 rework): passesGlossVariantGate/
     // passesArtistStripGate must bind only when a stripped variant is the
     // reason a candidate cleared the acceptance bars *at all*, not merely
     // the reason it scored highest. The four tests below are the required
@@ -1604,7 +1604,7 @@ private Q_SLOTS:
 
     // The escape hatch must not credit a non-stripped path that itself only
     // qualified through an alternateTitle on a wrong-artist candidate --
-    // main rejects that shape via passesAliasArtistGate (D-11), and the
+    // main rejects that shape via passesAliasArtistGate (decision 45), and the
     // hatch must not silently let it back in just because a strip on the
     // *primary* title happens to score even higher and flips the actual
     // winner's titleViaAlternate to false (the alias gate only ever looks
@@ -1669,7 +1669,7 @@ private Q_SLOTS:
         QVERIFY(!chooseMatch(ranked, false).has_value());
     }
 
-    // B.3b legibility fix: without plainTitle=/durationGate=, a candidate
+    // Decision 66's legibility fix: without plainTitle=/durationGate=, a candidate
     // line reading "titleVia=artist-strip duration=0.500" with no
     // rejected= gives no visible reason why an unknown duration didn't
     // block it -- decision 46 exists to rule out exactly this kind of
@@ -1716,24 +1716,24 @@ private Q_SLOTS:
         QVERIFY(!explanation.contains(QStringLiteral("durationGate=")));
     }
 
-    // B.3c (qa-b-2, 2026-09-12): B.3b's escape hatch was too wide -- it
-    // fired whenever duration was either unknown OR known-and-far-apart,
+    // Decision 66 (qa-b-2, 2026-09-12): the first escape hatch was too wide --
+    // it fired whenever duration was either unknown OR known-and-far-apart,
     // treating "corroboration unavailable" the same as "corroboration
     // available and negative". qa-b-2's differential replay against 82
     // real resolver runs found the flip on real data: query
     // "ARC Raiders (II)" (170567ms) against a candidate "ARC Raiders"
     // 27911ms longer (later confirmed to be an instrumental with no lyrics
     // at all) -- main correctly rejects via gloss-duration-threshold, but
-    // B.3b's un-narrowed hatch accepted it, because the plain
+    // the un-narrowed hatch accepted it, because the plain
     // (non-stripped) variant alone ("arc raiders" vs "arc raiders ii",
     // 11/14=0.786 containment) was already enough to clear both bars even
     // with the duration score collapsed to 0 by the 27.9s gap. The fixed
     // rule bypasses the gate only when duration is NOT comparable; a
     // known, decisively-outside-window duration must reject regardless of
     // how good the plain match is. Both fixtures below are constructed so
-    // the plain-variant total *would* have cleared 0.58 under B.3b's
+    // the plain-variant total *would* have cleared 0.58 under the un-narrowed
     // logic (proving this pins the actual regression, not just a
-    // trivially-insufficient plain match) -- one per strip kind, per B.3c.
+    // trivially-insufficient plain match) -- one per strip kind, per decision 66.
     void arcRaidersShapeGlossRejectsAKnownFarApartDurationDespiteAnAcceptablePlainMatch()
     {
         const TrackQuery query{QStringLiteral("ARC Raiders (II)"), {QStringLiteral("Embark")}, QString(), 170567};
@@ -1747,7 +1747,7 @@ private Q_SLOTS:
         QCOMPARE(score.durationDifferenceMs, qint64(27911));
         // Pin that this really is the regression shape: the plain variant
         // alone, with duration collapsed to 0 by the gap, would already
-        // clear both isAcceptableMatch bars under B.3b's wider hatch.
+        // clear both isAcceptableMatch bars under the un-narrowed hatch.
         QCOMPARE(score.titleWithoutStrip, 11.0 / 14.0);
         QCOMPARE(score.duration, 0.0);
         const double totalWithoutStripUnderTheOldHatch = score.titleWithoutStrip * 0.5 + score.artists * 0.2
@@ -1787,7 +1787,7 @@ private Q_SLOTS:
 
     void explainShowsOutsideWindowForAKnownFarApartDuration()
     {
-        // B.3c durationGate= must report the gate's real (post-B.3c)
+        // Decision 66: durationGate= must report the gate's real
         // condition, not nonStrippedMatchAloneIsAcceptable() directly --
         // this candidate has a known, far-apart duration, so the gate
         // rejects on duration itself, independent of the hatch.
@@ -1921,7 +1921,7 @@ private Q_SLOTS:
     // from the query's (248444ms), legitimately inside the window, no
     // escape hatch involved. But its real artist ("Backing Business") has
     // nothing to do with the query artist ("YOASOBI"). This is what
-    // motivated mirroring D-11's passesAliasArtistGate onto
+    // motivated mirroring passesAliasArtistGate (decision 45) onto
     // passesCandidateGlossGate: candidate-side title evidence (there
     // transNames/alternateTitles, here a candidate-side gloss strip) can
     // inflate score.title on a candidate whose real artist doesn't match,
@@ -2071,7 +2071,7 @@ private Q_SLOTS:
     }
 
     // Mirrors considerTitlePrefersNonGlossVariantOnATie, on the new
-    // candidate-gloss axis (adjacent to the D-11 hole decision 66 had to
+    // candidate-gloss axis (adjacent to the alias-gate hole decision 66 had to
     // fix): the candidate's primary title matches only via its own
     // gloss-stripped form, tied exactly against a plain alternateTitle
     // match. Ties must prefer the non-stripped path -- passesCandidateGlossGate's
@@ -2164,7 +2164,7 @@ private Q_SLOTS:
 
     // qa-e-2 finding 5, lead's ruling: keep the rejection, do not add an
     // escape hatch. Unlike the duration half of passesCandidateGlossGate
-    // (which inherited B.3b/B.3c's hatch for "the plain match alone would
+    // (which inherited decision 66's hatch for "the plain match alone would
     // already have cleared both bars"), the artist floor §E.4a added
     // carries none -- so a candidate whose PLAIN title match alone already
     // clears isAcceptableMatch can still be demoted the moment the
@@ -2173,7 +2173,7 @@ private Q_SLOTS:
     // this exact candidate on its plain title alone; this branch rejects
     // it. That is a deliberate, disclosed acceptance change (DESIGN.md
     // decision 70), not a regression: the artist really is wrong
-    // (artists=0.0 against "Queen"), and B.3c's own principle --
+    // (artists=0.0 against "Queen"), and decision 66's own principle --
     // corroboration available and negative is not the same as
     // corroboration missing -- applies just as much to a mismatched artist
     // as to a known, far-apart duration. Extending the hatch to this gate

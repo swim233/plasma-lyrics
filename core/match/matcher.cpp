@@ -756,7 +756,7 @@ ScoreBreakdown scoreCandidateWithVariants(const TrackQuery &query, const Candida
 
 QString normalizeSearchText(QString text)
 {
-    // static const, not reconstructed on every call (decision 66, qa-b-2): this is
+    // static const, not reconstructed on every call (decision 65, qa-b-2): this is
     // one of the hottest functions in the whole matcher -- called for the
     // candidate title, each artist, and the album on every candidate, so a
     // real ~3275-entry AMLL index was compiling roughly 12000 of these per
