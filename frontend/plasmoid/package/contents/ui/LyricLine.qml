@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import org.kde.kirigami as Kirigami
+import "Spring.js" as Spring
 
 Item {
     id: root
@@ -56,35 +57,22 @@ Item {
     property real liftOvershoot: 0.10   // how far that peak exceeds liftEm
     property real liftReleaseMs: 300    // endMs to the lowest point
 
-    // ζ from the overshoot, os = exp(-ζπ/√(1-ζ²)). The floor keeps the system
-    // under-damped so the closed form stays finite; the overshoot 0.1% implies
-    // is invisible. Headroom below uses the raw value, not this clamped one.
-    readonly property real liftDamping: {
-        const l = Math.log(Math.max(0.001, Math.min(0.9, root.liftOvershoot)));
-        return -l / Math.sqrt(Math.PI * Math.PI + l * l);
-    }
-    readonly property real liftDampingRoot: Math.sqrt(1 - root.liftDamping * root.liftDamping)
+    // ζ from the overshoot (Spring.js). Headroom below uses the raw
+    // overshoot, not this clamped one.
+    readonly property real liftDamping: Spring.damping(root.liftOvershoot)
+    readonly property real liftDampingRoot: Spring.dampingRoot(root.liftDamping)
     // Natural frequencies (rad/s) that put the first peak of the rise at
-    // liftArriveMs and the lowest point of the release at liftReleaseMs:
-    // t_peak = π / (ω·√(1-ζ²)).
-    readonly property real liftRiseOmega: Math.PI / (root.liftArriveMs / 1000 * root.liftDampingRoot)
-    readonly property real liftReleaseOmega: Math.PI / (root.liftReleaseMs / 1000 * root.liftDampingRoot)
-    // This long after endMs the release is within 1% of rest (the
-    // oscillation's amplitude is bounded by e^(-ζωt)/√(1-ζ²)) and the envelope
-    // is snapped to exactly 0. Without the snap every sung word on the line
-    // would carry a sub-pixel y that changes on every frame, forever.
-    readonly property real liftSettleMs: 1000 * Math.log(100 / root.liftDampingRoot)
-        / (root.liftDamping * root.liftReleaseOmega)
+    // liftArriveMs and the lowest point of the release at liftReleaseMs.
+    readonly property real liftRiseOmega: Spring.omega(root.liftArriveMs, root.liftDamping)
+    readonly property real liftReleaseOmega: Spring.omega(root.liftReleaseMs, root.liftDamping)
+    // This long after endMs the release is within 1% of rest and the
+    // envelope is snapped to exactly 0. Without the snap every sung word on
+    // the line would carry a sub-pixel y that changes on every frame, forever.
+    readonly property real liftSettleMs: Spring.settleMs(root.liftDamping, root.liftReleaseOmega)
 
     // Unit step response of the under-damped second-order system, tau in ms.
     function stepResponse(tauMs, omega) {
-        if (tauMs <= 0) {
-            return 0;
-        }
-        const tau = tauMs / 1000;
-        const z = root.liftDamping, q = root.liftDampingRoot;
-        return 1 - Math.exp(-z * omega * tau)
-            * (Math.cos(omega * q * tau) + (z / q) * Math.sin(omega * q * tau));
+        return Spring.step(tauMs, root.liftDamping, omega);
     }
 
     // One word's lift at lyric time t, in units of liftEm: 0 before startMs;
