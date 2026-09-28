@@ -847,23 +847,35 @@ TestCase {
 
     // The words take exactly the size "fit" gives the whole line, at every
     // width -- the widths where the estimate is a pixel off included, and
-    // there are such widths for these lines.
+    // there are such widths for these lines. Checked against a second line
+    // of the same text without words, drawn whole-line, so that neither the
+    // words nor the hidden whole-line Text they read the size from can stop
+    // following "fit" unnoticed.
     function test_theWordsTakeTheSizeFitGivesTheWholeLine() {
         let checked = 0;
         let estimateOff = 0;
         for (const fontSize of [34, 48]) {
             for (const text of fitTexts) {
+                const words = wordsOfText(text, 0);
                 const line = createTemporaryObject(lineComponent, this,
-                    { lineText: text, words: wordsOfText(text, 0), fontSize: fontSize });
-                const whole = wholeLineTextOf(line);
+                    { lineText: text, words: words, fontSize: fontSize });
+                const reference = createTemporaryObject(lineComponent, this,
+                    { lineText: text, fontSize: fontSize });
+                const drawn = wholeLineTextOf(reference);
                 for (let width = 300; width <= 760; width += 1) {
                     line.width = width;
-                    if (!line.wordMode || whole.fontInfo.pixelSize >= fontSize) {
+                    reference.width = width;
+                    verify(!reference.wordMode);
+                    const fitted = drawn.fontInfo.pixelSize;
+                    if (!line.wordMode || fitted >= fontSize) {
                         continue;
                     }
                     ++checked;
-                    compare(line.wordPixelSize, whole.fontInfo.pixelSize, text + " at " + width + " px");
-                    if (estimatedSize(line) !== whole.fontInfo.pixelSize) {
+                    compare(line.wordPixelSize, fitted, text + " at " + width + " px");
+                    const glyphs = findAll(line, o => o.objectName === "lyricWord");
+                    compare(glyphs.length, words.length);
+                    compare(glyphs[0].font.pixelSize, fitted, text + " at " + width + " px, drawn");
+                    if (estimatedSize(line) !== fitted) {
                         ++estimateOff;
                     }
                 }
