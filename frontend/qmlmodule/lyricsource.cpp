@@ -200,6 +200,23 @@ QString LyricSource::currentRomanization() const
     return *m_lines[m_currentLine].romanization;
 }
 
+QString LyricSource::nextText() const
+{
+    // Interface only; the next-line task fills it in (DESIGN.md decision 80).
+    return {};
+}
+
+int LyricSource::currentLineIndex() const
+{
+    return m_currentLine;
+}
+
+int LyricSource::nextLineIndex() const
+{
+    // Interface only; the next-line task fills it in (DESIGN.md decision 80).
+    return -1;
+}
+
 QVariantList LyricSource::currentWords() const
 {
     if (m_currentLine < 0 || m_currentLine >= m_lines.size() || !m_lines[m_currentLine].words) {
@@ -473,7 +490,7 @@ void LyricSource::updateCurrentLine(bool lineContentChanged)
         m_currentPositionMs = positionMs;
         Q_EMIT currentPositionChanged();
     }
-    const int line = currentLineIndex(m_lines, positionMs, m_offsetMs);
+    const int line = PlasmaLyrics::currentLineIndex(m_lines, positionMs, m_offsetMs);
     if (line != m_currentLine || lineContentChanged) {
         m_currentLine = line;
         Q_EMIT currentLineChanged();

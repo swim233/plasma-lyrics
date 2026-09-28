@@ -26,6 +26,19 @@ class LyricSource : public QObject
     Q_PROPERTY(QString currentTranslation READ currentTranslation NOTIFY currentLineChanged)
     Q_PROPERTY(QString currentRomanization READ currentRomanization NOTIFY currentLineChanged)
     Q_PROPERTY(QVariantList currentWords READ currentWords NOTIFY currentLineChanged)
+    // DESIGN.md decision 80: the next line, shown under the current one on
+    // the desktop -- the first line to start after the offset-adjusted
+    // position, the last of them when several share that start. Empty after
+    // the last line. It changes on its own when the position moves between
+    // two lines without passing through a new current line (a seek from the
+    // intro into a long interlude), hence a signal of its own.
+    Q_PROPERTY(QString nextText READ nextText NOTIFY nextLineChanged)
+    // Indices into this document's lines, -1 for none. AnimatedLyric tells a
+    // line that arrives in sequence (the new current line is the old next
+    // one, under the same fingerprint) from a jump by comparing them
+    // (DESIGN.md decision 28).
+    Q_PROPERTY(int currentLineIndex READ currentLineIndex NOTIFY currentLineChanged)
+    Q_PROPERTY(int nextLineIndex READ nextLineIndex NOTIFY nextLineChanged)
     // Synthetic per-character words for the current line, populated only
     // when the *whole document* -- every line, not just this one -- carries
     // no real word timings (DESIGN.md's synthetic word-by-word decision:
@@ -79,6 +92,9 @@ public:
     QString currentTranslation() const;
     QString currentRomanization() const;
     QVariantList currentWords() const;
+    QString nextText() const;
+    int currentLineIndex() const;
+    int nextLineIndex() const;
     QVariantList currentSyntheticWords() const;
     qint64 currentPositionMs() const;
     int offsetMs() const;
@@ -126,6 +142,7 @@ Q_SIGNALS:
     void playbackChanged();
     void trackChanged();
     void currentLineChanged();
+    void nextLineChanged();
     void currentPositionChanged();
     void offsetChanged();
     void canAdjustOffsetChanged();

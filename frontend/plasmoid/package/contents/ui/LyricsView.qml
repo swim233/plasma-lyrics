@@ -49,6 +49,14 @@ Item {
     // (CLAUDE.md); LyricsView can be, so the clamp is testable here instead.
     property int lineHeightMinPercent: 100
 
+    // DESIGN.md decision 80: the next line under the current one. Desktop
+    // only: main.qml's fullRepresentation sets both from the appearance set
+    // in effect (desktopShowNextLine / desktopNextLineBlur), and the panel
+    // leaves showNextLine at false. nextLineBlurPercent is 0-100, 0 for no
+    // blur, and scales with fontSize.
+    property bool showNextLine: false
+    property int nextLineBlurPercent: 25
+
     property bool wordByWord: true
     // Off by default (DESIGN.md's synthetic word-by-word decision): when on,
     // and only when the *whole* current document carries no real word
