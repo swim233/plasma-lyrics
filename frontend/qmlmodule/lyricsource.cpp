@@ -493,7 +493,7 @@ void LyricSource::updateCurrentLine(bool lineContentChanged)
     // Computed on the same position, and on every path that recomputes the
     // current line, so the two indices always describe one document. Only
     // the next line's text is shown, so a new document notifies here only
-    // when it puts other words at that index.
+    // when it puts other text at that index.
     const int next = PlasmaLyrics::nextLineIndex(m_lines, positionMs, m_offsetMs);
     const QString nextLineText = next >= 0 ? m_lines[next].text : QString();
     const bool nextChanged = next != m_nextLine || nextLineText != m_nextText;

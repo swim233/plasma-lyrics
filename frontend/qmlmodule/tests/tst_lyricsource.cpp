@@ -266,8 +266,8 @@ private Q_SLOTS:
         recordLineSignals(source, log);
 
         // Both indices are new when either signal fires, and the current
-        // line's comes first: the animation compares the new current index
-        // with the next index it recorded before (DESIGN.md decision 28).
+        // line's comes first: the animation compares the new current line
+        // with the next line it recorded before (DESIGN.md decision 28).
         now += 20000000;
         QTRY_COMPARE(source.currentLineIndex(), 1);
         QCOMPARE(source.currentText(), QStringLiteral("two"));
@@ -341,11 +341,12 @@ private Q_SLOTS:
         QCOMPARE(current.size(), 0);
     }
 
-    void aNewDocumentNotifiesTheNextLineOnlyForOtherWords()
+    void aNewDocumentNotifiesTheNextLineOnlyForOtherText()
     {
         // The next line shows its text and nothing else, so a new document
         // that keeps both its index and its text leaves it alone -- unlike
-        // the current line, whose translation and words are shown as well.
+        // the current line, whose translation and word timings are shown as
+        // well.
         QTemporaryDir directory;
         const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
         writeDocumentSnapshot(path, 1, {plainLine(1000, 2000, QStringLiteral("one")),
@@ -420,7 +421,7 @@ private Q_SLOTS:
 
         writeSnapshot(path, 2, 1000000000, QStringLiteral("gone"), 999999999);
         QTRY_VERIFY(source.stale());
-        // The same index, other words.
+        // The same index, other text.
         writeDocumentSnapshot(path, 3, {plainLine(1000, 2000, QStringLiteral("solo")),
                                         plainLine(2000, 3000, QStringLiteral("coda"))},
                               1000, 0, QStringLiteral("ok"), QStringLiteral("mediaSrc:other"));
