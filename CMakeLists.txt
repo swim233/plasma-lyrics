@@ -14,7 +14,7 @@ foreach(_provider IN ITEMS NETEASE AMLL QQ)
         message(FATAL_ERROR
             "${_legacy_option}=OFF is no longer supported. All lyric providers are "
             "always built. Remove this option from your build arguments and CMake "
-            "cache, then use the Lyrics Sources settings to disable providers at runtime.")
+            "cache, then use the Lyrics Service settings to disable providers at runtime.")
     endif()
 endforeach()
 unset(_legacy_option)

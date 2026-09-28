@@ -5,6 +5,26 @@ provider integrations belong under `providers/`, MPRIS belongs under `daemon/`,
 and every plasmoid instance must remain a read-only consumer of the atomic
 snapshot except for explicit user configuration such as per-track offsets.
 
+Edit `docs/DESIGN.md` and the plan documents (`docs/MULTI_PROVIDER_PLAN.md`,
+`docs/SOURCE_FIXES_PLAN.md`) in place: rewrite the text so it states the
+current decision, with no revision markers, version history or reviewer
+credits. That strips process, never conclusions: every rationale, known
+cost and measurement (with the conditions it was taken under) stays, and a
+rejected alternative someone may propose again keeps one line, "not X,
+because Y". Decision numbers stay fixed: code comments cite them as
+`DESIGN.md decision NN`, so a rewrite never renumbers, merges or deletes a
+decision row. In the plan documents, descriptions of behaviour (rules,
+interfaces, configuration, defaults, source order) follow the current code
+and DESIGN.md, while background, root-cause analysis, implementation steps
+and acceptance records are history and stay; there, only a stale time-bound
+statement becomes a fact ("not released yet" becomes "released in v0.3.0").
+
+A change of behaviour updates DESIGN.md together with every plan document
+that describes the same behaviour; where they disagree, DESIGN.md wins.
+Documents cite code by file and symbol name (`lyricsource.cpp`'s
+`canAdjustOffset()`), not by line number; only a passage describing code as
+it stood at a named commit keeps that commit's line numbers.
+
 The browser integration's track id is constant and it never emits `Seeked`.
 Never replace the media-source/metadata fingerprint or Position jump detection
 with track-id-only logic.
@@ -38,8 +58,11 @@ only check that opens this file; keep it passing.
 Every `add_test` must carry `ENVIRONMENT "LC_ALL=C.UTF-8"` (merge it into an
 existing `ENVIRONMENT` list rather than adding a second `set_tests_properties`,
 which would clobber the first). Without it each test binary emits Qt's
-"Detected locale ... not UTF-8" warning, and because ctest collects output
-through a pipe -- so stderr is not a tty -- Qt's default handler routes that
+"Detected locale ... not UTF-8" warning. A journald-enabled Qt such as
+Arch's writes that warning to stderr only when the process has a
+controlling terminal, stderr is a tty, or `QT_FORCE_STDERR_LOGGING=1` is
+set, and ctest collects output through a pipe -- so under a ctest run
+without a controlling terminal, such as an agent's shell, it routes the
 warning through `sd_journal_send()` into the developer's real journal. That call
 looks at neither `DBUS_SESSION_BUS_ADDRESS` nor the XDG directories, so no
 process-level isolation can intercept it; a full `ctest` run used to leave ~25
@@ -87,19 +110,14 @@ the new behaviour -- no root-cause narration, no metaphor. Do not add
 
     偏移改为 LyricLine 的属性绑定，失效即归零。
 
+`commit-message-style.md` holds the details -- the scope list, the banned
+words and the pre-commit checks; read it before writing a commit message.
+
 README.md is written in Chinese; README.en.md carries the English copy.
 
 Release work follows `docs/RELEASE.md`: read it before writing any
 `CHANGELOG.md` entry, cutting a release, syncing a GitHub Release body,
 pushing to AUR, or changing `packaging/aur/`.
-
-`CHANGELOG.md` entries are short summaries for users: one sentence per
-feature saying roughly what changed, with ranges, per-menu-item details and
-migration mechanics left to `docs/DESIGN.md`. A change of existing behaviour
-that comes with a new feature (v0.4.4: the global offset now adds to each
-song's own offset, the context menu adjusts only the current song) goes into
-that feature's `Added` entry, not `Breaking Changes`. Keep `Breaking Changes`
-for changes that make users act, such as a removed build option.
 
 ## Agent team workflow
 

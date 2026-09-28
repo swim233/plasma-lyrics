@@ -14,15 +14,16 @@
 
 - 修复写**症状**：用户原来遇到什么问题。不写根因和实现（正则、线程、缓存结构、竞态、指针）。
 - 纯内部改动不写：重构、测试、CI、只影响开发者的诊断细节。
-- 数字只保留用户能感知的，比如默认值、范围、重试次数；性能测量值不写。
-- 一个功能即使涉及很多方面，也只写一条，把最主要的行为写清楚，其余细节留在 `docs/DESIGN.md`。
+- 数字只保留用户能感知的，比如默认值、重试次数；取值范围留给 `docs/DESIGN.md`，性能测量值不写。
+- 一个功能即使涉及很多方面，也只写一条，一句话写清大致变化；逐个菜单项的细节、旧配置自动迁移的实现方式留在 `docs/DESIGN.md`。
 
 ### 1.2 格式
 
 - 用中文写，没有英文版。
 - 按变更类型分组，小节标题用英文，顺序固定：Breaking Changes → Added → Changed → Fixed → Removed → Security。空的小节省略；项目规模小，不再按模块分组。
 - 一条只写一项变化，以动词开头：新增 / 更改 / 修复 / 移除。
-- Breaking Changes 每条都要带 `**迁移**：`，写清用户需要做什么；不需要操作也写明。
+- Breaking Changes 只收需要用户操作的变化，比如移除了某个构建选项。每条都要带 `**迁移**：`，写清用户需要做什么。
+- 新功能附带的已有行为变化写进这个功能的 Added 条目，不进 Breaking Changes。例如 v0.4.4 开启全局偏移后，每首歌自己的偏移改为与全局偏移叠加：这一变化写在「新增本曲偏移」这条 Added 里，没有单列进 Breaking Changes。
 - 代码元素用反引号，包括配置键、命令、路径、包名；界面上的名称用「」。
 - 次版本发布（`x.Y.0`）开头写一行 `概要：`；修订版（`x.y.Z`）不写。
 - 每个版本以一行结尾：`完整变更列表：https://github.com/swim233/plasma-lyrics/compare/<上一个 tag>...<本 tag>`。
@@ -90,7 +91,7 @@ Release 工作流会建出一个草稿 Release。核对下面三项：
 
 草稿期间，附件地址对外返回 404，而两个 AUR 包的 `source=` 都指向这些附件。所以这一步要等用户发布之后才做。
 
-发版时要推送的是 `plasma-lyrics` 和 `plasma-lyrics-bin`。`plasma-lyrics-git` 的 `pkgver()` 从 git 推导版本号，发版时不用动它。本机的 AUR 仓库在 `~/aur/<包名>`。
+发版时要推送的是 `plasma-lyrics` 和 `plasma-lyrics-bin`。`plasma-lyrics-git` 的 `pkgver()` 从 git tag 推导版本号（克隆里没有 tag 时改用 `CMakeLists.txt` 的 `project(VERSION)`），发版时不用推它；什么时候要推见 3.1。本机的 AUR 仓库在 `~/aur/<包名>`。
 
 1. 从已发布的 Release 下载 `plasma-lyrics-<v>-aur.tar.gz` 和 `SHA256SUMS`，校验后解压到临时目录。压缩包里每个包一个目录，各含 `PKGBUILD` 和 `.SRCINFO`。
 2. 对两个包分别执行：
@@ -107,5 +108,16 @@ Release 工作流会建出一个草稿 Release。核对下面三项：
 
 - `packaging/aur/PKGBUILD`（即 `-git` 包）是唯一手工维护的 PKGBUILD。两个发版用的 PKGBUILD 由 `packaging/aur/generate.sh` 生成：`plasma-lyrics` 用 sed 从它派生，所以 `build()`/`check()`/`package()` 只有一份；`plasma-lyrics-bin` 用模板生成，`depends` 数组原样拼进去。改依赖只改 `packaging/aur/PKGBUILD`，不要去编辑生成出来的 PKGBUILD。过去 `depends` 有第二份拷贝，结果源码包连续四个版本漏掉了守护进程直接链接的 `zlib`。想看 CI 会生成什么，就在本地运行这个脚本（用法见脚本开头）。
 - `packaging/aur/namcap-check.sh` 对构建出来的**包**运行 namcap，不在白名单里的结果都会让检查失败。要对包运行，不要对 PKGBUILD 运行：PKGBUILD 里没有 ELF 数据，看不出缺少的链接，`zlib` 的缺口就是这样在一直运行着的 namcap 下漏过去的。namcap 的输出取决于分析机器上装了什么：在空容器里它什么也解析不到，会报约 25 行 "uninstalled dependency"。所以只有先装好包的 `depends`，结果才有意义。白名单里有两项，脚本里各写了原因；出现第三项就算构建失败。
-- CI 只负责生成和校验 AUR 包，没有 AUR 凭据，推送从本机完成（见 2.4）。
+- CI 只负责生成和校验 AUR 包，没有 AUR 凭据，推送从本机完成（见 2.4、3.1）。
 - `plasma-lyrics-bin` 的 `source=` 指向 `plasma-lyrics-<v>-x86_64-bin.tar.gz` 附件。只要这版 PKGBUILD 还在 AUR 上，这个附件就要一直保留。
+
+### 3.1 推送 `plasma-lyrics-git`
+
+AUR 上 `plasma-lyrics-git` 的 PKGBUILD 只在单独推送它时更新，2.4 不碰它。所以 `packaging/aur/PKGBUILD` 里注释以外的任何内容改动之后，要把它推到 `plasma-lyrics-git` 一次。这个包构建的是 GitHub 上的 `main`，所以等改动推上 `main` 再推它。
+
+1. 在 `~/aur/plasma-lyrics-git` 按 2.4 第 2.1 步 `git fetch` 并确认工作区干净。
+2. 复制 `packaging/aur/PKGBUILD` 进去。
+3. 把仓库复制到临时目录，在副本里执行 `makepkg -od`：它克隆 `main` 并运行 `pkgver()`，把副本 `PKGBUILD` 里的 `pkgver=` 改成当前版本。把这份 `PKGBUILD` 复制回 AUR 仓库，再执行 `makepkg --printsrcinfo > .SRCINFO`。仓库里的 `PKGBUILD` 写的是占位版本 `0.1.0.r0.g0000000`，跳过这一步直接推，AUR 上的版本号会低于用户已经装上的版本。
+4. 提交 `upgpkg: plasma-lyrics-git <pkgver>-1`，推送到 `master`。
+
+完成标准：`curl -s 'https://aur.archlinux.org/rpc/v5/info?arg[]=plasma-lyrics-git'` 返回的 `Version` 是 `<pkgver>-1`。

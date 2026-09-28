@@ -151,7 +151,7 @@ QStringList Config::providerOrder() const
     }
     // Existing configurations predate the local provider. Put the new,
     // failure-free source first once; the settings UI will persist the full
-    // three-source order on its next save.
+    // four-source order on its next save.
     bool hasLocal = false;
     for (const auto &provider : configured) {
         hasLocal |= provider.trimmed().compare(QStringLiteral("local"), Qt::CaseInsensitive) == 0;

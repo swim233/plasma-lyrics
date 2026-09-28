@@ -8,10 +8,10 @@
 # single-sourced. plasma-lyrics-bin shares nothing but depends, so it is a
 # template with that one array spliced in.
 #
-# Usage: generate.sh <version> <tag> <outdir>
-#   Emits <outdir>/plasma-lyrics/PKGBUILD.
+# Usage: generate.sh [--bin] <version> <tag> <outdir> <sha256>
+#   Emits <outdir>/plasma-lyrics/PKGBUILD; <sha256> is the source tarball's.
 #   Call again with --bin once the payload tarball exists to emit
-#   <outdir>/plasma-lyrics-bin/PKGBUILD.
+#   <outdir>/plasma-lyrics-bin/PKGBUILD; <sha256> is then the payload's.
 set -euo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)

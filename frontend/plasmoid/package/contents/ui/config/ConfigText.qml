@@ -8,9 +8,9 @@ import org.kde.kirigami as Kirigami
 // per-form-factor appearance, so they do not belong duplicated onto the
 // desktop and panel tabs (same key edited in two places would look like two
 // independent settings). "Shared" there means shared between this widget's
-// desktop and panel halves and nothing more -- like every other key on this
-// dialog except the "Lyrics Service" tab, they are per widget instance, which
-// is what the banner below spells out.
+// desktop and panel halves and nothing more -- like every key outside the
+// "Global settings" and "Lyrics Service" tabs, they are per widget instance,
+// which is what the banner below spells out.
 Kirigami.ScrollablePage {
     id: page
 
@@ -26,9 +26,9 @@ Kirigami.ScrollablePage {
 
         // DESIGN.md decision 18: the frontend keys are per-instance, and
         // nothing in the dialog said so. Two widgets out at once is a
-        // supported arrangement (DESIGN.md section 2.1), and the one tab that
-        // does reach every widget -- "Lyrics Service" -- says as much in its
-        // own banner, which made the silence here read as "shared".
+        // supported arrangement (DESIGN.md section 2.1), and the tabs that do
+        // reach every widget ("Global settings", "Lyrics Service") say so in
+        // their own banners, which made the silence here read as "shared".
         Kirigami.InlineMessage {
             Layout.fillWidth: true
             visible: true

@@ -62,7 +62,7 @@ struct ScoreBreakdown {
     bool titleViaGlossVariant = false;
     // true when the winning query-side title match came from stripping a
     // trailing run of tokens that exactly names one of the candidate's own
-    // artists off the query title (B.2, DESIGN.md decision 66) -- e.g. a
+    // artists off the query title (DESIGN.md decision 66) -- e.g. a
     // query title of "Song Artist Name" against a candidate whose title is
     // "Song" and whose artists include "Artist Name". Distinct from
     // titleViaGlossVariant because this variant is candidate-relative (it
@@ -80,7 +80,7 @@ struct ScoreBreakdown {
     // variant scored higher" (duration corroboration required) apart from
     // "a stripped variant merely won the tie-break, but a plain match would
     // have cleared the bars on its own anyway" (no corroboration needed) --
-    // see DESIGN.md decision 65/66's B.3b correction. Independent of which
+    // see DESIGN.md decision 66. Independent of which
     // variant actually won: score.title/score.titleViaGlossVariant/
     // score.titleViaArtistStrip above still reflect the single best variant,
     // exactly as before.
@@ -93,7 +93,7 @@ struct ScoreBreakdown {
     // title outscored the alternate match) even though the only qualifying
     // non-stripped path went through an alternateTitle -- without tracking
     // this separately, passesGlossVariantGate/passesArtistStripGate's
-    // escape hatch would credit a path that passesAliasArtistGate (D-11)
+    // escape hatch would credit a path that passesAliasArtistGate (decision 45)
     // was built to reject and let a wrong-artist candidate through.
     bool titleWithoutStripViaAlternate = false;
     // true when the winning title match came from stripping a trailing
@@ -165,7 +165,7 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
 //   Acceptance-threshold failures -- chooseMatch's loop does `break`: the
 //   ranking is by total, so once the best remaining candidate misses one of
 //   these, no lower-ranked one can be a better answer. `break`, not
-//   `return`, because the localized fallback (D-8) is judged separately.
+//   `return`, because the localized fallback (decision 45) is judged separately.
 //     title-threshold, total-threshold
 //
 // The -unknown reasons mean "a duration was not available", which is the

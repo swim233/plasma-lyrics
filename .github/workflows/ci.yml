@@ -93,9 +93,10 @@ jobs:
           ctest --test-dir build-warnings --output-on-failure
 
       # config.qml references the Plasmoid attached object, main.qml is a
-      # PlasmoidItem, and the config pages talk to real QSettings/SQLite paths
-      # (DESIGN.md decisions 18/41), so none of them can be safely instantiated
-      # by the QML test suite -- this is the only check covering any of them.
+      # PlasmoidItem, and ConfigGlobal.qml opens the real LyricStore and
+      # snapshot (DESIGN.md decision 41), so the QML test suite instantiates
+      # none of these three -- this is the only check covering them. The other
+      # config pages are instantiated by tst_appearance and tst_fontpicker.
       # unqualified is exempt because the i18n() calls KI18n injects are
       # unqualified by construction; every other category must stay silent.
       - name: qmllint

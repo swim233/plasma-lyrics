@@ -31,13 +31,18 @@ pkgver() {
   # The describe and the sed have to stay apart: a pipeline reports the exit
   # status of its last command, so piping a failed describe into sed yields an
   # empty version and a successful status, and the fallback never runs. The
-  # fallback only fires on a clone that carries no tags at all; its base is the
-  # last release, so such a build never sorts below the released package.
-  local described
+  # fallback only fires on a clone that carries no tags at all; its base is
+  # project(VERSION) in CMakeLists.txt, which the release commit sets to the
+  # tag's version, so such a build never sorts below the released package.
+  # makepkg accepts a version with an empty base, so a CMakeLists.txt the sed
+  # no longer matches has to fail here instead.
+  local described base
   if described=$(git describe --long --tags --abbrev=7 2>/dev/null); then
     printf '%s' "$described" | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
   else
-    printf '0.3.2.r%s.g%s' "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+    base=$(sed -n 's/^project(plasma-lyrics VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+    [[ -n $base ]] || return 1
+    printf '%s.r%s.g%s' "$base" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
   fi
 }
 

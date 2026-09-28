@@ -349,11 +349,12 @@ private Q_SLOTS:
         QVERIFY(policy.shouldBeVisible());
     }
 
-    // DESIGN.md decision 40: "缓冲计的是判据成立至今多久，不是配置变更至今
-    // 多久". Not one of the four tests the lead's checklist names explicitly,
-    // but a direct spec point (decision 40, consensus doc §2 #38) that the
-    // simpler "arm a timer on the hide-worthy transition" design would get
-    // wrong, so it earns its own case.
+    // DESIGN.md decision 40: the buffer counts time since the hide condition
+    // became true, not time since the configuration changed. Not one of the
+    // four tests the lead's checklist names explicitly, but a direct spec
+    // point (decision 40, consensus doc §2 #38) that the simpler "arm a timer
+    // on the hide-worthy transition" design would get wrong, so it earns its
+    // own case.
     void hidesImmediatelyWhenEnabledIsToggledOnAfterALongIdle()
     {
         qint64 now = 0;

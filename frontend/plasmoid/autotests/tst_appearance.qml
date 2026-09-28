@@ -25,13 +25,18 @@ import "../package/contents/ui/ThemePolicy.js" as ThemePolicy
 // That text-scan has its own blind spot: QTestLog only starts tagging
 // warnings with a QWARN prefix once the first test function begins running,
 // so a binding loop that fires while loading the FIRST QML document in this
-// file (before any test function has started) prints with no QWARN prefix.
-// Under ctest, stderr is a pipe rather than a tty, and Qt's default handler
-// routes an untagged warning through sd_journal_send() into the real journal
-// instead of ctest's captured output -- confirmed with journalctl. The regex
-// never sees it, and this specific loop escapes even ctest, not just the
-// bare binary. Warnings from documents loaded after that point are tagged
-// and are caught.
+// file (before any test function has started) prints with no QWARN prefix
+// and goes through Qt's default handler. On a journald-enabled Qt (Arch's)
+// in a ctest run without a controlling terminal -- an agent's shell, CI's
+// Arch job -- stderr is only ctest's pipe, and that handler routes the
+// warning through sd_journal_send() instead of ctest's captured output:
+// into the real journal on a developer machine (confirmed with journalctl),
+// dropped in CI's container, which has no journal socket. The regex never
+// sees it, and this specific loop escapes even ctest, not just the bare
+// binary. Run from a terminal, the same handler writes it to stderr and
+// ctest does fail; so does CI's Debian 13 job, whose Qt has no journald
+// output at all. Warnings from documents loaded after that point are
+// tagged and are caught either way.
 //
 // This is safe today only because every top-level object below is a
 // Component (its contents are lazily instantiated, so loading them here
