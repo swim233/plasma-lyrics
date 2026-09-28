@@ -91,7 +91,7 @@ Release 工作流会建出一个草稿 Release。核对下面三项：
 
 草稿期间，附件地址对外返回 404，而两个 AUR 包的 `source=` 都指向这些附件。所以这一步要等用户发布之后才做。
 
-发版时要推送的是 `plasma-lyrics` 和 `plasma-lyrics-bin`。`plasma-lyrics-git` 的 `pkgver()` 从 git 推导版本号，发版时不用动它。本机的 AUR 仓库在 `~/aur/<包名>`。
+发版时要推送的是 `plasma-lyrics` 和 `plasma-lyrics-bin`。`plasma-lyrics-git` 的 `pkgver()` 从 git tag 推导版本号（克隆里没有 tag 时改用 `CMakeLists.txt` 的 `project(VERSION)`），发版时不用推它；什么时候要推见 3.1。本机的 AUR 仓库在 `~/aur/<包名>`。
 
 1. 从已发布的 Release 下载 `plasma-lyrics-<v>-aur.tar.gz` 和 `SHA256SUMS`，校验后解压到临时目录。压缩包里每个包一个目录，各含 `PKGBUILD` 和 `.SRCINFO`。
 2. 对两个包分别执行：
@@ -108,5 +108,16 @@ Release 工作流会建出一个草稿 Release。核对下面三项：
 
 - `packaging/aur/PKGBUILD`（即 `-git` 包）是唯一手工维护的 PKGBUILD。两个发版用的 PKGBUILD 由 `packaging/aur/generate.sh` 生成：`plasma-lyrics` 用 sed 从它派生，所以 `build()`/`check()`/`package()` 只有一份；`plasma-lyrics-bin` 用模板生成，`depends` 数组原样拼进去。改依赖只改 `packaging/aur/PKGBUILD`，不要去编辑生成出来的 PKGBUILD。过去 `depends` 有第二份拷贝，结果源码包连续四个版本漏掉了守护进程直接链接的 `zlib`。想看 CI 会生成什么，就在本地运行这个脚本（用法见脚本开头）。
 - `packaging/aur/namcap-check.sh` 对构建出来的**包**运行 namcap，不在白名单里的结果都会让检查失败。要对包运行，不要对 PKGBUILD 运行：PKGBUILD 里没有 ELF 数据，看不出缺少的链接，`zlib` 的缺口就是这样在一直运行着的 namcap 下漏过去的。namcap 的输出取决于分析机器上装了什么：在空容器里它什么也解析不到，会报约 25 行 "uninstalled dependency"。所以只有先装好包的 `depends`，结果才有意义。白名单里有两项，脚本里各写了原因；出现第三项就算构建失败。
-- CI 只负责生成和校验 AUR 包，没有 AUR 凭据，推送从本机完成（见 2.4）。
+- CI 只负责生成和校验 AUR 包，没有 AUR 凭据，推送从本机完成（见 2.4、3.1）。
 - `plasma-lyrics-bin` 的 `source=` 指向 `plasma-lyrics-<v>-x86_64-bin.tar.gz` 附件。只要这版 PKGBUILD 还在 AUR 上，这个附件就要一直保留。
+
+### 3.1 推送 `plasma-lyrics-git`
+
+AUR 上 `plasma-lyrics-git` 的 PKGBUILD 只在单独推送它时更新，2.4 不碰它。所以改了 `packaging/aur/PKGBUILD` 的 `depends`、`makedepends` 或构建步骤（`pkgver()`、`build()`、`check()`、`package()`）之后，要把它推到 `plasma-lyrics-git` 一次。这个包构建的是 GitHub 上的 `main`，所以等改动推上 `main` 再推它。
+
+1. 在 `~/aur/plasma-lyrics-git` 按 2.4 第 2.1 步 `git fetch` 并确认工作区干净。
+2. 复制 `packaging/aur/PKGBUILD` 进去。
+3. 把仓库复制到临时目录，在副本里执行 `makepkg -od`：它克隆 `main` 并运行 `pkgver()`，把副本 `PKGBUILD` 里的 `pkgver=` 改成当前版本。把这份 `PKGBUILD` 复制回 AUR 仓库，再执行 `makepkg --printsrcinfo > .SRCINFO`。仓库里的 `PKGBUILD` 写的是占位版本 `0.1.0.r0.g0000000`，跳过这一步直接推，AUR 上的版本号会低于用户已经装上的版本。
+4. 提交 `upgpkg: plasma-lyrics-git <pkgver>-1`，推送到 `master`。
+
+完成标准：`curl -s 'https://aur.archlinux.org/rpc/v5/info?arg[]=plasma-lyrics-git'` 返回的 `Version` 是 `<pkgver>-1`。
