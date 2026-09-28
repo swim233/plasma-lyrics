@@ -11,7 +11,9 @@ current decision, with no revision markers, version history or reviewer
 credits. That strips process, never conclusions: every rationale, known
 cost and measurement (with the conditions it was taken under) stays, and a
 rejected alternative someone may propose again keeps one line, "not X,
-because Y". In the plan documents, descriptions of behaviour (rules,
+because Y". Decision numbers stay fixed: code comments cite them as
+`DESIGN.md decision NN`, so a rewrite never renumbers, merges or deletes a
+decision row. In the plan documents, descriptions of behaviour (rules,
 interfaces, configuration, defaults, source order) follow the current code
 and DESIGN.md, while background, root-cause analysis, implementation steps
 and acceptance records are history and stay; there, only a stale time-bound
