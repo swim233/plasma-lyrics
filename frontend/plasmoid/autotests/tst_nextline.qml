@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtTest
 import org.kde.kirigami as Kirigami
 import io.github.swim233.lyrics
@@ -64,6 +65,29 @@ TestCase {
         id: lineComponent
         LyricsUi.LyricLine {
             width: 400
+        }
+    }
+
+    // A LyricsView in a window that is shown: Item.visible is ancestor-
+    // combined and reads false everywhere else in this suite, so this is the
+    // only place a block's height counts its secondary lyrics.
+    Component {
+        id: shownViewComponent
+        Window {
+            width: 400
+            height: 200
+            visible: true
+            property alias view: shownView
+            property alias source: shownView.source
+            LyricsUi.LyricsView {
+                id: shownView
+                width: 320
+                height: 40
+                panelMode: true
+                showTrackInfo: false
+                fontSize: 16
+                animationMode: "slide"
+            }
         }
     }
 
@@ -843,6 +867,33 @@ TestCase {
         t.view.height = 80;
         verify(current.height > lyric.height);
         compare(current.y, 0);
+    }
+
+    // A panel keeps its lines centred, even when they are taller than the
+    // lyric area: its height is the panel's, and what spills past it is not
+    // seen. Here with secondary lyrics, which count only in a shown window.
+    function test_aPanelKeepsItsLinesCentred_data() {
+        return [
+            { tag: "fits", height: 60 },
+            { tag: "taller than the widget", height: 36 },
+            { tag: "much taller", height: 30 },
+        ];
+    }
+    function test_aPanelKeepsItsLinesCentred(data) {
+        const source = createTemporaryObject(fakeSourceComponent, this,
+            { currentTranslation: "a translation", nextText: "" });
+        const win = createTemporaryObject(shownViewComponent, this, { source: source });
+        win.view.height = data.height;
+        const lyric = lyricOf(win.view);
+        tryVerify(() => lyric.placed && lyric.currentBlock !== null);
+        const block = lyric.currentBlock;
+        // Both lines count.
+        tryVerify(() => block.height > block.lineHeight);
+        fuzzyCompare(block.y, (lyric.height - block.height) / 2, 1e-9);
+        if (data.height < 50) {
+            verify(block.height > lyric.height);
+            verify(block.y < 0);
+        }
     }
 
     // ---- The clip

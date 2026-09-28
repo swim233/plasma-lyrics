@@ -483,6 +483,7 @@ Item {
             nextLineIndex: root.source.nextLineIndex ?? -1
             nextLineText: root.source.nextText ?? ""
             showingLyrics: root.showingLyrics
+            panelMode: root.panelMode
             particlesEnabled: root.wordParticles && root.wordByWord && root.showingLyrics
             particleColor: root.effectiveWordParticleColor
             // The test stand-ins for LyricSource carry no fingerprint.

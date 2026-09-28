@@ -52,6 +52,11 @@ Item {
     property string nextLineText: ""
     property bool showingLyrics: true
 
+    // A panel keeps the lines centred whether or not they fit (decision 80):
+    // its height is the panel's, and what spills past the panel window is
+    // not seen anyway.
+    property bool panelMode: false
+
     // Word particles (DESIGN.md decision 77). Off also drops every particle
     // already in the air. The colour arrives resolved, alpha already 1.
     property bool particlesEnabled: false
@@ -181,9 +186,10 @@ Item {
     }
 
     // ---- Placement (decision 80). The group is the current place, the gap
-    // and the next line at its 0.75 size. It is centred in this item while
-    // it fits; otherwise the current place sits at the top and only the
-    // bottom spills, so the top clip below never cuts the current line.
+    // and the next line at its 0.75 size. On the desktop it is centred in
+    // this item while it fits; otherwise the current place sits at the top
+    // and only the bottom spills, so the top clip below never cuts the
+    // current line. A panel always centres it.
     // Keyed on the blocks in the two places, never on the incoming text, so
     // nothing moves before the switch that is to move it. With no current
     // line the place keeps the height of the last one, so an interlude or
@@ -195,7 +201,7 @@ Item {
         : root.lastCurrentHeight > 0 ? root.lastCurrentHeight : root.lineBoxHeight
     readonly property real groupHeight: root.currentPlaceHeight
         + (root.nextBlock ? root.gap + root.lineBoxHeight * root.nextLineScale : 0)
-    readonly property real currentY: root.groupHeight <= root.height
+    readonly property real currentY: root.panelMode || root.groupHeight <= root.height
         ? (root.height - root.groupHeight) / 2 : 0
     readonly property real nextY: root.currentY + root.currentPlaceHeight + root.gap
 
