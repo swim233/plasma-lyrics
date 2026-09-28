@@ -1,7 +1,7 @@
 # 桌面歌词 · Plasma 6 部件设计文档
 
-> 本文档是 2026-09-03 一轮设计访谈的产出，记录 36 项已定决策、支撑它们的实测证据，以及明确不做的事。
-> 实现开始前请先读第 1 节——那里的事实是本设计所有形状的来源。
+> 本文档记录本项目经多轮迭代形成的设计决策（第 3 节，编号 1–79，没有 8）、支撑它们的实测证据，
+> 以及明确不做的事；每条决策写的都是现行结论。改动实现前请先读第 1 节——那里的事实是本设计所有形状的来源。
 
 ## 0. 这个项目是什么
 
@@ -37,7 +37,7 @@
 | `Metadata` 随 `PropertiesChanged` 主动推送 | 150s 内推送 16 次 | 换歌不需要轮询 |
 | **同一份播放被两个服务同时暴露** | `chromium.instance3893`（pid 3893）与 pbi（pid 4330）并存 | 必须去重 |
 | **chromium 自带服务把标签页标题当歌名** | `title='网易云音乐'`, `artist=['']`, `album=''` | 不去重会拿"网易云音乐"去搜歌词 |
-| pbi 元数据含 `kde:pid` = 浏览器 pid | 实测 `kde:pid=3893` 恰为 `chromium.instance3893`；上游是 `getppid()` | 可用于去重，**但只有一个观测点**——匹配不上时降级为"只信 pbi" |
+| pbi 元数据含 `kde:pid` = 浏览器 pid | 实测 `kde:pid=3893` 恰为 `chromium.instance3893`；上游是 `getppid()` | 可用于去重，**但只有一个观测点**——集成未上报可用 pid 时才降级为"只信 pbi"；pid 在而对不上任何 `.instance<pid>` 服务时，chromium 服务照常保留（决策 10） |
 | **一个 pbi 服务在多个标签页之间切换** | 同一服务先报 `xesam:url=bilibili.com/video/BV1mkg36zEfX/`，后报 `xesam:url=music.163.com/st/webplayer` | 必须判断"这是音乐还是视频" |
 | `xesam:artist` 是**单元素数组内塞斜杠拼接** | `['闹闹丶/FFF君/欧Ωhm/洛天依Official']`；源自 MediaSession 的单个 DOMString | 搜索前必须拆分清洗 |
 | `xesam:url` 对网页版恒为 `https://music.163.com/st/webplayer` | 实测 | 可作音乐源白名单判据 |
@@ -79,14 +79,18 @@
 - **桌面小部件永远在窗口之下**，没有任何"置顶"开关。想要"全屏也可见"的唯一 KDE 原生路径是
   **放进面板并把面板可见性设为「窗口置于下方」**（`WindowsGoBelow`）。真 OSD 悬浮要
   LayerShellQt 独立窗口——那就不是 plasmoid 了。
-- **桌面小部件做不到毛玻璃。** KWin 的模糊插件里 `BlurEffect::shouldBlur()` 有
-  `if (w->isDesktop()) return false;` 无条件否决；更根本的是桌面小部件与壁纸共享同一个
+- **部件自己画不了毛玻璃，桌面上的毛玻璃只能由 shell 画。** KWin 的模糊插件里
+  `BlurEffect::shouldBlur()` 有 `if (w->isDesktop()) return false;` 无条件否决；更根本的是桌面小部件与壁纸共享同一个
   `DesktopView` 窗口，而该窗口最底层、壁纸本身由它绘制。`desktopview.cpp` 里
   `blur`/`WindowEffects` 一次都没出现，对比 `panelview.cpp` 的
   `KWindowEffects::enableBlurBehind(this, ...)`。面板的模糊由 KWin 对整条面板统一施加，
   **单个部件无权决定**。主题里的 `translucentbackground.svgz` 只有 alpha 渐变、没有模糊滤镜。
-- **QML 没有 text stroke**。`MultiEffect` 无 outline 属性且只有一组 shadow 参数。实做方式是
-  **把 Text 复制 8 份按八方向偏移垫在真文字后**（短单行成本可接受）。`Qt5Compat.GraphicalEffects`
+  shell 这一侧有一条例外：Plasma 主题的 `widgets/background` 带 `blurred-*` 元素时，
+  `BasicAppletContainer.qml` 会把底板切到 `prefix: "blurred"`，并叠一个 `MultiEffect` 在 QML 里采样壁纸自行模糊。
+  这依赖容器内部结构，applet 内部无法复制，所以部件在静止时把 `ksvg` 底板交给 shell 画（决策 25/32/36、40）。
+- **QML 的文字描边只有 `Text` 自带的 `style: Text.Outline`**，线条较细、粗细不可调；`MultiEffect` 无 outline 属性且只有一组
+  shadow 参数。整行描边的实做方式是**把 Text 复制 8 份按八方向偏移垫在真文字后**（短单行成本可接受）；
+  逐字模式每词 8 份副本在换行那一帧开销太大，改用 `Text.Outline`（决策 69）。`Qt5Compat.GraphicalEffects`
   本机已装（`Glow`/`DropShadow` 可用），但 KDE 的 Plasma 6 移植指南导向 `MultiEffect`。
 - **超长文本三种策略均有原生支持**：`fontSizeMode: Text.HorizontalFit` + `minimumPixelSize`
   （低于下限自动转 elide）；`wrapMode: WordWrap` + `maximumLineCount: 2` + `ElideRight`
@@ -116,10 +120,10 @@
 
 ## 2. 架构
 
-### 2.1 三个组件与唯一接缝
+### 2.1 三个组件与接缝
 
 ```
-会话 D-Bus (MPRIS)                       网易云 HTTP
+会话 D-Bus (MPRIS)            网易云 / AMLL / QQ音乐 HTTP、本地 .lrc
         │                                     │
         ▼                                     ▼
 ┌─────────────────────────────────────────────────────┐
@@ -135,23 +139,33 @@
 │ 桌面上的部件实例  │            │ 面板里的部件实例  │
 │ LyricSource 各一份│            │ LyricSource 各一份│
 │ 本地推进时间轴    │            │ 本地推进时间轴    │
-└──────────────────┘            └──────────────────┘
+└────────┬─────────┘            └────────┬─────────┘
+         └──────────────┬────────────────┘
+                        ▼
+      会话 D-Bus io.github.swim233.PlasmaLyrics.Control → plasma-lyricsd
+      （换源、恢复自动、重搜、偏移）
 ```
 
-**唯一接缝是那个快照文件。** 快照只读、多前端无冲突，这正好满足"同时摆两个部件"。
+**读取只经过快照文件，写入走会话 D-Bus 的 `Control` 接口。** 部件实例只读快照、互不冲突，
+这正好满足"同时摆两个部件"。换源、恢复自动、重搜与偏移调整这类用户操作经
+`io.github.swim233.PlasmaLyrics.Control` 交给守护进程执行（右键菜单的命令都带预期指纹），
+结果随下一份快照原子地到达所有实例（决策 54、55、79）；设置页另经同一接口的 `AvailableProviders`
+取守护进程支持的全部源（决策 57）。唯一的例外是配置对话框里的 `GlobalConfig`：它直连 SQLite
+写全局偏移，再以 `RefreshGlobalOffset` 通知守护进程重发快照（决策 55）。
 
 ### 2.2 数据契约：推整首 + 时间锚点
 
 后端**每首歌写一次**完整歌词（外加暂停/跳转时更新锚点），**"现在该显示第几行"由前端本地计算**。
 
 对比"推当前行"（Lyrica 的做法）：那需要每 2–5 秒写一次文件，且前端只有文本、无从做任何插值。
-本方案写入频率降到每首一次，前端可逐帧插值，拖进度条本地即时重算，而且将来若拿到逐字时间轴，
-**渲染侧不用改契约**。
+本方案写入频率降到每首一次，前端可逐帧插值，拖进度条本地即时重算，而且逐字时间轴进来时
+**渲染侧不用改契约**（决策 13、69）。
 
 ```json
 {
   "schema": 1,
   "seq": 1372,
+  "daemon": { "pid": 4711 },
   "player": {
     "service": "org.mpris.MediaPlayer2.plasma-browser-integration",
     "identity": "Google Chrome",
@@ -175,62 +189,86 @@
     "state": "ok",
     "offsetMs": 0,
     "trackOffsetMs": 0,
-    "globalOffsetEnabled": false,
-    "switchingProvider": "",
     "lines": [
       { "startMs": 28630, "endMs": 31620, "text": "若能再相见", "translation": null, "words": null },
       { "startMs": 31620, "endMs": 35000, "text": "那条长街",   "translation": null, "words": null }
-    ]
+    ],
+    "preferredProvider": "",
+    "effectivePreferredProvider": "local",
+    "actualProvider": "netease",
+    "temporaryFallback": true,
+    "globalOffsetEnabled": false,
+    "switchingProvider": "",
+    "availableProviders": ["local", "netease", "amll", "qq"],
+    "metadata": {}
   }
 }
 ```
 
-- `lyric.state` ∈ `ok` | `searching` | `not-found` | `network-error` | `filtered`（被白名单/启发式判定为非音乐）| `no-lyric`（匹配成功但源站无词）
+- `lyric.state` ∈ `ok` | `searching` | `not-found` | `network-error` | `filtered`（被白名单/启发式判定为非音乐，或当前没有任何播放器）| `no-lyric`（匹配成功但源站无词）
+- 没有任何播放器时 `player` 与 `track` 为 `null`，`playback` 写 `Stopped` 与零值锚点，`lyric.state` 为 `filtered`。
+  `track.ref` 是当前歌词引用，没有时为空对象 `{}`。
+- `daemon.pid` 是守护进程的 pid，部件每 2 秒据此检测守护进程是否还活着（决策 55）。
+- 来源字段（决策 54、57、60）：`preferredProvider` 是用户为这首歌手动指定的首选源，空串表示自动；
+  `effectivePreferredProvider` 是实际放在链首的源（手动首选，或解析链的第一个源）；`actualProvider` 是当前歌词实际来自的源，
+  没有歌词引用时为空串；`temporaryFallback` 为真表示歌词来自链首以外的源；`availableProviders` 是当前解析链里已启用、
+  已配置、可搜索的源，供右键菜单列出（D-Bus 的 `AvailableProviders` 则返回守护进程支持的全部源）；`switchingProvider`
+  见决策 60。`metadata` 是歌词文档的来源元数据（来源、作者、内容版本等，与 `lyric` 表的 `metadata` 列同一份）。
+- 每行可另带 `romanization`（整行罗马音）与 `"credit": true`（provider 标记的制作人员行），缺省时不写键；
+  `words` 为 `null` 或 `[{startMs, endMs, text, romanization?}]`，词的 `romanization` 同样缺省不写（决策 68）。
 - **`anchorMonotonicNs` 必须取 `CLOCK_MONOTONIC`**，不能用墙钟——系统对时或休眠唤醒会让歌词瞬间跑飞。
 - 前端推进：`当前位置 = positionUs + (now_monotonic - anchorMonotonicNs) * rate`，
   `status != "Playing"` 时不推进。
-- `words` 字段现在恒为 `null`（见 1.2：`yrc` 拿不到），但**从第一天就存在于结构里**，
-  这样将来实现加密调用后不必迁移缓存格式。
-- **`lyric.offsetMs` 自决策 55 起是守护进程算好的生效值**：决策 79 起为
-  （全局偏移开启 ? 全局值 : 0）+ 当前 `(provider, track_id)` 的本曲值；`lyric.trackOffsetMs`
-  是本曲值本身（没有歌词引用时为 0），供菜单与设置页显示；`globalOffsetEnabled` 仍照写，`LyricSource` 也仍解析并暴露它，但决策 79 起部件的 QML 不再读它（菜单文案两种模式相同，设置页读 `GlobalConfig`）。
-  部件不再打开 SQLite，偏移变化也通过新快照原子地到达所有实例。
+- `words` 由源决定：QQ音乐（QRC）与 AMLL（TTML）提供词级时间，网易云（见 1.2：`yrc` 拿不到）与本地 LRC 为 `null`。
+  这个字段**从第一天就存在于结构里**，所以接入词级数据源时不必迁移缓存格式。
+- **`lyric.offsetMs` 是守护进程算好的生效值**：（全局偏移开启 ? 全局值 : 0）+ 当前 `(provider, track_id)` 的本曲值
+  （决策 55、79）；`lyric.trackOffsetMs` 是本曲值本身（没有歌词引用时为 0），供菜单与设置页显示；
+  `globalOffsetEnabled` 照写，`LyricSource` 也解析并暴露它，但部件的 QML 不读它（菜单文案两种模式相同，设置页读 `GlobalConfig`）。
+  部件不打开 SQLite，偏移变化通过新快照原子地到达所有实例。
 
 ### 2.3 目录布局
 
 ```
 plasma-lyrics/
-├── CMakeLists.txt              顶层，-DBUILD_DAEMON / -DBUILD_PLASMOID 可分别关闭
-├── CLAUDE.md  AGENTS.md
-├── README.md  README.zh-CN.md
-├── LICENSE                     GPL-2.0
-├── DESIGN.md                   本文档
+├── CMakeLists.txt              顶层，-DBUILD_DAEMON / -DBUILD_PLASMOID / -DBUILD_IMPORT_WAYLYRICS 可分别关闭；
+│                               另含生成 Debian 包的 CPack 配置
+├── CLAUDE.md  AGENTS.md  commit-message-style.md
+├── README.md  README.en.md  CHANGELOG.md
+├── LICENSE                     GPL-2.0-only
+├── docs/                       DESIGN.md（本文档）、RELEASE.md 与两份计划文档
 │
-├── core/                       纯逻辑：依赖 QtCore，禁 QtNetwork / QtDBus
-│   ├── lyric/                  LRC 解析（含 JSON 制作信息行）、逐字模型、
+├── core/                       纯逻辑：依赖 QtCore 与 QtSql，禁 QtNetwork / QtDBus
+│   ├── config/                 代理地址解析（ProxySpec）、带伴生键的列表设置（StringListSetting）
+│   ├── log/                    日志字段格式、设置变更日志的共享 formatter
+│   ├── lyric/                  LRC（含 JSON 制作信息行）/ QRC / TTML 解析、整首模型、模拟逐字、
 │   │                           「给定 position 求当前行」
-│   ├── match/                  关键词清洗、时长容差打分、候选排序
-│   ├── store/                  SQLite 缓存、指纹映射、负缓存
+│   ├── match/                  关键词清洗、打分、候选排序与选择
+│   ├── store/                  SQLite 缓存、指纹映射、负缓存（LyricStore）；手工覆盖读取器（LyricOverrideStore）
 │   └── tests/                  测试重心
 │
 ├── providers/                  横向扩展点 1
-│   ├── provider.h              抽象接口 + 每 provider 独立配置块
-│   ├── netease/                第一版唯一在线源
-│   ├── local/                  .lrc 文件、音频内嵌标签、overrides/ 目录
-│   ├── lrclib/                 占位，接口先留好
+│   ├── provider.h              抽象接口
+│   ├── local/                  本地 .lrc：音频同级 sidecar 与歌词目录
+│   ├── netease/                网易云
+│   ├── amll/                   AMLL TTML DB
+│   ├── qq/                     QQ音乐（含 QRC 解密）
+│   ├── lrclib/                 预留目录，尚未实现，不参与构建
 │   └── tests/fixtures/         录制的真实 API 响应（含脏数据）
 │
 ├── daemon/
 │   ├── src/
 │   │   ├── mpris/              会话总线监听、去重、黑白名单、指纹、锚点采样
-│   │   ├── resolver.cpp        编排：指纹 → 缓存 → provider → 写快照
+│   │   ├── resolver.cpp        编排：指纹 → 手工覆盖/缓存 → provider
+│   │   ├── controlservice.cpp  会话 D-Bus 的 Control 接口
 │   │   ├── snapshot.cpp        QSaveFile 原子写 + seq
-│   │   └── config.cpp          全局配置
+│   │   ├── config.cpp          后端全局配置，含各源的 providers/<id>/… 配置块
+│   │   └── main.cpp            装配、日志输出、--explain，经 publish 写快照
 │   └── tests/                  假 MPRIS 播放器，重放实测脏数据
 │
 ├── frontend/                   横向扩展点 2
 │   ├── qmlmodule/              io.github.swim233.lyrics
-│   │   ├── LyricSource.{h,cpp} 读快照 + 持有时间轴 + 边界唤醒
+│   │   ├── lyricsource.{h,cpp} 读快照 + 持有时间轴 + 边界唤醒
+│   │   ├── backendconfig / globalconfig / visibilitypolicy / fontcatalog / plasmastyle / wordparticlelayer …
 │   │   └── tests/
 │   └── plasmoid/
 │       ├── package/{metadata.json, contents/{ui,config}/}
@@ -238,8 +276,8 @@ plasma-lyrics/
 │       └── translations/
 │
 ├── tools/import-waylyrics/     一次性导入 3123 首，独立可执行，不进 daemon
-├── systemd/                    **user** 单元
-└── packaging/{arch,aur}/
+├── systemd/                    **user** 单元与 preset
+└── packaging/aur/              AUR 的 PKGBUILD 与生成脚本
 ```
 
 **为什么不照抄 `proc_net_monitor` 的布局**：nethogs 的难点在内核侧采集、业务逻辑很薄；本项目
@@ -252,9 +290,15 @@ plasma-lyrics/
 `$XDG_RUNTIME_DIR/`，不是 `/run/`。
 
 **沿用 nethogs 已验证的**：`QSaveFile` rename 就位 + 前端同时监听文件与目录、每次事件后重新
-`addPath`、用 `seq` 区分真更新（`QFileSystemWatcher` 在 rename 后会丢监听）；
-`qmllint` / `xmllint --noout main.xml` / `qmltestrunner` / "安装到 staging 树再用
-`qml -a core` 探测模块能否加载" 四道检查；`packaging/aur` 的发布路径。
+`addPath`、用 `seq` 区分真更新（`QFileSystemWatcher` 在 rename 后会丢监听）；`packaging/aur` 的发布路径。
+
+**构建期检查按 CI 实际运行的为准**（`.github/workflows/ci.yml`），没有照搬 nethogs 的
+`qmllint` / `xmllint` / `qmltestrunner` / `qml -a` 四道命令：Qt 6 的 `/usr/lib/qt6/bin/qmllint`
+覆盖 `config.qml`、`ui/` 与 `ui/config/` 下的全部 QML（`main.qml` 与 `config.qml` 无法被测试套件实例化，
+这是它们唯一的静态检查）；QML 测试经 QuickTest 编译成 `tst_appearance` 跑（`PATH` 上的 `qmltestrunner`
+在 Arch 上是 Qt 5 的，对 Qt 6 QML 静默失败）；`main.xml` 由 `tst_configschema` 打开核对，不用 `xmllint`；
+另有翻译目录检查、Arch job 的 `-Wall -Wextra -Wpedantic -Werror` 构建（决策 72）与对 Arch 包的 namcap 检查，
+Debian job 构建 `.deb` 并跑 lintian。
 
 ---
 
@@ -425,6 +469,12 @@ CREATE TABLE offset (
   offset_ms INTEGER NOT NULL,
   PRIMARY KEY (provider, track_id)
 );
+
+-- 全局偏移（不可再生）与一次性迁移标记
+CREATE TABLE setting (
+  name  TEXT PRIMARY KEY,                -- 'globalOffsetEnabled' | 'globalOffsetMs' | 'migration/…'
+  value TEXT NOT NULL
+);
 ```
 
 **按 provider 的负缓存是必需的**，不是优化：不做它，每看一个 B 站视频都会向所有在线源
@@ -444,9 +494,9 @@ CREATE TABLE offset (
 `migration/qq-qrc-reparse-1`，对应决策 68 的两处 QRC 解析修正：正文在未转义的 `"` 处截断，
 以及字里形如 `(1,2)` 的文字被当作时间戳拆开。
 
-**手工改歌词不改数据库**，走 `~/.local/share/plasma-lyrics/overrides/<provider>:<id>.lrc`，
-由 `core/store/` 的覆盖读取器在 provider 结果之后读取。这样缓存保持"纯粹可再生"的语义，覆盖目录是"你的数据"，
-备份时只需备份后者。
+**手工改歌词不改数据库**，走 `~/.local/share/plasma-lyrics/overrides/<provider>:<id>.lrc`：
+指纹已映射到某个歌词引用时，Resolver 在读缓存正文之前经 `core/store/` 的覆盖读取器（`LyricOverrideStore`）读取它（决策 59）。
+这样缓存保持"纯粹可再生"的语义，覆盖目录是"你的数据"，备份时只需备份后者。
 
 ---
 
@@ -459,11 +509,11 @@ struct Candidate  { QString trackId; QString title; QStringList artists;
                     QString album; qint64 lengthMs; QStringList alternateTitles;
                     QString contentId; QHash<QString, QStringList> platformIds;
                     QStringList authors; };
-struct LyricDoc   { LyricLines lines; int offsetMs; bool hasWords; QJsonObject metadata; };
+struct LyricDocument { LyricLines lines; int offsetMs; bool hasWords; QJsonObject metadata; };
 
 struct ProviderSearchResult { QList<Candidate> candidates; QString error; bool transportFailed;
                               QString cacheVersion; bool cacheableMiss; };
-struct ProviderFetchResult  { std::optional<LyricDoc> document; QString error; bool transportFailed; };
+struct ProviderFetchResult  { std::optional<LyricDocument> document; QString error; bool transportFailed; };
 
 class Provider {
 public:
@@ -472,17 +522,26 @@ public:
     virtual ~Provider() = default;
     virtual QString id() const = 0;                          // "netease"
     virtual bool    isConfigured() const = 0;                // 未配置则跳过
+    virtual bool    supportsSearch() const;                  // 默认 true；为假则不进解析链
     virtual MatchPolicy matchPolicy() const;                 // AMLL 保留版本后缀
     virtual QString cacheVersion() const;                    // 负缓存失效键
+    virtual QString knownCacheVersion() const;               // 已持有的版本，不触发索引刷新
     virtual void search(const TrackQuery &, SearchCallback) = 0;
+    virtual void searchPrepared(const TrackQuery &, const QString &cacheVersion,
+                                SearchCallback);             // 默认转发给 search()
     virtual void fetch(const QString &trackId, FetchCallback) = 0;
 };
 ```
 
+Resolver 读过 `cacheVersion()` 查负缓存之后调用的是 `searchPrepared()`：本地源借此复用那次读取建好的目录索引，
+不重复扫描；异步获取失败后，Resolver 用 `knownCacheVersion()` 判断源是否在获取期间换了版本（决策 58）。
+
 `isConfigured()` 不是多余的：waylyrics 的 QQ音乐 provider 并非直连，而是要用户自行运行一个
 `QQMusicApi` 桥接服务（`api_base_url = "http://127.0.0.1:3300"` + cookie 字符串）。所以接口
 从第一天就不能假设"provider 都是无状态直连"，每个 provider 需要自己的配置块
-（base URL / cookie / timeout）。
+（base URL / cookie / timeout）。这些配置块由 `daemon/src/config.cpp` 从 `providers/<id>/…` 读出、
+经各 provider 的构造函数传入（如 `providers/netease/timeoutMs`、`providers/local/directory`）；
+本项目自己的 QQ音乐源是直连的（决策 68），不需要桥接服务。
 
 ---
 
@@ -505,9 +564,10 @@ public:
 10. **播放器生命周期**（`tst_mprisplayer_lifecycle`）— 同样在私有总线上：让 `changed` 的处理链
     在嵌套事件循环里销毁 MprisPlayer，断言 `apply()` 与 `pollPosition()` 发出信号之后不再解引用
     `this`。`apply()` 那条必须用**只改 `PlaybackStatus`** 的 `PropertiesChanged`、且经真总线投递：
-    换成 `Metadata` 变更会让 `metadataChanged || oldStatus != m_state.playbackStatus` 短路掉
-    那次成员读，剩下的野指针解引用落在 libQt6Core 里，而 ASan 只插桩本项目自己的编译单元，
-    测试会在坏代码上照样全绿
+    修复前（3a39ba2 之前）`apply()` 在发出 `changed` 之后求值
+    `(metadataChanged || oldStatus != m_state.playbackStatus)`，换成 `Metadata` 变更会短路掉那次成员读，
+    剩下的野指针解引用落在 libQt6Core 里，而 ASan 只插桩本项目自己的编译单元，测试会在坏代码上照样全绿。
+    现在的写法在发信号前算好 `needsPositionPoll`，发完先用 `QPointer<MprisPlayer>` 确认对象仍在再继续
 11. **AMLL 匹配与 TTML** — 版本正常/单边/冲突三层、别名后缀、平台 ID、历史修订去重；
     行/词时间、空白、行内与关联翻译、多语言优先级、背景声隔离、重叠与非法时间轴
 12. **多 provider 编排** — 首选与回退、空/全制作信息歌词继续、按源冷却及版本失效、旧全局
@@ -516,7 +576,7 @@ public:
     实际来源、临时回退、翻译、词时间和来源元数据
 
 **其他：** 第 6 项"时间锚点推进（含休眠唤醒后 monotonic 的行为）"通过**可注入时钟**的接口来测
-（否则要真的休眠一次）；第 8 项构建期检查沿用 nethogs 的四道命令。
+（否则要真的休眠一次）；第 8 项构建期检查见 §2.3 末段（CI 实际运行的检查）。
 
 `providers/tests/fixtures/` 存录制的真实 API 响应，必须包含：空 `yrc`、恒空 `klyric`、
 开头的 JSON 制作信息行、同名不同版本的候选列表。
@@ -564,7 +624,9 @@ public:
 
 ## 7. 打包与发布
 
-- **AUR 为唯一正式渠道**（`packaging/aur`）。
+- **正式渠道是 AUR 与 Debian 13 `.deb`**：AUR 有 `plasma-lyrics`（本地编译发布版源码）、`plasma-lyrics-bin`
+  （预编译）与 `plasma-lyrics-git`（编译 git HEAD）三个包，由 `packaging/aur` 生成；`.deb` 由 CPack 生成，
+  与预编译包一起随 GitHub Release 发布（流程见 `docs/RELEASE.md`）。
 - **默认启用 user service**：装
   `/usr/lib/systemd/user-preset/90-plasma-lyricsd.preset`，内容 `enable plasma-lyricsd.service`
   （Arch 打包不允许在 `.install` 里直接 `systemctl enable`，preset 是官方认可做法）。
@@ -578,9 +640,9 @@ public:
 ### 7.1 上线第一天会遇到的事
 
 本设计的目标是**替代** waylyrics（#1），而现有的 3123 首缓存要靠 `tools/import-waylyrics/`
-一次性导入——**那个工具在第一版里还不存在**。所以在它写出来并跑过之前，第一次使用是
+（v0.1.0 起默认构建，安装为 `plasma-lyrics-import-waylyrics`）一次性导入。导入之前，第一次使用是
 **冷缓存对着一个非官方、会限流的接口**：每首新歌都要现搜现抓，偶发失败会比稳定期明显得多。
-这不是设计缺陷，但足以让第一次试用感觉"这东西不好使"。建议把导入工具排在第一版范围内，
+这不是设计缺陷，但足以让第一次试用感觉"这东西不好使"。所以先跑一次导入，
 或至少在第一次运行时不要同时评判匹配质量。
 
 ---
@@ -589,14 +651,13 @@ public:
 
 | 项 | 原因 |
 |---|---|
-| 毛玻璃底板 | **做不到**。KWin `shouldBlur()` 里 `if (w->isDesktop()) return false;`；桌面部件与壁纸共享最底层窗口 |
-| 播放控制 | 范围外（Q6）。本机已有 4 个音乐 plasmoid 在做 |
+| 毛玻璃底板（部件自绘） | **做不到**。KWin `shouldBlur()` 里 `if (w->isDesktop()) return false;`；桌面部件与壁纸共享最底层窗口。主题带 `blurred-*` 元素时 shell 自己在 QML 里画毛玻璃，这依赖容器内部结构，applet 内部无法复制（1.3），所以部件静止时把 `ksvg` 底板交给 shell 画（决策 40） |
+| 播放控制 | 范围外（决策 6）。本机已有 4 个音乐 plasmoid 在做 |
 | KDE Store 上架 | 分发模型与架构不兼容（见第 7 节） |
 | 运行时 provider 插件（.so） | 过度设计。稳定 ABI、版本协商、加载失败处理的代价换不到收益；接口定好了将来要改也不必推翻 |
 | 读 waylyrics 的运行时缓存 | 耦合他人私有格式且要求 waylyrics 常驻；只做一次性导入 |
 | 设置里的"最近匹配记录"面板 | 实现要两天、半年用两次。`--explain` 子命令覆盖同一需求且离线可重复 |
 | 日志文件的轮转 | 有意不做。日志文件以 append 打开，**没有大小上限、不会自动轮转**——它是为"排查一次问题"准备的开关（默认关闭），不是常开设施。日常诊断走 journal，那边由 systemd 负责限额与轮转。若哪天需要长期开着，再补一个按大小截断的处理，而不是现在预先造 |
-| `LyricLine.qml` 里 `Kirigami.Units.longDuration > 0` 从句无测试覆盖 | 既有缺口，非本轮引入。`Kirigami.Units` 在 QML 测试套件里是不可变更的全局（恒为 200），这条从句永远不是任何断言通过或失败的原因；要补它需要让整个测试套件在 animation-factor 为 0 的 `XDG_CONFIG_HOME` 下再跑一遍，等于新增一条常驻的第二遍全量运行。代码注释（`LyricLine.qml:132-140`）已写明未覆盖、原因与补法，并顺带下过一句判断（`judged not worth an ongoing double test run for one clause`）；缺的不是判断本身，是它只存在于那一个文件的注释里，没有进入这份集中记录「不做」的清单——**裁定为不修**在此存档，解除条件是接受这个双跑代价 |
+| `LyricLine.qml` 的 `marqueeWanted` 里 `Kirigami.Units.longDuration > 0` 从句无测试覆盖 | 不修。`Kirigami.Units` 在 QML 测试套件里是不可变更的全局（恒为 200），这条从句永远不是任何断言通过或失败的原因；要补它需要让整个测试套件在 animation-factor 为 0 的 `XDG_CONFIG_HOME` 下再跑一遍，等于新增一条常驻的第二遍全量运行，为一个从句不值得。`marqueeWanted` 上方的代码注释写明了未覆盖、原因与补法。解除条件是接受这个双跑代价 |
 | 逐字字形可读性无自动化证据 | 测试只能证明字符串到达与布局几何（宽度、位置、颜色属性值），证明不了"看起来对"。已目视检查过渲染图，**截图不入库**——本仓库没有图像比对 CI，入库的截图会随渲染栈（字体、Qt 版本、GPU 驱动）变化静默过时，钉住一张会过时的截图不比没有更可靠 |
 | `splitTrailingGloss` 收紧 | 可辩护的子集只有 `Reprise` 与 `翻自`（真实索引上被剥的 602 条标题/专辑名里，11 种残余风险形状占 135 条，其中 117 条是 `feat.`/`ft.`——剥 `feat.` 通常是对的），整批 11 个词一起收紧大概率净退步。**主要阻碍**：该谓词同时驱动 `searchKeywords` 构造发给 provider 的查询串，收紧会改变**召回本身**，而这对差分回放在构造上不可见——回放只能对着已录制的固定候选池重放，看不到新查询串会召回什么。**解除条件**：差分回放能覆盖召回变化（详见决策 70 的记录） |
-| 纯音乐占位符 | 用户明确表示不做 |
