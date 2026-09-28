@@ -217,8 +217,10 @@ Item {
     // to its own width independently, which is a different thing entirely.
     // Not computed as fontSize × width / metrics.width either: TextMetrics
     // measures with QFontMetricsF, while Text lays out with design metrics
-    // (qquicktext.cpp, outside NativeRendering) and searches for the largest
-    // whole pixel size that fits, and the two picked sizes a pixel apart
+    // outside NativeRendering (qtdeclarative v6.11.2
+    // src/quick/items/qquicktext.cpp:818-829) and searches for the largest
+    // whole pixel size that fits (:1167-1184, the size going through
+    // setPixelSize(int) at :885-886), and the two picked sizes a pixel apart
     // (either way) for 140 of 11 760 line/width/font combinations measured
     // (Noto Sans, Noto Sans CJK SC and DejaVu Serif at 16-48 px, widths
     // 120-900). A next line (staticFit, whole-line) becoming the current one
