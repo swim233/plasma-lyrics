@@ -68,26 +68,17 @@ TestCase {
         }
     }
 
-    // A LyricsView in a window that is shown: Item.visible is ancestor-
-    // combined and reads false everywhere else in this suite, so this is the
-    // only place a block's height counts its secondary lyrics.
+    // A window that is shown, for a LyricsView created into its contentItem:
+    // Item.visible is ancestor-combined and reads false everywhere else in
+    // this suite, so this is the only place a block's height counts its
+    // secondary lyrics. The view is created on its own, after its source, so
+    // that it goes first when the test ends.
     Component {
-        id: shownViewComponent
+        id: shownWindowComponent
         Window {
             width: 400
             height: 200
             visible: true
-            property alias view: shownView
-            property alias source: shownView.source
-            LyricsUi.LyricsView {
-                id: shownView
-                width: 320
-                height: 40
-                panelMode: true
-                showTrackInfo: false
-                fontSize: 16
-                animationMode: "slide"
-            }
         }
     }
 
@@ -1006,9 +997,12 @@ TestCase {
     function test_aPanelKeepsItsLinesCentred(data) {
         const source = createTemporaryObject(fakeSourceComponent, this,
             { currentTranslation: "a translation", nextText: "" });
-        const win = createTemporaryObject(shownViewComponent, this, { source: source });
-        win.view.height = data.height;
-        const lyric = lyricOf(win.view);
+        const win = createTemporaryObject(shownWindowComponent, this);
+        const view = createTemporaryObject(lyricsViewComponent, win.contentItem, {
+            source: source, width: 320, height: data.height, panelMode: true,
+            showTrackInfo: false, fontSize: 16 });
+        verify(view !== null);
+        const lyric = lyricOf(view);
         tryVerify(() => lyric.placed && lyric.currentBlock !== null);
         const block = lyric.currentBlock;
         // Both lines count.
