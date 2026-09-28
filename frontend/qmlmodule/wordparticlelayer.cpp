@@ -80,6 +80,16 @@ qreal WordParticleLayer::lineOpacity() const
     return m_lineOpacity;
 }
 
+qreal WordParticleLayer::lineScale() const
+{
+    return m_lineScale;
+}
+
+QPointF WordParticleLayer::lineScaleOrigin() const
+{
+    return m_lineScaleOrigin;
+}
+
 qreal WordParticleLayer::particlesAliveUntilMs() const
 {
     return m_aliveUntilMs;
@@ -196,6 +206,26 @@ void WordParticleLayer::setLineOpacity(qreal value)
     Q_EMIT lineOpacityChanged();
 }
 
+void WordParticleLayer::setLineScale(qreal value)
+{
+    if (value == m_lineScale) {
+        return;
+    }
+    m_lineScale = value;
+    recaptureLine();
+    Q_EMIT lineScaleChanged();
+}
+
+void WordParticleLayer::setLineScaleOrigin(const QPointF &value)
+{
+    if (value == m_lineScaleOrigin) {
+        return;
+    }
+    m_lineScaleOrigin = value;
+    recaptureLine();
+    Q_EMIT lineScaleOriginChanged();
+}
+
 void WordParticleLayer::detach()
 {
     m_field.detach(m_positionMs);
@@ -300,17 +330,19 @@ WordParticles::LineLayout WordParticleLayer::layoutOfLine() const
 {
     WordParticles::LineLayout layout;
     const QPointF row = m_lineOrigin + m_rowPosition;
+    const QPointF pivot = m_lineOrigin + m_lineScaleOrigin;
+    const double scale = m_lineScale;
     layout.startMs = m_lineStartMs;
     layout.text = m_lineText;
-    layout.ascent = m_cjkAscent;
+    layout.ascent = m_cjkAscent * scale;
     layout.words.reserve(m_words.size());
     for (const MeasuredWord &word : m_words) {
         WordParticles::WordSpan span;
         span.startMs = word.startMs;
         span.endMs = word.endMs;
-        span.left = row.x() + word.x;
-        span.width = word.inkWidth;
-        span.top = row.y() + word.baseline - m_cjkAscent;
+        span.left = pivot.x() + (row.x() + word.x - pivot.x()) * scale;
+        span.width = word.inkWidth * scale;
+        span.top = pivot.y() + (row.y() + word.baseline - m_cjkAscent - pivot.y()) * scale;
         layout.words.append(span);
     }
     return layout;
@@ -342,6 +374,8 @@ QVariantMap WordParticleLayer::describeLine() const
         {QStringLiteral("x"), row.x()},
         {QStringLiteral("y"), row.y()},
         {QStringLiteral("ascent"), m_cjkAscent},
+        {QStringLiteral("scale"), m_lineScale},
+        {QStringLiteral("scaleOrigin"), m_lineOrigin + m_lineScaleOrigin},
         {QStringLiteral("words"), words},
     };
 }

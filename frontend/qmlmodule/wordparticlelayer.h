@@ -60,6 +60,15 @@ class WordParticleLayer : public QQuickItem
     // values these had when it was detached.
     Q_PROPERTY(QPointF lineOffset READ lineOffset WRITE setLineOffset NOTIFY lineOffsetChanged)
     Q_PROPERTY(qreal lineOpacity READ lineOpacity WRITE setLineOpacity NOTIFY lineOpacityChanged)
+    // The block's scale while a next line grows into the current one
+    // (DESIGN.md decision 80), about lineScaleOrigin in the line's own
+    // coordinates. Unlike lineOffset it is part of where a particle is born
+    // and not only of what it follows: the line is captured again at each
+    // new scale, as at each new origin, so a particle born while the line
+    // grows is born on the glyph as drawn and moves out with it. A detached
+    // line keeps the scale it had.
+    Q_PROPERTY(qreal lineScale READ lineScale WRITE setLineScale NOTIFY lineScaleChanged)
+    Q_PROPERTY(QPointF lineScaleOrigin READ lineScaleOrigin WRITE setLineScaleOrigin NOTIFY lineScaleOriginChanged)
 
     // When the last particle of anything kept goes out, -Infinity when
     // nothing is. LyricsView keeps its frame clock running until then.
@@ -79,6 +88,8 @@ public:
     QPointF lineOrigin() const;
     QPointF lineOffset() const;
     qreal lineOpacity() const;
+    qreal lineScale() const;
+    QPointF lineScaleOrigin() const;
     qreal particlesAliveUntilMs() const;
     int snapshotCount() const;
 
@@ -91,6 +102,8 @@ public:
     void setLineOrigin(const QPointF &value);
     void setLineOffset(const QPointF &value);
     void setLineOpacity(qreal value);
+    void setLineScale(qreal value);
+    void setLineScaleOrigin(const QPointF &value);
 
     /// The line being sung stops being the current one; its particles stay
     /// where they are and finish their flight. Called before the line switch
@@ -103,9 +116,11 @@ public:
     /// runs on draws none of the geometry.
     Q_INVOKABLE QVariantList describeSnapshots() const;
     /// The current line as the layer measured it: { startMs, text, x, y,
-    /// ascent, words: [{ x, baseline, ink }] }, x and y being the row's top
-    /// left in this item, each word's x and baseline within the row, and its
-    /// ink width. For tests, like the above.
+    /// ascent, scale, scaleOrigin, words: [{ x, baseline, ink }] }, x and y
+    /// being the row's top left in this item and each word's x and baseline
+    /// within the row, all before the scale, which applies about
+    /// scaleOrigin (in this item); and each word's ink width, also unscaled.
+    /// For tests, like the above.
     Q_INVOKABLE QVariantMap describeLine() const;
     /// How many frames this item has asked for. For tests, like the above.
     int updateRequests() const;
@@ -120,6 +135,8 @@ Q_SIGNALS:
     void lineOriginChanged();
     void lineOffsetChanged();
     void lineOpacityChanged();
+    void lineScaleChanged();
+    void lineScaleOriginChanged();
     void snapshotsChanged();
 
 protected:
@@ -153,6 +170,8 @@ private:
     QPointF m_lineOrigin;
     QPointF m_lineOffset;
     qreal m_lineOpacity = 1;
+    qreal m_lineScale = 1;
+    QPointF m_lineScaleOrigin;
 
     WordParticles::Field m_field;
     qreal m_aliveUntilMs;
