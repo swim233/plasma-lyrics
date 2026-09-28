@@ -1909,9 +1909,9 @@ private Q_SLOTS:
     }
 
     // Decision 70 (dev-b, found while implementing E, lead's ruling: adopt an
-    // artist floor on passesCandidateGlossGate). Discovered by the stop-
-    // and-report rule of decision 70: implementing the plain candidate-gloss
-    // mechanism and then running the full existing suite flipped two
+    // artist floor on passesCandidateGlossGate). Found by running the full
+    // existing suite after implementing the plain candidate-gloss mechanism
+    // (decision 70 records the two flipped tests): it flipped two
     // pre-existing tests (romanizedTitleRescuedByLocalizedFallback,
     // dedupeGuardTreatsSameSongUnderDifferentIdsAsOne), both via this same
     // real, previously-recorded netease candidate. "Originally Performed by
@@ -1990,8 +1990,9 @@ private Q_SLOTS:
     // pinned here (single-candidate pool, same artist, same duration, so
     // neither the artist floor above nor the duration gate can catch it).
     // Assertions are on the matcher's own accept/reject outcome only; this
-    // does NOT rely on C2's fetch-stage instrumental-placeholder handling,
-    // which lives in a different layer, fires only on a narrower condition
+    // does NOT rely on decision 68's fetch-stage instrumental-placeholder
+    // handling (isInstrumentalPlaceholder), which lives in a different
+    // layer, fires only on a narrower condition
     // (single-line body containing 纯音乐, line-level path only), and does
     // not run before this decision is made (decision 70, 2026-09-12 dev-c
     // correction).
