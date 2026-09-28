@@ -56,10 +56,11 @@ only check that opens this file; keep it passing.
 Every `add_test` must carry `ENVIRONMENT "LC_ALL=C.UTF-8"` (merge it into an
 existing `ENVIRONMENT` list rather than adding a second `set_tests_properties`,
 which would clobber the first). Without it each test binary emits Qt's
-"Detected locale ... not UTF-8" warning. Qt's default handler writes to
-stderr only when the process has a controlling terminal or stderr is a tty,
-and ctest collects output through a pipe -- so under a ctest run without a
-controlling terminal, such as an agent's shell, the handler routes that
+"Detected locale ... not UTF-8" warning. A journald-enabled Qt such as
+Arch's writes that warning to stderr only when the process has a
+controlling terminal, stderr is a tty, or `QT_FORCE_STDERR_LOGGING=1` is
+set, and ctest collects output through a pipe -- so under a ctest run
+without a controlling terminal, such as an agent's shell, it routes the
 warning through `sd_journal_send()` into the developer's real journal. That call
 looks at neither `DBUS_SESSION_BUS_ADDRESS` nor the XDG directories, so no
 process-level isolation can intercept it; a full `ctest` run used to leave ~25

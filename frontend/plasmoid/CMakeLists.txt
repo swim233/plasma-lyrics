@@ -47,14 +47,18 @@ if(BUILD_TESTING)
     #
     # NOT COVERED: a loop raised while THE FIRST TEST FILE QuickTest LOADS is
     # being loaded -- tst_appearance.qml, which sorts ahead of
-    # tst_fontpicker.qml and tst_fontrender.qml -- in a ctest run without a
-    # controlling terminal, which is how CI and an agent's shell run it.
-    # QTestLog is not active yet, so Qt's default handler applies and the
-    # warning carries no "QWARN :" prefix; with no controlling terminal and
-    # stderr only ctest's pipe, that handler sends it to sd_journal_send()
-    # (see core/tests/CMakeLists.txt), invisible to the regex. Measured
-    # directly by planting one there: ctest passes. Run from a terminal, the
-    # same handler writes the warning to stderr instead and ctest fails.
+    # tst_fontpicker.qml and tst_fontrender.qml -- on a journald-enabled Qt
+    # (Arch's) in a ctest run without a controlling terminal: an agent's
+    # shell, or CI's Arch job. QTestLog is not active yet, so Qt's default
+    # handler applies and the warning carries no "QWARN :" prefix; with no
+    # controlling terminal and stderr only ctest's pipe, that handler sends it
+    # to sd_journal_send() (see core/tests/CMakeLists.txt) -- into the real
+    # journal on a developer machine, dropped in CI's container, which has no
+    # journal socket -- invisible to the regex either way. Measured directly
+    # by planting one there: ctest passes. Run from a terminal, the same
+    # handler writes the warning to stderr instead and ctest fails; so does
+    # CI's Debian 13 job, whose Qt (libqt6core6t64 6.8.2) has no journald
+    # output at all.
     #
     # The hole is exactly one file wide because QuickTest loads and runs each
     # file in sequence rather than loading all documents up front -- a probe
@@ -72,7 +76,8 @@ if(BUILD_TESTING)
     #
     # The prefix is the marker: a loop you can see with
     # QT_FORCE_STDERR_LOGGING=1 but which carries no "QWARN :" is one this
-    # gate cannot catch without a controlling terminal.
+    # gate cannot catch on a journald-enabled Qt without a controlling
+    # terminal.
     set_tests_properties(tst_appearance PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;LC_ALL=C.UTF-8"
         FAIL_REGULAR_EXPRESSION "Binding loop")
