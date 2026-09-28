@@ -158,11 +158,11 @@ function isDefaultValue(value, defaultValue) {
 // key by key: a custom colour next to a light default of its neighbour would
 // be a combination nobody picked.
 //
-// A suffix added to the table after version 1, decision 80's next line pair
-// among them, needs no version of its own: an instance that predates it
-// reads the main.xml default in both sets, which version 1's step neither
-// counts as a customisation nor, when it copies a customised set, changes,
-// since the pair's light defaults are its dark ones.
+// Decision 80's next line pair came after version 1 and needs no version of
+// its own: an instance that predates it reads the main.xml defaults in both
+// sets, which version 1's step neither counts as a customisation nor, when it
+// copies a customised set, changes, since the pair's light defaults are its
+// dark ones.
 //
 // A version 0 instance takes version 2's step first, so that version 1's
 // judges and copies the dark set by the suffixes above, and the light copy
