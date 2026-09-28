@@ -21,9 +21,13 @@ statement becomes a fact ("not released yet" becomes "released in v0.3.0").
 
 A change of behaviour updates DESIGN.md together with every plan document
 that describes the same behaviour; where they disagree, DESIGN.md wins.
-Documents cite code by file and symbol name (`lyricsource.cpp`'s
-`canAdjustOffset()`), not by line number; only a passage describing code as
-it stood at a named commit keeps that commit's line numbers.
+Documents cite this repository's code by file and symbol name
+(`lyricsource.cpp`'s `canAdjustOffset()`), not by line number; only a
+passage describing code as it stood at a named commit keeps that commit's
+line numbers. Upstream source cited as measured evidence (Plasma, KSvg,
+Kirigami, Qt -- e.g. `AppletConfiguration.qml:51-56`) is pinned to the
+version it was read from, so it keeps both that version and its line
+numbers.
 
 The browser integration's track id is constant and it never emits `Seeked`.
 Never replace the media-source/metadata fingerprint or Position jump detection
