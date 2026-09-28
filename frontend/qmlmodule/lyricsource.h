@@ -26,6 +26,30 @@ class LyricSource : public QObject
     Q_PROPERTY(QString currentTranslation READ currentTranslation NOTIFY currentLineChanged)
     Q_PROPERTY(QString currentRomanization READ currentRomanization NOTIFY currentLineChanged)
     Q_PROPERTY(QVariantList currentWords READ currentWords NOTIFY currentLineChanged)
+    // DESIGN.md decision 80: the next line, shown under the current one on
+    // the desktop -- the first line to start after the offset-adjusted
+    // position, the last of them when several share that start. Empty after
+    // the last line. It changes on its own when the position moves between
+    // two lines without passing through a new current line (a seek from the
+    // intro into a long interlude), hence a signal of its own.
+    Q_PROPERTY(QString nextText READ nextText NOTIFY nextLineChanged)
+    // Indices into this document's lines, -1 for none. A new current line
+    // arrives in sequence only when its index and currentText both equal the
+    // nextLineIndex and nextText last recorded; anything else is a jump
+    // (DESIGN.md decision 28). The index alone is not enough: another
+    // document for the same song (a manual source switch, a refetch) keeps
+    // the fingerprint and can shift every index by one. The fingerprint is
+    // not compared: when it is all that changes -- a player filling in its
+    // metadata in several steps, a cached result whose searching snapshot
+    // was never read -- neither line signal fires, so a recorded fingerprint
+    // would go stale and turn the next line switch into a jump. Both indices
+    // and both texts already hold their new values when either signal
+    // fires, and currentLineChanged fires first. The record is refreshed on
+    // both signals: after the comparison at currentLineChanged, and at
+    // nextLineChanged alone (a seek from the intro into a long interlude,
+    // with the current line at -1 throughout).
+    Q_PROPERTY(int currentLineIndex READ currentLineIndex NOTIFY currentLineChanged)
+    Q_PROPERTY(int nextLineIndex READ nextLineIndex NOTIFY nextLineChanged)
     // Synthetic per-character words for the current line, populated only
     // when the *whole document* -- every line, not just this one -- carries
     // no real word timings (DESIGN.md's synthetic word-by-word decision:
@@ -79,6 +103,9 @@ public:
     QString currentTranslation() const;
     QString currentRomanization() const;
     QVariantList currentWords() const;
+    QString nextText() const;
+    int currentLineIndex() const;
+    int nextLineIndex() const;
     QVariantList currentSyntheticWords() const;
     qint64 currentPositionMs() const;
     int offsetMs() const;
@@ -126,6 +153,7 @@ Q_SIGNALS:
     void playbackChanged();
     void trackChanged();
     void currentLineChanged();
+    void nextLineChanged();
     void currentPositionChanged();
     void offsetChanged();
     void canAdjustOffsetChanged();
@@ -193,5 +221,10 @@ private:
     int m_trackOffsetMs = 0;
     bool m_globalOffsetEnabled = false;
     int m_currentLine = -1;
+    // The text is kept rather than read back from m_lines: by the time
+    // updateCurrentLine() runs a new document has replaced the old one, and
+    // only the old text tells whether the same index now holds other text.
+    int m_nextLine = -1;
+    QString m_nextText;
     qint64 m_currentPositionMs = 0;
 };

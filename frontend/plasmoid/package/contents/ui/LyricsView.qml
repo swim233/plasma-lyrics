@@ -49,6 +49,14 @@ Item {
     // (CLAUDE.md); LyricsView can be, so the clamp is testable here instead.
     property int lineHeightMinPercent: 100
 
+    // DESIGN.md decision 80: the next line under the current one. Desktop
+    // only: main.qml's fullRepresentation sets both from the appearance set
+    // in effect (desktopShowNextLine / desktopNextLineBlur), and the panel
+    // leaves showNextLine at false. nextLineBlurPercent is 0-100, 0 for no
+    // blur, and scales with fontSize.
+    property bool showNextLine: false
+    property int nextLineBlurPercent: 25
+
     property bool wordByWord: true
     // Off by default (DESIGN.md's synthetic word-by-word decision): when on,
     // and only when the *whole* current document carries no real word
@@ -204,6 +212,15 @@ Item {
         && root.source.lyricState === "ok"
         && root.source.playbackStatus !== "Stopped" && root.source.trackTitle.length > 0
 
+    // DESIGN.md decision 80: the next line is shown on the desktop, with the
+    // switch on, only while the slot shows the track's lyrics -- the
+    // particles' condition, so a search, an error or a Stop takes it away
+    // and a pause keeps it -- and only when there is one. Nothing is shown
+    // otherwise and no height is kept for it. The test stand-ins for
+    // LyricSource carry no next line.
+    readonly property string effectiveNextText: root.showNextLine && !root.panelMode && root.showingLyrics
+        ? (root.source.nextText ?? "") : ""
+
     // Opaque whichever colour it follows: each particle's own brightness
     // envelope is its alpha, and the 10% translucency the current-word colour
     // carries by default would only dim every particle once more. Fades with
@@ -332,12 +349,38 @@ Item {
     // around the text.
     // AppletQuickItem forwards only the Layout.* hints below up to the
     // applet container, never implicitWidth/implicitHeight -- so neither of
-    // these two ever determines the widget's actual size in either form
-    // factor. They still exist as this item's own fallback content size.
+    // these two ever determines the size of the widget on the desktop or in
+    // a panel. What does read them is the popup a panel widget opens: it
+    // shows the desktop form (fullRepresentation), and plasma-desktop 6.7.5
+    // CompactApplet.qml:271-280 sizes it from that form's implicit size
+    // while it sets no Layout.preferred* of its own.
     implicitWidth: (panelMode ? Kirigami.Units.gridUnit * 14 : Kirigami.Units.gridUnit * 28)
         + (root.selfDrawnPlate ? plate.margins.horizontal : 0)
-    implicitHeight: (panelMode ? Kirigami.Units.gridUnit * 2 : Kirigami.Units.gridUnit * 7.5)
+    implicitHeight: (panelMode ? Kirigami.Units.gridUnit * 2
+                     : root.showNextLine ? Math.max(Kirigami.Units.gridUnit * 7.5, root.nextLineRoom)
+                     : Kirigami.Units.gridUnit * 7.5)
         + (root.selfDrawnPlate ? plate.margins.vertical : 0)
+    // DESIGN.md decision 80, for that popup alone: with the next line on,
+    // gridUnit × 7.5 (504 × 135 measured, an 18 px grid unit) left a line
+    // with secondary lyrics no room for it -- at the desktop defaults the
+    // group is 132.75 px against a lyric area of 87, and the next line was
+    // drawn wholly outside the popup. So the height grows to what the track
+    // info, the group (a line box, a secondary line box when secondary
+    // lyrics are picked, the gap and the next line at 0.75×) and the margins
+    // take, about 181 px there. It is keyed on the settings -- showNextLine
+    // and secondaryLyricSource, and nominal line boxes -- not on the line on
+    // show: CompactApplet binds the popup's size to this, and the next line
+    // or the secondary lyrics coming and going from one line to the next
+    // would resize it while it is open. Only the track info row is taken as
+    // it stands, and that changes from track to track, not from line to line
+    // (it has no height without a title). With the next line off the old
+    // height stands, so no popup grows for a line it does not show. The
+    // desktop widget is not affected either way: its size comes from the
+    // Layout.* hints alone, which this leaves alone (decision 80).
+    readonly property real nextLineRoom: trackInfo.implicitHeight + 2 * root.baseMargin
+        + lyric.lineBoxHeight
+        + (root.secondaryLyricSource !== "none" ? lyric.secondaryLineBoxHeight : 0)
+        + lyric.gap + lyric.lineBoxHeight * lyric.nextLineScale
     // QQuickLayouts never renders an item below its own Layout.minimumWidth
     // regardless of preferredWidth, so this floor must never sit above a
     // user's panelWidth or a narrower panelWidth would be silently lost.
@@ -455,6 +498,23 @@ Item {
             brightnessStrength: root.wordBrightnessPercent / 100
             blurGlowEnabled: root.wordBlurGlow
             lineHeightFactor: Math.max(root.lineHeightMinPercent, root.lineHeightPercent) / 100
+            nextText: root.effectiveNextText
+            // A value out of range in a hand-edited configuration counts as
+            // the nearest end; the settings page does not guard it.
+            nextLineBlurPercent: Math.max(0, Math.min(100, root.nextLineBlurPercent))
+            // Read whether or not the next line is on show: they are what
+            // tells a line arriving in sequence from a jump (decision 28).
+            // The test stand-ins for LyricSource may carry none of them.
+            currentLineIndex: root.source.currentLineIndex ?? -1
+            nextLineIndex: root.source.nextLineIndex ?? -1
+            nextLineText: root.source.nextText ?? ""
+            showingLyrics: root.showingLyrics
+            panelMode: root.panelMode
+            // Clipped at the top only to keep the lines off the track info:
+            // at the lyric area's top edge while it is shown, at this item's
+            // own top edge otherwise -- a panel shows none by default, and a
+            // clip at the lyric area would cut the top off two centred lines.
+            clipTop: root.trackInfoTitle.length > 0 ? 0 : -(content.y + lyric.y)
             particlesEnabled: root.wordParticles && root.wordByWord && root.showingLyrics
             particleColor: root.effectiveWordParticleColor
             // The test stand-ins for LyricSource carry no fingerprint.

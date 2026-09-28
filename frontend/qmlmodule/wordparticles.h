@@ -162,8 +162,10 @@ Snapshot capture(const LineLayout &line);
 
 /// The line being sung plus the recent lines whose particles are still in
 /// the air. Kept by the layer itself rather than read back from the widget:
-/// AnimatedLyric lets go of the previous line's words ~260 ms after a switch,
-/// and a credit block changes line several times inside one particle's life.
+/// AnimatedLyric lets go of a line's words as soon as its block has left --
+/// 270 ms after the switch for a sung line pushed up, 180 ms for one faded
+/// out in place, at once with animations off -- and a credit block changes
+/// line several times inside one particle's life.
 class Field
 {
 public:

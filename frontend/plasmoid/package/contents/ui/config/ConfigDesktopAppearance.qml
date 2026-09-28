@@ -20,6 +20,8 @@ Kirigami.ScrollablePage {
     property int cfg_desktopFontWeight
     property string cfg_desktopOverflow
     property string cfg_desktopAnimation
+    property bool cfg_desktopShowNextLine
+    property int cfg_desktopNextLineBlur
     property int cfg_desktopLineHeight
     property string cfg_desktopSecondaryLyricSource
     property bool cfg_desktopSecondaryLyricColorEnabled
@@ -71,6 +73,8 @@ Kirigami.ScrollablePage {
     property int cfg_desktopLightFontWeight
     property string cfg_desktopLightOverflow
     property string cfg_desktopLightAnimation
+    property bool cfg_desktopLightShowNextLine
+    property int cfg_desktopLightNextLineBlur
     property int cfg_desktopLightLineHeight
     property string cfg_desktopLightSecondaryLyricSource
     property bool cfg_desktopLightSecondaryLyricColorEnabled
@@ -219,6 +223,10 @@ Kirigami.ScrollablePage {
                 fontWeight: page.themed("FontWeight")
                 overflowMode: page.themed("Overflow")
                 animationMode: page.themed("Animation")
+                // DESIGN.md decision 80: the desktop has the next line.
+                nextLineSupported: true
+                showNextLine: page.themed("ShowNextLine")
+                nextLineBlurPercent: page.themed("NextLineBlur")
                 fontSizeControl: page.editingDark ? desktopFontSize : desktopLightFontSize
                 lineHeightPercent: page.themed("LineHeight")
                 secondaryLyricSource: page.themed("SecondaryLyricSource")
@@ -255,6 +263,8 @@ Kirigami.ScrollablePage {
                 wordParticleColorEnabled: page.themed("WordParticleColorEnabled")
                 wordParticleColor: page.themed("WordParticleColor")
                 onLineHeightPercentEdited: value => page.editThemed("LineHeight", value)
+                onShowNextLineEdited: value => page.editThemed("ShowNextLine", value)
+                onNextLineBlurPercentEdited: value => page.editThemed("NextLineBlur", value)
                 onSecondaryLyricSourceEdited: value => page.editThemed("SecondaryLyricSource", value)
                 onSecondaryLyricColorEnabledEdited: value => page.editThemed("SecondaryLyricColorEnabled", value)
                 onSecondaryLyricColorEdited: value => page.editThemed("SecondaryLyricColor", value)

@@ -45,7 +45,7 @@ on the desktop and off in panels; the two are configured independently.
 - 🎨 **Customizable appearance** — background style (Plasma theme / solid translucent color / none), text outline, font (searchable list of installed fonts; the track info can use its own), font size, weight and colors
 - 🌗 **Light and dark appearance** — a light and a dark set of appearance settings, switching automatically with a fade as the Plasma style turns light or dark, or pinned to one set
 - 📏 **Overflow strategies** — scale to fit `fit` / wrap `wrap` / marquee `marquee`
-- 🎞️ **Line transitions** — none / fade / slide
+- 🎞️ **Line transitions** — none / fade / spring slide; on the desktop, the next line can be shown blurred below the current one
 - 💤 **Auto-hide** — hides once playback has been idle longer than a configurable grace period (the desktop widget fades out, the panel widget gives its space back) and comes back when a track starts; off by default
 - ⏱️ **Timing adjustment** — shift by 0.5 s either way from the context menu, stored per song and shared by every widget; "Global settings" can add one global offset shared by all songs, added to each song's own offset, and can edit the current song's offset directly
 - 📝 **Manual lyric overrides** — drop in an `.lrc` file to replace any song's lyrics

@@ -52,6 +52,138 @@ private Q_SLOTS:
         QCOMPARE(currentLineIndex(lines, 3000), -1);
     }
 
+    void nextLineIsTheFirstNotYetStarted()
+    {
+        LyricLines lines{{1000, 2000, QStringLiteral("one"), std::nullopt, std::nullopt},
+                         {3000, 4000, QStringLiteral("two"), std::nullopt, std::nullopt},
+                         {5000, 6000, QStringLiteral("three"), std::nullopt, std::nullopt}};
+        QCOMPARE(nextLineIndex({}, 0), -1);
+        QCOMPARE(nextLineIndex(lines, 0), 0);    // before the first line
+        QCOMPARE(nextLineIndex(lines, 999), 0);
+        QCOMPARE(nextLineIndex(lines, 1500), 1); // inside a line
+        QCOMPARE(nextLineIndex(lines, 2500), 1); // in the gap after it
+        QCOMPARE(nextLineIndex(lines, 2999), 1);
+        // A line starting exactly now is current and cannot be next as well.
+        QCOMPARE(currentLineIndex(lines, 3000), 1);
+        QCOMPARE(nextLineIndex(lines, 3000), 2);
+        QCOMPARE(currentLineIndex(lines, 5000), 2); // the last line
+        QCOMPARE(nextLineIndex(lines, 5000), -1);
+        QCOMPARE(nextLineIndex(lines, 6000), -1);   // and after it
+        QCOMPARE(nextLineIndex(lines, 60000), -1);
+    }
+
+    void nextLineOfSeveralSharingAStartIsTheLast()
+    {
+        // The same fixture as boundariesAndInterlude: currentLineIndex() settles
+        // on the last of the lines sharing 5000, so that is the one coming up.
+        LyricLines lines{{1000, 2000, QStringLiteral("one"), std::nullopt, std::nullopt},
+                         {5000, 6000, QStringLiteral("two"), std::nullopt, std::nullopt},
+                         {5000, 6000, QStringLiteral("two alt"), std::nullopt, std::nullopt}};
+        QCOMPARE(nextLineIndex(lines, 1000), 2);
+        QCOMPARE(nextLineIndex(lines, 4999), 2);
+        QCOMPARE(currentLineIndex(lines, 5000), 2);
+        QCOMPARE(nextLineIndex(lines, 5000), -1);
+
+        LyricLines opening{{1000, 2000, QStringLiteral("one"), std::nullopt, std::nullopt},
+                           {1000, 2000, QStringLiteral("one alt"), std::nullopt, std::nullopt},
+                           {3000, 4000, QStringLiteral("two"), std::nullopt, std::nullopt}};
+        QCOMPARE(nextLineIndex(opening, 0), 1);
+        QCOMPARE(nextLineIndex(opening, 1000), 2);
+    }
+
+    void nextLineIgnoresAnOverlappingEnd()
+    {
+        // "long" is still nominally running when "short" starts and after it
+        // ends; the next line is decided by starts alone.
+        LyricLines lines{{0, 10000, QStringLiteral("long"), std::nullopt, std::nullopt},
+                         {2000, 3000, QStringLiteral("short"), std::nullopt, std::nullopt},
+                         {4000, 5000, QStringLiteral("next"), std::nullopt, std::nullopt}};
+        QCOMPARE(currentLineIndex(lines, 1000), 0);
+        QCOMPARE(nextLineIndex(lines, 1000), 1);
+        QCOMPARE(currentLineIndex(lines, 2500), 1);
+        QCOMPARE(nextLineIndex(lines, 2500), 2);
+        QCOMPARE(currentLineIndex(lines, 3500), -1);
+        QCOMPARE(nextLineIndex(lines, 3500), 2);
+        QCOMPARE(nextLineIndex(lines, 4000), -1);
+    }
+
+    void nextLineShowsThroughALongInterlude()
+    {
+        // finalizeEndTimes() cuts a line off 10 s after it starts, so for most
+        // of this interlude nothing is current -- the next line still is.
+        LyricLines lines{{1000, 0, QStringLiteral("verse"), std::nullopt, std::nullopt},
+                         {40000, 0, QStringLiteral("after"), std::nullopt, std::nullopt}};
+        finalizeEndTimes(lines);
+        QCOMPARE(lines[0].endMs, 11000);
+        QCOMPARE(currentLineIndex(lines, 500), -1); // the intro
+        QCOMPARE(nextLineIndex(lines, 500), 0);
+        QCOMPARE(nextLineIndex(lines, 10999), 1);
+        QCOMPARE(currentLineIndex(lines, 11000), -1);
+        QCOMPARE(nextLineIndex(lines, 11000), 1);
+        QCOMPARE(currentLineIndex(lines, 39999), -1);
+        QCOMPARE(nextLineIndex(lines, 39999), 1);
+        QCOMPARE(currentLineIndex(lines, 40000), 1);
+        QCOMPARE(nextLineIndex(lines, 40000), -1);
+    }
+
+    void nextLineAppliesTheOffsetLikeTheCurrentLine()
+    {
+        LyricLines lines{{1000, 2000, QStringLiteral("one"), std::nullopt, std::nullopt},
+                         {3000, 4000, QStringLiteral("two"), std::nullopt, std::nullopt},
+                         {5000, 6000, QStringLiteral("three"), std::nullopt, std::nullopt}};
+        // A positive offset shows the lyrics later.
+        QCOMPARE(nextLineIndex(lines, 3499, 500), 1);
+        QCOMPARE(currentLineIndex(lines, 3500, 500), 1);
+        QCOMPARE(nextLineIndex(lines, 3500, 500), 2);
+        // A negative one earlier.
+        QCOMPARE(nextLineIndex(lines, 2499, -500), 1);
+        QCOMPARE(currentLineIndex(lines, 2500, -500), 1);
+        QCOMPARE(nextLineIndex(lines, 2500, -500), 2);
+        QCOMPARE(nextLineIndex(lines, 499, -500), 0);
+        QCOMPARE(nextLineIndex(lines, 500, -500), 1);
+        QCOMPARE(nextLineIndex(lines, 4499, -500), 2);
+        QCOMPARE(nextLineIndex(lines, 4500, -500), -1);
+    }
+
+    void nextLineBecomesCurrentAndWakesOnABoundary()
+    {
+        // Every millisecond across a timeline with an intro, an overlap, a long
+        // interlude, three lines sharing a start (so skipping just one of them
+        // is caught too) and a last line, under three offsets. The
+        // animation takes a new current line that equals the previous next one
+        // as the song moving on (DESIGN.md decision 28), and the widget only
+        // recomputes on nextBoundaryMs() (decision 38), so a change of the next
+        // line between two boundaries would never reach the screen.
+        LyricLines lines{{1000, 2000, QStringLiteral("one"), std::nullopt, std::nullopt},
+                         {3000, 10000, QStringLiteral("long"), std::nullopt, std::nullopt},
+                         {4000, 4500, QStringLiteral("inside"), std::nullopt, std::nullopt},
+                         {5000, 0, QStringLiteral("verse"), std::nullopt, std::nullopt},
+                         {20000, 0, QStringLiteral("two"), std::nullopt, std::nullopt},
+                         {20000, 0, QStringLiteral("two alt"), std::nullopt, std::nullopt},
+                         {20000, 0, QStringLiteral("two third"), std::nullopt, std::nullopt},
+                         {22000, 0, QStringLiteral("last"), std::nullopt, std::nullopt}};
+        finalizeEndTimes(lines);
+        QCOMPARE(lines[3].endMs, 15000); // five seconds with nothing current
+        for (const int offsetMs : {0, 700, -700}) {
+            for (qint64 position = 1; position <= 35000; ++position) {
+                const int current = currentLineIndex(lines, position, offsetMs);
+                const int next = nextLineIndex(lines, position, offsetMs);
+                const int previousNext = nextLineIndex(lines, position - 1, offsetMs);
+                if (current >= 0 && current != currentLineIndex(lines, position - 1, offsetMs)
+                    && current != previousNext) {
+                    QFAIL(qPrintable(QStringLiteral("offset %1 ms, at %2 ms: line %3 became current, %4 was next")
+                                         .arg(offsetMs).arg(position).arg(current).arg(previousNext)));
+                }
+                if (next != previousNext
+                    && nextBoundaryMs(lines, position - 1, offsetMs).value_or(-1) != position) {
+                    QFAIL(qPrintable(QStringLiteral("offset %1 ms, at %2 ms: the next line moved from %3 to %4 "
+                                                    "without a boundary there")
+                                         .arg(offsetMs).arg(position).arg(previousNext).arg(next)));
+                }
+            }
+        }
+    }
+
     void filtersOnlyLeadingCredits()
     {
         LyricLines lines{{2800, 5000, QStringLiteral("编曲/伴奏混音：闹闹丶"), std::nullopt, std::nullopt},

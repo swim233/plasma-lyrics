@@ -463,19 +463,23 @@ TestCase {
         verify(Math.abs(originCentre - secondary.width / 2) <= 1);
     }
 
-    // The faded-out block keeps both of its lines alive and `visible`, so
-    // secondary lyrics left behind there go on driving an infinite marquee
-    // that nobody can see. Passes on either animation path: with animations off,
-    // switchLine releases the block synchronously instead.
+    // A faded-out block would keep both of its lines alive and `visible`, so
+    // secondary lyrics left behind there would go on driving an infinite
+    // marquee that nobody can see. Passes on either animation path: with
+    // animations off, switchLine releases the block synchronously instead.
     function test_transitionReleasesBothHalvesOfThePreviousBlock() {
         const lyric = createTemporaryObject(animatedLyricComponent, this,
             { animationMode: "fade" });
         verify(lyric !== null);
         tryVerify(() => lyric.shownText === "first");
+        const previous = lyric.currentBlock;
         lyric.lyricText = "second";
         lyric.secondaryLyricText = "translation two";
         tryVerify(() => lyric.shownText === "second");
-        tryVerify(() => lyric.previousText === "" && lyric.previousSecondaryLyric === "");
+        verify(previous !== lyric.currentBlock);
+        tryVerify(() => previous.lyricText === "" && previous.secondaryLyricText === "");
+        const idle = lyric.blocks().filter(b => b !== lyric.currentBlock);
+        verify(idle.every(b => b.lyricText === "" && b.secondaryLyricText === ""));
     }
 
     function test_outlineIsOptIn() {
@@ -524,11 +528,10 @@ TestCase {
         // main.qml -> LyricsView -> AnimatedLyric -> LyricBlock -> LyricLine.
         // Only the last hop applies it, so a missed forward is invisible until
         // the widget is running.
-        for (let i = 0; i < lyric.children.length; ++i) {
-            const block = lyric.children[i];
-            if (block.fontWeight !== undefined) {
-                compare(block.fontWeight, Font.Light);
-            }
+        const blocks = lyric.blocks();
+        verify(blocks.length > 0);
+        for (let i = 0; i < blocks.length; ++i) {
+            compare(blocks[i].fontWeight, Font.Light);
         }
     }
 
@@ -2171,6 +2174,8 @@ TestCase {
         FontWeight: { property: "fontWeight", signal: "fontWeightEdited" },
         Overflow: { property: "overflowMode", signal: "overflowModeEdited" },
         Animation: { property: "animationMode", signal: "animationModeEdited" },
+        ShowNextLine: { property: "showNextLine", signal: "showNextLineEdited" },
+        NextLineBlur: { property: "nextLineBlurPercent", signal: "nextLineBlurPercentEdited" },
         LineHeight: { property: "lineHeightPercent", signal: "lineHeightPercentEdited" },
         SecondaryLyricSource: { property: "secondaryLyricSource", signal: "secondaryLyricSourceEdited" },
         SecondaryLyricColorEnabled: { property: "secondaryLyricColorEnabled", signal: "secondaryLyricColorEnabledEdited" },
@@ -2207,7 +2212,7 @@ TestCase {
             const page = createTemporaryObject(pageComponent(form), this);
             verify(page !== null, form);
             const suffixes = ThemePolicy.themedSuffixes(form);
-            compare(suffixes.length, form === "desktop" ? 35 : 33, form);
+            compare(suffixes.length, form === "desktop" ? 37 : 33, form);
             const keys = ["cfg_" + ThemePolicy.modeKey(form)];
             for (const suffix of suffixes) {
                 keys.push("cfg_" + ThemePolicy.keyPrefix(form, false) + suffix);
@@ -2841,19 +2846,23 @@ TestCase {
         return dark ? ThemePolicy.darkDefaults[form].SecondaryLyricColor : "#ad1f1b16";
     }
 
-    // "Long lyrics" and "Line transition" come straight after the outline
-    // rows, above the new section's heading, and the section's rows follow
-    // the heading in the order decision 78 gives, up to the word-by-word
-    // heading.
+    // "Long lyrics", "Line transition" and decision 80's two next line rows
+    // come straight after the outline rows, above the new section's heading,
+    // and the section's rows follow the heading in the order decision 78
+    // gives, up to the word-by-word heading. The next line rows are declared
+    // on both pages and shown on the desktop's alone (see
+    // test_thePanelPageShowsNoNextLineRows).
     function test_secondaryLyricSectionFollowsTheLongLyricsRows() {
         for (const form of ["desktop", "panel"]) {
             const page = createDarkPage(pageComponent(form), form);
             const labels = labelledRows(page).map(row => row.Kirigami.FormData.label);
             const outlineAt = labels.indexOf(i18n("Outline color:"));
             verify(outlineAt >= 0, form);
-            compare(labels.slice(outlineAt + 1, outlineAt + 13), [
+            compare(labels.slice(outlineAt + 1, outlineAt + 15), [
                 i18n("Long lyrics:"),
                 i18n("Line transition:"),
+                i18n("Next line:"),
+                i18n("Next line blur:"),
                 i18n("Secondary lyrics"),
                 i18n("Secondary lyrics:"),
                 i18n("Secondary lyrics color:"),
@@ -3183,6 +3192,102 @@ TestCase {
             verify(description.Layout.preferredWidth > 0, form);
             verify(description.Layout.preferredWidth < description.width, form);
             verify(description.width < themeTabs.width, form);
+        }
+    }
+
+    // ---- the next line (DESIGN.md decision 80) ----
+
+    // The switch and the blur strength right after "Line transition:", on
+    // both tabs of the desktop page. The strength shows only while the
+    // switch is on; each row shows the key of the set on screen as stored,
+    // and a click on the check box or a step of the spin box writes that
+    // set's key and no other.
+    function test_nextLineRowsShowOnTheDesktopPage() {
+        for (const dark of [false, true]) {
+            const tag = dark ? "dark" : "light";
+            const key = suffix => "cfg_" + ThemePolicy.keyPrefix("desktop", dark) + suffix;
+            const otherKey = suffix => "cfg_" + ThemePolicy.keyPrefix("desktop", !dark) + suffix;
+            const props = distinctConfiguration("desktop", tag);
+            props[key("ShowNextLine")] = true;
+            props[key("NextLineBlur")] = 30;
+            props[otherKey("ShowNextLine")] = false;
+            props[otherKey("NextLineBlur")] = 70;
+            const page = createWindowedPage("desktop", props);
+            compare(page.editingDark, dark, tag);
+            compare(sectionOf(page).nextLineSupported, true, tag);
+            const toggle = named(page, "showNextLineCheckBox");
+            const blur = named(page, "nextLineBlurSpinBox");
+
+            compare(toggle.Kirigami.FormData.label, i18n("Next line:"), tag);
+            compare(toggle.text, i18n("Show the next line"), tag);
+            compare(blur.Kirigami.FormData.label, i18n("Next line blur:"), tag);
+            compare([blur.from, blur.to, blur.stepSize], [0, 100, 5], tag);
+            compare(blur.textFromValue(30, Qt.locale()),
+                    i18nc("@item:valuesuffix blur strength of the next line", "%1%", 30), tag);
+            const rows = labelledRows(page);
+            const transitionAt = rows.findIndex(row => row.Kirigami.FormData.label === i18n("Line transition:"));
+            verify(transitionAt >= 0, tag);
+            compare(rows.indexOf(toggle), transitionAt + 1, tag);
+            compare(rows.indexOf(blur), transitionAt + 2, tag);
+
+            // Whether each row shows, then what it shows.
+            const state = () => [toggle.visible, blur.visible, toggle.checked, blur.value];
+            compare(state(), [true, true, true, 30], tag);
+            page[key("ShowNextLine")] = false;
+            compare(state(), [true, false, false, 30], tag);
+            page[key("ShowNextLine")] = true;
+            page[key("NextLineBlur")] = 0;
+            compare(state(), [true, true, true, 0], tag);
+            page[key("NextLineBlur")] = 30;
+
+            settle(blur);
+            scrollIntoView(page, blur);
+            blur.forceActiveFocus();
+            keyClick(Qt.Key_Up);
+            compare(page[key("NextLineBlur")], 35, tag);
+            compare(blur.displayText, i18nc("@item:valuesuffix blur strength of the next line", "%1%", 35), tag);
+
+            settle(toggle);
+            scrollIntoView(page, toggle);
+            mouseClick(toggle);
+            compare(page[key("ShowNextLine")], false, tag);
+            compare(state(), [true, false, false, 35], tag);
+            mouseClick(toggle);
+            compare(page[key("ShowNextLine")], true, tag);
+            compare(state(), [true, true, true, 35], tag);
+            compare([page[otherKey("ShowNextLine")], page[otherKey("NextLineBlur")]], [false, 70], tag);
+
+            // The other tab shows the other set: the switch off, and so no
+            // strength row.
+            named(page, "themeTabBar").currentIndex = dark ? 0 : 1;
+            compare(page.editingDark, !dark, tag);
+            compare(state(), [true, false, false, 70], tag);
+        }
+    }
+
+    // The panel has no next line keys, so its page declares none and shows
+    // neither row on either tab, whatever the section's own properties say.
+    function test_thePanelPageShowsNoNextLineRows() {
+        for (const dark of [false, true]) {
+            const tag = dark ? "dark" : "light";
+            const page = createWindowedPage("panel", distinctConfiguration("panel", tag));
+            compare(page.editingDark, dark, tag);
+            const section = sectionOf(page);
+            const toggle = named(page, "showNextLineCheckBox");
+            const blur = named(page, "nextLineBlurSpinBox");
+            compare(section.nextLineSupported, false, tag);
+            for (const prefix of ["cfg_panel", "cfg_panelLight"]) {
+                for (const suffix of ["ShowNextLine", "NextLineBlur"]) {
+                    verify(!(prefix + suffix in page), prefix + suffix);
+                }
+            }
+            settle(section);
+            verify(named(page, "lyricFontPicker").visible, tag);
+            compare([toggle.visible, blur.visible], [false, false], tag);
+            section.showNextLine = false;
+            compare([toggle.visible, blur.visible], [false, false], tag);
+            section.showNextLine = true;
+            compare([toggle.visible, blur.visible], [false, false], tag);
         }
     }
 }

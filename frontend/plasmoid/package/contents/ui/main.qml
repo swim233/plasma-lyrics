@@ -384,6 +384,10 @@ PlasmoidItem {
                                             desktopTheme.value("FontWeight"))
         overflowMode: desktopTheme.value("Overflow")
         animationMode: desktopTheme.value("Animation")
+        // DESIGN.md decision 80: desktop only. compactRepresentation leaves
+        // showNextLine at LyricsView's false; the panel has no keys for it.
+        showNextLine: desktopTheme.value("ShowNextLine")
+        nextLineBlurPercent: desktopTheme.value("NextLineBlur")
         secondaryLyricSource: desktopTheme.value("SecondaryLyricSource")
         secondaryLyricColorEnabled: desktopTheme.value("SecondaryLyricColorEnabled")
         secondaryLyricColor: desktopTheme.value("SecondaryLyricColor")

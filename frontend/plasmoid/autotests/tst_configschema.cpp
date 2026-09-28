@@ -412,7 +412,7 @@ private Q_SLOTS:
                                 .arg(lightKey, entries.value(lightKey).type, darkKey, entries.value(darkKey).type);
             }
         }
-        QCOMPARE(suffixes.value(QStringLiteral("desktop")).size(), 35);
+        QCOMPARE(suffixes.value(QStringLiteral("desktop")).size(), 37);
         QCOMPARE(suffixes.value(QStringLiteral("panel")).size(), 33);
 
         for (auto it = entries.cbegin(); it != entries.cend(); ++it) {
@@ -578,6 +578,66 @@ private Q_SLOTS:
         QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
     }
 
+    // DESIGN.md decision 80's four keys, spelled out for the reason
+    // wordParticleEntries gives: the next line is on and blurred 25% in both
+    // desktop sets. The panel has neither key in either set, and
+    // compactRepresentation binds neither property, so a panel keeps
+    // LyricsView's own showNextLine, false. mainReadsThemedKeysThroughItsTheme
+    // covers fullRepresentation's two bindings.
+    void nextLineEntries()
+    {
+        const QHash<QString, SchemaEntry> entries = parsedEntries(readAll(schemaPath()));
+        QVERIFY(!entries.isEmpty());
+
+        struct Expected {
+            QString name;
+            QString type;
+            QString defaultValue;
+        };
+        QList<Expected> expected;
+        for (const QString &prefix : {QStringLiteral("desktop"), QStringLiteral("desktopLight")}) {
+            expected.append({prefix + QStringLiteral("ShowNextLine"), QStringLiteral("Bool"), QStringLiteral("true")});
+            expected.append({prefix + QStringLiteral("NextLineBlur"), QStringLiteral("Int"), QStringLiteral("25")});
+        }
+        QCOMPARE(expected.size(), 4);
+
+        QStringList problems;
+        for (const Expected &key : std::as_const(expected)) {
+            if (!entries.contains(key.name)) {
+                problems << QStringLiteral("%1: not declared").arg(key.name);
+                continue;
+            }
+            const SchemaEntry entry = entries.value(key.name);
+            if (entry.type != key.type || entry.defaultValue != key.defaultValue) {
+                problems << QStringLiteral("%1: %2 \"%3\", expected %4 \"%5\"")
+                                .arg(key.name, entry.type, entry.defaultValue, key.type, key.defaultValue);
+            }
+        }
+        for (const QString &prefix : {QStringLiteral("panel"), QStringLiteral("panelLight")}) {
+            for (const QString &suffix : {QStringLiteral("ShowNextLine"), QStringLiteral("NextLineBlur")}) {
+                if (entries.contains(prefix + suffix)) {
+                    problems << QStringLiteral("%1: declared, but a panel has no next line").arg(prefix + suffix);
+                }
+            }
+        }
+
+        const QString mainPath = packageDir + QStringLiteral("/contents/ui/main.qml");
+        const QString main = QString::fromUtf8(readAll(mainPath));
+        QVERIFY2(!main.isEmpty(), qPrintable(QStringLiteral("cannot read %1").arg(mainPath)));
+        const QString opening = QStringLiteral("compactRepresentation: LyricsView {");
+        const qsizetype at = main.indexOf(opening);
+        QVERIFY2(at >= 0, qPrintable(opening));
+        const QHash<QString, QString> bindings = bindingsOf(braceBlock(main, at + opening.size() - 1));
+        QVERIFY(bindings.contains(QStringLiteral("panelMode")));
+        for (const QString &property : {QStringLiteral("showNextLine"), QStringLiteral("nextLineBlurPercent")}) {
+            if (bindings.contains(property)) {
+                problems << QStringLiteral("compactRepresentation binds %1").arg(property);
+            }
+        }
+
+        QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
+    }
+
     // The sixteen entries decision 78 retires stay declared, with the types
     // and defaults they had: ThemePolicy.migrateConfiguration reads them
     // through key names built at run time, which neither
@@ -739,7 +799,8 @@ private Q_SLOTS:
         }
 
         // The LyricsView property each themed key binds, both forms alike;
-        // the panel has no lift keys and so no lift rows.
+        // the panel has neither the lift keys nor the next line's (DESIGN.md
+        // decision 80) and so no rows for them.
         const QHash<QString, QString> themedProperty = {
             {QStringLiteral("PlateMode"), QStringLiteral("plateMode")},
             {QStringLiteral("SolidColor"), QStringLiteral("solidColor")},
@@ -751,6 +812,8 @@ private Q_SLOTS:
             {QStringLiteral("FontWeight"), QStringLiteral("fontWeight")},
             {QStringLiteral("Overflow"), QStringLiteral("overflowMode")},
             {QStringLiteral("Animation"), QStringLiteral("animationMode")},
+            {QStringLiteral("ShowNextLine"), QStringLiteral("showNextLine")},
+            {QStringLiteral("NextLineBlur"), QStringLiteral("nextLineBlurPercent")},
             {QStringLiteral("SecondaryLyricSource"), QStringLiteral("secondaryLyricSource")},
             {QStringLiteral("SecondaryLyricColorEnabled"), QStringLiteral("secondaryLyricColorEnabled")},
             {QStringLiteral("SecondaryLyricColor"), QStringLiteral("secondaryLyricColor")},

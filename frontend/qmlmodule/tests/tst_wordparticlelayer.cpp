@@ -362,6 +362,46 @@ private Q_SLOTS:
         QCOMPARE(layer.describeLine().value(QStringLiteral("x")).toDouble(), 100.0);
     }
 
+    // A next line growing into the current one (DESIGN.md decision 80): the
+    // line is captured at the scale it is drawn at, about the scale's
+    // origin, so every birth -- the same draws, from the same seeds -- lands
+    // where the glyph it rises from is. A line switched away from keeps the
+    // scale it had.
+    void aGrowingLineIsCapturedAtItsScale()
+    {
+        Layer layer;
+        layer.setLineOrigin(QPointF(20, 30));
+        setUp(layer, twoWords(), 1500);
+        const QList<QPointF> full = births(layer);
+        QVERIFY(!full.isEmpty());
+        const QPointF pivot(20 + 50, 30);
+        layer.setLineScaleOrigin(QPointF(50, 0));
+        layer.setLineScale(0.75);
+        const QList<QPointF> scaled = births(layer);
+        QCOMPARE(scaled.size(), full.size());
+        for (int i = 0; i < full.size(); ++i) {
+            const QPointF expected = pivot + (full.at(i) - pivot) * 0.75;
+            QVERIFY2(std::abs(scaled.at(i).x() - expected.x()) < 1e-9, qPrintable(QString::number(i)));
+            QVERIFY2(std::abs(scaled.at(i).y() - expected.y()) < 1e-9, qPrintable(QString::number(i)));
+        }
+        const QVariantMap described = layer.describeLine();
+        QCOMPARE(described.value(QStringLiteral("scale")).toDouble(), 0.75);
+        QCOMPARE(described.value(QStringLiteral("scaleOrigin")).toPointF(), pivot);
+        // Unscaled, as measured.
+        QCOMPARE(described.value(QStringLiteral("x")).toDouble(), 20.0);
+
+        layer.detach();
+        layer.setLine(QVariant());
+        layer.setLineScale(1);
+        const QVariantList snapshots = layer.describeSnapshots();
+        QCOMPARE(snapshots.size(), 1);
+        const QVariantList kept = snapshots.first().toMap().value(QStringLiteral("births")).toList();
+        QCOMPARE(kept.size(), scaled.size());
+        for (int i = 0; i < kept.size(); ++i) {
+            QCOMPARE(kept.at(i).toPointF(), scaled.at(i));
+        }
+    }
+
     // Turned on while the line already follows an offset -- a marquee
     // scrolled, and paused so that the offset never changes again -- the
     // particles start from that offset, not from the unscrolled row.
