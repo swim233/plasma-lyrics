@@ -113,7 +113,7 @@ Release 工作流会建出一个草稿 Release。核对下面三项：
 
 ### 3.1 推送 `plasma-lyrics-git`
 
-AUR 上 `plasma-lyrics-git` 的 PKGBUILD 只在单独推送它时更新，2.4 不碰它。所以改了 `packaging/aur/PKGBUILD` 的 `depends`、`makedepends` 或构建步骤（`pkgver()`、`build()`、`check()`、`package()`）之后，要把它推到 `plasma-lyrics-git` 一次。这个包构建的是 GitHub 上的 `main`，所以等改动推上 `main` 再推它。
+AUR 上 `plasma-lyrics-git` 的 PKGBUILD 只在单独推送它时更新，2.4 不碰它。所以 `packaging/aur/PKGBUILD` 里注释以外的任何内容改动之后，要把它推到 `plasma-lyrics-git` 一次。这个包构建的是 GitHub 上的 `main`，所以等改动推上 `main` 再推它。
 
 1. 在 `~/aur/plasma-lyrics-git` 按 2.4 第 2.1 步 `git fetch` 并确认工作区干净。
 2. 复制 `packaging/aur/PKGBUILD` 进去。
