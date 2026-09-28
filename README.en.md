@@ -41,7 +41,7 @@ on the desktop and off in panels; the two are configured independently.
 - 🔀 **Multi-source fallback** — local → NetEase → AMLL → QQ Music by default; drag to reorder, enable or disable each source, prefer a source for the current song, or search again right away
 - 📁 **Local lyrics source** — reads an `.lrc` beside the local audio file first, and can also scan a lyrics directory of your choice with the same matching rules
 - 📚 **AMLL TTML DB and QQ Music** — word-by-word highlighting and animation, with particles that can float up from each word as it is sung
-- 🪟 **Visible next to maximized windows** — in a panel set to "Windows Go Below", the lyrics stay visible beside maximized windows
+- 🪟 **Visible next to maximized windows** — in a panel set to "Windows go below", the lyrics stay visible beside maximized windows
 - 🎨 **Customizable appearance** — background style (Plasma theme / solid translucent color / none), text outline, font (searchable list of installed fonts; the track info can use its own), font size, weight and colors
 - 🌗 **Light and dark appearance** — a light and a dark set of appearance settings, switching automatically with a fade as the Plasma style turns light or dark, or pinned to one set
 - 📏 **Overflow strategies** — scale to fit `fit` / wrap `wrap` / marquee `marquee`
@@ -113,14 +113,14 @@ systemctl --user enable --now plasma-lyricsd.service
 
 ### 2. Add the widget
 
-Right-click the desktop or a panel → "Add Widgets…" → find **"Desktop Lyrics"**
-and drag it in.
+Right-click the desktop or a panel → "Add or Manage Widgets…" → find
+**"Desktop Lyrics"** and drag it in.
 
 > [!TIP]
-> **Visible next to maximized windows**: setting the panel that holds the lyrics
-> to the "Windows Go Below" visibility is Plasma's native way to keep lyrics
-> visible around maximized windows; desktop widgets cannot sit above normal
-> windows.
+> **Visible next to maximized windows**: setting the "Visibility" of the panel
+> that holds the lyrics to "Windows go below" is Plasma's native way to keep
+> lyrics visible around maximized windows; desktop widgets cannot sit above
+> normal windows.
 
 ### 3. Play music
 
@@ -134,7 +134,7 @@ and the lyrics appear automatically.
 | Lyrics too early / too late      | Right-click the widget → shift this song's offset by **±0.5 s**; "Global settings" can add a global offset or edit this song's offset directly |
 | Choose the current song's source | Right-click the widget → automatic, or prefer local files, NetEase, AMLL or QQ Music; a temporary fallback never overwrites that choice        |
 | Search again right away          | Right-click the widget → "Search for lyrics again", bypassing existing matches and the negative cache                                          |
-| Change the appearance            | Right-click the widget → "Configure Desktop Lyrics…"; the desktop and panel forms are configured independently                                 |
+| Change the appearance            | Right-click the widget → "Configure Desktop Lyrics..."; the desktop and panel forms are configured independently                               |
 | Replace a song's lyrics          | Put an `.lrc` at `~/.local/share/plasma-lyrics/overrides/<provider>:<track-id>.lrc` (bilingual supported, see "Lyric sources" below)           |
 | Import a waylyrics cache         | `plasma-lyrics-import-waylyrics --source ~/.cache/waylyrics`                                                                                   |
 
