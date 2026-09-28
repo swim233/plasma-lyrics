@@ -1,6 +1,6 @@
 # 提交消息文本风格规范
 
-适用：全部 commit message（feat / fix / perf / docs / chore / merge，含发布提交）。
+适用：本仓库的全部 commit message（feat / fix / perf / docs / chore / merge，含发布提交）；AUR 包仓库里的 `upgpkg: …` 提交按 `docs/RELEASE.md` 写。
 来源：2026-09 对本仓库 122 条历史消息的两轮规范化，以及此后新提交的复核；本文反例均为仓库内真实消息。
 
 ---
