@@ -26,6 +26,8 @@ var darkDefaults = {
         FontWeight: 700,
         Overflow: "fit",
         Animation: "slide",
+        ShowNextLine: true,
+        NextLineBlur: 25,
         SecondaryLyricSource: "translation",
         SecondaryLyricColorEnabled: false,
         SecondaryLyricColor: "#adfffaf5",
@@ -91,8 +93,9 @@ var darkDefaults = {
 // END darkDefaults
 
 // The suffixes of the keys that come in a light and a dark copy, for
-// "desktop" or "panel" (the key prefix, not Plasmoid.formFactor): 35 for the
-// desktop, 33 for the panel, which has no lift keys.
+// "desktop" or "panel" (the key prefix, not Plasmoid.formFactor): 37 for the
+// desktop, 33 for the panel, which has neither the lift keys nor the next
+// line's (DESIGN.md decision 80).
 function themedSuffixes(formFactor) {
     return Object.keys(darkDefaults[formFactor]);
 }
@@ -154,6 +157,12 @@ function isDefaultValue(value, defaultValue) {
 // instance has -- keeps the light defaults from main.xml. Whole sets, never
 // key by key: a custom colour next to a light default of its neighbour would
 // be a combination nobody picked.
+//
+// A suffix added to the table after version 1, decision 80's next line pair
+// among them, needs no version of its own: an instance that predates it
+// reads the main.xml default in both sets, which version 1's step neither
+// counts as a customisation nor, when it copies a customised set, changes,
+// since the pair's light defaults are its dark ones.
 //
 // A version 0 instance takes version 2's step first, so that version 1's
 // judges and copies the dark set by the suffixes above, and the light copy

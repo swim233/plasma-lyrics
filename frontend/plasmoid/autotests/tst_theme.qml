@@ -74,12 +74,16 @@ TestCase {
     function test_themedSuffixes() {
         const desktop = ThemePolicy.themedSuffixes("desktop");
         const panel = ThemePolicy.themedSuffixes("panel");
-        compare(desktop.length, 35);
+        compare(desktop.length, 37);
         compare(panel.length, 33);
-        verify(desktop.includes("WordLift"));
-        verify(desktop.includes("WordLiftPercent"));
-        verify(!panel.includes("WordLift"));
-        verify(!panel.includes("WordLiftPercent"));
+        // Neither the lift keys nor decision 80's next line keys have a
+        // panel copy.
+        for (const suffix of ["WordLift", "WordLiftPercent", "ShowNextLine", "NextLineBlur"]) {
+            verify(desktop.includes(suffix), suffix);
+            verify(!panel.includes(suffix), suffix);
+        }
+        compare(ThemePolicy.darkDefaults.desktop.ShowNextLine, true);
+        compare(ThemePolicy.darkDefaults.desktop.NextLineBlur, 25);
         // Decision 77: unlike the lift keys, the particle keys have a panel
         // copy; decision 78's secondary lyric keys do too.
         for (const suffix of ["TrackInfoColor", "TrackInfoStroke", "TrackInfoStrokeColor",
@@ -198,6 +202,38 @@ TestCase {
         compare(configuration.desktopLightTextColor, untouched);
         compare(configuration.desktopSecondaryLyricSource, "translation");
         compare(configuration.themeConfigVersion, 2);
+    }
+
+    // DESIGN.md decision 80's keys came after version 1 and have no version
+    // of their own. An instance that predates them reads them at their
+    // main.xml defaults, the same in both sets: KConfig returns a key's
+    // default until it is stored. At those values the pair does not make an
+    // untouched set count as customised, and whether the migration copies
+    // the desktop set or leaves it, whatever version it starts from, both
+    // sets come out with the next line on and blurred 25%.
+    function test_migrationLeavesTheNextLineAtItsDefaults_data() {
+        return [
+            { tag: "version 0, untouched", version: 0, customised: false, copied: false },
+            { tag: "version 0, customised", version: 0, customised: true, copied: true },
+            { tag: "version 1, customised", version: 1, customised: true, copied: false },
+        ];
+    }
+    function test_migrationLeavesTheNextLineAtItsDefaults(data) {
+        const configuration = freshConfiguration();
+        configuration.themeConfigVersion = data.version;
+        for (const prefix of ["desktop", "desktopLight"]) {
+            configuration[prefix + "ShowNextLine"] = true;
+            configuration[prefix + "NextLineBlur"] = 25;
+        }
+        if (data.customised) {
+            configuration.desktopTextColor = "#ffcc00";
+        }
+        compare(ThemePolicy.migrateConfiguration(configuration), true);
+        compare(configuration.desktopLightTextColor, data.copied ? "#ffcc00" : untouched);
+        for (const prefix of ["desktop", "desktopLight"]) {
+            compare(configuration[prefix + "ShowNextLine"], true, prefix);
+            compare(configuration[prefix + "NextLineBlur"], 25, prefix);
+        }
     }
 
     // DESIGN.md decision 78: in each of the four sets, the source is the old

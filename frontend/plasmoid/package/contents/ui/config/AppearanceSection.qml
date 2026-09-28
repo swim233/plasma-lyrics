@@ -38,6 +38,13 @@ Kirigami.FormLayout {
     property int lineHeightMin: 100
     required property var fontSizeControl
 
+    // DESIGN.md decision 80: the next line, desktop only. The desktop page
+    // turns nextLineSupported on; the panel has no next line keys, so both
+    // rows stay hidden there.
+    property bool nextLineSupported: false
+    property bool showNextLine: true
+    property int nextLineBlurPercent: 25
+
     // DESIGN.md decision 78: the secondary lyrics, a section of their own.
     // The *Default properties are the defaults of the keys of the set on
     // screen (the page reads them from the config dialog, see
@@ -112,6 +119,8 @@ Kirigami.FormLayout {
     signal overflowModeEdited(string value)
     signal animationModeEdited(string value)
     signal lineHeightPercentEdited(int value)
+    signal showNextLineEdited(bool value)
+    signal nextLineBlurPercentEdited(int value)
     signal secondaryLyricSourceEdited(string value)
     signal secondaryLyricColorEnabledEdited(bool value)
     signal secondaryLyricColorEdited(string value)
@@ -337,8 +346,9 @@ Kirigami.FormLayout {
         value: root.strokeColor
         onEdited: hexColor => root.strokeColorEdited(hexColor)
     }
-    // Above the secondary lyrics section: its heading would otherwise take
-    // these two in, and both apply to the main lyrics as well.
+    // Above the secondary lyrics section, like the next line rows after
+    // them: its heading would otherwise take them in. These two apply to the
+    // main lyrics as well.
     QQC2.ComboBox {
         Kirigami.FormData.label: i18n("Long lyrics:")
         model: [i18n("Fit text"), i18n("Wrap to two lines"), i18n("Marquee")]
@@ -350,6 +360,28 @@ Kirigami.FormLayout {
         model: [i18n("None"), i18n("Fade"), i18n("Slide up")]
         currentIndex: ["none", "fade", "slide"].indexOf(root.animationMode)
         onActivated: root.animationModeEdited(["none", "fade", "slide"][currentIndex])
+    }
+    // DESIGN.md decision 80, on the desktop page only; the strength shows
+    // while the next line does. Named for the tests that check which of
+    // them show.
+    QQC2.CheckBox {
+        objectName: "showNextLineCheckBox"
+        Kirigami.FormData.label: i18n("Next line:")
+        visible: root.nextLineSupported
+        text: i18n("Show the next line")
+        checked: root.showNextLine
+        onToggled: root.showNextLineEdited(checked)
+    }
+    QQC2.SpinBox {
+        objectName: "nextLineBlurSpinBox"
+        Kirigami.FormData.label: i18n("Next line blur:")
+        visible: root.nextLineSupported && root.showNextLine
+        from: 0
+        to: 100
+        stepSize: 5
+        value: root.nextLineBlurPercent
+        onValueModified: root.nextLineBlurPercentEdited(value)
+        textFromValue: (value, locale) => i18nc("@item:valuesuffix blur strength of the next line", "%1%", value)
     }
 
     // DESIGN.md decision 78. Every row after the first shows only while the
@@ -468,16 +500,19 @@ Kirigami.FormLayout {
         // wide and does not grow with its content, which leaves this section
         // 614 px, and FormLayout drops to one column once the section's
         // implicitWidth exceeds that. Measured in zh_CN with Noto Sans CJK SC
-        // 12 (small font 11) under org.kde.desktop: the section is 588 px at
-        // 26 and 615 px -- one column -- at 28, and at 26 the glow (465 px)
-        // and particle (435 px) descriptions each fit on one line.
-        // English is now the closer of the two: in English with Plasma's
-        // default font, Noto Sans 10, under org.kde.desktop (the kde platform
-        // theme reading a kdeglobals that sets only that font), the section
-        // is 601 px without decision 78's secondary lyrics rows and 612 px
-        // with all of them shown -- 2 px from one column. Their Chinese
-        // labels left the width as it was. A longer English label or check
-        // box text on this page is likely to tip it into one column.
+        // 12 (small font 11) under org.kde.desktop: with decision 80's next
+        // line blur row shown, whose label 待唱行模糊强度： is the longest in
+        // Chinese, the section is 604 px at 26 and 631 px -- one column --
+        // at 28; with that row hidden, 588 px and 615 px. At 26 the glow
+        // (465 px) and particle (435 px) descriptions each fit on one line.
+        // English is the closer of the two: in English with Plasma's default
+        // font, Noto Sans 10, under org.kde.desktop (the kde platform theme
+        // reading a kdeglobals that sets only that font), the section is
+        // 601 px without decision 78's secondary lyrics rows and 612 px with
+        // all of them shown -- 2 px from one column. Their Chinese labels
+        // left the width as it was, and so do the next line rows in English.
+        // A longer English label or check box text on this page is likely to
+        // tip it into one column.
         Layout.maximumWidth: Kirigami.Units.gridUnit * 26
         wrapMode: Text.WordWrap
         // Same styling as the "Record debug details" description on the

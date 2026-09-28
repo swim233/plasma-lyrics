@@ -37,6 +37,14 @@
     <entry name="desktopFontWeight" type="Int"><default>700</default></entry>
     <entry name="desktopOverflow" type="String"><default>fit</default></entry>
     <entry name="desktopAnimation" type="String"><default>slide</default></entry>
+    <!-- DESIGN.md decision 80: the next line under the current one, blurred
+         until it becomes the current line. The blur is a percentage from 0,
+         no blur, to 100, in steps of 5, and scales with the font size. No
+         panel counterpart for either key: a panel has no room for a third
+         line of text (decision 39), and the widget never shows the next
+         line there. -->
+    <entry name="desktopShowNextLine" type="Bool"><default>true</default></entry>
+    <entry name="desktopNextLineBlur" type="Int"><default>25</default></entry>
     <!-- DESIGN.md decision 78: what the secondary lyrics under each line
          show, translation, romanization or none. -->
     <entry name="desktopSecondaryLyricSource" type="String"><default>translation</default></entry>
@@ -175,6 +183,8 @@
     <entry name="desktopLightFontWeight" type="Int"><default>700</default></entry>
     <entry name="desktopLightOverflow" type="String"><default>fit</default></entry>
     <entry name="desktopLightAnimation" type="String"><default>slide</default></entry>
+    <entry name="desktopLightShowNextLine" type="Bool"><default>true</default></entry>
+    <entry name="desktopLightNextLineBlur" type="Int"><default>25</default></entry>
     <entry name="desktopLightSecondaryLyricSource" type="String"><default>translation</default></entry>
     <entry name="desktopLightSecondaryLyricColorEnabled" type="Bool"><default>false</default></entry>
     <entry name="desktopLightSecondaryLyricColor" type="String"><default>#ad1f1b16</default></entry>
@@ -271,7 +281,8 @@
     <entry name="panelHideNonMusic" type="Bool"><default>true</default></entry>
 
     <!-- See the desktopLight block above; same decision, panel copy, minus
-         the two lift keys the panel does not have. -->
+         the two lift keys and the two next line keys the panel does not
+         have. -->
     <entry name="panelThemeMode" type="String"><default>auto</default></entry>
     <entry name="panelLightPlateMode" type="String"><default>ksvg</default></entry>
     <entry name="panelLightSolidColor" type="String"><default>#99ffffff</default></entry>
