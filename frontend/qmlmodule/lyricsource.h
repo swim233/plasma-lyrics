@@ -36,7 +36,10 @@ class LyricSource : public QObject
     // Indices into this document's lines, -1 for none. AnimatedLyric tells a
     // line that arrives in sequence (the new current line is the old next
     // one, under the same fingerprint) from a jump by comparing them
-    // (DESIGN.md decision 28).
+    // (DESIGN.md decision 28). Both already hold their new values when
+    // either signal fires, so the old next index is whatever the consumer
+    // recorded at the previous nextLineChanged; currentLineChanged fires
+    // first, before that record is overwritten.
     Q_PROPERTY(int currentLineIndex READ currentLineIndex NOTIFY currentLineChanged)
     Q_PROPERTY(int nextLineIndex READ nextLineIndex NOTIFY nextLineChanged)
     // Synthetic per-character words for the current line, populated only
@@ -210,5 +213,10 @@ private:
     int m_trackOffsetMs = 0;
     bool m_globalOffsetEnabled = false;
     int m_currentLine = -1;
+    // The text is kept rather than read back from m_lines: by the time
+    // updateCurrentLine() runs a new document has replaced the old one, and
+    // only the old text tells whether the same index now holds other words.
+    int m_nextLine = -1;
+    QString m_nextText;
     qint64 m_currentPositionMs = 0;
 };

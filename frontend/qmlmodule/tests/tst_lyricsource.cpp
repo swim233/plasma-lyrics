@@ -129,9 +129,12 @@ private:
     // Writes an arbitrary multi-line document, positioned so `positionMs`
     // (relative to the anchor below) lands inside whichever line the caller
     // wants current. Used for the document-level (not line-level) synthetic
-    // word gate, which writeSnapshot()/writeWordSnapshot() above -- both
-    // single-line -- cannot exercise.
-    static void writeDocumentSnapshot(const QString &path, int seq, const LyricLines &lines)
+    // word gate and for the next line, which writeSnapshot()/writeWordSnapshot()
+    // above -- both single-line -- cannot exercise.
+    static void writeDocumentSnapshot(const QString &path, int seq, const LyricLines &lines,
+                                      qint64 positionMs = 1000, int offsetMs = 0,
+                                      const QString &state = QStringLiteral("ok"),
+                                      const QString &fingerprint = QStringLiteral("mediaSrc:test"))
     {
         QDir().mkpath(QFileInfo(path).absolutePath());
         QJsonArray lineArray;
@@ -144,23 +147,45 @@ private:
             {QStringLiteral("daemon"),
              QJsonObject{{QStringLiteral("pid"), QCoreApplication::applicationPid()}}},
             {QStringLiteral("track"),
-             QJsonObject{{QStringLiteral("fingerprint"), QStringLiteral("mediaSrc:test")},
+             QJsonObject{{QStringLiteral("fingerprint"), fingerprint},
                          {QStringLiteral("title"), QStringLiteral("song")},
                          {QStringLiteral("artists"), QJsonArray{QStringLiteral("artist")}}}},
             {QStringLiteral("playback"),
              QJsonObject{{QStringLiteral("status"), QStringLiteral("Playing")},
-                         {QStringLiteral("positionUs"), 1000000},
+                         {QStringLiteral("positionUs"), positionMs * 1000},
                          {QStringLiteral("anchorMonotonicNs"), 1000000000LL},
                          {QStringLiteral("rate"), 1.0}}},
             {QStringLiteral("lyric"),
-             QJsonObject{{QStringLiteral("state"), QStringLiteral("ok")},
-                         {QStringLiteral("offsetMs"), 0},
+             QJsonObject{{QStringLiteral("state"), state},
+                         {QStringLiteral("offsetMs"), offsetMs},
                          {QStringLiteral("availableProviders"), QJsonArray{}},
                          {QStringLiteral("lines"), lineArray}}}};
         QSaveFile file(path);
         QVERIFY(file.open(QIODevice::WriteOnly));
         file.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
         QVERIFY(file.commit());
+    }
+
+    static LyricLine plainLine(qint64 startMs, qint64 endMs, const QString &text)
+    {
+        LyricLine line;
+        line.startMs = startMs;
+        line.endMs = endMs;
+        line.text = text;
+        return line;
+    }
+
+    // One entry per signal, with the indices as the handler sees them.
+    static void recordLineSignals(LyricSource &source, QStringList &log)
+    {
+        connect(&source, &LyricSource::currentLineChanged, &source, [&source, &log] {
+            log.append(QStringLiteral("current %1, next %2")
+                           .arg(source.currentLineIndex())
+                           .arg(source.nextLineIndex()));
+        });
+        connect(&source, &LyricSource::nextLineChanged, &source, [&source, &log] {
+            log.append(QStringLiteral("next %1").arg(source.nextLineIndex()));
+        });
     }
 
 private Q_SLOTS:
@@ -220,6 +245,190 @@ private Q_SLOTS:
         writeSnapshot(path, 2, 1000000000, QStringLiteral("second"));
         QTRY_COMPARE(source.currentText(), QStringLiteral("second"));
         QCOMPARE(spy.size(), 1);
+    }
+
+    void theNextLineAdvancesWithTheCurrentOne()
+    {
+        // 20 ms apart, so the boundary timer alone carries the position through
+        // the whole document; nothing else recomputes the lines.
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        qint64 now = 1000000000;
+        writeDocumentSnapshot(path, 1, {plainLine(1000, 1020, QStringLiteral("one")),
+                                        plainLine(1020, 1040, QStringLiteral("two")),
+                                        plainLine(1040, 1060, QStringLiteral("three"))});
+        LyricSource source([&now] { return now; });
+        source.setSnapshotPath(path);
+        QCOMPARE(source.currentLineIndex(), 0);
+        QCOMPARE(source.nextLineIndex(), 1);
+        QCOMPARE(source.nextText(), QStringLiteral("two"));
+        QStringList log;
+        recordLineSignals(source, log);
+
+        // Both indices are new when either signal fires, and the current
+        // line's comes first: the animation compares the new current index
+        // with the next index it recorded before (DESIGN.md decision 28).
+        now += 20000000;
+        QTRY_COMPARE(source.currentLineIndex(), 1);
+        QCOMPARE(source.currentText(), QStringLiteral("two"));
+        QCOMPARE(source.nextText(), QStringLiteral("three"));
+        QCOMPARE(log, QStringList({QStringLiteral("current 1, next 2"), QStringLiteral("next 2")}));
+
+        log.clear();
+        now += 20000000;
+        QTRY_COMPARE(source.currentLineIndex(), 2);
+        QVERIFY(source.nextText().isEmpty()); // the last line has nothing after it
+        QCOMPARE(log, QStringList({QStringLiteral("current 2, next -1"), QStringLiteral("next -1")}));
+
+        log.clear();
+        now += 20000000;
+        QTRY_COMPARE(source.currentLineIndex(), -1);
+        QCOMPARE(source.nextLineIndex(), -1);
+        QVERIFY(source.nextText().isEmpty());
+        QCOMPARE(log, QStringList({QStringLiteral("current -1, next -1")}));
+    }
+
+    void theLastOfLinesSharingAStartIsNextAndThenCurrent()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        qint64 now = 1000000000;
+        writeDocumentSnapshot(path, 1, {plainLine(1000, 1020, QStringLiteral("one")),
+                                        plainLine(1020, 1040, QStringLiteral("two")),
+                                        plainLine(1020, 1040, QStringLiteral("two alt"))});
+        LyricSource source([&now] { return now; });
+        source.setSnapshotPath(path);
+        QCOMPARE(source.nextLineIndex(), 2);
+        QCOMPARE(source.nextText(), QStringLiteral("two alt"));
+        QStringList log;
+        recordLineSignals(source, log);
+
+        now += 20000000;
+        QTRY_COMPARE(source.currentLineIndex(), 2);
+        QCOMPARE(source.currentText(), QStringLiteral("two alt"));
+        QCOMPARE(log, QStringList({QStringLiteral("current 2, next -1"), QStringLiteral("next -1")}));
+    }
+
+    void theNextLineMovesWhileNothingIsCurrent()
+    {
+        // A seek from the intro into the interlude after the first line, then
+        // an offset that puts the position back in the intro: no line is
+        // current at any point, so only the next line notifies.
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        const LyricLines lines{plainLine(2000, 3000, QStringLiteral("verse")),
+                               plainLine(20000, 30000, QStringLiteral("chorus"))};
+        writeDocumentSnapshot(path, 1, lines, 1000);
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+        QCOMPARE(source.currentLineIndex(), -1);
+        QCOMPARE(source.nextLineIndex(), 0);
+        QCOMPARE(source.nextText(), QStringLiteral("verse"));
+        QSignalSpy current(&source, &LyricSource::currentLineChanged);
+        QSignalSpy next(&source, &LyricSource::nextLineChanged);
+
+        writeDocumentSnapshot(path, 2, lines, 5000);
+        QTRY_COMPARE(source.nextLineIndex(), 1);
+        QCOMPARE(source.nextText(), QStringLiteral("chorus"));
+        QCOMPARE(source.currentLineIndex(), -1);
+        QCOMPARE(next.size(), 1);
+        QCOMPARE(current.size(), 0);
+
+        writeDocumentSnapshot(path, 3, lines, 5000, 4000);
+        QTRY_COMPARE(source.nextLineIndex(), 0);
+        QCOMPARE(source.nextText(), QStringLiteral("verse"));
+        QCOMPARE(next.size(), 2);
+        QCOMPARE(current.size(), 0);
+    }
+
+    void aNewDocumentNotifiesTheNextLineOnlyForOtherWords()
+    {
+        // The next line shows its text and nothing else, so a new document
+        // that keeps both its index and its text leaves it alone -- unlike
+        // the current line, whose translation and words are shown as well.
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        writeDocumentSnapshot(path, 1, {plainLine(1000, 2000, QStringLiteral("one")),
+                                        plainLine(2000, 3000, QStringLiteral("two"))});
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+        QCOMPARE(source.nextText(), QStringLiteral("two"));
+        QSignalSpy current(&source, &LyricSource::currentLineChanged);
+        QSignalSpy next(&source, &LyricSource::nextLineChanged);
+
+        writeDocumentSnapshot(path, 2, {plainLine(1000, 2000, QStringLiteral("one")),
+                                        plainLine(2000, 3000, QStringLiteral("deux"))});
+        QTRY_COMPARE(source.nextText(), QStringLiteral("deux"));
+        QCOMPARE(source.nextLineIndex(), 1);
+        QCOMPARE(next.size(), 1);
+
+        LyricLine translated = plainLine(2000, 3000, QStringLiteral("deux"));
+        translated.translation = QStringLiteral("two");
+        writeDocumentSnapshot(path, 3, {plainLine(1000, 2000, QStringLiteral("un")), translated});
+        QTRY_COMPARE(source.currentText(), QStringLiteral("un"));
+        QCOMPARE(current.size(), 2);
+        QCOMPARE(next.size(), 1);
+    }
+
+    void aSongChangeOrASearchLeavesNoNextLineBehind()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        const LyricLines lines{plainLine(1000, 2000, QStringLiteral("one")),
+                               plainLine(2000, 3000, QStringLiteral("two")),
+                               plainLine(3000, 4000, QStringLiteral("three"))};
+        writeDocumentSnapshot(path, 1, lines);
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+        QCOMPARE(source.nextLineIndex(), 1);
+        QSignalSpy next(&source, &LyricSource::nextLineChanged);
+
+        // Another song, one line long: index 1 no longer exists.
+        writeDocumentSnapshot(path, 2, {plainLine(1000, 2000, QStringLiteral("solo"))}, 1000, 0,
+                              QStringLiteral("ok"), QStringLiteral("mediaSrc:other"));
+        QTRY_COMPARE(source.currentText(), QStringLiteral("solo"));
+        QCOMPARE(source.nextLineIndex(), -1);
+        QVERIFY(source.nextText().isEmpty());
+        QCOMPARE(next.size(), 1);
+
+        writeDocumentSnapshot(path, 3, lines, 1000, 0, QStringLiteral("ok"),
+                              QStringLiteral("mediaSrc:other"));
+        QTRY_COMPARE(source.nextLineIndex(), 1);
+        QCOMPARE(next.size(), 2);
+
+        // A search publishes no lines at all (the daemon's `searching`
+        // snapshot carries an empty document).
+        writeDocumentSnapshot(path, 4, {}, 1000, 0, QStringLiteral("searching"),
+                              QStringLiteral("mediaSrc:third"));
+        QTRY_COMPARE(source.lyricState(), QStringLiteral("searching"));
+        QCOMPARE(source.currentLineIndex(), -1);
+        QCOMPARE(source.nextLineIndex(), -1);
+        QVERIFY(source.nextText().isEmpty());
+        QCOMPARE(next.size(), 3);
+    }
+
+    void aDaemonComingBackWithAnotherSongLeavesNoNextLineBehind()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        writeDocumentSnapshot(path, 1, {plainLine(1000, 2000, QStringLiteral("one")),
+                                        plainLine(2000, 3000, QStringLiteral("two"))});
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+        QCOMPARE(source.nextLineIndex(), 1);
+        QSignalSpy next(&source, &LyricSource::nextLineChanged);
+
+        writeSnapshot(path, 2, 1000000000, QStringLiteral("gone"), 999999999);
+        QTRY_VERIFY(source.stale());
+        // The same index, other words.
+        writeDocumentSnapshot(path, 3, {plainLine(1000, 2000, QStringLiteral("solo")),
+                                        plainLine(2000, 3000, QStringLiteral("coda"))},
+                              1000, 0, QStringLiteral("ok"), QStringLiteral("mediaSrc:other"));
+        QTRY_VERIFY(!source.stale());
+        QCOMPARE(source.currentText(), QStringLiteral("solo"));
+        QCOMPARE(source.nextLineIndex(), 1);
+        QCOMPARE(source.nextText(), QStringLiteral("coda"));
+        QCOMPARE(next.size(), 1);
     }
 
     void wordsOfTheCurrentLineReachQml()

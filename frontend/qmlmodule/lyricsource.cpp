@@ -202,8 +202,7 @@ QString LyricSource::currentRomanization() const
 
 QString LyricSource::nextText() const
 {
-    // Interface only; the next-line task fills it in (DESIGN.md decision 80).
-    return {};
+    return m_nextText;
 }
 
 int LyricSource::currentLineIndex() const
@@ -213,8 +212,7 @@ int LyricSource::currentLineIndex() const
 
 int LyricSource::nextLineIndex() const
 {
-    // Interface only; the next-line task fills it in (DESIGN.md decision 80).
-    return -1;
+    return m_nextLine;
 }
 
 QVariantList LyricSource::currentWords() const
@@ -491,9 +489,22 @@ void LyricSource::updateCurrentLine(bool lineContentChanged)
         Q_EMIT currentPositionChanged();
     }
     const int line = PlasmaLyrics::currentLineIndex(m_lines, positionMs, m_offsetMs);
-    if (line != m_currentLine || lineContentChanged) {
-        m_currentLine = line;
+    const bool currentChanged = line != m_currentLine || lineContentChanged;
+    // Computed on the same position, and on every path that recomputes the
+    // current line, so the two indices always describe one document. Only
+    // the next line's text is shown, so a new document notifies here only
+    // when it puts other words at that index.
+    const int next = PlasmaLyrics::nextLineIndex(m_lines, positionMs, m_offsetMs);
+    const QString nextLineText = next >= 0 ? m_lines[next].text : QString();
+    const bool nextChanged = next != m_nextLine || nextLineText != m_nextText;
+    m_currentLine = line;
+    m_nextLine = next;
+    m_nextText = nextLineText;
+    if (currentChanged) {
         Q_EMIT currentLineChanged();
+    }
+    if (nextChanged) {
+        Q_EMIT nextLineChanged();
     }
     rearmFrame();
 }
