@@ -334,9 +334,9 @@ int main(int argc, char **argv)
     const auto loggingGuard = qScopeGuard(stopMirroredLogging);
 
     // Proxy is applied before any provider is constructed and before the
-    // --explain branch, so every network request either source makes --
-    // command line included -- goes through it. There is deliberately no
-    // loopback exemption (DESIGN.md decision 63).
+    // --explain branch, so every network request the three network sources
+    // (netease, amll, qq) make -- command line included -- goes through it.
+    // There is deliberately no loopback exemption (DESIGN.md decision 63).
     const QString proxyMode = config.proxyMode();
     QString proxySummary;
     bool proxyBlocksNetworkProviders = false;
@@ -392,7 +392,7 @@ int main(int argc, char **argv)
     QList<Provider *> providers;
     QStringList enabledProviderOrder = config.enabledProviderOrder();
     if (proxyBlocksNetworkProviders) {
-        // Equivalent to the user having left netease/amll unchecked in
+        // Equivalent to the user having left netease/amll/qq unchecked in
         // providers/enabled: the local provider is never affected.
         enabledProviderOrder.removeAll(QStringLiteral("netease"));
         enabledProviderOrder.removeAll(QStringLiteral("amll"));
