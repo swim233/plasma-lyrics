@@ -500,11 +500,14 @@ Kirigami.FormLayout {
         // wide and does not grow with its content, which leaves this section
         // 614 px, and FormLayout drops to one column once the section's
         // implicitWidth exceeds that. Measured in zh_CN with Noto Sans CJK SC
-        // 12 (small font 11) under org.kde.desktop: with decision 80's next
-        // line blur row shown, whose label 待唱行模糊强度： is the longest in
-        // Chinese, the section is 604 px at 26 and 631 px -- one column --
-        // at 28; with that row hidden, 588 px and 615 px. At 26 the glow
-        // (465 px) and particle (435 px) descriptions each fit on one line.
+        // 12 (small font 11) under org.kde.desktop: the section is 588 px at
+        // 26 and 615 px -- one column -- at 28, whether decision 80's next
+        // line blur row shows or not, and at 26 the glow (465 px) and
+        // particle (435 px) descriptions each fit on one line. That row's
+        // Chinese label is 模糊强度：, not 待唱行模糊强度：, which at eight
+        // characters was the longest label in Chinese: with it shown the
+        // section measured 604 px at 26 and 631 px at 28, and the label
+        // column widened by 16 px whenever the next line was switched on.
         // English is the closer of the two: in English with Plasma's default
         // font, Noto Sans 10, under org.kde.desktop (the kde platform theme
         // reading a kdeglobals that sets only that font), the section is
