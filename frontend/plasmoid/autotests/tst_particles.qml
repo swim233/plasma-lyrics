@@ -16,7 +16,8 @@ TestCase {
     name: "Particles"
     when: windowShown
 
-    // tst_appearance.qml's stand-in for LyricSource, with a fingerprint.
+    // tst_appearance.qml's stand-in for LyricSource, with a fingerprint, the
+    // next line and the two indices a switch in sequence is told by.
     Component {
         id: fakeSourceComponent
         QtObject {
@@ -32,6 +33,9 @@ TestCase {
             property string currentRomanization: ""
             property var currentWords: []
             property var currentSyntheticWords: []
+            property string nextText: ""
+            property int currentLineIndex: 0
+            property int nextLineIndex: 1
             property real positionMs: 0
             function lyricPositionMs() { return positionMs; }
         }
@@ -115,6 +119,24 @@ TestCase {
         t.source.currentText = text;
         tryVerify(() => t.lyric.shownText === text);
     }
+    // The line after the current one, in sequence: the one a push up moves
+    // into place (DESIGN.md decision 28). Its index and its text are those
+    // of the next line LyricSource announced before, so that is announced
+    // first when it is not yet; then the current line changes and the next
+    // one after it, in LyricSource's order, and there is no line after it.
+    function advanceTo(t, text, words) {
+        if (t.source.nextText !== text) {
+            t.source.nextText = text;
+            tryCompare(t.lyric, "shownNextLineText", text);
+        }
+        const index = t.source.nextLineIndex;
+        t.source.currentLineIndex = index;
+        t.source.currentWords = words;
+        t.source.currentText = text;
+        t.source.nextLineIndex = index + 1;
+        t.source.nextText = "";
+        tryVerify(() => t.lyric.shownText === text);
+    }
 
     function wordsOf(texts, start, duration) {
         return texts.map((text, i) => ({ startMs: start + duration * i,
@@ -130,13 +152,13 @@ TestCase {
 
     // "" when the layer measured the current line exactly as it is drawn:
     // each word's x and resting baseline -- the glyph's own, taken from the
-    // delegate the lift does not move -- plus what the line is following
-    // right now, the ink at the glyphs' own font without trailing
-    // whitespace, and the CJK ascent at that font. Font metrics are asked of
-    // the glyphs, never assumed, so this holds on any machine.
+    // delegate the lift does not move -- at the scale the line is growing
+    // through, plus what the line is following right now, the ink at the
+    // glyphs' own font without trailing whitespace, and the CJK ascent at
+    // that font. Font metrics are asked of the glyphs, never assumed, so
+    // this holds on any machine.
     function currentBlock(view) {
-        const shown = lyricOf(view).shownText;
-        return findAll(view, o => o.slideOffset !== undefined && o.lyricText === shown)[0];
+        return lyricOf(view).currentBlock;
     }
     function drawnMismatch(view, layer) {
         const line = layer.describeLine();
@@ -152,11 +174,16 @@ TestCase {
         if (Math.abs(line.ascent - ascent) > 0.01) {
             return "ascent " + line.ascent + " against " + ascent;
         }
+        const scale = line.scale;
+        const pivot = line.scaleOrigin;
+        if (Math.abs(scale - block.scale) > 1e-9) {
+            return "scale " + scale + " against " + block.scale;
+        }
         for (let i = 0; i < glyphs.length; ++i) {
             const glyph = glyphs[i];
             const drawn = glyph.parent.mapToItem(layer, 0, glyph.baselineOffset);
-            const x = line.x + line.words[i].x + layer.lineOffset.x;
-            const baseline = line.y + line.words[i].baseline + layer.lineOffset.y;
+            const x = pivot.x + (line.x + line.words[i].x - pivot.x) * scale + layer.lineOffset.x;
+            const baseline = pivot.y + (line.y + line.words[i].baseline - pivot.y) * scale + layer.lineOffset.y;
             if (Math.abs(x - drawn.x) > 0.01 || Math.abs(baseline - drawn.y) > 0.01) {
                 return "word " + i + " measured at " + x + "," + baseline + ", drawn at " + drawn.x + "," + drawn.y;
             }
@@ -273,11 +300,66 @@ TestCase {
         const t = measuredView({ panelMode: false, animationMode: "slide" }, a);
         const b = "唱到每个词时从字上飘".split("");
         step(t.view, t.source, 50000);
-        switchTo(t, b.join(""), wordsOf(b, 40000, 100));
+        advanceTo(t, b.join(""), wordsOf(b, 40000, 100));
         tryVerify(() => t.layer.lineOffset.y > 1 && drawnMismatch(t.view, t.layer) === "", 1000,
                   drawnMismatch(t.view, t.layer));
         verify(t.layer.lineOffset.y > 1);
         compare(drawnMismatch(t.view, t.layer), "");
+    }
+
+    // The next line turning into the current one grows from 0.75× to 1× in
+    // 450 ms (DESIGN.md decision 80), and its first words are sung meanwhile:
+    // the line is measured, and its particles born, on the glyphs at the
+    // scale they are drawn at.
+    function test_aGrowingLineIsMeasuredWhereItIsDrawn() {
+        const a = "粒子从每个字上飘起来".split("");
+        const b = "唱到每个词时从字上飘".split("");
+        const source = createTemporaryObject(fakeSourceComponent, this, {
+            currentText: a.join(""), currentWords: wordsOf(a, 1000, 100), positionMs: 1050,
+            nextText: b.join("") });
+        const view = createTemporaryObject(lyricsViewComponent, this, { source: source, width: 800,
+            panelMode: false, showNextLine: true, animationMode: "slide" });
+        const t = { source: source, view: view, layer: layerOf(view), lyric: lyricOf(view) };
+        tryCompare(t.layer, "snapshotCount", 1);
+        waitForLayout(view);
+        const next = t.lyric.nextBlock;
+        compare(next.lyricText, b.join(""));
+
+        step(view, source, 2010);
+        advanceTo(t, b.join(""), wordsOf(b, 2000, 100));
+        verify(t.lyric.currentBlock === next);
+        const t0 = next.motion.scale.t0;
+        waitForLayout(view);
+        // 100 ms into the growth, whenever this runs.
+        t.lyric.clockMs = t0 + 100;
+        verify(next.scale > 0.8 && next.scale < 0.95, next.scale);
+        compare(t.layer.lineScale, next.scale);
+        compare(drawnMismatch(view, t.layer), "");
+
+        const glyphs = findAll(next, o => o.objectName === "lyricWord");
+        const font = glyphs[0].font;
+        const cjk = createTemporaryObject(textMetricsComponent, this, { font: font, text: "国" });
+        const ascent = (cjk.tightBoundingRect.height > 0 ? -cjk.tightBoundingRect.y
+            : createTemporaryObject(fontMetricsComponent, this, { font: font }).ascent) * next.scale;
+        const bands = glyphs.map(glyph => {
+            const ink = createTemporaryObject(textMetricsComponent, this,
+                { font: font, text: glyph.text }).advanceWidth * next.scale;
+            const left = glyph.mapToItem(t.layer, 0, 0).x;
+            const baseline = glyph.parent.mapToItem(t.layer, 0, glyph.baselineOffset).y;
+            return { left: left + 0.1 * ink, right: left + 0.9 * ink,
+                     top: baseline - ascent, bottom: baseline - 0.65 * ascent };
+        });
+        const live = current(t.layer);
+        compare(live.startMs, 2000);
+        verify(live.births.length >= b.length);
+        for (const birth of live.births) {
+            // Births leave out what the line follows.
+            const x = birth.x + live.offsetX;
+            const y = birth.y + live.offsetY;
+            const band = bands.find(band => x >= band.left - 0.01 && x <= band.right + 0.01);
+            verify(band !== undefined, "x " + x + " outside " + JSON.stringify(bands));
+            verify(y >= band.top - 0.01 && y <= band.bottom + 0.01, "y " + y + " outside " + JSON.stringify(band));
+        }
     }
 
     // A line re-captured while a word is lifted still takes the resting
@@ -679,7 +761,7 @@ TestCase {
         tryVerify(() => current(t.layer).offsetY === 0 && current(t.layer).opacity === 1);
 
         step(t.view, t.source, 2100);
-        switchTo(t, "efgh", lineB);
+        advanceTo(t, "efgh", lineB);
         tryCompare(t.layer, "snapshotCount", 2);
         const kept = t.layer.describeSnapshots().filter(s => !s.current)[0];
         compare(kept.startMs, 1000);
@@ -713,9 +795,11 @@ TestCase {
         const t = createView({ animationMode: "slide", panelMode: false });
         tryCompare(t.layer, "snapshotCount", 1);
         step(t.view, t.source, 2100);
-        switchTo(t, "efgh", lineB);
-        const start = t.lyric.height * 0.28;
+        advanceTo(t, "efgh", lineB);
+        // No next line on show: the line rises from one line box below.
+        const start = blockShowing(t.view, "efgh").lineHeight;
         verify(start > 0);
+        tryVerify(() => current(t.layer) !== undefined && current(t.layer).startMs === 2000);
         tryVerify(() => current(t.layer).offsetY < 0.8 * start);
         switchToPlainLine(t);
         const frozen = t.layer.describeSnapshots().filter(s => s.startMs === 2000)[0];

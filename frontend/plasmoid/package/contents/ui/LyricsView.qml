@@ -212,6 +212,15 @@ Item {
         && root.source.lyricState === "ok"
         && root.source.playbackStatus !== "Stopped" && root.source.trackTitle.length > 0
 
+    // DESIGN.md decision 80: the next line is shown on the desktop, with the
+    // switch on, only while the slot shows the track's lyrics -- the
+    // particles' condition, so a search, an error or a Stop takes it away
+    // and a pause keeps it -- and only when there is one. Nothing is shown
+    // otherwise and no height is kept for it. The test stand-ins for
+    // LyricSource carry no next line.
+    readonly property string effectiveNextText: root.showNextLine && !root.panelMode && root.showingLyrics
+        ? (root.source.nextText ?? "") : ""
+
     // Opaque whichever colour it follows: each particle's own brightness
     // envelope is its alpha, and the 10% translucency the current-word colour
     // carries by default would only dim every particle once more. Fades with
@@ -463,6 +472,23 @@ Item {
             brightnessStrength: root.wordBrightnessPercent / 100
             blurGlowEnabled: root.wordBlurGlow
             lineHeightFactor: Math.max(root.lineHeightMinPercent, root.lineHeightPercent) / 100
+            nextText: root.effectiveNextText
+            // A value out of range in a hand-edited configuration counts as
+            // the nearest end; the settings page does not guard it.
+            nextLineBlurPercent: Math.max(0, Math.min(100, root.nextLineBlurPercent))
+            // Read whether or not the next line is on show: they are what
+            // tells a line arriving in sequence from a jump (decision 28).
+            // The test stand-ins for LyricSource may carry none of them.
+            currentLineIndex: root.source.currentLineIndex ?? -1
+            nextLineIndex: root.source.nextLineIndex ?? -1
+            nextLineText: root.source.nextText ?? ""
+            showingLyrics: root.showingLyrics
+            panelMode: root.panelMode
+            // Clipped at the top only to keep the lines off the track info:
+            // at the lyric area's top edge while it is shown, at this item's
+            // own top edge otherwise -- a panel shows none by default, and a
+            // clip at the lyric area would cut the top off two centred lines.
+            clipTop: root.trackInfoTitle.length > 0 ? 0 : -(content.y + lyric.y)
             particlesEnabled: root.wordParticles && root.wordByWord && root.showingLyrics
             particleColor: root.effectiveWordParticleColor
             // The test stand-ins for LyricSource carry no fingerprint.

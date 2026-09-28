@@ -231,9 +231,12 @@ TestCase {
         const view = createView({ currentWords: twoWords }, { fontFamily: lyricTestFamily, trackInfoFontFamily: trackTestFamily });
         const lyric = lyricOf(view);
         const lyricMetrics = metricsUnder(lyric);
-        // Two blocks of two lines, one TextMetrics and one FontMetrics each.
-        compare(lyricMetrics.length, 8);
-        compare(lyricMetrics.filter(m => m.objectName === "lineMetrics").length, 4);
+        // Every block of the pool has two lines, with one TextMetrics and
+        // one FontMetrics each.
+        const blocks = lyric.blocks().length;
+        verify(blocks > 0);
+        compare(lyricMetrics.length, blocks * 4);
+        compare(lyricMetrics.filter(m => m.objectName === "lineMetrics").length, blocks * 2);
         compareFamilies(lyricMetrics, lyricTestFamily);
         const trackMetrics = metricsUnder(trackInfoOf(view));
         compare(trackMetrics.length, 4);

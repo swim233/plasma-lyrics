@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Effects
 import org.kde.kirigami as Kirigami
+import "Spring.js" as Spring
 
 Item {
     id: root
@@ -23,6 +24,15 @@ Item {
     // reason given for fontFamily.
     property bool fontItalic: false
     property string overflowMode: "fit"
+    // The next line's static shape (DESIGN.md decision 80): the whole line,
+    // shrunk as "fit" shrinks it and elided at the floor, whatever
+    // overflowMode says -- wrapping would make its height jump between one
+    // line and two, and scrolling would make its blur render anew on every
+    // frame. No words and no marquee. The line box itself, lift headroom
+    // included, still follows overflowMode, so the line keeps its layout
+    // when it becomes the current one.
+    property bool staticFit: false
+    readonly property string layoutMode: root.staticFit ? "fit" : root.overflowMode
 
     // Word-by-word. `words` carries LyricSource.currentWords verbatim --
     // [{ startMs, endMs, text }] -- and `positionMs` is the lyric-time
@@ -42,6 +52,31 @@ Item {
     property bool blurGlowEnabled: false
     property real lineHeightFactor: 1.25
 
+    // How much of the next line's look (DESIGN.md decision 80) this line
+    // still wears: 1 while it is the next line, down to 0 as it becomes the
+    // current one. Every colour drawn goes towards nextLineColor and the
+    // outline towards nextLineStrokeColor by that share, and the lift, the
+    // brightening and the halo shrink by it, so a line taking over as the
+    // current one grows into the word colours instead of switching to them.
+    property color nextLineColor: root.textColor
+    property color nextLineStrokeColor: root.strokeColor
+    property real nextLineShare: 0
+
+    function toward(base, target, amount) {
+        if (amount <= 0) {
+            return base;
+        }
+        if (amount >= 1) {
+            return target;
+        }
+        return Qt.rgba(base.r + (target.r - base.r) * amount,
+                       base.g + (target.g - base.g) * amount,
+                       base.b + (target.b - base.b) * amount,
+                       base.a + (target.a - base.a) * amount);
+    }
+    readonly property color strokeShade: root.toward(root.strokeColor, root.nextLineStrokeColor,
+                                                     root.nextLineShare)
+
     // Word-lift dynamics (DESIGN.md decision 73). Constants, not
     // configuration: properties only so that tests can pin them. A word's
     // envelope is a damped-spring step response in absolute time -- it rises
@@ -56,35 +91,22 @@ Item {
     property real liftOvershoot: 0.10   // how far that peak exceeds liftEm
     property real liftReleaseMs: 300    // endMs to the lowest point
 
-    // ζ from the overshoot, os = exp(-ζπ/√(1-ζ²)). The floor keeps the system
-    // under-damped so the closed form stays finite; the overshoot 0.1% implies
-    // is invisible. Headroom below uses the raw value, not this clamped one.
-    readonly property real liftDamping: {
-        const l = Math.log(Math.max(0.001, Math.min(0.9, root.liftOvershoot)));
-        return -l / Math.sqrt(Math.PI * Math.PI + l * l);
-    }
-    readonly property real liftDampingRoot: Math.sqrt(1 - root.liftDamping * root.liftDamping)
+    // ζ from the overshoot (Spring.js, shared with AnimatedLyric's line
+    // spring). Headroom below uses the raw overshoot, not this clamped one.
+    readonly property real liftDamping: Spring.damping(root.liftOvershoot)
+    readonly property real liftDampingRoot: Spring.dampingRoot(root.liftDamping)
     // Natural frequencies (rad/s) that put the first peak of the rise at
-    // liftArriveMs and the lowest point of the release at liftReleaseMs:
-    // t_peak = π / (ω·√(1-ζ²)).
-    readonly property real liftRiseOmega: Math.PI / (root.liftArriveMs / 1000 * root.liftDampingRoot)
-    readonly property real liftReleaseOmega: Math.PI / (root.liftReleaseMs / 1000 * root.liftDampingRoot)
-    // This long after endMs the release is within 1% of rest (the
-    // oscillation's amplitude is bounded by e^(-ζωt)/√(1-ζ²)) and the envelope
-    // is snapped to exactly 0. Without the snap every sung word on the line
-    // would carry a sub-pixel y that changes on every frame, forever.
-    readonly property real liftSettleMs: 1000 * Math.log(100 / root.liftDampingRoot)
-        / (root.liftDamping * root.liftReleaseOmega)
+    // liftArriveMs and the lowest point of the release at liftReleaseMs.
+    readonly property real liftRiseOmega: Spring.omega(root.liftArriveMs, root.liftDamping)
+    readonly property real liftReleaseOmega: Spring.omega(root.liftReleaseMs, root.liftDamping)
+    // This long after endMs the release is within 1% of rest and the
+    // envelope is snapped to exactly 0. Without the snap every sung word on
+    // the line would carry a sub-pixel y that changes on every frame, forever.
+    readonly property real liftSettleMs: Spring.settleMs(root.liftDamping, root.liftReleaseOmega)
 
     // Unit step response of the under-damped second-order system, tau in ms.
     function stepResponse(tauMs, omega) {
-        if (tauMs <= 0) {
-            return 0;
-        }
-        const tau = tauMs / 1000;
-        const z = root.liftDamping, q = root.liftDampingRoot;
-        return 1 - Math.exp(-z * omega * tau)
-            * (Math.cos(omega * q * tau) + (z / q) * Math.sin(omega * q * tau));
+        return Spring.step(tauMs, root.liftDamping, omega);
     }
 
     // One word's lift at lyric time t, in units of liftEm: 0 before startMs;
@@ -123,9 +145,9 @@ Item {
     // values that all exist before any delegate does; phrasing it as
     // `wordRow.width > root.width` loops, because the Repeater's model depends
     // on this property.
-    readonly property bool wordMode: root.words.length > 0
-        && root.overflowMode !== "wrap"
-        && (root.overflowMode === "marquee" || root.width <= 0
+    readonly property bool wordMode: !root.staticFit && root.words.length > 0
+        && root.layoutMode !== "wrap"
+        && (root.layoutMode === "marquee" || root.width <= 0
             || metrics.width * root.minimumPixelSize / root.fontSize <= root.width)
 
     // Reserved above the text so a lifted word has somewhere to go: at
@@ -143,7 +165,7 @@ Item {
         ? Math.ceil(root.fontSize * root.liftEm * (1 + root.liftOvershoot))
         : 0
     readonly property real lineHeight: Math.ceil(fontSize * root.lineHeightFactor) + root.liftHeadroom
-    implicitHeight: overflowMode === "wrap" ? Math.min(mainText.implicitHeight, lineHeight * 2) : lineHeight
+    implicitHeight: root.layoutMode === "wrap" ? Math.min(mainText.implicitHeight, lineHeight * 2) : lineHeight
     height: implicitHeight
 
     readonly property int minimumPixelSize: Math.round(root.fontSize * 0.6)
@@ -157,11 +179,9 @@ Item {
     // suite cannot vary.
     property bool envelopesAnimate: Kirigami.Units.longDuration > 1
 
-    // Measured at the nominal size so word mode can reproduce "fit" with one
-    // shared pixel size. Text.HorizontalFit cannot be used per word: it would
-    // shrink each word to its own width independently, which is a different
-    // thing entirely, and Text offers no way to read back the size it settled
-    // on for the line as a whole.
+    // Measured at the nominal size, for wordMode's test of whether the line
+    // fits at all at minimumPixelSize. The size the words share comes from
+    // the whole-line Text instead (wordPixelSize).
     TextMetrics {
         id: metrics
         // Non-visual, so absent from `children`; the tests find it by name
@@ -191,13 +211,23 @@ Item {
         (Math.ceil(fontMetrics.height) - (root.height - root.liftHeadroom)) / 2)
     readonly property real contentTop: root.liftHeadroom + root.glyphSpill
 
-    readonly property int wordPixelSize: {
-        if (root.overflowMode !== "fit" || root.width <= 0 || metrics.width <= root.width) {
-            return root.fontSize;
-        }
-        return Math.max(root.minimumPixelSize,
-                        Math.floor(root.fontSize * root.width / metrics.width));
-    }
+    // The size "fit" draws the whole line in, read back from the whole-line
+    // Text, which lays the line out whether or not it is the one shown.
+    // Text.HorizontalFit cannot be used per word: it would shrink each word
+    // to its own width independently, which is a different thing entirely.
+    // Not computed as fontSize × width / metrics.width either: TextMetrics
+    // measures with QFontMetricsF, while Text lays out with design metrics
+    // outside NativeRendering (qtdeclarative v6.11.2
+    // src/quick/items/qquicktext.cpp:818-829) and searches for the largest
+    // whole pixel size that fits (:1167-1184, the size going through
+    // setPixelSize(int) at :885-886), and the two picked sizes a pixel apart
+    // (either way) for 140 of 11 760 line/width/font combinations measured
+    // (Noto Sans, Noto Sans CJK SC and DejaVu Serif at 16-48 px, widths
+    // 120-900). A next line (staticFit, whole-line) becoming the current one
+    // (words) changed size by that pixel as it did; one algorithm cannot.
+    readonly property int wordPixelSize: root.layoutMode !== "fit" || root.width <= 0
+        ? root.fontSize
+        : mainText.fontInfo.pixelSize
 
     readonly property real contentWidth: root.wordMode ? wordRow.width : mainText.implicitWidth
 
@@ -217,7 +247,7 @@ Item {
     // just as well with this whole mechanism deleted. `marqueeRunning` adds
     // the conditions that only decide whether running the animation is worth
     // the power.
-    readonly property bool marqueeApplies: overflowMode === "marquee"
+    readonly property bool marqueeApplies: root.layoutMode === "marquee"
         && root.contentWidth > width
     // Split again, for exactly the reason marqueeApplies is split: `visible` is
     // ancestor-combined and reads false throughout the QML test suite, so any
@@ -409,8 +439,10 @@ Item {
         height: root.height + 2 * root.glyphSpill
         clip: true
 
+        // No copies of an empty line: AnimatedLyric keeps a pool of blocks,
+        // most of them empty at any moment.
         Repeater {
-            model: root.strokeEnabled && !root.wordMode ? root.directions : []
+            model: root.strokeEnabled && !root.wordMode && root.lineText.length > 0 ? root.directions : []
             delegate: Text {
                 required property var modelData
                 x: mainText.x + modelData[0]
@@ -418,7 +450,7 @@ Item {
                 width: mainText.width
                 height: mainText.height
                 text: root.lineText
-                color: root.strokeColor
+                color: root.strokeShade
                 font: mainText.font
                 fontSizeMode: mainText.fontSizeMode
                 minimumPixelSize: mainText.minimumPixelSize
@@ -445,7 +477,7 @@ Item {
             width: root.marqueeApplies ? implicitWidth : root.width
             height: root.height - root.liftHeadroom
             text: root.lineText
-            color: root.textColor
+            color: root.toward(root.textColor, root.nextLineColor, root.nextLineShare)
             // Family, size, weight and colour are all the widget's own
             // configuration; the family defaults to the Plasma font. The
             // colour in particular never follows the theme, because lyrics
@@ -455,11 +487,11 @@ Item {
             font.pixelSize: root.fontSize
             font.weight: root.fontWeight
             font.italic: root.fontItalic
-            fontSizeMode: root.overflowMode === "fit" ? Text.HorizontalFit : Text.FixedSize
+            fontSizeMode: root.layoutMode === "fit" ? Text.HorizontalFit : Text.FixedSize
             minimumPixelSize: root.minimumPixelSize
-            wrapMode: root.overflowMode === "wrap" ? Text.WordWrap : Text.NoWrap
-            maximumLineCount: root.overflowMode === "wrap" ? 2 : 1
-            elide: root.overflowMode === "fit" || root.overflowMode === "wrap" || root.overflowMode === "elide"
+            wrapMode: root.layoutMode === "wrap" ? Text.WordWrap : Text.NoWrap
+            maximumLineCount: root.layoutMode === "wrap" ? 2 : 1
+            elide: root.layoutMode === "fit" || root.layoutMode === "wrap" || root.layoutMode === "elide"
                 ? Text.ElideRight : Text.ElideNone
             horizontalAlignment: root.marqueeApplies ? Text.AlignLeft : Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
@@ -521,6 +553,7 @@ Item {
                     // 0..1: the peak does not over-brighten, and the dip does not
                     // darken a word that has just been sung.
                     readonly property real glow: Math.max(0, Math.min(1, word.envelope))
+                        * (1 - root.nextLineShare)
                     // Colour switches for the whole word at its own start time and
                     // is not interpolated inside it; the lift and the brightening
                     // move within a word and go on moving after it -- a word
@@ -529,7 +562,7 @@ Item {
                         ? root.sungColor
                         : (word.started ? root.activeColor : root.unsungColor)
                     readonly property real lift: root.liftEnabled
-                        ? root.fontSize * root.liftEm * word.envelope
+                        ? root.fontSize * root.liftEm * word.envelope * (1 - root.nextLineShare)
                         : 0
                     // The glyph's baseline at rest, the lift left out. For
                     // the particle layer, through particleLine.
@@ -587,9 +620,9 @@ Item {
                         y: -word.lift
                         height: word.height
                         text: word.modelData.text
-                        color: root.brightnessEnabled
+                        color: root.toward(root.brightnessEnabled
                             ? root.brightened(word.shade, word.glow * root.brightnessStrength)
-                            : word.shade
+                            : word.shade, root.nextLineColor, root.nextLineShare)
                         font.family: root.fontFamily
                         font.pixelSize: root.wordPixelSize
                         font.weight: root.fontWeight
@@ -602,7 +635,7 @@ Item {
                         // is the frame the eye is on. The outline it draws is
                         // thinner than the eight-copy one.
                         style: root.strokeEnabled ? Text.Outline : Text.Normal
-                        styleColor: root.strokeColor
+                        styleColor: root.strokeShade
                         verticalAlignment: Text.AlignVCenter
                     }
                 }
