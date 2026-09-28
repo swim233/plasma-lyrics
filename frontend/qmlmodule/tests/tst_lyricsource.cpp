@@ -175,17 +175,22 @@ private:
         return line;
     }
 
-    // One entry per signal, with the indices as the handler sees them.
+    // One entry per signal, with both lines' indices and texts as the
+    // handler sees them.
     static void recordLineSignals(LyricSource &source, QStringList &log)
     {
-        connect(&source, &LyricSource::currentLineChanged, &source, [&source, &log] {
-            log.append(QStringLiteral("current %1, next %2")
+        const auto record = [&source, &log](const QString &signal) {
+            log.append(QStringLiteral("%1 -> current %2 [%3], next %4 [%5]")
+                           .arg(signal)
                            .arg(source.currentLineIndex())
-                           .arg(source.nextLineIndex()));
-        });
-        connect(&source, &LyricSource::nextLineChanged, &source, [&source, &log] {
-            log.append(QStringLiteral("next %1").arg(source.nextLineIndex()));
-        });
+                           .arg(source.currentText())
+                           .arg(source.nextLineIndex())
+                           .arg(source.nextText()));
+        };
+        connect(&source, &LyricSource::currentLineChanged, &source,
+                [record] { record(QStringLiteral("currentLineChanged")); });
+        connect(&source, &LyricSource::nextLineChanged, &source,
+                [record] { record(QStringLiteral("nextLineChanged")); });
     }
 
 private Q_SLOTS:
@@ -265,27 +270,33 @@ private Q_SLOTS:
         QStringList log;
         recordLineSignals(source, log);
 
-        // Both indices are new when either signal fires, and the current
-        // line's comes first: the animation compares the new current line
-        // with the next line it recorded before (DESIGN.md decision 28).
+        // Both indices and both texts are new when either signal fires, and
+        // the current line's comes first: the animation compares the new
+        // current line with the next line it recorded before (DESIGN.md
+        // decision 28).
         now += 20000000;
         QTRY_COMPARE(source.currentLineIndex(), 1);
         QCOMPARE(source.currentText(), QStringLiteral("two"));
         QCOMPARE(source.nextText(), QStringLiteral("three"));
-        QCOMPARE(log, QStringList({QStringLiteral("current 1, next 2"), QStringLiteral("next 2")}));
+        QCOMPARE(log, QStringList({
+            QStringLiteral("currentLineChanged -> current 1 [two], next 2 [three]"),
+            QStringLiteral("nextLineChanged -> current 1 [two], next 2 [three]")}));
 
         log.clear();
         now += 20000000;
         QTRY_COMPARE(source.currentLineIndex(), 2);
         QVERIFY(source.nextText().isEmpty()); // the last line has nothing after it
-        QCOMPARE(log, QStringList({QStringLiteral("current 2, next -1"), QStringLiteral("next -1")}));
+        QCOMPARE(log, QStringList({
+            QStringLiteral("currentLineChanged -> current 2 [three], next -1 []"),
+            QStringLiteral("nextLineChanged -> current 2 [three], next -1 []")}));
 
         log.clear();
         now += 20000000;
         QTRY_COMPARE(source.currentLineIndex(), -1);
         QCOMPARE(source.nextLineIndex(), -1);
         QVERIFY(source.nextText().isEmpty());
-        QCOMPARE(log, QStringList({QStringLiteral("current -1, next -1")}));
+        QCOMPARE(log, QStringList({
+            QStringLiteral("currentLineChanged -> current -1 [], next -1 []")}));
     }
 
     void theLastOfLinesSharingAStartIsNextAndThenCurrent()
@@ -306,7 +317,9 @@ private Q_SLOTS:
         now += 20000000;
         QTRY_COMPARE(source.currentLineIndex(), 2);
         QCOMPARE(source.currentText(), QStringLiteral("two alt"));
-        QCOMPARE(log, QStringList({QStringLiteral("current 2, next -1"), QStringLiteral("next -1")}));
+        QCOMPARE(log, QStringList({
+            QStringLiteral("currentLineChanged -> current 2 [two alt], next -1 []"),
+            QStringLiteral("nextLineChanged -> current 2 [two alt], next -1 []")}));
     }
 
     void theNextLineMovesWhileNothingIsCurrent()
