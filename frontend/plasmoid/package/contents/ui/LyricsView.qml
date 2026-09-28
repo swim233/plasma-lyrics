@@ -484,6 +484,11 @@ Item {
             nextLineText: root.source.nextText ?? ""
             showingLyrics: root.showingLyrics
             panelMode: root.panelMode
+            // Clipped at the top only to keep the lines off the track info:
+            // at the lyric area's top edge while it is shown, at this item's
+            // own top edge otherwise -- a panel shows none by default, and a
+            // clip at the lyric area would cut the top off two centred lines.
+            clipTop: root.trackInfoTitle.length > 0 ? 0 : -(content.y + lyric.y)
             particlesEnabled: root.wordParticles && root.wordByWord && root.showingLyrics
             particleColor: root.effectiveWordParticleColor
             // The test stand-ins for LyricSource carry no fingerprint.

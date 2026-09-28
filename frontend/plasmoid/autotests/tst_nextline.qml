@@ -898,20 +898,37 @@ TestCase {
 
     // ---- The clip
 
-    function test_onlyTheTopOfTheLyricAreaIsClipped() {
-        const t = createView();
+    // Only the top is clipped, and only to keep the lines off the track
+    // info: at the lyric area's top edge while the track info is shown, at
+    // the widget's own top edge when it is not. Nothing else is clipped.
+    function test_onlyTheTopIsClippedAndOnlyForTheTrackInfo_data() {
+        return [
+            { tag: "track info shown", source: {}, view: {}, atLyricArea: true },
+            { tag: "track info off", source: {}, view: { showTrackInfo: false }, atLyricArea: false },
+            { tag: "no title", source: { trackTitle: "" }, view: {}, atLyricArea: false },
+            { tag: "panel", source: {}, view: { panelMode: true, showTrackInfo: false }, atLyricArea: false },
+        ];
+    }
+    function test_onlyTheTopIsClippedAndOnlyForTheTrackInfo(data) {
+        const t = createView(data.source, data.view);
         const lyric = t.lyric;
-        const stage = lyric.currentBlock.parent;
-        verify(stage.clip);
-        const topLeft = stage.mapToItem(lyric, 0, 0);
-        compare(topLeft.y, 0);
-        verify(topLeft.x < -1000);
-        verify(stage.width > lyric.width + 2000);
-        verify(stage.height > lyric.height + 1000);
+        const clip = findAll(lyric, o => o.objectName === "lyricClip")[0];
+        verify(clip.clip);
+        verify(findAll(clip, o => o === lyric.currentBlock).length === 1);
+        const top = clip.mapToItem(data.atLyricArea ? lyric : t.view, 0, 0);
+        compare(top.y, 0);
+        if (!data.atLyricArea) {
+            verify(lyric.mapToItem(t.view, 0, 0).y > 0);
+        }
+        verify(top.x < -1000);
+        verify(clip.width > lyric.width + 2000);
+        verify(clip.mapToItem(lyric, 0, clip.height).y > lyric.height + 1000);
+        // The blocks are drawn where they are placed, whatever the clip.
+        compare(lyric.currentBlock.mapToItem(lyric, 0, 0).y, lyric.currentBlock.y);
         // The particles are outside it.
         const layer = findAll(lyric, o => o.objectName === "wordParticles")[0];
         verify(layer.parent === lyric);
-        verify(findAll(stage, o => o === layer).length === 0);
+        verify(findAll(clip, o => o === layer).length === 0);
     }
 
     // ---- The three modes, and animations off

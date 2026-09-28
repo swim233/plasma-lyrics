@@ -56,6 +56,11 @@ Item {
     // its height is the panel's, and what spills past the panel window is
     // not seen anyway.
     property bool panelMode: false
+    // Where the top clip is, in this item's coordinates: the top clip is
+    // only there to keep the lines off the track info, so LyricsView puts it
+    // at this item's top edge (0) while the track info is shown and at the
+    // widget's own top edge otherwise.
+    property real clipTop: 0
 
     // Word particles (DESIGN.md decision 77). Off also drops every particle
     // already in the air. The colour arrives resolved, alpha already 1.
@@ -656,89 +661,97 @@ Item {
         onTriggered: root.switchLine()
     }
 
-    // Only the top edge of the lyric area is clipped, so a sung line leaving
+    // Only the top edge is clipped, at clipTop, so a sung line leaving
     // upwards does not draw over the track info; the bottom spills freely
     // when the group does not fit (decision 80), and the particle layer
-    // below is outside this altogether.
+    // below is outside this altogether. The blocks sit in `blocksOrigin`,
+    // which puts them back in this item's own coordinates.
     Item {
         id: stage
+        objectName: "lyricClip"
         readonly property real margin: 10000
         x: -stage.margin
+        y: root.clipTop
         width: root.width + 2 * stage.margin
-        height: root.height + stage.margin
+        height: root.height - root.clipTop + stage.margin
         clip: true
 
-        Repeater {
-            id: pool
-            model: 6
-            onCountChanged: root.placeInitially()
+        Item {
+            id: blocksOrigin
+            x: stage.margin
+            y: -stage.y
 
-            delegate: PooledBlock {
-                id: block
+            Repeater {
+                id: pool
+                model: 6
+                onCountChanged: root.placeInitially()
 
-                motion: root.restMotion("current")
-                slideOffset: root.valueAt(block.motion.slide, root.clockMs)
-                grow: root.valueAt(block.motion.grow, root.clockMs)
-                veil: root.valueAt(block.motion.veil, root.clockMs)
-                rise: root.valueAt(block.motion.rise, root.clockMs)
-                fall: root.valueAt(block.motion.fall, root.clockMs)
+                delegate: PooledBlock {
+                    id: block
 
-                x: stage.margin
-                y: (block.role === "current" ? root.currentY
-                    : block.role === "next" ? root.nextY
-                    : block.frozenBase) + block.slideOffset
-                z: block.role === "current" ? 3 : block.role === "next" ? 2 : block.role === "done" ? 1 : 0
-                width: root.width
-                visible: block.role !== "free"
-                transformOrigin: Item.Top
-                scale: root.valueAt(block.motion.scale, root.clockMs)
-                opacity: root.valueAt(block.motion.opacity, root.clockMs)
+                    motion: root.restMotion("current")
+                    slideOffset: root.valueAt(block.motion.slide, root.clockMs)
+                    grow: root.valueAt(block.motion.grow, root.clockMs)
+                    veil: root.valueAt(block.motion.veil, root.clockMs)
+                    rise: root.valueAt(block.motion.rise, root.clockMs)
+                    fall: root.valueAt(block.motion.fall, root.clockMs)
 
-                nextLineColor: Qt.rgba(root.unsungColor.r, root.unsungColor.g, root.unsungColor.b,
-                                       root.unsungColor.a * 0.6)
-                nextLineStrokeColor: Qt.rgba(root.strokeColor.r, root.strokeColor.g, root.strokeColor.b,
-                                             root.strokeColor.a * 0.6)
-                nextLineShare: 1 - block.grow
-                secondaryLyricOpacity: root.valueAt(block.motion.secondary, root.clockMs)
-                // Screen pixels at the block's scale, into its own.
-                blurSigma: (root.nextLineBlur * block.veil
-                            + root.fontScale * (root.emergeBlur * block.rise + root.exitBlur * block.fall))
-                    / Math.max(0.01, block.scale)
-                blurPadding: root.blurPadding
+                    y: (block.role === "current" ? root.currentY
+                        : block.role === "next" ? root.nextY
+                        : block.frozenBase) + block.slideOffset
+                    z: block.role === "current" ? 3 : block.role === "next" ? 2 : block.role === "done" ? 1 : 0
+                    width: root.width
+                    visible: block.role !== "free"
+                    transformOrigin: Item.Top
+                    scale: root.valueAt(block.motion.scale, root.clockMs)
+                    opacity: root.valueAt(block.motion.opacity, root.clockMs)
 
-                textColor: root.textColor
-                secondaryLyricColor: root.secondaryLyricColor
-                strokeEnabled: root.strokeEnabled
-                strokeColor: root.strokeColor
-                fontFamily: root.fontFamily
-                fontSize: root.fontSize
-                fontWeight: root.fontWeight
-                secondaryLyricFontFamily: root.secondaryLyricFontFamily
-                secondaryLyricFontSize: root.secondaryLyricFontSize
-                secondaryLyricFontWeight: root.secondaryLyricFontWeight
-                secondaryLyricFontItalic: root.secondaryLyricFontItalic
-                overflowMode: root.overflowMode
-                // A block leaving goes on holding its word glyphs while it
-                // fades, which looks wrong in a screenshot and is not.
-                // positionMs is past the line's last word by then, so every
-                // glyph is in the sung colour; the last word may still be
-                // coming down -- its spring release (LyricLine, decision 73)
-                // runs on for ~600 ms past endMs -- and that is the intended
-                // look, the outgoing line settling as it goes. A block
-                // without words has nothing that moves with the position.
-                positionMs: block.words.length > 0 ? root.positionMs : 0
-                unsungColor: root.unsungColor
-                activeColor: root.activeColor
-                sungColor: root.sungColor
-                liftEnabled: root.liftEnabled
-                liftEm: root.liftEm
-                brightnessEnabled: root.brightnessEnabled
-                brightnessStrength: root.brightnessStrength
-                blurGlowEnabled: root.blurGlowEnabled
-                lineHeightFactor: root.lineHeightFactor
-                // Only the current line, and its line only: particles of a
-                // line switched away from were detached at the switch.
-                particlesWanted: block.role === "current" && root.particlesEnabled
+                    nextLineColor: Qt.rgba(root.unsungColor.r, root.unsungColor.g, root.unsungColor.b,
+                                           root.unsungColor.a * 0.6)
+                    nextLineStrokeColor: Qt.rgba(root.strokeColor.r, root.strokeColor.g, root.strokeColor.b,
+                                                 root.strokeColor.a * 0.6)
+                    nextLineShare: 1 - block.grow
+                    secondaryLyricOpacity: root.valueAt(block.motion.secondary, root.clockMs)
+                    // Screen pixels at the block's scale, into its own.
+                    blurSigma: (root.nextLineBlur * block.veil
+                                + root.fontScale * (root.emergeBlur * block.rise + root.exitBlur * block.fall))
+                        / Math.max(0.01, block.scale)
+                    blurPadding: root.blurPadding
+
+                    textColor: root.textColor
+                    secondaryLyricColor: root.secondaryLyricColor
+                    strokeEnabled: root.strokeEnabled
+                    strokeColor: root.strokeColor
+                    fontFamily: root.fontFamily
+                    fontSize: root.fontSize
+                    fontWeight: root.fontWeight
+                    secondaryLyricFontFamily: root.secondaryLyricFontFamily
+                    secondaryLyricFontSize: root.secondaryLyricFontSize
+                    secondaryLyricFontWeight: root.secondaryLyricFontWeight
+                    secondaryLyricFontItalic: root.secondaryLyricFontItalic
+                    overflowMode: root.overflowMode
+                    // A block leaving goes on holding its word glyphs while it
+                    // fades, which looks wrong in a screenshot and is not.
+                    // positionMs is past the line's last word by then, so every
+                    // glyph is in the sung colour; the last word may still be
+                    // coming down -- its spring release (LyricLine, decision 73)
+                    // runs on for ~600 ms past endMs -- and that is the intended
+                    // look, the outgoing line settling as it goes. A block
+                    // without words has nothing that moves with the position.
+                    positionMs: block.words.length > 0 ? root.positionMs : 0
+                    unsungColor: root.unsungColor
+                    activeColor: root.activeColor
+                    sungColor: root.sungColor
+                    liftEnabled: root.liftEnabled
+                    liftEm: root.liftEm
+                    brightnessEnabled: root.brightnessEnabled
+                    brightnessStrength: root.brightnessStrength
+                    blurGlowEnabled: root.blurGlowEnabled
+                    lineHeightFactor: root.lineHeightFactor
+                    // Only the current line, and its line only: particles of a
+                    // line switched away from were detached at the switch.
+                    particlesWanted: block.role === "current" && root.particlesEnabled
+                }
             }
         }
     }
@@ -765,8 +778,8 @@ Item {
         color: root.particleColor
         line: particles.followed ? particles.followed.particleLine : null
         lineOrigin: particles.followed
-            ? Qt.point(stage.x + particles.followed.x - particles.x,
-                       stage.y + particles.followed.y - particles.followed.slideOffset - particles.y)
+            ? Qt.point(particles.followed.x - particles.x,
+                       particles.followed.y - particles.followed.slideOffset - particles.y)
             : Qt.point(0, 0)
         lineOffset: particles.followed
             ? Qt.point(particles.followed.particleScrollOffset * particles.followed.scale,
