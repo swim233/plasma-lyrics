@@ -87,6 +87,9 @@ the new behaviour -- no root-cause narration, no metaphor. Do not add
 
     偏移改为 LyricLine 的属性绑定，失效即归零。
 
+`commit-message-style.md` holds the details -- the scope list, the banned
+words and the pre-commit checks; read it before writing a commit message.
+
 README.md is written in Chinese; README.en.md carries the English copy.
 
 Release work follows `docs/RELEASE.md`: read it before writing any
