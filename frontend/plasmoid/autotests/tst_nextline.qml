@@ -104,26 +104,20 @@ TestCase {
         return { source: source, view: view, lyric: lyric };
     }
     // The line after the current one arrives, as LyricSource announces it:
-    // the old next index becomes the current one. The switch runs at once
-    // rather than a turn later, so that every tween starts at a known clock.
+    // the current line first, the next line after it, and the old next
+    // index is the current one now. The switch runs at once rather than a
+    // turn later, so that every tween starts at a known clock.
     function advance(t, text, next, extra) {
         const s = t.source;
-        s.currentLineIndex = s.nextLineIndex;
-        s.nextLineIndex = next === "" ? -1 : s.nextLineIndex + 1;
+        const index = s.nextLineIndex;
+        s.currentLineIndex = index;
         s.currentWords = (extra && extra.words) || [];
         s.currentTranslation = (extra && extra.translation) || "";
         s.currentText = text;
+        s.nextLineIndex = next === "" ? -1 : index + 1;
         s.nextText = next;
         t.lyric.switchLine();
         compare(t.lyric.shownText, t.view.effectiveText);
-    }
-    function jump(t, currentIndex, text, next) {
-        const s = t.source;
-        s.currentLineIndex = currentIndex;
-        s.nextLineIndex = currentIndex + 1;
-        s.currentText = text;
-        s.nextText = next;
-        t.lyric.switchLine();
     }
     function tweenOf(block, key) {
         return block.motion[key];
@@ -409,10 +403,12 @@ TestCase {
 
     function test_aJumpFadesBothPlacesWhereTheyAre_data() {
         return [
-            { tag: "seek forward", change: s => { s.currentLineIndex = 7; s.nextLineIndex = 8; } },
-            { tag: "seek back", change: s => { s.currentLineIndex = 0; s.nextLineIndex = 1; } },
-            { tag: "new track", change: s => { s.fingerprint = "track-2"; s.currentLineIndex = 1; s.nextLineIndex = 2; } },
-            { tag: "offset change", change: s => { s.currentLineIndex = 3; s.nextLineIndex = 4; } },
+            { tag: "seek forward", current: 7 },
+            { tag: "seek back", current: 0 },
+            { tag: "new track", fingerprint: "track-2", current: 0 },
+            // The next index, but not the next line's text.
+            { tag: "next index, other text", current: 1 },
+            { tag: "offset change", current: 3 },
         ];
     }
     function test_aJumpFadesBothPlacesWhereTheyAre(data) {
@@ -421,9 +417,14 @@ TestCase {
         const oldNext = t.lyric.nextBlock;
         const currentY = oldCurrent.y;
         const nextY = oldNext.y;
-        data.change(t.source);
-        t.source.currentText = "elsewhere";
-        t.source.nextText = "after elsewhere";
+        const s = t.source;
+        if (data.fingerprint) {
+            s.fingerprint = data.fingerprint;
+        }
+        s.currentLineIndex = data.current;
+        s.currentText = "elsewhere";
+        s.nextLineIndex = data.current + 1;
+        s.nextText = "after elsewhere";
         t.lyric.switchLine();
         const t0 = t.lyric.clockMs;
         // The old lines stay put and fade out in 180 ms.
@@ -453,23 +454,75 @@ TestCase {
         verify(blurLoaderOf(next).active);
     }
 
-    // The same text arriving in sequence under the old next index is a push
-    // up; the same index under another fingerprint is not.
-    function test_theIndicesAndTheFingerprintDecide() {
+    // A player filling in its metadata changes the fingerprint and nothing
+    // else, and no line signal comes: the next switch is still in sequence.
+    function test_aFingerprintChangeAloneKeepsTheSequence() {
         const t = createView();
         const next = t.lyric.nextBlock;
-        t.source.fingerprint = "track-2";
+        t.source.fingerprint = "track-1 with an album";
+        wait(0);
         advance(t, "second line", "third line");
-        verify(t.lyric.currentBlock !== next);
-        compare(next.role, "gone");
-
-        const again = t.lyric.nextBlock;
-        advance(t, "third line", "fourth line");
-        verify(t.lyric.currentBlock === again);
-        compare(tweenOf(again, "slide").kind, "spring");
+        verify(t.lyric.currentBlock === next);
+        compare(tweenOf(next, "slide").kind, "spring");
     }
 
-    // Lyrics giving way to other text, and back, are jumps.
+    // Another copy of the same song's lyrics with one more line at the top:
+    // every index moves up by one, so the new current index is the old next
+    // one, but its text is not the old next line's. That is a jump.
+    function test_aNewCopyOneLineOffIsAJump() {
+        const t = createView();
+        const current = t.lyric.currentBlock;
+        const next = t.lyric.nextBlock;
+        const s = t.source;
+        s.currentLineIndex = 1;
+        s.currentTranslation = "a translation";
+        s.nextLineIndex = 2;
+        t.lyric.switchLine();
+        compare(s.currentText, "first line");
+        compare(current.role, "gone");
+        verify(t.lyric.currentBlock !== next);
+        compare(tweenOf(t.lyric.currentBlock, "opacity").dur, 180);
+        verify(!isTween(tweenOf(t.lyric.currentBlock, "slide")));
+        // The next line reads the same and stays where it is.
+        verify(t.lyric.nextBlock === next);
+        compare(next.role, "next");
+    }
+
+    // The intro seeking into a long interlude moves only the next line; the
+    // line after it still arrives in sequence, on show or not.
+    function test_theIntroSeekingIntoAnInterludeKeepsTheSequence_data() {
+        return [
+            { tag: "next line on show", view: {}, promoted: true },
+            { tag: "panel", view: { panelMode: true }, promoted: false },
+        ];
+    }
+    function test_theIntroSeekingIntoAnInterludeKeepsTheSequence(data) {
+        const t = createView({ currentText: "", currentLineIndex: -1, nextLineIndex: 0, nextText: "a" }, data.view);
+        verify(t.lyric.currentBlock === null);
+        compare(t.lyric.nextBlock !== null, data.promoted);
+        // Only the next line changes, as it does when LyricSource sends
+        // nextLineChanged alone; the switch comes a turn later.
+        t.source.nextLineIndex = 4;
+        t.source.nextText = "e";
+        tryCompare(t.lyric, "shownNextLineIndex", 4);
+        compare(t.lyric.shownNextLineText, "e");
+        const next = t.lyric.nextBlock;
+        if (data.promoted) {
+            compare(next.lyricText, "e");
+        }
+        advance(t, "e", "f");
+        const block = t.lyric.currentBlock;
+        compare(block.lyricText, "e");
+        compare(tweenOf(block, "slide").kind, "spring");
+        if (data.promoted) {
+            verify(block === next);
+        } else {
+            compare(tweenOf(block, "slide").from, block.lineHeight);
+        }
+    }
+
+    // Lyrics giving way to other text, and back, are jumps -- the way back
+    // included, although the line then shown is the next one recorded.
     function test_lyricsAndOtherTextFadeIntoEachOther() {
         const t = createView();
         const current = t.lyric.currentBlock;
@@ -479,8 +532,8 @@ TestCase {
         verify(t.lyric.nextBlock === null);
         t.source.lyricState = "ok";
         t.source.currentLineIndex = 1;
-        t.source.nextLineIndex = 2;
         t.source.currentText = "second line";
+        t.source.nextLineIndex = 2;
         t.source.nextText = "third line";
         t.lyric.switchLine();
         compare(tweenOf(t.lyric.currentBlock, "opacity").dur, 180);
@@ -509,8 +562,8 @@ TestCase {
         compare(next.y, y);
 
         t.source.currentLineIndex = 1;
-        t.source.nextLineIndex = 2;
         t.source.currentText = "second line";
+        t.source.nextLineIndex = 2;
         t.source.nextText = "third line";
         t.lyric.switchLine();
         verify(t.lyric.currentBlock === next);

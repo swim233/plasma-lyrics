@@ -476,10 +476,10 @@ Item {
             nextLineBlurPercent: root.nextLineBlurPercent
             // Read whether or not the next line is on show: they are what
             // tells a line arriving in sequence from a jump (decision 28).
-            // The test stand-ins for LyricSource may carry neither.
+            // The test stand-ins for LyricSource may carry none of them.
             currentLineIndex: root.source.currentLineIndex ?? -1
             nextLineIndex: root.source.nextLineIndex ?? -1
-            fingerprint: root.source.fingerprint ?? ""
+            nextLineText: root.source.nextText ?? ""
             showingLyrics: root.showingLyrics
             particlesEnabled: root.wordParticles && root.wordByWord && root.showingLyrics
             particleColor: root.effectiveWordParticleColor

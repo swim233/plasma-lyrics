@@ -43,12 +43,13 @@ Item {
     // 0-100, 0 for none; scales with fontSize.
     property int nextLineBlurPercent: 25
     // What tells a line arriving in sequence from a jump (decision 28):
-    // LyricSource's two indices, -1 for none, and the track's fingerprint.
-    // showingLyrics is LyricsView's: false while the slot shows anything
-    // but the track's lyrics (idle text, a search, an error).
+    // LyricSource's two indices, -1 for none, and its next line's text,
+    // whether or not the next line is on show. showingLyrics is
+    // LyricsView's: false while the slot shows anything but the track's
+    // lyrics (idle text, a search, an error).
     property int currentLineIndex: -1
     property int nextLineIndex: -1
-    property string fingerprint: ""
+    property string nextLineText: ""
     property bool showingLyrics: true
 
     // Word particles (DESIGN.md decision 77). Off also drops every particle
@@ -121,10 +122,13 @@ Item {
     property string shownSecondaryLyric: ""
     property var shownWords: []
     property string shownNextText: ""
-    // What the last switch saw, for telling the next one apart.
+    // What the last switch saw, for telling the next one apart. Taken after
+    // the comparison, on every change of either line, the next line alone
+    // included (the intro seeking into an interlude moves only the next
+    // line), and never between a change and the switch it causes.
     property int shownLineIndex: -1
     property int shownNextLineIndex: -1
-    property string shownFingerprint: ""
+    property string shownNextLineText: ""
     property bool shownLyrics: true
 
     // A block of the pool, with what the pool keeps about it: its role, its
@@ -424,21 +428,27 @@ Item {
             && root.wordsKey(root.shownWords) === root.wordsKey(root.words)
             && root.shownLineIndex === root.currentLineIndex;
         const nextSame = root.shownNextText === root.nextText;
-        // A line arrives in sequence when it is the one that was next, under
-        // the same fingerprint, with lyrics shown before and after; the
-        // current line ending in an interlude keeps the next one. Anything
-        // else is a jump: a seek, a new track, an offset change, lyrics
-        // giving way to other text or back. The indices come from the data
-        // whether or not the next line is on show.
-        const continuous = root.showingLyrics && root.shownLyrics
-            && root.fingerprint === root.shownFingerprint;
+        // A line arrives in sequence when its index and its text are both
+        // those of the line that was next, with lyrics shown before and
+        // after (lyricText is then LyricSource's currentText); the current
+        // line ending in an interlude keeps the next one. Anything else is a
+        // jump: a seek, a new track, an offset change, another copy of the
+        // same song's lyrics, lyrics giving way to other text or back. The
+        // index alone is not enough -- a fresh copy with one more line at
+        // the top shifts every index by one under the same fingerprint --
+        // and the fingerprint is not compared at all: it changes as a player
+        // fills in its metadata while the lyrics, and both line signals,
+        // stay put, and a stale one would turn the next switch into a jump.
+        const continuous = root.showingLyrics && root.shownLyrics;
         const sequential = continuous && root.currentLineIndex >= 0
-            && root.currentLineIndex === root.shownNextLineIndex;
+            && root.currentLineIndex === root.shownNextLineIndex
+            && root.lyricText === root.shownNextLineText;
         const interlude = continuous && root.currentLineIndex < 0 && root.shownLineIndex >= 0
-            && root.nextLineIndex === root.shownNextLineIndex && root.lyricText.length === 0;
+            && root.nextLineIndex === root.shownNextLineIndex
+            && root.nextLineText === root.shownNextLineText && root.lyricText.length === 0;
         root.shownLineIndex = root.currentLineIndex;
         root.shownNextLineIndex = root.nextLineIndex;
-        root.shownFingerprint = root.fingerprint;
+        root.shownNextLineText = root.nextLineText;
         root.shownLyrics = root.showingLyrics;
         if (currentSame && nextSame) {
             return;
@@ -605,7 +615,7 @@ Item {
         root.shownNextText = root.nextText;
         root.shownLineIndex = root.currentLineIndex;
         root.shownNextLineIndex = root.nextLineIndex;
-        root.shownFingerprint = root.fingerprint;
+        root.shownNextLineText = root.nextLineText;
         root.shownLyrics = root.showingLyrics;
         root.placeInitially();
     }
@@ -615,6 +625,8 @@ Item {
     onNextTextChanged: switchTimer.restart()
     onCurrentLineIndexChanged: switchTimer.restart()
     onNextLineIndexChanged: switchTimer.restart()
+    onNextLineTextChanged: switchTimer.restart()
+    onShowingLyricsChanged: switchTimer.restart()
 
     // Do not "fix" this delay into a synchronous call. It means the word
     // glyphs clear one event-loop turn after LyricsView's clock has already

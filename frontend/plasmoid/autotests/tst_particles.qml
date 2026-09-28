@@ -120,11 +120,22 @@ TestCase {
         tryVerify(() => t.lyric.shownText === text);
     }
     // The line after the current one, in sequence: the one a push up moves
-    // into place (DESIGN.md decision 28).
+    // into place (DESIGN.md decision 28). Its index and its text are those
+    // of the next line LyricSource announced before, so that is announced
+    // first when it is not yet; then the current line changes and the next
+    // one after it, in LyricSource's order, and there is no line after it.
     function advanceTo(t, text, words) {
-        t.source.currentLineIndex = t.source.nextLineIndex;
-        t.source.nextLineIndex = t.source.nextLineIndex + 1;
-        switchTo(t, text, words);
+        if (t.source.nextText !== text) {
+            t.source.nextText = text;
+            tryCompare(t.lyric, "shownNextLineText", text);
+        }
+        const index = t.source.nextLineIndex;
+        t.source.currentLineIndex = index;
+        t.source.currentWords = words;
+        t.source.currentText = text;
+        t.source.nextLineIndex = index + 1;
+        t.source.nextText = "";
+        tryVerify(() => t.lyric.shownText === text);
     }
 
     function wordsOf(texts, start, duration) {
@@ -315,7 +326,6 @@ TestCase {
         compare(next.lyricText, b.join(""));
 
         step(view, source, 2010);
-        source.nextText = "";
         advanceTo(t, b.join(""), wordsOf(b, 2000, 100));
         verify(t.lyric.currentBlock === next);
         const t0 = next.motion.scale.t0;
