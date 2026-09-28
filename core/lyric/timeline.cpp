@@ -34,6 +34,26 @@ int currentLineIndex(const LyricLines &lines, qint64 positionMs, int offsetMs)
     return -1;
 }
 
+int nextLineIndex(const LyricLines &lines, qint64 positionMs, int offsetMs)
+{
+    // Lines are in start order (every parser stable-sorts them), the same
+    // assumption currentLineIndex() makes. "Not started" is the complement of
+    // its `startMs <= adjustedPosition`: a line starting exactly at the position
+    // is already current, not next. The answer only moves when the position
+    // passes some line's start, and every start is among nextBoundaryMs()'s
+    // candidates.
+    const qint64 adjustedPosition = positionMs - offsetMs;
+    for (qsizetype index = 0; index < lines.size(); ++index) {
+        if (lines[index].startMs > adjustedPosition) {
+            while (index + 1 < lines.size() && lines[index + 1].startMs == lines[index].startMs) {
+                ++index;
+            }
+            return static_cast<int>(index);
+        }
+    }
+    return -1;
+}
+
 std::optional<qint64> nextBoundaryMs(const LyricLines &lines, qint64 positionMs, int offsetMs)
 {
     // Every index change happens on some line's start or end, but ends are not
