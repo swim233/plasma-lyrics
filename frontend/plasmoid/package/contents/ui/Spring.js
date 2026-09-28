@@ -1,10 +1,11 @@
 .pragma library
 
-// The under-damped second-order step response behind a word's lift
-// (DESIGN.md decision 73, LyricLine), parameterised the way the decision
-// states it -- how long to the first peak, and how far that peak overshoots
-// -- and a pure function of time, so a spring can be evaluated at any moment
-// without state of its own.
+// The under-damped second-order step response both springs of this widget
+// share: a word's lift (DESIGN.md decision 73, LyricLine) and a line moving
+// into place on a line switch (decision 28, AnimatedLyric). Parameterised
+// the way both decisions state them -- how long to the first peak, and how
+// far that peak overshoots -- and a pure function of time, so a spring can be
+// evaluated at any moment without state of its own.
 
 // ζ from the overshoot, os = exp(-ζπ/√(1-ζ²)). The floor keeps the system
 // under-damped so the closed form stays finite; the overshoot 0.1% implies

@@ -463,19 +463,23 @@ TestCase {
         verify(Math.abs(originCentre - secondary.width / 2) <= 1);
     }
 
-    // The faded-out block keeps both of its lines alive and `visible`, so
-    // secondary lyrics left behind there go on driving an infinite marquee
-    // that nobody can see. Passes on either animation path: with animations off,
-    // switchLine releases the block synchronously instead.
+    // A faded-out block would keep both of its lines alive and `visible`, so
+    // secondary lyrics left behind there would go on driving an infinite
+    // marquee that nobody can see. Passes on either animation path: with
+    // animations off, switchLine releases the block synchronously instead.
     function test_transitionReleasesBothHalvesOfThePreviousBlock() {
         const lyric = createTemporaryObject(animatedLyricComponent, this,
             { animationMode: "fade" });
         verify(lyric !== null);
         tryVerify(() => lyric.shownText === "first");
+        const previous = lyric.currentBlock;
         lyric.lyricText = "second";
         lyric.secondaryLyricText = "translation two";
         tryVerify(() => lyric.shownText === "second");
-        tryVerify(() => lyric.previousText === "" && lyric.previousSecondaryLyric === "");
+        verify(previous !== lyric.currentBlock);
+        tryVerify(() => previous.lyricText === "" && previous.secondaryLyricText === "");
+        const idle = lyric.blocks().filter(b => b !== lyric.currentBlock);
+        verify(idle.every(b => b.lyricText === "" && b.secondaryLyricText === ""));
     }
 
     function test_outlineIsOptIn() {
@@ -524,11 +528,10 @@ TestCase {
         // main.qml -> LyricsView -> AnimatedLyric -> LyricBlock -> LyricLine.
         // Only the last hop applies it, so a missed forward is invisible until
         // the widget is running.
-        for (let i = 0; i < lyric.children.length; ++i) {
-            const block = lyric.children[i];
-            if (block.fontWeight !== undefined) {
-                compare(block.fontWeight, Font.Light);
-            }
+        const blocks = lyric.blocks();
+        verify(blocks.length > 0);
+        for (let i = 0; i < blocks.length; ++i) {
+            compare(blocks[i].fontWeight, Font.Light);
         }
     }
 
