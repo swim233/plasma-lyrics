@@ -285,6 +285,26 @@ TestCase {
         verify(!blurLoaderOf(t.lyric.nextBlock).active);
     }
 
+    // The blur's source is the block with room on every side for the most
+    // blur any block gets -- 3 σ of the next line starting to emerge at 25%
+    // and 34 px, (1.5 + 6) / 0.64 -- and capped with the calibration at 18.
+    function test_theBlurHasRoomAroundTheBlock() {
+        const t = createView();
+        compare(t.lyric.blurPadding, 36);
+        const next = t.lyric.nextBlock;
+        compare(next.blurPadding, 36);
+        const effect = effectsUnder(next)[0];
+        const topLeft = effect.mapToItem(next, 0, 0);
+        compare(topLeft.x, -36);
+        compare(topLeft.y, -36);
+        compare(effect.width, next.width + 72);
+        compare(effect.height, next.height + 72);
+        compare(effect.source.width, effect.width);
+        t.view.fontSize = 96;
+        t.view.nextLineBlurPercent = 100;
+        compare(t.lyric.blurPadding, 54);
+    }
+
     // The table LyricBlock turns a standard deviation into MultiEffect's
     // blur × blurMax with: the calibrated points themselves, linear between
     // them, 0 for none and capped at 64.
@@ -437,6 +457,51 @@ TestCase {
         compare(secondary.opacity, 1);
     }
 
+    // A word sung while its line takes over lifts only by the share of the
+    // current line's look the line has grown into so far.
+    function test_aWordLiftsOnlyAsFarAsTheLineHasGrown() {
+        const words = [{ startMs: 5000, endMs: 5600, text: "second " }, { startMs: 5600, endMs: 6000, text: "line" }];
+        const t = createView({ positionMs: 4990 });
+        const next = t.lyric.nextBlock;
+        advance(t, "second line", "third line", { words: words });
+        const t0 = t.lyric.clockMs;
+        const line = lyricLineOf(next);
+        verify(line.liftEnabled);
+        tryVerify(() => findAll(next, o => o.objectName === "lyricWord").length === 2);
+        t.source.positionMs = 5100;
+        t.view.syncLyricPosition();
+        t.lyric.clockMs = t0 + 100;
+        const share = next.nextLineShare;
+        verify(share > 0.3 && share < 0.7, share);
+        const glyph = findAll(next, o => o.objectName === "lyricWord")[0];
+        const full = line.fontSize * line.liftEm * line.liftEnvelope(5100, 5000, 5600);
+        verify(full > 1, full);
+        fuzzyCompare(-glyph.y, full * (1 - share), 1e-6);
+        t.lyric.clockMs = t0 + 450;
+        fuzzyCompare(-glyph.y, full, 1e-6);
+    }
+
+    // The words' own outline (Text.Outline) comes back from the next line's
+    // 0.6 with the colour, like the whole line's copies.
+    function test_theWordOutlineComesBackWithTheColour() {
+        const words = [{ startMs: 5000, endMs: 5600, text: "second " }, { startMs: 5600, endMs: 6000, text: "line" }];
+        const t = createView({ positionMs: 4990 }, { strokeEnabled: true, strokeColor: "#cc102030" });
+        const next = t.lyric.nextBlock;
+        advance(t, "second line", "third line", { words: words });
+        const t0 = t.lyric.clockMs;
+        tryVerify(() => findAll(next, o => o.objectName === "lyricWord").length === 2);
+        const glyphs = findAll(next, o => o.objectName === "lyricWord");
+        t.lyric.clockMs = t0 + 225;
+        for (const glyph of glyphs) {
+            compare(glyph.style, Text.Outline);
+            fuzzyCompare(glyph.styleColor.a, 0xcc / 255 * (1 - 0.4 * 0.125), 0.003);
+        }
+        t.lyric.clockMs = t0 + 450;
+        for (const glyph of glyphs) {
+            fuzzyCompare(glyph.styleColor.a, 0xcc / 255, 0.003);
+        }
+    }
+
     // At 8 px on the sung line and 6 px extra on the new next line, like the
     // resting blur, the lengths follow the font size.
     function test_theChoreographyScalesWithTheFontSize() {
@@ -491,10 +556,69 @@ TestCase {
         const scale = emerging.scale;
         const y = emerging.y;
         verify(scale > 0.64 && scale < 0.75, scale);
+        const opacity = emerging.opacity;
+        verify(opacity > 0 && opacity < 1, opacity);
         advance(t, "third line", "fourth line");
         verify(t.lyric.currentBlock === emerging);
         fuzzyCompare(tweenOf(emerging, "scale").from, scale, 1e-9);
         fuzzyCompare(emerging.y, y, 1e-9);
+        // Its fade-in, cut short, ends in the 200 ms the blur clears in.
+        const fade = tweenOf(emerging, "opacity");
+        fuzzyCompare(fade.from, opacity, 1e-9);
+        compare(fade.dur, 200);
+        t.lyric.clockMs = fade.t0 + 200;
+        compare(emerging.opacity, 1);
+    }
+
+    // Two neighbouring lines with the same text and no word timings are
+    // two lines: the second still rises into place.
+    function test_aRepeatedPlainLineStillRises() {
+        const t = createView({ currentText: "la la la", currentLineIndex: 1,
+                               nextText: "la la la", nextLineIndex: 2 });
+        const old = t.lyric.currentBlock;
+        const next = t.lyric.nextBlock;
+        advance(t, "la la la", "after");
+        verify(t.lyric.currentBlock === next);
+        compare(old.role, "done");
+        compare(tweenOf(next, "slide").kind, "spring");
+    }
+
+    // A two-line current line (wrap) over a one-line next line: the sung line
+    // moves as far as the line taking its place, and ends a gap above it,
+    // not by its own height.
+    function test_aTallLineLeavesInStepWithTheOneRising() {
+        const long = "a line long enough to wrap onto a second line in this widget";
+        const t = createView({ currentText: long }, { overflowMode: "wrap" });
+        const old = t.lyric.currentBlock;
+        const next = t.lyric.nextBlock;
+        verify(old.height > next.height, old.height + " against " + next.height);
+        const from = next.y;
+        const oldTop = old.y;
+        advance(t, "second line", "third line");
+        const travel = from - t.lyric.currentY;
+        verify(Math.abs(travel - (old.height + t.lyric.gap)) > 1, travel);
+        const exit = tweenOf(old, "slide");
+        fuzzyCompare(exit.from - exit.to, travel, 1e-9);
+        // Settled, it ends one gap above the line now in place.
+        fuzzyCompare(oldTop - travel + old.height + t.lyric.gap, t.lyric.currentY, 1e-9);
+    }
+
+    // The same two-line line ending in an interlude: its place keeps its
+    // height, so the next line does not move.
+    function test_anInterludeKeepsATallLinesPlace() {
+        const long = "a line long enough to wrap onto a second line in this widget";
+        const t = createView({ currentText: long }, { overflowMode: "wrap" });
+        const old = t.lyric.currentBlock;
+        const next = t.lyric.nextBlock;
+        verify(old.height > next.height);
+        const y = next.y;
+        t.source.currentLineIndex = -1;
+        t.source.currentText = "";
+        t.lyric.switchLine();
+        verify(t.lyric.currentBlock === null);
+        compare(old.role, "done");
+        compare(next.y, y);
+        fuzzyCompare(tweenOf(old, "slide").to - tweenOf(old, "slide").from, -(old.height + t.lyric.gap), 1e-9);
     }
 
     // ---- Sequence or jump
