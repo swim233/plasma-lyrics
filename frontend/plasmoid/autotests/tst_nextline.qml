@@ -101,6 +101,9 @@ TestCase {
         verify(view !== null);
         const lyric = lyricOf(view);
         tryVerify(() => lyric.placed);
+        // The bindings settling at creation leave a switch pending a turn;
+        // run it now, or it would take its record in the middle of a test.
+        wait(0);
         return { source: source, view: view, lyric: lyric };
     }
     // The line after the current one arrives, as LyricSource announces it:
