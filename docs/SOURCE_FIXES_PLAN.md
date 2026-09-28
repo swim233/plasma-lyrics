@@ -1,9 +1,12 @@
 # 多源歌词的设置、并发与进度修复计划
 
-日期：2026-09-10。状态：设计与代码实现已完成；自动化验收通过，人工界面验收待执行。
+日期：2026-09-10。状态：已实现，随 v0.3.0 发布；自动化验收通过，未记录人工界面验收结果（5.2、5.5）。
+本文与 [DESIGN.md](DESIGN.md) 冲突时以 DESIGN.md 为准。
 
-本文记录三个用户报告问题的根因定位、与用户完成设计访谈后确认的 23 项决策、
-分四个提交的实施方案，以及验收流程。交给实现者可独立执行，不需要重新做设计判断。
+本文记录三个用户报告问题的根因定位、与用户确认的决策、分四个提交的实施方案，以及验收流程。
+第 2 节的决策描述现行行为；第 1、3–7 节是根因分析与实施当时的记录，反映当时的代码与构建选项
+（例如按源关闭编译的 CMake 选项，现已移除，四个源固定编译）。
+第 1、3、4 节中的 `文件:行号` 指修复开始前的提交 `2f9fbd1`。
 
 架构约束沿用 [DESIGN.md](DESIGN.md)：`core/` 不依赖 QtNetwork / QtDBus，
 provider 集成在 `providers/`，MPRIS 在 `daemon/`，歌词通过原子整首快照传递，
@@ -12,7 +15,7 @@ provider 集成在 `providers/`，MPRIS 在 `daemon/`，歌词通过原子整首
 
 ## 1. 背景
 
-用户报告了三个问题，并归因于新增多源歌词的那批提交（`13bf60c..3de5727`）：
+用户报告了三个问题，并归因于新增多源歌词的那批提交（`9c4e21b..1e559cb`）：
 
 1. 「歌词服务」设置页调整歌词源优先级后无法保存；且手动填写多行源的形式需要重新设计。
 2. 在小部件中频繁手动切换歌词源，有很大概率卡死小部件。
@@ -21,9 +24,8 @@ provider 集成在 `providers/`，MPRIS 在 `daemon/`，歌词通过原子整首
 定位结论：**三个问题的根因都先于多源功能存在**，多源功能只是分别提供了触发条件。
 因此回退或关闭多源功能不能修复其中任何一个。
 
-截至本文，这批提交尚未发布（最后的 tag 是 `v0.2.3`，改动全部位于 `CHANGELOG.md`
-的 `## 未发布` 段），但问题 2 与问题 3 的病根随 `v0.2.2` / `v0.2.3` 已经发布，
-见 Q16。
+这批提交与本文的修复一起随 `v0.3.0` 发布；写作本文时它们还在 `CHANGELOG.md` 的
+`## 未发布` 段，而问题 2 与问题 3 的病根早已随 `v0.2.2` / `v0.2.3` 发布，见 Q16。
 
 ### 1.1 问题 1：设置页的保存路径
 
@@ -78,7 +80,7 @@ QSettings 的 INI 后端把空列表序列化为 `order=@Invalid()`；
 **D4 — 同一个 `@Invalid()` 机制已经作用在另外两个列表字段上，且在实机上已经发生。**
 `save()` 对 `players/blacklist` 与 `filter/musicUrlPrefixes` 用的是同一个 `list()`
 （`backendconfig.cpp:181-182`）。开发机的 `~/.config/plasma-lyrics/plasma-lyricsd.ini`
-当前是：
+当时是：
 
 ```ini
 [filter]
@@ -100,7 +102,7 @@ blacklist=@Invalid()
 （不屏蔽任何播放器 / 不加自定义前缀），`@Invalid()` 读回空列表恰好实现了这个意图；
 而对 `providers/order` 来说「空」等于功能完全消失，没有界面能表达它。
 真正的缺口是**默认值在清空后无法通过界面找回**——想让 kdeconnect 重新被忽略，
-只能手工编辑 INI。这一条属于既有缺陷，范围待定，见 Q24。
+只能手工编辑 INI。这一条属于既有缺陷，处理见 Q24。
 
 **D3 — 同一份白名单与去重逻辑存在两份副本**，
 写入侧 `backendconfig.cpp:196-202`，读取侧 `config.cpp:41-55`，两份都静默丢弃。
@@ -126,9 +128,10 @@ blacklist=@Invalid()
 - 实机数据库为 `journal_mode=delete`（非 WAL），读写完全互斥。
 
 于是部件每两秒在 GUI 线程上对守护进程正在写的库取两次写锁，等待上限 5 秒。
-多源功能提供的是触发所需的**写入风暴**：手动切换是 `force = true` 的解析，
+多源功能提供的是触发所需的**写入风暴**：当时手动切换是 `force = true` 的解析，
 绕过全部缓存与负缓存短路（`resolver.cpp:196,220,265,367`），
-每次切换都产生网络请求与对 `lyric`、`provider_fingerprint`、`provider_miss` 的写入。
+每次切换都产生网络请求与对 `lyric`、`provider_fingerprint`、`provider_miss` 的写入
+（现在手动换源与恢复自动先用链首源已缓存的歌词，只有重新搜索必定联网，见 DESIGN.md 决策 54）。
 频繁切换使风暴持续，2 秒轮询反复落在被锁的库上。
 实测连续两次轮询分别阻塞 3037 ms 与 1233 ms。
 
@@ -191,13 +194,13 @@ MPRIS 的 `Position` 声明 `EmitsChangedSignal=false`，所以稳定播放中
 `SetPreferredProvider`（`controlservice.cpp:50`）、`ClearPreferredProvider`（`:62`）、
 `Research`（`:71`）、`playbackRoundStarted` 重试（`main.cpp:312`）、
 AMLL 索引在解析中刷新（`resolver.cpp:303-318`）。
-偏移调整当前不经过守护进程，不是发布路径。
+当时偏移调整不经过守护进程，不是发布路径。
 
 手动切换还叠加**第二个与延迟成正比的分量**（落在站点 4）：
 `main.cpp:291` 的 `manager.activeState()` 在两段链式异步往返
 （`resolver.cpp:401` 搜索、`:437` 获取）**之后**重读缓存状态，
 此间又有若干次 1 秒轮询推进了 `positionUs` 而锚点未动。
-手动切换必走网络路径（`force` 跳过全部缓存短路），因此会发布两次，
+当时手动切换必走网络路径（`force` 跳过全部缓存短路），因此会发布两次，
 第二次误差 = 第一次误差 + ⌊延迟 / 1 秒⌋ 秒。
 
 指纹与 Position 跳变检测均未被牵涉，两者都不参与本次修改：
@@ -205,9 +208,9 @@ AMLL 索引在解析中刷新（`resolver.cpp:303-318`）。
 `(title, artists, album, lengthUs)` 哈希为依据，`mpris:trackid` 不是它的输入；
 `MprisPolicy::isPositionJump()`（`mprispolicy.cpp:199-213`）读的是
 `m_lastSamplePositionUs` / `m_lastSampleMonotonicNs`，这两个字段每次轮询都刷新，
-因此跳变检测今天是自洽且正确的。CLAUDE.md 中「不得改为纯 track-id 逻辑」的约束不受影响。
+因此跳变检测当时就是自洽且正确的。CLAUDE.md 中「不得改为纯 track-id 逻辑」的约束不受影响。
 
-### 1.4 附带发现：LocalProvider 不是歌词源
+### 1.4 附带发现：当时的 LocalProvider 不是歌词源
 
 `LocalProvider` 的 `supportsSearch()` 返回 `false`（`localprovider.cpp:28-31`），
 `search()` 与 `fetch()` 是返回空值的存根（`:33-41`）。
@@ -229,34 +232,34 @@ AMLL 索引在解析中刷新（`resolver.cpp:303-318`）。
 
 ## 2. 决策清单
 
-以下 23 项均由用户确认。实现时不得改变这些行为；接口名与具体 schema 可调整。
+以下是已确认的决策，描述现行行为；接口与 schema 的细节以 DESIGN.md 决策 55–60、67 为准。
 
 ### 范围与架构
 
 | # | 决策 |
 | --- | --- |
 | Q1 | **四个提交，顺序锁定**。见第 4 节。两个约束强制了顺序：问题 3 的修复必须先于任何新增发布路径（否则提交 2 新增的偏移发布会带上同样的漂移）；D1 的修复必须先于任何需要反复保存配置来验证的工作 |
-| Q8 | **部件完全不打开 SQLite**，回到纯快照消费者。理由不是性能：三个 bug 有同一形状——部件绕过快照自取数据，于是快照的原子性保证不覆盖它。仅把阻塞挪出 GUI 线程（worker thread）会让卡死消失但偏移读取仍莫名延迟数秒，且给纯消费者引入线程；仅改成只读打开则留着「两进程各自开同一个库」的结构，并要求 `core/` 长出第二种打开语义 |
-| Q12 | **配置对话框的 `GlobalConfig` 保持直连 SQLite**，是 Q8 的有意例外。`ConfigGlobal.qml:35` 的 `saveConfig()` 依赖同步 `save()` 返回值报告失败，而那段注释（`:18-32`）明确说这是决策 41 里「用户真正会注意到的那个信号」；改成异步 D-Bus 会让这个错误提示失去回传通道。`LyricStore` 从此只有守护进程与配置对话框两类调用方，部件不在其中 |
+| Q8 | **部件完全不打开 SQLite**，回到纯快照消费者：读取只经过快照，用户命令（换源、重搜、偏移调整）经 D-Bus 控制接口交给守护进程。理由不是性能：三个 bug 有同一形状——部件绕过快照自取数据，于是快照的原子性保证不覆盖它。仅把阻塞挪出 GUI 线程（worker thread）会让卡死消失但偏移读取仍莫名延迟数秒，且给纯消费者引入线程；仅改成只读打开则留着「两进程各自开同一个库」的结构，并要求 `core/` 长出第二种打开语义 |
+| Q12 | **配置对话框的 `GlobalConfig` 保持直连 SQLite**，是 Q8 的有意例外。全局偏移的开关与数值由 `GlobalConfig::save()` 同步写入：「全局设置」页的 `saveConfig()` 交给 `OffsetSaver.save()`，后者依赖这个同步返回值在「应用」路径上报告保存失败并让「应用」保持可用；改成异步 D-Bus 会让这个错误提示失去回传通道。写入成功后以 `RefreshGlobalOffset` 通知守护进程重发快照。同一页的本曲偏移不走这条路，经 `SetOffsetForTrack` 由守护进程写入（Q11）。常驻组件里 `LyricStore` 只有守护进程与配置对话框两类调用方（另有一次性导入工具 `tools/import-waylyrics`），部件不在其中 |
 
 ### 快照与控制接口
 
 | # | 决策 |
 | --- | --- |
-| Q9 | **快照新增 `globalOffsetEnabled`，并把现有 `offsetMs` 改为守护进程算好的生效值**。部件仍需要那个开关——`main.qml:355-373` 的菜单文案与 `canAdjustOffset`（`lyricsource.cpp:156`）都依赖它。生效偏移是守护进程本来就知道的东西（`resolver.cpp:95` 已在给 document 盖 offset），两边各算一次是 bug 的温床。注意这会改变 DESIGN.md 决策 41 记载的 `lyric.offsetMs` 语义（原为「per-track 原始值」），需同步更新 |
-| Q10 | **2 秒健康定时器保留，只做 pid 检测**（`lyricsource.cpp:250` 的 `processExists`，读 `/proc`，无锁无阻塞）。守护进程被 kill 后快照文件仍在原地、`seq` 不再变，靠「多久没变算死」判断需要一个凭感觉的阈值，而 pid 检测是确定性的。间隔保持 2 秒：改完每轮只剩一次 `/proc` stat |
-| Q11 | **`ControlService` 新增 `AdjustOffset(expectedFingerprint, deltaMs)` 与 `ResetOffset(expectedFingerprint)`**，由守护进程内部判断全局 / 单曲模式，写入后重新发布快照。用 delta 语义而非 `SetOffset(ms)`：后者要求部件基于快照旧值算目标值，两个实例同时点「+500ms」会丢掉一次调整。全局模式下 `expectedFingerprint` 是多余的，但保留以匹配另外三个方法的形状，并挡住「指纹已变、用户其实在给上一首调偏移」 |
-| Q15 | **快照新增表达「正在切换到某源」的字段**，与 `temporaryFallback` 同构，由 `forceResolve` 置上、`Resolver::finish` 清掉。不能复用 `lyric.state == "searching"`：`forceResolve` 在有可留存旧歌词时走另一条分支（`main.cpp:317-319`）保留 `state == "ok"` 继续显示旧歌词，而那正是最常见的情况（用户看着歌词想换源），此时 `searching` 根本不出现。也不用部件本地标志加超时（现状）：其 3 秒过期与 D-Bus 的 3 秒超时（`lyricsource.cpp:521`）同量级，两个计时器互相赛跑 |
+| Q9 | **快照带 `globalOffsetEnabled`，`offsetMs` 是守护进程算好的生效值**：全局偏移开启时为全局值 + 本曲值，关闭时只是本曲值；另带 `trackOffsetMs`（本曲值，右键菜单的重置项显示它）。生效偏移是守护进程本来就知道的东西（`main.cpp` 里的 `publish` lambda 每次写快照前都经 `snapshot.cpp` 的 `applyStoredOffsets()` 计算），两边各算一次是 bug 的温床。`lyric.offsetMs` 的语义见 DESIGN.md 决策 55、79 |
+| Q10 | **2 秒健康定时器保留，只做 pid 检测**（`lyricsource.cpp` 的 `processExists()`，即 `kill(pid, 0)`，无锁无阻塞）。守护进程被 kill 后快照文件仍在原地、`seq` 不再变，靠「多久没变算死」判断需要一个凭感觉的阈值，而 pid 检测是确定性的。间隔保持 2 秒：每轮只有一次 `kill(pid, 0)` 系统调用 |
+| Q11 | **`ControlService` 提供 `AdjustOffset(expectedFingerprint, deltaMs)` 与 `ResetOffset(expectedFingerprint)`，只写当前歌曲的本曲偏移**：全局偏移开关开与关都一样，要求有当前歌曲、歌词引用且预期指纹与当前歌曲一致，写入后重新发布快照。用 delta 语义而非 `SetOffset(ms)`：后者要求部件基于快照旧值算目标值，两个实例同时点「+500ms」会丢掉一次调整。预期指纹与另外三个控制方法同形，挡住「指纹已变、用户其实在给上一首调偏移」。全局偏移值只在配置对话框里改（Q12）；配置对话框写本曲偏移用 `SetOffsetForTrack(provider, trackId, offsetMs)`，按歌词引用写绝对值，不校验当前指纹（引用本身指明了是哪首歌），细节见 DESIGN.md 决策 79 |
+| Q15 | **快照用 `lyric.switchingProvider` 表达「正在切换到某源」**，与 `temporaryFallback` 同构：`main.cpp` 的 `forceResolve`（换源、恢复自动与重新搜索共用）置上，Resolver 结束时无论成败都清掉。不能复用 `lyric.state == "searching"`：`forceResolve` 在有可留存旧歌词时保留 `state == "ok"` 继续显示旧歌词，而那正是最常见的情况（用户看着歌词想换源），此时 `searching` 根本不出现。也不用部件本地标志加超时（修复前的做法）：其 3 秒过期与控制调用的 3 秒 D-Bus 超时同量级，两个计时器互相赛跑 |
 
 ### 设置页与优先级控件
 
 | # | 决策 |
 | --- | --- |
-| Q2 | **用可拖拽排序 + 勾选的列表取代自由文本框**。这不是外观改良：D2 之所以存在，是因为自由文本能表达系统无法表示的值；换成选择器后不存在「无法解析」的状态，`backendconfig.cpp:196-202` 的静默过滤随之成为死代码并删除。用校验报错来修 D2 是治症状。不用两栏穿梭框（对 2–3 个源过重），不用逐位 ComboBox（源数量变化时会出现「同一源被选两次」的非法状态） |
-| Q3 | **勾选即启用，新增 `providers/enabled` 保存启用集合，`providers/order` 保存全部源的顺序**。多一个键换来「取消勾选不丢位置」，并与已有的 `filter/platforms` 集合型键风格一致。若让「未启用」等于「不在 order 里」，用户临时停用某源再打开时它会跑到末尾，正好破坏他本来要调的顺序 |
-| Q4 | **源列表由守护进程经 D-Bus 提供，服务未运行时降级为静态列表并提示**。`BackendConfig` 目前纯读 QSettings、完全不依赖 D-Bus，这个优点要保留，所以是「能连上就用真实列表，连不上退回静态列表并显示服务未运行」。不在 C++ 侧建 provider 注册表：放 `core/` 不能带 QtDBus，放 `providers/` 又要被 `frontend/` 依赖 |
-| Q14 | **保留配置里不认识的 provider id，只是不装配它**。现状是写入侧与读取侧两份副本都静默丢弃，后果是：装一个未编译 AMLL 的构建（`build-no-amll` 说明这是支持的），打开设置页保存一次，`amll` 就从顺序里永久消失。Q4 让列表来自守护进程，界面天然只显示可用源，真正的风险是保存动作删掉没显示的东西，所以要求新控件写回时把不认识的行原样带上 |
-| Q7 | **`Config::providerOrder()` 结果为空时回退内置默认顺序，并在 journal 写一行说明**。零 provider 永远不是用户想要的状态——它等于功能完全消失，而且没有界面能表达这个意图。这样不需要迁移逻辑，也不需要区分「用户故意清空」与「被 bug 写坏」。不做「启动时删掉解析为空的键」：对一个从未发布的 bug 过重 |
+| Q2 | **用可拖拽排序 + 勾选的列表取代自由文本框**，列表至少保留一个勾选的可见源。这不是外观改良：D2 之所以存在，是因为自由文本能表达系统无法表示的值；换成选择器后不存在「无法解析」的状态，修复前 `BackendConfig::save()` 里的静默过滤随之成为死代码并删除。用校验报错来修 D2 是治症状。不用两栏穿梭框（对四个源过重），不用逐位 ComboBox（源数量变化时会出现「同一源被选两次」的非法状态） |
+| Q3 | **勾选即启用，`providers/enabled` 保存启用集合，`providers/order` 保存全部源的顺序**；`providers/enabled` 缺失时等于 `providers/order` 里的源全部启用。多一个键换来「取消勾选不丢位置」，并与已有的 `filter/platforms` 集合型键风格一致。若让「未启用」等于「不在 order 里」，用户临时停用某源再打开时它会跑到末尾，正好破坏用户本来要调的顺序 |
+| Q4 | **源列表由守护进程经 D-Bus 提供，服务未运行时降级为静态列表并提示**。守护进程的 `AvailableProviders` 返回当前构建支持的全部源（包括未启用的），与 Resolver 的启用解析链分开，否则重启后被停用的源会从设置页消失、无法重新启用。`BackendConfig` 的配置读写只依赖 QSettings、不需要守护进程在线，所以是「能连上就用真实列表，连不上退回静态列表并显示服务未运行」；静态列表与守护进程的 `Config::builtInProviderOrder()` 保持一致。不在 C++ 侧建 provider 注册表：放 `core/` 不能带 QtDBus，放 `providers/` 又要被 `frontend/` 依赖 |
+| Q14 | **保留配置里不认识的 provider id，只是不装配它**。修复前写入侧与读取侧两份副本都静默丢弃不认识的 id：配置里只要有当前构建不装配的源，打开设置页保存一次，它就从顺序里永久消失。这种 id 来自手工编辑，或降级到旧版本后配置里留下的新版本才有的源。Q4 让列表来自守护进程，界面天然只显示可用源，真正的风险是保存动作删掉没显示的东西，所以新控件写回时把不认识的 id 原样带上，它在 `providers/order` 里的位置也不变 |
+| Q7 | **`Config::providerOrder()` 结果为空时回退内置默认顺序，并在 journal 写一行说明**；`Config::enabledProviderOrder()` 在启用集合选不中任何已排序的源时同样回退内置默认并记日志。零 provider 永远不是用户想要的状态——它等于功能完全消失，而且没有界面能表达这个意图。这样不需要迁移逻辑，也不需要区分「用户故意清空」与「被 bug 写坏」。不做「启动时删掉解析为空的键」：对一个从未发布的 bug 过重 |
 | Q5 | **保留单曲切换交互，并加「进行中」状态**：切换后菜单项变灰、显示正在从某源获取，期间不接受新的切换请求。这既是正确反馈，也给后端一个串行化点，但**不替代** Q8 的后端修复——UI 禁用只降低触发概率。不改成「试下一个源」：指定源是这个功能的主要价值 |
 
 ### 本地歌词源
@@ -264,25 +267,25 @@ AMLL 索引在解析中刷新（`resolver.cpp:303-318`）。
 | # | 决策 |
 | --- | --- |
 | Q13 | **新增一个真正可搜索的本地源**，于是它名正言顺地可排序、可勾选。这是新功能，独立于三个 bug，排在最后一个提交 |
-| Q17 | **歌词目录 + 音频文件同级 sidecar，两者都做**，先查 sidecar 再查歌词目录。两半分量不同：本项目主要场景是浏览器与 Cider 等流媒体，那些场景下 `mediaSrc` 是 `https://` URL、不存在本地音频文件，只有歌词目录能生效，因此它是必需的一半；sidecar 只对播放本地文件的用户有意义，但几乎免费（`mediaSrc` 已在 `MprisState` 里，判断是否 `file://` 再拼 `.lrc` 即可） |
-| Q18 | **复用 `core/match/` 的 `Matcher`，`Candidate` 字段由文件名与 LRC ID 标签填充**（`[ti:]` `[ar:]` `[al:]` `[length:]`），`contentId` 存文件路径。只靠文件名最多得到标题与歌手，`scoreCandidate` 的 album 与 duration 两项永远不贡献分数，`chooseMatch` 只能在弱证据上判断；ID 标签是 LRC 格式标准的一部分，正好填上那两个字段。不做 `<artist> - <title>.lrc` 精确匹配：强迫用户遵守命名约定，且任何标点或本地化差异都会失配，而那正是 `normalizeSearchText` 与 `cleanArtists` 存在的理由。**注意 `LrcParser` 当前识别 ID 标签但丢弃**——`metadataExpression`（`lrcparser.cpp:56`）在 `:71` 被用来跳过这些行，`ParsedLrc` 只带 `lines` 与 `embeddedOffsetMs`（`lrcparser.h:9-12`），需要扩展 |
-| Q19 | **内置默认顺序改为 `{local, netease, amll}`；升级时把 `local` 前置到既有顺序**。本地命中零网络、零失败模式，排在网络源之后意味着有本地文件的用户还要先等网易云。若把既有两项配置理解成「local 未启用」，所有升级用户都会静默地拿不到这个功能；而 `local` 是**新识别**的 id，「配置里没有」无法区分「用户故意禁用」与「配置比代码旧」，所以必须显式选一个。Q7 的内置兜底默认值同步改为三项 |
-| Q20 | **本地源参与负缓存，`cacheVersion()` 返回歌词目录状态**（mtime 或文件数），目录一变所有本地 miss 立即失效。`Provider::cacheVersion()` 就是为这件事设计的（`provider.h:44-46` 的注释），AMLL 已在用（`amllprovider.cpp:251`）。要紧的是失败模式：用户放入新 `.lrc` 后下一轮就能命中。完全不参与等于永久重复扫描；用短 TTL 则需要一个凭感觉的值，且 TTL 选多长都答不对「刚放进去的文件多久生效」 |
-| Q23 | **sidecar 未命中时不写负缓存行**。`Provider::cacheVersion()` 的签名是 `virtual QString cacheVersion() const`（`provider.h:46`），provider 级别、与请求无关，而 sidecar 位置每首歌都不同。若负缓存行按歌词目录状态盖版本，用户把 `.lrc` 放到音频文件旁边后歌词目录 mtime 未变、负缓存仍有效、新文件被忽略——正是 Q20 想避免的失败模式从 sidecar 一半漏出。本决策让两半各自保住正确的失败模式，代价是本地文件播放时每首歌多一次 `QFile::exists`，且只在 `mediaSrc` 为 `file://` 时发生 |
-| Q21 | **把 `overrideFor` 从 `Provider` 接口移除，改为 Resolver 的独立步骤**。它是一个只有单个子类实现的虚函数，而 `Resolver::overridden()` 要遍历所有 provider 去找它（`resolver.cpp:76-88`），是一个钩子伪装成 provider 能力。（设计访谈中曾建议不要在新增 provider 的同批提交里改 `Provider` 接口，用户选择一并改掉。） |
-| Q22 | **覆盖文件的读取器放 `core/store/`，与 `LyricStore` 并列**，`Resolver` 调用它。覆盖目录与 `LyricStore` 是同一类东西——按 `TrackRef` 键控的用户自有数据。内联进 `resolver.cpp` 会把文件 IO 与路径配置塞进编排层，测试它就得先备好 store 与整条 provider 链；而 `providers/tests/tst_localprovider.cpp:14-30` 那个现成测试搬到 `core/tests/` 几乎不用改。不在 `providers/` 下为一个明确「不是 provider」的东西开目录 |
+| Q17 | **歌词目录 + 音频文件同级 sidecar，两者都做**，先查 sidecar 再查歌词目录；sidecar 没有有效时间行时不遮蔽目录里的有效匹配。本地路径优先取有效的 `kde:mediaSrc`，没有时回退到标准 MPRIS 的 `xesam:url`，只影响查询输入，不改变指纹与曲目身份。两半分量不同：本项目主要场景是浏览器与 Cider 等流媒体，那些场景下 `mediaSrc` 是 `https://` URL、不存在本地音频文件，只有歌词目录能生效，因此它是必需的一半；sidecar 只对播放本地文件的用户有意义，但几乎免费（本地路径已在 `MprisState` 里，判断是否 `file://` 再拼 `.lrc` 即可） |
+| Q18 | **复用 `core/match/` 的 `Matcher`，歌词目录里文件的 `Candidate` 字段由 LRC ID 标签与文件名填充**（`[ti:]` `[ar:]` `[al:]` `[length:]`；缺标签时从 `<歌手> - <标题>` 形式的文件名取标题与歌手），`contentId` 存文件路径。只靠文件名最多得到标题与歌手，`scoreCandidate` 的 album 与 duration 两项永远不贡献分数，`chooseMatch` 只能在弱证据上判断；ID 标签是 LRC 格式标准的一部分，正好填上那两个字段，`LrcParser::parse()` 把它们放进 `ParsedLrc`。不做 `<artist> - <title>.lrc` 精确匹配：强迫用户遵守命名约定，且任何标点或本地化差异都会失配，而那正是 `normalizeSearchText` 与 `cleanArtists` 存在的理由。目录候选建成按 `cacheVersion()` 失效的内存索引，版本不变时复用，只把排名前 50 的交给 Resolver 复核。sidecar 由路径确定关联，候选字段直接取播放器给的元数据，不用文件里可能抄自别处的标签 |
+| Q19 | **内置默认顺序为 `{local, netease, amll, qq}`；既有顺序缺 `local` 时，读取时把它前置**（守护进程的 `Config::providerOrder()` 与设置页的 `BackendConfig::load()` 都这样做；v0.3.0 之前的配置没有 `providers/enabled`，`local` 因此随之启用）。本地命中零网络、零失败模式，排在网络源之后意味着有本地文件的用户还要先等网易云。若把既有两项配置理解成「local 未启用」，所有升级用户都会静默地拿不到这个功能；而 `local` 是**新识别**的 id，「配置里没有」无法区分「用户故意禁用」与「配置比代码旧」，所以必须显式选一个。Q7 的内置兜底默认值与此相同。`qq` 排在默认顺序末尾（DESIGN.md 决策 68），不自动加入既有顺序：守护进程在既有顺序里找不到它就不装配，设置页把它追加在列表末尾，已保存过启用集合的配置里它未勾选 |
+| Q20 | **本地源参与负缓存（查询本地音频时除外，见 Q23），`cacheVersion()` 返回歌词目录状态**：由目录路径、可读 `.lrc` 的数量以及每个文件的相对路径、大小和修改时间算出的哈希，目录一变所有本地 miss 立即失效。`Provider::cacheVersion()` 就是为这件事设计的（见 `providers/provider.h` 中它的注释），AMLL 也在用（`AmllProvider::cacheVersion()`）。要紧的是失败模式：用户放入新 `.lrc` 后下一轮就能命中。完全不参与等于永久重复扫描；用短 TTL 则需要一个凭感觉的值，且 TTL 选多长都答不对「刚放进去的文件多久生效」 |
+| Q23 | **查询本地音频时，本地源的失败不写负缓存行**：查询的本地路径是 `file://` 时，本地源返回的 `ProviderSearchResult::cacheableMiss` 为假，搜索、获取、空歌词和过滤后为空这几条失败路径一律不记 provider miss，不论有没有找到 sidecar。`Provider::cacheVersion()` 的签名是 `virtual QString cacheVersion() const`，provider 级别、与请求无关，而 sidecar 位置每首歌都不同。若负缓存行按歌词目录状态盖版本，用户把 `.lrc` 放到音频文件旁边、或原地修好损坏的 sidecar 后，歌词目录状态未变、负缓存仍有效、新文件被忽略——正是 Q20 想避免的失败模式从 sidecar 一半漏出。本决策让两半各自保住正确的失败模式，代价是播放本地文件时本地源每次解析都要重新查 sidecar 并在内存索引里重新匹配，且只在查询路径为 `file://` 时发生 |
+| Q21 | **把 `overrideFor` 从 `Provider` 接口移除，改为 Resolver 的独立步骤**：`Resolver::overridden()` 在读缓存正文之前调用覆盖读取器。它原是一个只有单个子类实现的虚函数，而修复前的 `Resolver::overridden()` 要遍历所有 provider 去找它，是一个钩子伪装成 provider 能力。（设计访谈中曾建议不要在新增 provider 的同批提交里改 `Provider` 接口，用户选择一并改掉。） |
+| Q22 | **覆盖文件的读取器 `LyricOverrideStore` 放 `core/store/`，与 `LyricStore` 并列**，`Resolver` 调用它。覆盖目录与 `LyricStore` 是同一类东西——按 `TrackRef` 键控的用户自有数据。内联进 `resolver.cpp` 会把文件 IO 与路径配置塞进编排层，测试它就得先备好 store 与整条 provider 链；而原先 `providers/tests/tst_localprovider.cpp` 里的覆盖测试搬到 `core/tests/tst_lyricoverridestore.cpp` 几乎不用改。不在 `providers/` 下为一个明确「不是 provider」的东西开目录 |
 
 ### 验证与文档
 
 | # | 决策 |
 | --- | --- |
 | Q6 | **单元测试 + 可在 CI 跑的压力测试 + asan/lsan**。三个问题的要求不同：问题 3 已可确定性单测（假时钟推进 → 轮询 → 无锚点事件下发布），不需要真实 Plasma 会话；问题 2 依赖写锁竞争窗口，手动验证一个「大概率」发生的问题恰恰会给出假阴性，必须有压力测试；问题 1 是纯往返测试 |
-| Q24 | **待决**：D4 中 `players/blacklist` 与 `filter/musicUrlPrefixes` 被 `@Invalid()` 遮蔽默认值的问题是否纳入本次范围。这两个字段「空」是合法意图，因此不能套用 Q7 的读取侧回退；可选做法是让新控件为列表字段提供显式的「恢复默认」动作，或在清空与未设置之间引入可区分的存储表示。未决前，实现者不要改动这两个键的读写行为 |
-| Q16 | **写三条针对已发布版本的 Fixed，并改写 `未发布` 段的 Added 文案**。问题 2 的病根随 `v0.2.2` 的「全局歌词进度调整」进来（「改动立即对所有桌面歌词部件生效」就是靠那个 2 秒轮询实现的）；问题 3 的病根更早，且在 `v0.2.3` 的「网易云全链路异步」之后已可观测——站点 4（异步歌词到达）成为不重锚的发布路径，已发布版本里的症状是「歌词加载完成的瞬间进度偏移约等于取词耗时」，量级 1–3 秒；问题 1 中旧字段（网易云地址、超时、黑名单等）的 Apply/OK 失效同样是已发布缺陷。按 CLAUDE.md「for fixes, state the symptom, not the internals」，症状必须是上一个发布版本的用户真实经历过的，因此不提「切换歌词源」。全部不写会让装着 v0.2.3 的用户在发布说明里找不到自己遇到的面板卡顿被修了 |
+| Q24 | **`players/blacklist` 与 `filter/musicUrlPrefixes` 用伴生布尔键表示「显式设为空」**（`players/blacklistEmpty`、`filter/musicUrlPrefixesEmpty`），解决 D4 中 `@Invalid()` 遮蔽默认值的问题。这两个字段「空」是合法意图，因此不能套用 Q7 的读取侧回退；而 INI 里的 `@Invalid()` 无法区分「用户存了空列表」与「值损坏或从未写入」，所以不靠值本身区分。读取优先级是「键的有效值 > 伴生键 > 内置默认」；保存空列表时删除键本身并把伴生键设为真，不再写出 `@Invalid()`。字面上仍是 `@Invalid()` 的旧值迁移一次：这两个键迁成「未设置」，内置默认恢复生效（kdeconnect 重新被忽略）。同类的 `filter/platforms` 用同一机制（`filter/platformsEmpty`），但旧值迁成「明确的空」。`providers/order` 与 `providers/enabled` 仍按 Q7 回退、不加伴生键，写入侧同样不再产生 `@Invalid()`。机制在 `core/config/stringlistsetting.{h,cpp}`，理由与边界见 DESIGN.md 决策 67 |
+| Q16 | **写三条针对已发布版本的 Fixed，并改写当时 `未发布` 段（后来的 v0.3.0 节）的 Added 文案**。问题 2 的病根随 `v0.2.2` 的「全局歌词进度调整」进来（「改动立即对所有桌面歌词部件生效」就是靠那个 2 秒轮询实现的）；问题 3 的病根更早，且在 `v0.2.3` 的「网易云全链路异步」之后已可观测——站点 4（异步歌词到达）成为不重锚的发布路径，已发布版本里的症状是「歌词加载完成的瞬间进度偏移约等于取词耗时」，量级 1–3 秒；问题 1 中旧字段（网易云地址、超时、黑名单等）的 Apply/OK 失效同样是已发布缺陷。修复条目只写症状、不写内部实现（写法规则见 `docs/RELEASE.md`），症状必须是上一个发布版本的用户真实经历过的，因此不提「切换歌词源」。全部不写会让装着 v0.2.3 的用户在发布说明里找不到自己遇到的面板卡顿被修了 |
 
-## 3. 当前代码与需要调整的接缝
+## 3. 修复前的代码与需要调整的接缝
 
-| 位置 | 现状 | 计划调整 |
+| 位置 | 修复前 | 计划调整 |
 | --- | --- | --- |
 | `daemon/src/mpris/mprisplayer.cpp` | `pollPosition()` 仅在 jump 时更新锚点 | 无条件更新锚点；`jump` 只决定是否发布 |
 | `daemon/src/mpris/mpristypes.h` | `anchorMonotonicNs` 与 `m_lastSampleMonotonicNs` 语义不同 | 修复后三个写入点使两者恒等，决定是否合并 |
@@ -411,41 +414,45 @@ AMLL 索引在解析中刷新（`resolver.cpp:303-318`）。
 
 ## 6. 需要同步更新的文档
 
-- `docs/DESIGN.md`：决策清单当前到 54，新决策从 **55** 起。需记录
+实施时按以下清单同步其他文档：
+
+- `docs/DESIGN.md`：当时决策清单到 54，新决策从 **55** 起（即决策 55–60）。需记录
   Q12 的有意例外（`LyricStore` 只有守护进程与配置对话框两类调用方）、
   Q21 的接口收窄、Q13 的新 provider、Q3 的新配置键。
   另需修订 2.2 节中「`lyric.offsetMs` 自决策 41 起语义固定为 per-track 原始值」
   一句——Q9 把它改为生效值。
-- `CHANGELOG.md`：按 Q16，在 `## 未发布` 写三条 Fixed（面板卡顿、
+- `CHANGELOG.md`：按 Q16，在当时的 `## 未发布`（后来的 v0.3.0 节）写三条 Fixed（面板卡顿、
   歌词加载后进度偏移、「歌词服务」页改动点确定后未生效），
   一条 Added（可搜索的本地歌词源），
   并改写现有那条「可在「歌词服务」设置页调整全局顺序」的 Added 文案以描述新控件。
 - `README.md` / `README.en.md`：新增本地歌词源与歌词目录；
   区分「歌词目录」与既有的「覆盖目录」。
-- `docs/MULTI_PROVIDER_PLAN.md:19` 用 `netease → amll` 描述默认顺序，
-  按 Q19 改为三项；该写法在新控件下不再能写坏配置，但描述本身需要正确。
+- `docs/MULTI_PROVIDER_PLAN.md` 第 1 节用 `netease → amll` 描述默认顺序，
+  按 Q19 更新；该写法在新控件下不再能写坏配置，但描述本身需要正确。
 
 ## 7. 实施记录
 
-2026-09-10 已按四阶段顺序完成实现并拆分提交：
+2026-09-10 完成四个阶段的实现，拆为四个提交；提交历史中的先后是 `66d3c6c`、`4d905eb`、
+`81944b1`、`ea82cd4`，本地源一项排在第二：
 
-1. 位置轮询无条件同步 `positionUs` 与 `anchorMonotonicNs`，并补普通轮询回归测试。
-2. 部件移除全部 SQLite 访问；快照提供全局开关和生效偏移，偏移修改改走带指纹校验的
+1. `66d3c6c`：位置轮询无条件同步 `positionUs` 与 `anchorMonotonicNs`，并补普通轮询回归测试。
+2. `81944b1`：部件移除全部 SQLite 访问；快照提供全局开关和生效偏移，偏移修改改走带指纹校验的
    `AdjustOffset` / `ResetOffset`，写入后重发快照。
-3. 「歌词服务」页接入 `unsavedChanges` / `saveConfig()`，来源配置改为拖拽排序与勾选集合；
+3. `ea82cd4`：「歌词服务」页接入 `unsavedChanges` / `saveConfig()`，来源配置改为拖拽排序与勾选集合；
    来源通过 D-Bus 发现，停机时降级，未知 id 保留；强制解析进度由快照表达。
-4. `local` 成为可搜索来源，支持音频 sidecar 与歌词目录；LRC ID 标签参与统一 Matcher；
+4. `4d905eb`：`local` 成为可搜索来源，支持音频 sidecar 与歌词目录；LRC ID 标签参与统一 Matcher；
    覆盖读取器移入 `core/store/`，`Provider` 接口移除覆盖钩子。
 
 自动化验证覆盖 core/provider/daemon/frontend 单元测试、私有 D-Bus 控制压力、Qt 6 QML lint，
-并构建关闭 AMLL、关闭网易云的配置。Q24 保持待决，未改变黑名单与自定义 URL 前缀的空值语义。
+并构建关闭 AMLL、关闭网易云的配置。这次实施未改变黑名单与自定义 URL 前缀的空值语义；
+Q24 定案后的实现随 v0.4.0 发布。
 
-QA 回归修正进一步将 D-Bus 的「构建支持来源」与 Resolver 的「启用解析链」分离，并把本地音频
+随后的回归修正进一步将 D-Bus 的「构建支持来源」与 Resolver 的「启用解析链」分离，并把本地音频
 请求的不可负缓存属性贯穿搜索、获取、空歌词和过滤后为空的全部失败路径；禁用来源重启恢复与
 sidecar 后增/原地修复均有自动化覆盖。普通 MPRIS 播放器没有 `kde:mediaSrc` 时，本地查询回退
 到标准 `xesam:url`，不触碰既有指纹和身份判定。
 
-审查回归进一步为本地歌词目录建立按 `cacheVersion()` 失效的递归内存索引，只收录可读且含
+之后的修正进一步为本地歌词目录建立按 `cacheVersion()` 失效的递归内存索引，只收录可读且含
 有效时间行的 `.lrc`，每次 provider 尝试只扫描一次目录状态，并把交给 Resolver 的候选限制为
 前 50 条；损坏 sidecar 会继续查询目录。全局偏移恢复无当前歌曲时的部件菜单调整，设置页刷新
 只重发当前指纹对应的快照。D-Bus 压力测试拆为可直接发现的
