@@ -60,6 +60,13 @@ TestCase {
         TextMetrics {}
     }
 
+    Component {
+        id: lineComponent
+        LyricsUi.LyricLine {
+            width: 400
+        }
+    }
+
     function findAll(item, predicate, found) {
         const out = found || [];
         const kids = item ? (item.children || []) : [];
@@ -81,10 +88,19 @@ TestCase {
     function lyricLineOf(block) {
         return linesOf(block)[0];
     }
-    function wholeLineTextOf(line) {
+    // The whole-line Text sits at (0, contentTop) outside marquee; each
+    // outline copy is a pixel off it in x or in y.
+    function textsOf(line) {
         const clipper = line.children.filter(c => c.objectName === "lineClipper")[0];
-        return clipper.children.filter(c => c.fontSizeMode !== undefined && c.text === line.lineText
-                                            && c.x === (line.marqueeApplies ? line.marqueeOffset : 0))[0];
+        return clipper.children.filter(c => c.fontSizeMode !== undefined && c.text === line.lineText);
+    }
+    function wholeLineTextOf(line) {
+        return textsOf(line).filter(c => c.x === (line.marqueeApplies ? line.marqueeOffset : 0)
+                                         && c.y === line.contentTop)[0];
+    }
+    function outlineCopiesOf(line) {
+        const whole = wholeLineTextOf(line);
+        return textsOf(line).filter(c => c !== whole);
     }
     function effectsUnder(item) {
         return findAll(item, o => o.blurEnabled !== undefined && o.blurMax !== undefined);
@@ -267,6 +283,31 @@ TestCase {
         }
     }
 
+    // 0% turns the resting blur off, and only that: a new next line still
+    // emerges from 6 px of blur and a sung line still leaves into 8 px.
+    function test_atZeroPercentTheTransitionsStillBlur() {
+        const t = createView({}, { nextLineBlurPercent: 0 });
+        verify(!blurLoaderOf(t.lyric.nextBlock).active);
+        const old = t.lyric.currentBlock;
+        advance(t, "second line", "third line");
+        const t0 = t.lyric.clockMs;
+        const emerging = t.lyric.nextBlock;
+        // As it starts to emerge, at 0.64×.
+        t.lyric.clockMs = t0 + 120;
+        fuzzyCompare(emerging.blurSigma, 6 / 0.64, 1e-9);
+        verify(blurLoaderOf(emerging).active);
+        // The sung line just before it goes.
+        t.lyric.clockMs = old.releaseAtMs - 0.001;
+        compare(old.role, "done");
+        fuzzyCompare(old.blurSigma * old.scale, 8, 1e-6);
+        verify(blurLoaderOf(old).active);
+        // Emerged: sharp, and no effect left.
+        t.lyric.clockMs = t0 + 540;
+        compare(emerging.blurSigma, 0);
+        verify(!blurLoaderOf(emerging).active);
+        compare(effectsUnder(emerging).length, 0);
+    }
+
     // ---- The push up, in sequence
 
     function test_theNextLineRisesIntoTheCurrentPlace() {
@@ -352,6 +393,24 @@ TestCase {
         // Invisible until it starts.
         compare(lyric.valueAt(tweenOf(emerging, "opacity"), t0 + 119), 0);
         fuzzyCompare(emerging.blurSigma, (1.5 + 6) / 0.64, 1e-9);
+    }
+
+    // The secondary lyrics of the line taking over fade in themselves, from
+    // 90 ms over 450 ms, OutCubic.
+    function test_theSecondaryLyricsFadeInAsTheLineRises() {
+        const t = createView();
+        const next = t.lyric.nextBlock;
+        advance(t, "second line", "third line", { translation: "a translation" });
+        const t0 = t.lyric.clockMs;
+        const secondary = linesOf(next)[1];
+        compare(secondary.lineText, "a translation");
+        compare(secondary.opacity, 0);
+        t.lyric.clockMs = t0 + 90;
+        compare(secondary.opacity, 0);
+        t.lyric.clockMs = t0 + 90 + 225;
+        fuzzyCompare(secondary.opacity, 0.875, 1e-9);
+        t.lyric.clockMs = t0 + 90 + 450;
+        compare(secondary.opacity, 1);
     }
 
     // At 8 px on the sung line and 6 px extra on the new next line, like the
@@ -626,24 +685,82 @@ TestCase {
         compare(longer.height, longer.lineHeight);
     }
 
-    // The next line and the words it turns into share one size: the words
-    // take the size "fit" gives the whole line, so the line does not change
-    // size as it becomes the current one.
+    // The size the words used to take, floor(fontSize × width / TextMetrics
+    // width): an estimate of what "fit" gives the whole line that is a pixel
+    // off for some widths. Here to find those widths.
+    function estimatedSize(line) {
+        const metrics = line.resources.filter(r => r.objectName === "lineMetrics")[0];
+        if (line.width <= 0 || metrics.width <= line.width) {
+            return line.fontSize;
+        }
+        return Math.max(line.minimumPixelSize, Math.floor(line.fontSize * line.width / metrics.width));
+    }
+    readonly property var fitTexts: [
+        "Evening wind lights the lamps and more",
+        "The quick brown fox jumps over the lazy dog again",
+        "Let it rain tomorrow, never mind, we walk on"
+    ]
+    function wordsOfText(text, start) {
+        const parts = text.split(" ");
+        return parts.map((part, i) => ({ startMs: start + 100 * i, endMs: start + 100 * (i + 1),
+                                         text: i < parts.length - 1 ? part + " " : part }));
+    }
+
+    // The words take exactly the size "fit" gives the whole line, at every
+    // width -- the widths where the estimate is a pixel off included, and
+    // there are such widths for these lines.
+    function test_theWordsTakeTheSizeFitGivesTheWholeLine() {
+        let checked = 0;
+        let estimateOff = 0;
+        for (const fontSize of [34, 48]) {
+            for (const text of fitTexts) {
+                const line = createTemporaryObject(lineComponent, this,
+                    { lineText: text, words: wordsOfText(text, 0), fontSize: fontSize });
+                const whole = wholeLineTextOf(line);
+                for (let width = 300; width <= 760; width += 1) {
+                    line.width = width;
+                    if (!line.wordMode || whole.fontInfo.pixelSize >= fontSize) {
+                        continue;
+                    }
+                    ++checked;
+                    compare(line.wordPixelSize, whole.fontInfo.pixelSize, text + " at " + width + " px");
+                    if (estimatedSize(line) !== whole.fontInfo.pixelSize) {
+                        ++estimateOff;
+                    }
+                }
+            }
+        }
+        verify(checked > 100, checked);
+        verify(estimateOff > 0, "no width where the estimate and fit disagree, of " + checked);
+    }
+
+    // So a next line keeps its size as its words arrive: taken at a width
+    // where the estimate would have been a pixel off.
     function test_aShrunkNextLineKeepsItsSizeAsItsWordsArrive() {
-        const texts = [];
-        const metrics = createTemporaryObject(textMetricsComponent, this, { font: Qt.font({ pixelSize: 34 }) });
-        do {
-            texts.push("Word" + texts.length + " ");
-            metrics.text = texts.join("");
-        } while (metrics.advanceWidth < 1.25 * 560);
-        const text = texts.join("");
-        const t = createView({ nextText: text });
+        let t = null;
+        let found = "";
+        for (const text of fitTexts) {
+            t = createView({ nextText: text });
+            const line = lyricLineOf(t.lyric.nextBlock);
+            const whole = wholeLineTextOf(line);
+            for (let width = 360; width <= 900 && found === ""; width += 1) {
+                t.view.width = width;
+                const fits = line.resources.filter(r => r.objectName === "lineMetrics")[0].width
+                    * line.minimumPixelSize / line.fontSize <= line.width;
+                if (fits && whole.fontInfo.pixelSize < line.fontSize
+                    && estimatedSize(line) !== whole.fontInfo.pixelSize) {
+                    found = text;
+                }
+            }
+            if (found !== "") {
+                break;
+            }
+        }
+        verify(found !== "", "no width where the estimate and fit disagree");
         const next = t.lyric.nextBlock;
-        const whole = wholeLineTextOf(lyricLineOf(next));
-        tryVerify(() => whole.fontInfo.pixelSize < 34);
-        const size = whole.fontInfo.pixelSize;
-        const words = texts.map((w, i) => ({ startMs: 1000 + 100 * i, endMs: 1100 + 100 * i, text: w }));
-        advance(t, text, "", { words: words });
+        const size = wholeLineTextOf(lyricLineOf(next)).fontInfo.pixelSize;
+        const words = wordsOfText(found, 1000);
+        advance(t, found, "", { words: words });
         verify(t.lyric.currentBlock === next);
         const line = lyricLineOf(next);
         verify(line.wordMode);
@@ -652,6 +769,36 @@ TestCase {
         const glyphs = findAll(next, o => o.objectName === "lyricWord");
         for (let i = 0; i < glyphs.length; ++i) {
             compare(glyphs[i].font.pixelSize, size);
+        }
+    }
+
+    // The outline of a next line is dimmed with it, its opacity times 0.6,
+    // and comes back with the colour as the line becomes the current one.
+    function test_theNextLinesOutlineIsDimmedToo() {
+        const t = createView({}, { strokeEnabled: true, strokeColor: "#cc102030" });
+        const nextCopies = outlineCopiesOf(lyricLineOf(t.lyric.nextBlock));
+        compare(nextCopies.length, 8);
+        for (const copy of nextCopies) {
+            verify(Qt.colorEqual(Qt.rgba(copy.color.r, copy.color.g, copy.color.b, 1), "#102030"));
+            fuzzyCompare(copy.color.a, 0xcc / 255 * 0.6, 0.003);
+        }
+        for (const copy of outlineCopiesOf(lyricLineOf(t.lyric.currentBlock))) {
+            fuzzyCompare(copy.color.a, 0xcc / 255, 0.003);
+        }
+        const next = t.lyric.nextBlock;
+        advance(t, "second line", "third line");
+        const t0 = t.lyric.clockMs;
+        // Half way through the 450 ms, OutCubic: 1/8 of the next line's look left.
+        t.lyric.clockMs = t0 + 225;
+        const line = lyricLineOf(next);
+        const expected = 0xcc / 255 * (1 - 0.4 * 0.125);
+        fuzzyCompare(line.strokeShade.a, expected, 0.003);
+        for (const copy of outlineCopiesOf(line)) {
+            fuzzyCompare(copy.color.a, expected, 0.003);
+        }
+        t.lyric.clockMs = t0 + 450;
+        for (const copy of outlineCopiesOf(line)) {
+            fuzzyCompare(copy.color.a, 0xcc / 255, 0.003);
         }
     }
 
