@@ -48,7 +48,7 @@ namespace PlasmaLyrics {
 /// by QChar, the day a real lyric line is found to contain one.
 ///
 /// A third gap has no corpus behind it in either direction: Hangul is in the
-/// CJK set purely by extension of "CJK" in DESIGN.md decisions 8 and 74 --
+/// CJK set purely by extension of "CJK" in DESIGN.md decision 74 --
 /// every other rule here (CJK is single-character, Latin is space-delimited,
 /// punctuation attaches to the preceding word) is backed by a percentage
 /// from the verified corpus, and that corpus has zero Korean lines to check

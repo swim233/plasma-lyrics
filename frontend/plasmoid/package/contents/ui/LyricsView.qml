@@ -352,9 +352,9 @@ Item {
     // hand-shrunk desktop widgets on next login.
     Layout.preferredWidth: panelMode ? root.panelWidth : -1
 
-    // Panel is exempt on purpose (decision 40: "面板无动画") -- it hides via
-    // Plasmoid.status/HiddenStatus instead, which pulls the container out of
-    // the layout entirely rather than fading a hole into the panel.
+    // Panel is exempt on purpose (decision 40: panels do not animate) -- it
+    // hides via Plasmoid.status/HiddenStatus instead, which pulls the container
+    // out of the layout entirely rather than fading a hole into the panel.
     opacity: root.panelMode || root.shouldBeVisible ? 1 : 0
     Behavior on opacity {
         // hideAnimationMs === 0 means "no animation" (decision 40), and

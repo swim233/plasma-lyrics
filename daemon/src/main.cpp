@@ -280,7 +280,7 @@ int main(int argc, char **argv)
     // Without this, --explain always had TrackQuery::lengthMs == 0
     // (durationComparable permanently false, unlike a real MPRIS-driven
     // resolve), so it could not reproduce a duration-dependent decision --
-    // the gloss-variant gate under MatchPolicy::Default, or decision 8's
+    // the gloss-variant gate under MatchPolicy::Default, or decision 45's
     // localized fallback (which requires deltaMs <= 250) under
     // MatchPolicy::PreserveVersions -- either of which --explain otherwise
     // always disagrees with the daemon about.

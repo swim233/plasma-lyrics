@@ -314,8 +314,8 @@ void LyricSource::setDetermined(bool value)
     // telling VisibilityPolicy (DESIGN.md decision 40) that the "maybe still
     // loading" undetermined state is over, one way or the other. Reusing
     // statusChanged would leave a bound VisibilityPolicy hidden forever, with
-    // no diagnostic text either, on exactly the daemon-down path that
-    // decision 40's "!serviceAvailable 时绝不隐藏" rule exists to protect.
+    // no diagnostic text either, on exactly the daemon-down path where
+    // decision 40 says never to hide (service unavailable or stale).
     if (m_determined == value) {
         return;
     }
