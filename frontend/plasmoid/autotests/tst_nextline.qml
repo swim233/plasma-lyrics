@@ -1014,6 +1014,48 @@ TestCase {
         }
     }
 
+    // The desktop form's own height, which only the popup a panel widget
+    // opens reads (decision 80): with the next line on it holds the track
+    // info, the whole group and the margins, secondary lyrics or not; with
+    // the next line off, and in a panel, it is what it always was. In a
+    // shown window, where the secondary lyrics count.
+    function test_thePopupHasRoomForTheNextLine_data() {
+        return [
+            { tag: "with secondary lyrics", view: { secondaryLyricSource: "translation" }, grows: true },
+            { tag: "without secondary lyrics", view: { secondaryLyricSource: "none" }, grows: true },
+            { tag: "next line off", view: { showNextLine: false }, grows: false, units: 7.5 },
+            { tag: "panel", view: { panelMode: true, showNextLine: false }, grows: false, units: 2 },
+        ];
+    }
+    function test_thePopupHasRoomForTheNextLine(data) {
+        const source = createTemporaryObject(fakeSourceComponent, this, { currentTranslation: "a translation" });
+        const win = createTemporaryObject(shownWindowComponent, this, { width: 700, height: 400 });
+        const view = createTemporaryObject(lyricsViewComponent, win.contentItem,
+            Object.assign({ source: source, width: 504 }, data.view));
+        verify(view !== null);
+        const lyric = lyricOf(view);
+        tryVerify(() => lyric.placed && lyric.currentBlock !== null);
+        if (!data.grows) {
+            compare(view.implicitHeight, Kirigami.Units.gridUnit * data.units);
+            return;
+        }
+        verify(view.implicitHeight >= Kirigami.Units.gridUnit * 7.5);
+        // The popup at its default size.
+        view.height = view.implicitHeight;
+        const current = lyric.currentBlock;
+        const next = lyric.nextBlock;
+        verify(next !== null);
+        if (data.view.secondaryLyricSource === "none") {
+            compare(current.height, current.lineHeight);
+        } else {
+            tryVerify(() => current.height > current.lineHeight);
+        }
+        verify(lyric.groupHeight <= lyric.height + 0.01, lyric.groupHeight + " in " + lyric.height);
+        verify(current.y >= -0.01, current.y);
+        verify(next.y + next.height * next.scale <= lyric.height + 0.01,
+               (next.y + next.height * next.scale) + " past " + lyric.height);
+    }
+
     // ---- The clip
 
     // Only the top is clipped, and only to keep the lines off the track

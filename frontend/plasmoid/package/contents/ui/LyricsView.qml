@@ -349,12 +349,38 @@ Item {
     // around the text.
     // AppletQuickItem forwards only the Layout.* hints below up to the
     // applet container, never implicitWidth/implicitHeight -- so neither of
-    // these two ever determines the widget's actual size in either form
-    // factor. They still exist as this item's own fallback content size.
+    // these two ever determines the size of the widget on the desktop or in
+    // a panel. What does read them is the popup a panel widget opens: it
+    // shows the desktop form (fullRepresentation), and plasma-desktop 6.7.5
+    // CompactApplet.qml:271-280 sizes it from that form's implicit size
+    // while it sets no Layout.preferred* of its own.
     implicitWidth: (panelMode ? Kirigami.Units.gridUnit * 14 : Kirigami.Units.gridUnit * 28)
         + (root.selfDrawnPlate ? plate.margins.horizontal : 0)
-    implicitHeight: (panelMode ? Kirigami.Units.gridUnit * 2 : Kirigami.Units.gridUnit * 7.5)
+    implicitHeight: (panelMode ? Kirigami.Units.gridUnit * 2
+                     : root.showNextLine ? Math.max(Kirigami.Units.gridUnit * 7.5, root.nextLineRoom)
+                     : Kirigami.Units.gridUnit * 7.5)
         + (root.selfDrawnPlate ? plate.margins.vertical : 0)
+    // DESIGN.md decision 80, for that popup alone: with the next line on,
+    // gridUnit × 7.5 (504 × 135 measured, an 18 px grid unit) left a line
+    // with secondary lyrics no room for it -- at the desktop defaults the
+    // group is 132.75 px against a lyric area of 87, and the next line was
+    // drawn wholly outside the popup. So the height grows to what the track
+    // info, the group (a line box, a secondary line box when secondary
+    // lyrics are picked, the gap and the next line at 0.75×) and the margins
+    // take, about 181 px there. It is keyed on the settings -- showNextLine
+    // and secondaryLyricSource, and nominal line boxes -- not on the line on
+    // show: CompactApplet binds the popup's size to this, and the next line
+    // or the secondary lyrics coming and going from one line to the next
+    // would resize it while it is open. Only the track info row is taken as
+    // it stands, and that changes from track to track, not from line to line
+    // (it has no height without a title). With the next line off the old
+    // height stands, so no popup grows for a line it does not show. The
+    // desktop widget is not affected either way: its size comes from the
+    // Layout.* hints alone, which this leaves alone (decision 80).
+    readonly property real nextLineRoom: trackInfo.implicitHeight + 2 * root.baseMargin
+        + lyric.lineBoxHeight
+        + (root.secondaryLyricSource !== "none" ? lyric.secondaryLineBoxHeight : 0)
+        + lyric.gap + lyric.lineBoxHeight * lyric.nextLineScale
     // QQuickLayouts never renders an item below its own Layout.minimumWidth
     // regardless of preferredWidth, so this floor must never sit above a
     // user's panelWidth or a narrower panelWidth would be silently lost.

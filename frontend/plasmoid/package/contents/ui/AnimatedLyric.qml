@@ -201,6 +201,7 @@ Item {
     // the intro leaves the next line where it is.
     readonly property real gap: Math.round(root.fontSize * 0.12)
     readonly property real lineBoxHeight: pool.count > 0 ? root.blocks()[0].lineHeight : 0
+    readonly property real secondaryLineBoxHeight: pool.count > 0 ? root.blocks()[0].secondaryLineHeight : 0
     property real lastCurrentHeight: 0
     readonly property real currentPlaceHeight: root.currentBlock ? root.currentBlock.height
         : root.lastCurrentHeight > 0 ? root.lastCurrentHeight : root.lineBoxHeight

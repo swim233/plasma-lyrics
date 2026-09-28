@@ -63,8 +63,10 @@ Item {
 
     implicitHeight: origin.implicitHeight + (secondaryLyric.visible ? secondaryLyric.implicitHeight : 0)
     height: implicitHeight
-    // One line box of the lyric, whatever it holds right now.
+    // One line box of the lyric, and of the secondary lyrics, whatever the
+    // two hold right now.
     readonly property real lineHeight: origin.lineHeight
+    readonly property real secondaryLineHeight: secondaryLyric.lineHeight
 
     // For AnimatedLyric's particle layer (DESIGN.md decision 77). Only the
     // lyric itself spawns particles, never the secondary lyrics; its line
