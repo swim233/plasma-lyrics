@@ -82,10 +82,10 @@ Each release also ships an Arch `.pkg.tar.zst` and a source tarball.
 
 Building needs CMake 3.24+, Ninja, a C++20 compiler, Qt 6 (6.6 or later,
 including Qt Declarative), KDE Frameworks 6 (ECM and KI18n), Plasma 6
-(libplasma), gettext (builds the translations), Qt's SQLite driver, and the zlib
-and fontconfig development files. At runtime the widget also needs Kirigami, KSvg
-and KDeclarative (the settings pages' color buttons come from its
-`org.kde.kquickcontrols`).
+(libplasma), gettext (builds the translations), and the zlib and fontconfig
+development files. At runtime Qt's SQLite driver is also needed (the lyrics cache
+uses it), and the widget additionally needs Kirigami, KSvg and KDeclarative (the
+settings pages' color buttons come from its `org.kde.kquickcontrols`).
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -143,13 +143,12 @@ and the lyrics appear automatically.
 A "player" here is whatever reports MPRIS playback state, not the provider the
 lyrics come from.
 
-| Player                         | Notes                                                                                                                   |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| NetEase Cloud Music web player | Connected through `plasma-browser-integration` (a browser extension); the main source since the first release           |
-| Apple Music web player         | Also connected through `plasma-browser-integration` (`music.apple.com`)                                                 |
-| Other web pages                | No lyrics by default; add the site's address to "Custom URL prefixes" on the "Lyrics Service" page to treat it as music |
-| Local MPRIS players            | Any player that implements the MPRIS interface; Cider and Sidra are treated as Apple Music                              |
-| KDE Connect phones             | Supported but ignored by default (adjustable under "Player blacklist" on the "Lyrics Service" page)                     |
+| Player                         | Notes                                                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| NetEase Cloud Music web player | Connected through `plasma-browser-integration` (a browser extension); the primary source in the first release |
+| Apple Music web player         | Also connected through `plasma-browser-integration` (`music.apple.com`)                                       |
+| Local MPRIS players            | Any player that implements the MPRIS interface; Cider and Sidra are treated as Apple Music                    |
+| KDE Connect phones             | Supported but ignored by default (adjustable under "Player blacklist" on the "Lyrics Service" page)           |
 
 The NetEase Cloud Music and Apple Music platforms can each be switched off under
 "Enable lyrics for these platforms" on the "Lyrics Service" page.

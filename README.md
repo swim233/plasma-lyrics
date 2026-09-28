@@ -77,9 +77,9 @@ Release 同时提供 Arch 的 `.pkg.tar.zst` 与源码 tarball。
 ### 从源码构建
 
 构建需要 CMake 3.24+、Ninja、C++20 编译器、Qt 6（≥ 6.6，含 Qt Declarative）、
-KDE Frameworks 6（ECM 与 KI18n）、Plasma 6（libplasma）、gettext（生成翻译文件）、
-Qt SQLite 驱动，以及 zlib 与 fontconfig 开发文件。部件运行时还需要 Kirigami、KSvg 与
-KDeclarative（设置页的颜色按钮来自其中的 `org.kde.kquickcontrols`）。
+KDE Frameworks 6（ECM 与 KI18n）、Plasma 6（libplasma）、gettext（生成翻译文件），
+以及 zlib 与 fontconfig 开发文件。运行时还需要 Qt SQLite 驱动（歌词缓存用它），部件另需
+Kirigami、KSvg 与 KDeclarative（设置页的颜色按钮来自其中的 `org.kde.kquickcontrols`）。
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -130,13 +130,12 @@ systemctl --user enable --now plasma-lyricsd.service
 
 这里的“播放源”是提供 MPRIS 播放状态的播放器，不是获取歌词的 provider。
 
-| 播放源             | 说明                                                                          |
-| ------------------ | ----------------------------------------------------------------------------- |
-| 网易云音乐网页版   | 经 `plasma-browser-integration`（浏览器扩展）接入，首个版本的主要音源         |
-| Apple Music 网页版 | 同样经 `plasma-browser-integration` 接入（`music.apple.com`）                 |
-| 其他网页           | 默认不显示歌词；把网站地址加入「歌词服务」页的「自定义 URL 前缀」后按音乐处理 |
-| 本地 MPRIS 播放器  | 任何实现了 MPRIS 接口的播放器；Cider 与 Sidra 按 Apple Music 处理             |
-| KDE Connect 手机   | 支持，但默认忽略（可在「歌词服务」页的「播放器黑名单」中调整）                |
+| 播放源             | 说明                                                                  |
+| ------------------ | --------------------------------------------------------------------- |
+| 网易云音乐网页版   | 经 `plasma-browser-integration`（浏览器扩展）接入，首个版本的主要音源 |
+| Apple Music 网页版 | 同样经 `plasma-browser-integration` 接入（`music.apple.com`）         |
+| 本地 MPRIS 播放器  | 任何实现了 MPRIS 接口的播放器；Cider 与 Sidra 按 Apple Music 处理     |
+| KDE Connect 手机   | 支持，但默认忽略（可在「歌词服务」页的「播放器黑名单」中调整）        |
 
 网易云音乐与 Apple Music 两个平台可在「歌词服务」页的「启用以下平台的歌词服务」中分别关闭。
 
