@@ -280,7 +280,7 @@ int main(int argc, char **argv)
     // Without this, --explain always had TrackQuery::lengthMs == 0
     // (durationComparable permanently false, unlike a real MPRIS-driven
     // resolve), so it could not reproduce a duration-dependent decision --
-    // the gloss-variant gate under MatchPolicy::Default, or decision 8's
+    // the gloss-variant gate under MatchPolicy::Default, or decision 45's
     // localized fallback (which requires deltaMs <= 250) under
     // MatchPolicy::PreserveVersions -- either of which --explain otherwise
     // always disagrees with the daemon about.
@@ -296,19 +296,20 @@ int main(int argc, char **argv)
     // Set unconditionally, and before the single-instance lock check below
     // (DESIGN.md #49's ordering). mirrorMessage is installed unconditionally
     // too and does its own per-sink formatting on the normal path, so this
-    // pattern no longer drives normal output. What still reads it: Qt's
-    // default handler when stderr is a tty, and on Qt builds without a
-    // journald-aware default handler -- on this project's own Arch build,
-    // Qt links libsystemd and its default handler calls sd_journal_send()
-    // directly when stderr is not a tty (unless QT_FORCE_STDERR_LOGGING or
+    // pattern no longer drives normal output. What still reads it is Qt's
+    // default handler whenever that writes to stderr: on Qt builds without a
+    // journald-aware default handler, and on this project's own Arch build
+    // (Qt links libsystemd) when the process has a controlling terminal or
+    // stderr is a tty. With neither, the Arch build's default handler calls
+    // sd_journal_send() directly (unless QT_FORCE_STDERR_LOGGING or
     // QT_LOGGING_TO_CONSOLE forces the stderr path instead), bypassing this
-    // pattern entirely. So in the daemon's actual deployment (journald,
-    // non-tty, neither of those set), this call only matters for the
-    // narrow shutdown window after loggingGuard
-    // uninstalls mirrorMessage -- and even then it is inert whenever
-    // QT_MESSAGE_PATTERN is set: Qt reads that env var once and from then
-    // on treats qSetMessagePattern() as a no-op, not something the env var
-    // "overrides" after the fact.
+    // pattern entirely. So in the daemon's actual deployment (a systemd user
+    // service: journald, no controlling terminal, stderr not a tty, neither
+    // of those set), this call only matters for the narrow shutdown window
+    // after loggingGuard uninstalls mirrorMessage -- and even then it is
+    // inert whenever QT_MESSAGE_PATTERN is set: Qt reads that env var once
+    // and from then on treats qSetMessagePattern() as a no-op, not something
+    // the env var "overrides" after the fact.
     qSetMessagePattern(QStringLiteral(
         "[%{time yyyy-MM-dd hh:mm:ss.zzz}] %{type} %{category} %{message}"));
     stderrSink = detectStderrSink();
@@ -333,9 +334,9 @@ int main(int argc, char **argv)
     const auto loggingGuard = qScopeGuard(stopMirroredLogging);
 
     // Proxy is applied before any provider is constructed and before the
-    // --explain branch, so every network request either source makes --
-    // command line included -- goes through it. There is deliberately no
-    // loopback exemption (DESIGN.md decision 63).
+    // --explain branch, so every network request the three network sources
+    // (netease, amll, qq) make -- command line included -- goes through it.
+    // There is deliberately no loopback exemption (DESIGN.md decision 63).
     const QString proxyMode = config.proxyMode();
     QString proxySummary;
     bool proxyBlocksNetworkProviders = false;
@@ -391,7 +392,7 @@ int main(int argc, char **argv)
     QList<Provider *> providers;
     QStringList enabledProviderOrder = config.enabledProviderOrder();
     if (proxyBlocksNetworkProviders) {
-        // Equivalent to the user having left netease/amll unchecked in
+        // Equivalent to the user having left netease/amll/qq unchecked in
         // providers/enabled: the local provider is never affected.
         enabledProviderOrder.removeAll(QStringLiteral("netease"));
         enabledProviderOrder.removeAll(QStringLiteral("amll"));

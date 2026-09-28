@@ -208,11 +208,11 @@ double textSimilarity(const QString &left, const QString &right)
     return 1.0 - static_cast<double>(previous.last()) / static_cast<double>(std::max(left.size(), right.size()));
 }
 
-// D-11: a candidate that only cleared score.title through an alternate title
-// (netease transNames propagate to covers/remixes of the same song) must
-// also clear a much lower artist bar than the D-8 fallback's 0.9 -- the
-// title evidence here is strong, this bar only needs to reject "unrelated
-// person", see DESIGN.md decision 45.
+// DESIGN.md decision 45's alias artist gate: a candidate that only cleared
+// score.title through an alternate title (netease transNames propagate to
+// covers/remixes of the same song) must also clear a much lower artist bar
+// than the localized fallback's 0.9 -- the title evidence here is strong,
+// this bar only needs to reject "unrelated person".
 // Named so nonStrippedMatchAloneIsAcceptable below can require exactly the
 // same bar this gate does, rather than a second, silently-driftable 0.5.
 constexpr double kAliasArtistThreshold = 0.5;
@@ -223,7 +223,7 @@ bool passesAliasArtistGate(const RankedCandidate &candidate)
 }
 
 // isAcceptableMatch's own two bars, named here so passesGlossVariantGate's
-// and passesArtistStripGate's B.3b escape hatch (nonStrippedMatchAloneIsAcceptable
+// and passesArtistStripGate's escape hatch (nonStrippedMatchAloneIsAcceptable
 // below) and candidateRejectionReason's classification can share the exact
 // same numbers with isAcceptableMatch instead of each hard-coding 0.55/0.58
 // a second and third time.
@@ -248,12 +248,12 @@ constexpr double kDurationWeight = 0.2;
 // that only holds because a stripped variant (of either the query title or
 // the candidate title) was substituted in, so all three need the same
 // independent evidence and the same bar for "close enough". Renamed
-// from kGlossVariantDurationWindowMs (B.3b, qa-b-1) once a second gate
-// started reusing it under that name; decision 70 is explicit that a third
-// use must not add a fourth constant or widen this one (E.8).
+// from kGlossVariantDurationWindowMs (decision 66, qa-b-1) once a second
+// gate started reusing it under that name; decision 70 is explicit that a
+// third use must not add a fourth constant or widen this one.
 constexpr qint64 kStrippedVariantDurationWindowMs = 2000;
 
-// B.3b (qa-b-1, 2026-09-12): passesGlossVariantGate/passesArtistStripGate
+// Decision 66 (qa-b-1, 2026-09-12): passesGlossVariantGate/passesArtistStripGate
 // must bind only when a *stripped* variant is the reason this candidate
 // cleared the acceptance bars at all -- not merely the reason it scored
 // highest. A candidate whose plain, non-stripped title match (see
@@ -271,9 +271,7 @@ constexpr qint64 kStrippedVariantDurationWindowMs = 2000;
 // that used to be fine. The identical shape was found, live and
 // unmodified, on the pre-existing gloss gate too via
 // "Bohemian Rhapsody (Queen)" -- a real, shipped-in-v0.3.2 regression this
-// fix closes at the same time (decision 65's "胜出" wording predates this
-// correction; see decision 66 for the retroactive fix and decision 65 for
-// the corrected wording).
+// fix closes at the same time (DESIGN.md decisions 65 and 66).
 //
 // This is deliberately an escape hatch on *when the gate binds*, not a
 // change to what it does once it does bind: a candidate that only ever
@@ -283,8 +281,8 @@ constexpr qint64 kStrippedVariantDurationWindowMs = 2000;
 // artistAppendedToTitleRejectedWhenDurationUnknown are both still exactly
 // as strict as before -- their non-stripped title score is far below 0.55).
 //
-// It must also not resurrect a candidate passesAliasArtistGate (D-11) would
-// have rejected: the best non-stripped match considered here can itself
+// It must also not resurrect a candidate passesAliasArtistGate would have
+// rejected (decision 45): the best non-stripped match considered here can itself
 // have come through an alternateTitle (ScoreBreakdown::titleWithoutStripViaAlternate),
 // on a candidate whose real artists don't match the query at all -- main
 // rejects that shape outright via the alias gate. Without this check, a
@@ -307,11 +305,11 @@ bool nonStrippedMatchAloneIsAcceptable(const ScoreBreakdown &score)
     return totalWithoutStrip >= kTotalAcceptanceThreshold;
 }
 
-// B.3c (qa-b-2, 2026-09-12): the four distinct ways a stripped-variant win
+// Decision 66 (qa-b-2, 2026-09-12): the four distinct ways a stripped-variant win
 // can relate to the duration gate, named so the gate functions below and
 // explainMatch's durationGate= field (which must report this exact
 // condition, not a re-derived approximation of it) share one definition
-// and can never drift apart. B.3b's escape hatch (nonStrippedMatchAloneIsAcceptable)
+// and can never drift apart. The escape hatch (nonStrippedMatchAloneIsAcceptable)
 // was corrected here, not removed: it fired whenever duration was simply
 // unknown OR far apart, treating "corroboration unavailable" the same as
 // "corroboration available and negative" -- those are not the same
@@ -319,7 +317,7 @@ bool nonStrippedMatchAloneIsAcceptable(const ScoreBreakdown &score)
 // found the flip: query "ARC Raiders (II)" (170567ms) against two "ARC
 // Raiders" candidates 27911ms/26754ms longer -- known, and decisively
 // outside the window, which is affirmative evidence AGAINST the match, not
-// merely missing evidence. B.3b's own counterexample (Bohemian Rhapsody)
+// merely missing evidence. The hatch's own counterexample (Bohemian Rhapsody)
 // had both durations unknown, which is exactly when the hatch still
 // applies; a known, far-apart duration must not be waved through by it.
 enum class StrippedVariantDurationGateOutcome {
@@ -354,7 +352,7 @@ StrippedVariantDurationGateOutcome strippedVariantDurationGateOutcome(const Scor
 // both encode "an unrecognized/future state means the gate does not pass,
 // corroboration is required" -- the same fail-closed default this gate uses
 // everywhere else (an unknown duration cannot pass, DESIGN.md decision 45).
-// Anyone adding a sixth state needs both halves of this: the warnings build
+// Anyone adding a fifth state needs both halves of this: the warnings build
 // will catch the omission in CI, but the switches still will not force
 // themselves onto your attention in the shipped build's own compile, and
 // the two fallbacks are what actually protects the invariant there, not
@@ -382,9 +380,9 @@ bool passesStrippedVariantDurationGate(const ScoreBreakdown &score)
 // *when the strip is what's actually responsible for the win at all*, see
 // nonStrippedMatchAloneIsAcceptable above -- and the escape hatch that
 // covers an unknown duration does not extend to a duration that is known
-// and decisively far apart (B.3c, see strippedVariantDurationGateOutcome):
+// and decisively far apart (see strippedVariantDurationGateOutcome):
 // that is affirmative evidence against the match, not merely unavailable
-// evidence. Unlike passesAliasArtistGate's artist bar (D-11), an
+// evidence. Unlike passesAliasArtistGate's artist bar (decision 45), an
 // unknown/missing duration without the hatch firing cannot pass here:
 // DESIGN.md decision 45's user preference is "no lyrics rather than wrong
 // lyrics", and an Intro/Interlude/Outro/Skit collision is common enough
@@ -396,14 +394,14 @@ bool passesGlossVariantGate(const RankedCandidate &candidate)
         || passesStrippedVariantDurationGate(candidate.score);
 }
 
-// B.2 (DESIGN.md decision 66): a query title with an artist's own name
+// DESIGN.md decision 66: a query title with an artist's own name
 // concatenated onto its tail can only be scored correctly once that tail
 // is stripped -- but the stripped variant is exact-match-only, for the
 // same containment-fast-path reason as the gloss variant above (decision
 // 65), so a title win through it is exactly as blind to "same artist,
 // different (much shorter/longer) song" as a gloss-variant win is. Same
-// fix, same window, same constant, same escape hatch and same B.3c
-// narrowing: independent, close duration evidence is required only when
+// fix, same window, same constant, same escape hatch, narrowed the same
+// way: independent, close duration evidence is required only when
 // the strip is what actually got this candidate over the bars, and a
 // known, far-apart duration rejects regardless of whether a non-stripped
 // path would otherwise have qualified.
@@ -421,14 +419,14 @@ bool passesArtistStripGate(const RankedCandidate &candidate)
 // loose on this side as it always was on the query side (it rejects only
 // version markers, e.g. "(Karaoke)"/"(Inst.)"/"(feat. X)" all read as
 // translations too -- see DESIGN.md decision 70's accepted-risk note and
-// E.4's pinned regression cases) -- which is why decision 65 never allowed
+// the regression cases pinned for it) -- which is why decision 65 never allowed
 // it to matter without a hard duration gate. Reusing
 // passesStrippedVariantDurationGate here, unchanged, is the whole point:
 // same constant, same window, same "unknown/far-apart duration cannot pass"
 // reasoning as the other two stripped-variant gates -- no new constant, no
-// widened window (E.8).
+// widened window.
 //
-// E.4a (dev-b, 2026-09-12): duration corroboration alone isn't enough here,
+// Decision 70 (dev-b, 2026-09-12): duration corroboration alone isn't enough here,
 // unlike the other two stripped-variant gates. A real, previously-recorded
 // candidate exposed the gap: "Gunjou (Originally Performed by YOASOBI)"
 // (artists=["Backing Business"]) against query "Gunjou"/["YOASOBI"] --
@@ -438,7 +436,7 @@ bool passesArtistStripGate(const RankedCandidate &candidate)
 // land only 880ms from the query's (248444ms), legitimately inside the
 // window, no escape hatch involved. But its real artist ("Backing
 // Business") has nothing to do with the query artist ("YOASOBI") --
-// artists=0.125. This is the same disease D-11's passesAliasArtistGate (see
+// artists=0.125. This is the same disease passesAliasArtistGate (see
 // its own comment above) was built to treat: candidate-side title evidence
 // -- there netease transNames, here a candidate-side gloss strip -- can
 // inflate score.title on a candidate whose real artist doesn't match, and
@@ -503,8 +501,8 @@ struct QueryTitleVariant {
     QString text;
     bool isGlossStripped = false;
     // Set only by scoreCandidateWithVariants, never by queryTitleVariants()
-    // itself -- this variant needs a specific candidate's artist list (B.2,
-    // DESIGN.md decision 66), so unlike isGlossStripped it cannot be
+    // itself -- this variant needs a specific candidate's artist list
+    // (DESIGN.md decision 66), so unlike isGlossStripped it cannot be
     // determined from the query alone.
     bool isArtistStripped = false;
 };
@@ -553,18 +551,18 @@ QList<QueryTitleVariant> normalizedQueryTitleVariants(const QString &title, Matc
     return normalized;
 }
 
-// The token separators for B.2's candidate-relative title variant --
-// deliberately whitespace/"/"/"-" only, not cleanArtists' own separator set
-// (which also splits on "、", ";", "&", "feat."/"ft." but not on "-" at
-// all): B.2 §2 fixes this exact set for this variant, independently of how
-// artist fields get tokenized elsewhere.
+// The token separators for DESIGN.md decision 66's candidate-relative title
+// variant -- deliberately whitespace/"/"/"-" only, not cleanArtists' own
+// separator set (which also splits on "、", ";", "&", "feat."/"ft." but not
+// on "-" at all): decision 66 fixes this exact set for this variant,
+// independently of how artist fields get tokenized elsewhere.
 QStringList titleStripTokens(const QString &title)
 {
     static const QRegularExpression separator(QStringLiteral(R"([\s/\-]+)"));
     return title.split(separator, Qt::SkipEmptyParts);
 }
 
-// B.2 (DESIGN.md decision 66): every way to split `title`'s tokens into a
+// DESIGN.md decision 66: every way to split `title`'s tokens into a
 // leading remainder plus a trailing run that, in full, exactly names one
 // of `cleanedCandidateArtists` (already cleanArtists()-ed, i.e.
 // normalizeSearchText'd, by the caller) -- not partial or containing, or
@@ -580,7 +578,7 @@ QStringList titleStripTokens(const QString &title)
 // candidate's own title just scores low and is ignored like any other
 // losing variant. A remainder is never empty -- splitAt starts at 1, so at
 // least the first token always stays -- which is how "the whole title is
-// the artist name" (B.2 §4) is discarded rather than special-cased.
+// the artist name" is discarded rather than special-cased.
 QStringList artistStrippedTitleVariants(const QString &title, const QStringList &cleanedCandidateArtists)
 {
     QStringList remainders;
@@ -618,7 +616,7 @@ ScoreBreakdown scoreCandidateWithVariants(const TrackQuery &query, const Candida
     // measured what an extra regex pass per candidate costs on a
     // real-sized (~3000 entry) index.
     const QStringList cleanedCandidateArtists = cleanArtists(candidate.artists);
-    // B.2's third query-title variant (DESIGN.md decision 66): unlike the
+    // The third query-title variant (DESIGN.md decision 66): unlike the
     // other two (see normalizedQueryVariants, computed once for the whole
     // pool), this one needs the candidate's own artist list to know what to
     // strip, so it cannot live in queryTitleVariants()/rankCandidates'
@@ -648,7 +646,7 @@ ScoreBreakdown scoreCandidateWithVariants(const TrackQuery &query, const Candida
         // itself, not just reordering two same-typed positional arguments.
         variants.append({.text = normalizeSearchText(remainder), .isGlossStripped = false, .isArtistStripped = true});
     }
-    // B.3b: the best title score reachable using only non-stripped query
+    // Decision 66: the best title score reachable using only non-stripped query
     // variants, tracked alongside (not instead of) the overall best below,
     // together with whether that best non-stripped score came via an
     // alternateTitle -- see ScoreBreakdown::titleWithoutStrip/
@@ -663,7 +661,7 @@ ScoreBreakdown scoreCandidateWithVariants(const TrackQuery &query, const Candida
         // E (DESIGN.md decision 70): the candidate-side counterpart to the
         // query-side gloss variant (decision 65) -- some providers (QQ)
         // append a translated title onto the candidate's own title/
-        // alternateTitle. Reuses splitTrailingGloss unchanged (E.8: not
+        // alternateTitle. Reuses splitTrailingGloss unchanged (decision 70: not
         // touched by this task) and tries the stripped form alongside the
         // raw one for whichever candidate-side string this call is
         // scoring, exactly as candidate.title and each alternateTitle
@@ -758,7 +756,7 @@ ScoreBreakdown scoreCandidateWithVariants(const TrackQuery &query, const Candida
 
 QString normalizeSearchText(QString text)
 {
-    // static const, not reconstructed on every call (B.3c, qa-b-2): this is
+    // static const, not reconstructed on every call (decision 65, qa-b-2): this is
     // one of the hottest functions in the whole matcher -- called for the
     // candidate title, each artist, and the album on every candidate, so a
     // real ~3275-entry AMLL index was compiling roughly 12000 of these per
@@ -967,7 +965,7 @@ std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked,
         // skip past it and keep looking, the same as the
         // MatchPolicy::PreserveVersions branch above already does. A
         // failed *threshold* (isAcceptableMatch) is a different signal:
-        // decision 8 has always applied it to the first gate-passing
+        // decision 45 has always applied it to the first gate-passing
         // candidate alone, and a failure there must still mean "the
         // primary path stops here" -- not "keep looking for a
         // lower-ranked candidate that happens to pass" (ranking is by
@@ -981,7 +979,7 @@ std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked,
         // allowLocalizedFallback path below exactly as it always did,
         // hence break rather than returning nullopt directly: an early
         // return here would skip that fallback path entirely, which is
-        // its own, independently-gated way of finding a match (D-8) and
+        // its own, independently-gated way of finding a match (decision 45) and
         // has nothing to do with this loop's gates.
         for (const auto &candidate : ranked) {
             if (!passesAliasArtistGate(candidate) || !passesGlossVariantGate(candidate)
@@ -998,7 +996,7 @@ std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked,
         return std::nullopt;
     }
     // A pool of one or two candidates makes "unique" free -- exactly the case
-    // where the evidence is weakest (D-8).
+    // where the evidence is weakest (decision 45).
     if (ranked.size() < 3) {
         return std::nullopt;
     }
@@ -1023,7 +1021,7 @@ std::optional<RankedCandidate> chooseMatch(const QList<RankedCandidate> &ranked,
         return std::nullopt;
     }
     // Netease routinely lists the same song under several track ids; dedupe
-    // by (title, artists) before counting "unique" (D-9), otherwise a
+    // by (title, artists) before counting "unique" (decision 45), otherwise a
     // genuine match gets rejected as ambiguous against itself.
     QHash<QString, QList<RankedCandidate>> groups;
     for (const auto &item : survivors) {
@@ -1073,7 +1071,7 @@ QString candidateRejectionReason(const RankedCandidate &candidate)
     }
     if (!passesArtistStripGate(candidate)) {
         // Same two-reason split as the gloss gate above, and for the same
-        // reason (B.2, DESIGN.md decision 66): a known duration outside
+        // reason (DESIGN.md decision 66): a known duration outside
         // the window is very likely a different, unrelated recording (no
         // action fixes that); an unknown duration is something the user
         // could resolve by adding a length, so it gets its own, more
@@ -1083,13 +1081,13 @@ QString candidateRejectionReason(const RankedCandidate &candidate)
             : QStringLiteral("artist-strip-duration-unknown");
     }
     if (!passesCandidateGlossGate(candidate)) {
-        // Three-way split, not the usual two (DESIGN.md decision 70/E.4a):
+        // Three-way split, not the usual two (DESIGN.md decision 70):
         // this gate can fail on the artist floor even when duration is
         // fine, and attributing that to "duration" would misdirect the
         // user (the Gunjou case: duration lands legitimately inside the
         // window, artists=0.125 is the actual reason). Checked first and
         // reported on its own, mirroring alias-artist-threshold's own
-        // dedicated reason for the analogous D-11 gate; the duration
+        // dedicated reason for the analogous decision 45 gate; the duration
         // split below only applies once the artist floor has already
         // passed.
         if (candidate.score.artists < kAliasArtistThreshold) {
@@ -1113,7 +1111,7 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
     // PreserveVersions. A diagnostic that showed cleanTitle unconditionally
     // here would silently disagree with what scoreCandidate actually
     // scored, which is exactly the failure mode this line exists to rule
-    // out (DESIGN.md decision 46). This deliberately does NOT include B.2's
+    // out (DESIGN.md decision 46). This deliberately does NOT include the
     // artist-stripped variant (decision 66) or E's candidate-side gloss
     // variant (decision 70): both are candidate-relative (the first needs a
     // specific candidate's artist list, the second a specific candidate's
@@ -1179,7 +1177,7 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
                << " duration=" << QString::number(item.score.duration, 'f', 3)
                << " deltaMs=" << item.score.durationDifferenceMs
                << " titleVia=" << titleViaLabel(item.score);
-        // B.3b/B.3c legibility fix: titleVia=gloss/artist-strip (and their
+        // Decision 66's legibility fix: titleVia=gloss/artist-strip (and their
         // alias+ combinations) is exactly the situation where
         // passesGlossVariantGate/passesArtistStripGate's duration
         // corroboration requirement (strippedVariantDurationGateOutcome)
@@ -1190,8 +1188,8 @@ QString explainMatch(const TrackQuery &query, const QList<Candidate> &candidates
         // real decision" shape decision 46 exists to rule out. This calls
         // the exact same function the gates call, not a re-derived
         // approximation of its condition, so it can never print a state
-        // the gate itself didn't reach (B.3c: qa-b-2 flagged that printing
-        // nonStrippedMatchAloneIsAcceptable() directly, post-B.3c, would
+        // the gate itself didn't reach (decision 66: qa-b-2 flagged that
+        // printing nonStrippedMatchAloneIsAcceptable() directly would
         // show "required" for a candidate the gate actually passed on a
         // known, in-window duration, and "bypassed" for one it rejected on
         // a known, far-apart duration). Only shown for these three titleVia

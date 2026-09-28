@@ -150,10 +150,10 @@ void VisibilityPolicy::evaluateColdStart()
     // direction it goes: there is no "elapsed so far" to weigh against the
     // buffer yet, and applying the buffer here would mean every login (or
     // every daemon restart) fades in before it is allowed to fade back out.
-    // DESIGN.md decision 40: "冷启动若判据已成立，直接落 opacity: 0，不播
-    // 动画". QML gates the fade animation itself on having passed this first
-    // determination (see main.qml); here it just means: no timer, ever, for
-    // this one call.
+    // DESIGN.md decision 40: a cold start that is already hide-worthy lands
+    // straight at hidden, with no fade. QML gates the fade animation itself
+    // on having passed this first determination (see main.qml); here it just
+    // means: no timer, ever, for this one call.
     stopHideTimer();
     // Tracking m_hideWorthySinceMs happens regardless of m_enabled below --
     // this is the one moment real data first arrives, and a later toggle of

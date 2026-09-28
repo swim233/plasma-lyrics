@@ -167,9 +167,9 @@ Kirigami.ScrollablePage {
 
         // DESIGN.md decision 18: the frontend keys are per-instance, and
         // nothing in the dialog said so. Two widgets out at once is a
-        // supported arrangement (DESIGN.md section 2.1), and the one tab that
-        // does reach every widget -- "Lyrics Service" -- says as much in its
-        // own banner, which made the silence here read as "shared".
+        // supported arrangement (DESIGN.md section 2.1), and the tabs that do
+        // reach every widget ("Global settings", "Lyrics Service") say so in
+        // their own banners, which made the silence here read as "shared".
         Kirigami.InlineMessage {
             Layout.fillWidth: true
             visible: true

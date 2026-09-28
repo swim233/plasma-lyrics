@@ -302,21 +302,12 @@ Item {
     // those are exactly the states where the lyric area is otherwise blank.
     readonly property string trackInfoTitle: root.showTrackInfo ? root.source.trackTitle : ""
 
-    // DESIGN.md decision 40 (and its in-place correction of 25/32/36): the
-    // "ksvg" plate used to be the shell's job (Plasmoid.backgroundHints:
-    // DefaultBackground in main.qml), on the theory that only the shell could
-    // draw a themed plate that tracks a theme change. That theory turned out
-    // to be wrong -- the shell's plate is just a KSvg.FrameSvgItem on
-    // "widgets/background" like the one below -- but the shell's plate is
-    // also structurally useless for auto-hide: it is a *sibling* of this
-    // item, not a descendant, so no opacity we set on ourselves can ever
-    // fade it. Hence self-drawing on desktop, unconditionally.
-    //
-    // Panel keeps drawing nothing for "ksvg", matching its pre-existing
-    // (if slightly misleading -- see the "顺带发现" note in decision 40)
-    // behaviour: the panel's own container never painted a per-applet plate
-    // to begin with, so there is nothing to take over.
-    // Only while this widget holds the plate. The shell draws a strictly
+    // DESIGN.md decision 40: on desktop this item draws the "ksvg" plate
+    // itself only while it holds the plate (ownsPlate, which main.qml sets
+    // around the auto-hide fade). The shell's plate (Plasmoid.backgroundHints:
+    // DefaultBackground in main.qml) is a *sibling* of this item, not a
+    // descendant, so no opacity we set on ourselves can ever fade it -- the
+    // fade needs a plate of our own. Otherwise the shell draws a strictly
     // better ksvg one -- on a theme with blurred-* elements it blurs the
     // wallpaper behind the frame, which an applet cannot reproduce -- so the
     // plate comes over only for the fade that needs it and goes straight back
@@ -330,14 +321,15 @@ Item {
     readonly property real plateMarginRight: root.selfDrawnPlate ? plate.margins.right : 0
     readonly property real plateMarginBottom: root.selfDrawnPlate ? plate.margins.bottom : 0
 
-    // The container used to inset our whole item by the shell plate's own
-    // margins (BasicAppletContainer.qml's leftPadding et al., driven by the
-    // now-unconditionally-NoBackground hint). Now that inset has to happen
-    // *inside* this item instead, so it is folded into implicit/minimum size
-    // here and applied to the content below, on top of the pre-existing
-    // font-relative margin -- otherwise the plate would sit flush against
-    // this item's own edges (using up the width it wants to reserve for its
-    // own frame) rather than around the text like before.
+    // While the shell holds the plate, the container insets our whole item by
+    // the shell plate's own margins (BasicAppletContainer.qml's leftPadding
+    // et al., driven by the DefaultBackground hint). While this item draws
+    // it, the hint is NoBackground and that inset has to happen *inside* this
+    // item instead, so it is folded into implicit/minimum size here and
+    // applied to the content below, on top of the font-relative margin --
+    // otherwise the plate would sit flush against this item's own edges
+    // (using up the width it wants to reserve for its own frame) rather than
+    // around the text.
     // AppletQuickItem forwards only the Layout.* hints below up to the
     // applet container, never implicitWidth/implicitHeight -- so neither of
     // these two ever determines the widget's actual size in either form
@@ -360,9 +352,9 @@ Item {
     // hand-shrunk desktop widgets on next login.
     Layout.preferredWidth: panelMode ? root.panelWidth : -1
 
-    // Panel is exempt on purpose (decision 40: "面板无动画") -- it hides via
-    // Plasmoid.status/HiddenStatus instead, which pulls the container out of
-    // the layout entirely rather than fading a hole into the panel.
+    // Panel is exempt on purpose (decision 40: panels do not animate) -- it
+    // hides via Plasmoid.status/HiddenStatus instead, which pulls the container
+    // out of the layout entirely rather than fading a hole into the panel.
     opacity: root.panelMode || root.shouldBeVisible ? 1 : 0
     Behavior on opacity {
         // hideAnimationMs === 0 means "no animation" (decision 40), and
