@@ -271,9 +271,7 @@ constexpr qint64 kStrippedVariantDurationWindowMs = 2000;
 // that used to be fine. The identical shape was found, live and
 // unmodified, on the pre-existing gloss gate too via
 // "Bohemian Rhapsody (Queen)" -- a real, shipped-in-v0.3.2 regression this
-// fix closes at the same time (decision 65's "胜出" wording predates this
-// correction; see decision 66 for the retroactive fix and decision 65 for
-// the corrected wording).
+// fix closes at the same time (DESIGN.md decisions 65 and 66).
 //
 // This is deliberately an escape hatch on *when the gate binds*, not a
 // change to what it does once it does bind: a candidate that only ever
@@ -354,7 +352,7 @@ StrippedVariantDurationGateOutcome strippedVariantDurationGateOutcome(const Scor
 // both encode "an unrecognized/future state means the gate does not pass,
 // corroboration is required" -- the same fail-closed default this gate uses
 // everywhere else (an unknown duration cannot pass, DESIGN.md decision 45).
-// Anyone adding a sixth state needs both halves of this: the warnings build
+// Anyone adding a fifth state needs both halves of this: the warnings build
 // will catch the omission in CI, but the switches still will not force
 // themselves onto your attention in the shipped build's own compile, and
 // the two fallbacks are what actually protects the invariant there, not
