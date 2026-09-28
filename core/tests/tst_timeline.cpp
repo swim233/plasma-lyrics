@@ -148,7 +148,8 @@ private Q_SLOTS:
     void nextLineBecomesCurrentAndWakesOnABoundary()
     {
         // Every millisecond across a timeline with an intro, an overlap, a long
-        // interlude, a shared start and a last line, under three offsets. The
+        // interlude, three lines sharing a start (so skipping just one of them
+        // is caught too) and a last line, under three offsets. The
         // animation takes a new current line that equals the previous next one
         // as the song moving on (DESIGN.md decision 28), and the widget only
         // recomputes on nextBoundaryMs() (decision 38), so a change of the next
@@ -159,6 +160,7 @@ private Q_SLOTS:
                          {5000, 0, QStringLiteral("verse"), std::nullopt, std::nullopt},
                          {20000, 0, QStringLiteral("two"), std::nullopt, std::nullopt},
                          {20000, 0, QStringLiteral("two alt"), std::nullopt, std::nullopt},
+                         {20000, 0, QStringLiteral("two third"), std::nullopt, std::nullopt},
                          {22000, 0, QStringLiteral("last"), std::nullopt, std::nullopt}};
         finalizeEndTimes(lines);
         QCOMPARE(lines[3].endMs, 15000); // five seconds with nothing current
