@@ -51,13 +51,16 @@
 
 ### Arch Linux（AUR，推荐）
 
-预编译版本
+AUR 上有三个包，互相冲突，装其中一个即可：
+
+| 包                  | 说明                                                   |
+| ------------------- | ------------------------------------------------------ |
+| `plasma-lyrics`     | 下载最新发布版的源码，在本地编译                       |
+| `plasma-lyrics-bin` | 直接安装 GitHub Release 上预编译好的版本，无需本地编译 |
+| `plasma-lyrics-git` | 在本地编译 `main` 分支的最新代码                       |
+
 ```sh
-yay -S plasma-lyrics      # 或 paru -S plasma-lyrics
-```
-也可选择自行编译
-```sh
-yay -S plasma-lyrics-git      # 或 paru -S plasma-lyrics-git
+yay -S plasma-lyrics      # 或 paru -S plasma-lyrics；另外两个包把包名换掉即可
 ```
 
 ### Debian 13（.deb）
@@ -73,8 +76,10 @@ Release 同时提供 Arch 的 `.pkg.tar.zst` 与源码 tarball。
 
 ### 从源码构建
 
-需要 CMake 3.24+、Qt 6（≥ 6.6）、KDE Frameworks 6（ECM 与 KI18n）、Plasma 6、
-Qt SQLite 驱动、zlib 与 fontconfig 开发文件，以及 C++20 编译器。
+构建需要 CMake 3.24+、Ninja、C++20 编译器、Qt 6（≥ 6.6，含 Qt Declarative）、
+KDE Frameworks 6（ECM 与 KI18n）、Plasma 6（libplasma）、gettext（生成翻译文件）、
+Qt SQLite 驱动，以及 zlib 与 fontconfig 开发文件。部件运行时还需要 Kirigami、KSvg 与
+KDeclarative（设置页的颜色按钮来自其中的 `org.kde.kquickcontrols`）。
 
 ```sh
 cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -190,12 +195,15 @@ plasma-lyricsd --explain "歌名" "歌手"
 # 只诊断某个歌词源；也可显式给出播放平台以复现平台相关匹配策略
 plasma-lyricsd --explain --provider amll --platform apple "歌名" "歌手"
 
+# 给出曲目时长（毫秒），复现依赖时长的判定，如上文带译名括号的标题
+plasma-lyricsd --explain --length-ms 215000 "歌名" "歌手"
+
 # 跟随守护进程日志
 journalctl --user -u plasma-lyricsd.service -f
 ```
 
-诊断会打印当前构建和配置中的歌词源链、各源的版本匹配层级与拒绝原因；指定未编译或未配置的
-歌词源时会列出可用来源。
+诊断会打印当前配置中启用的歌词源链、各源的版本匹配层级与拒绝原因；`--provider` 指定未启用或
+未配置的歌词源时会列出可用来源。
 
 「歌词服务」设置页「诊断」下的「记录调试信息」开关（配置项 `logging/debug`，默认关闭）为以下
 七个分类打开 debug 级日志，重启服务后生效：
@@ -235,9 +243,12 @@ systemctl --user restart plasma-lyricsd
 默认只在解析的起点、经过的关键节点、终点各打一行：
 
 ```
-#42 resolve: trigger=track-changed identity="Spotify" service=org.mpris.MediaPlayer2.spotify fingerprint="mediaSrc:0f3e…" platform=netease music=true title="劣等上等" artist="鏡音リン"
+#42 resolve: trigger=track-changed identity="Google Chrome" service=org.mpris.MediaPlayer2.plasma-browser-integration fingerprint="mediaSrc:0f3e…" platform=netease music=true title="劣等上等" artist="鏡音リン"
+#42 cache miss
+#42 search provider=local candidates=0 selected=none elapsed=3ms
 #42 search provider=netease candidates=1 selected=1294899572 score=0.900 elapsed=1488ms
-#42 state=ok from=provider source=netease/1294899572 lines=59 elapsed=2061ms
+#42 fetched: netease/1294899572 lines=59 hasWords=false elapsed=560ms
+#42 state=ok from=provider source=netease/1294899572 lines=59 tried=local elapsed=2061ms
 ```
 
 起点行的 `trigger=` 说明触发这次解析的原因：
@@ -272,15 +283,24 @@ config changed store=applet applet=12 form=desktop key=desktopFontSize old="34" 
 ```sh
 ctest --test-dir build --output-on-failure
 /usr/lib/qt6/bin/qmllint --bare -I build/bin -I /usr/lib/qt6/qml \
+  --unqualified disable --max-warnings 0 \
+  frontend/plasmoid/package/contents/config/config.qml \
   frontend/plasmoid/package/contents/ui/*.qml \
   frontend/plasmoid/package/contents/ui/config/*.qml
+sh frontend/plasmoid/translations/check-pot-freshness.sh
+sh frontend/plasmoid/translations/check-message-coverage.sh
 xmllint --noout frontend/plasmoid/package/contents/config/main.xml
 QML2_IMPORT_PATH="$PWD/build/bin" plasmoidviewer -a io.github.swim233.plasma-lyrics -f planar
 ```
 
-CI 在 Arch Linux 与 Debian 13 双平台上构建、测试并打包（含分别关闭网易云与 AMLL
-provider 的配置），各版本变更见 [CHANGELOG.md](CHANGELOG.md)。
+qmllint 要用 Qt 6 的 `/usr/lib/qt6/bin/qmllint`，参数与 CI 相同，只多了 `--bare -I /usr/lib/qt6/qml`：
+本机装有本项目的软件包时，不加它会先解析到系统里已安装的 QML 模块，而不是 `build/bin` 里新构建的那份。
+两个翻译脚本分别检查提交的 `.pot` 是否与源码里的界面文字同步、`messages.sh` 是否覆盖了全部 `.qml` 文件。
+
+CI 在 Arch Linux 与 Debian 13 上分别构建并运行测试。Arch 上还会检查翻译文件、以
+`-Wall -Wextra -Wpedantic -Werror` 另行构建并测试、运行 qmllint，并构建 Arch 包、用 namcap
+检查；Debian 上打出 `.deb` 包。各版本变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 📄 许可证
 
-[GPL-2.0-or-later](LICENSE)
+[GPL-2.0-only](LICENSE)
