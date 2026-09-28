@@ -5,6 +5,24 @@ provider integrations belong under `providers/`, MPRIS belongs under `daemon/`,
 and every plasmoid instance must remain a read-only consumer of the atomic
 snapshot except for explicit user configuration such as per-track offsets.
 
+Edit `docs/DESIGN.md` and the plan documents (`docs/MULTI_PROVIDER_PLAN.md`,
+`docs/SOURCE_FIXES_PLAN.md`) in place: rewrite the text so it states the
+current decision, with no revision markers, version history or reviewer
+credits. That strips process, never conclusions: every rationale, known
+cost and measurement (with the conditions it was taken under) stays, and a
+rejected alternative someone may propose again keeps one line, "not X,
+because Y". In the plan documents, descriptions of behaviour (rules,
+interfaces, configuration, defaults, source order) follow the current code
+and DESIGN.md, while background, root-cause analysis, implementation steps
+and acceptance records are history and stay; there, only a stale time-bound
+statement becomes a fact ("not released yet" becomes "released in v0.3.0").
+
+A change of behaviour updates DESIGN.md together with every plan document
+that describes the same behaviour; where they disagree, DESIGN.md wins.
+Documents cite code by file and symbol name (`lyricsource.cpp`'s
+`canAdjustOffset()`), not by line number; only a passage describing code as
+it stood at a named commit keeps that commit's line numbers.
+
 The browser integration's track id is constant and it never emits `Seeked`.
 Never replace the media-source/metadata fingerprint or Position jump detection
 with track-id-only logic.
