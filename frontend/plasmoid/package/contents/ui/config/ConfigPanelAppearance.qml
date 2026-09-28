@@ -223,6 +223,9 @@ Kirigami.ScrollablePage {
                 // and the toggle above it reads unchecked-and-disabled.
                 wordLift: false
                 wordLiftRowVisible: false
+                // Nor next line keys (DESIGN.md decision 80): both of its
+                // rows stay hidden.
+                nextLineSupported: false
                 wordByWord: page.themed("WordByWord")
                 syntheticWordByWord: page.themed("WordByWordSynthetic")
                 wordUnsungColor: page.themed("WordUnsungColor")
