@@ -587,8 +587,8 @@ TestCase {
     // moves as far as the line taking its place, and ends a gap above it,
     // not by its own height.
     function test_aTallLineLeavesInStepWithTheOneRising() {
-        const long = "a line long enough to wrap onto a second line in this widget";
-        const t = createView({ currentText: long }, { overflowMode: "wrap" });
+        const longText = "a line long enough to wrap onto a second line in this widget";
+        const t = createView({ currentText: longText }, { overflowMode: "wrap" });
         const old = t.lyric.currentBlock;
         const next = t.lyric.nextBlock;
         verify(old.height > next.height, old.height + " against " + next.height);
@@ -606,8 +606,8 @@ TestCase {
     // The same two-line line ending in an interlude: its place keeps its
     // height, so the next line does not move.
     function test_anInterludeKeepsATallLinesPlace() {
-        const long = "a line long enough to wrap onto a second line in this widget";
-        const t = createView({ currentText: long }, { overflowMode: "wrap" });
+        const longText = "a line long enough to wrap onto a second line in this widget";
+        const t = createView({ currentText: longText }, { overflowMode: "wrap" });
         const old = t.lyric.currentBlock;
         const next = t.lyric.nextBlock;
         verify(old.height > next.height);
