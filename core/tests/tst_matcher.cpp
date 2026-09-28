@@ -1819,8 +1819,8 @@ private Q_SLOTS:
     // DESIGN.md decision 70 (task E): candidate-side gloss stripping.
     // Mirrors the query-side gloss variant (decision 65) but on the
     // CANDIDATE's own title -- QQ appends a Chinese translated title onto
-    // otherwise non-Chinese tracks. §E.1's motivating sample: exact numbers
-    // from the recorded QQ search response (qq-search-ja-hoshiloop.json).
+    // otherwise non-Chinese tracks. Decision 70's motivating sample: exact
+    // numbers from the recorded QQ search response (qq-search-ja-hoshiloop.json).
     void candidateGlossAcceptsQQAppendedChineseTranslatedTitle()
     {
         const TrackQuery query{QStringLiteral("惑星ループ"), {QStringLiteral("Eve")}, QString(), 207504};
@@ -1831,8 +1831,8 @@ private Q_SLOTS:
 
         QVERIFY(score.titleViaCandidateGloss);
         QCOMPARE(score.title, 1.0);
-        // Pin the pre-fix numbers too (E.1: title=0.500, total=0.645) so a
-        // future reader can see exactly what changed: before this task,
+        // Pin the pre-fix numbers too (decision 70: title=0.500, total=0.645)
+        // so a future reader can see exactly what changed: before this task,
         // the candidate's untouched title only cleared the containment
         // fast-path at 0.5 (5 of the 10 normalized characters), landing
         // total at 0.645 -- under the 0.55 title-threshold despite
@@ -1908,9 +1908,9 @@ private Q_SLOTS:
         QCOMPARE(chosen->candidate.trackId, QStringLiteral("translated"));
     }
 
-    // §E.4a (dev-b, found while implementing E, lead's ruling: adopt an
+    // Decision 70 (dev-b, found while implementing E, lead's ruling: adopt an
     // artist floor on passesCandidateGlossGate). Discovered by the stop-
-    // and-report rule §E.7 requires: implementing the plain candidate-gloss
+    // and-report rule of decision 70: implementing the plain candidate-gloss
     // mechanism and then running the full existing suite flipped two
     // pre-existing tests (romanizedTitleRescuedByLocalizedFallback,
     // dedupeGuardTreatsSameSongUnderDifferentIdsAsOne), both via this same
@@ -1979,11 +1979,11 @@ private Q_SLOTS:
         QCOMPARE(chosen->candidate.trackId, QStringLiteral("1472480890"));
     }
 
-    // §E.4's three residual-risk shapes (lead's ruling, decision 70: accept
+    // The three residual-risk shapes (lead's ruling, decision 70: accept
     // the risk, pin the actual behaviour). splitTrailingGloss's predicate
     // rejects only version markers; "Karaoke"/"Inst."/"feat. X" are none of
     // those, so all three get stripped exactly like a genuine translation
-    // gloss would. The risk is narrow (§E.4 point 1: a pool that also has
+    // gloss would. The risk is narrow (decision 70: a pool that also has
     // the exact, unmodified title wins that one via the plain,
     // non-stripped path instead, per the tie-break) and only materializes
     // when the real track is absent from the pool -- which is the shape
@@ -1993,7 +1993,7 @@ private Q_SLOTS:
     // does NOT rely on C2's fetch-stage instrumental-placeholder handling,
     // which lives in a different layer, fires only on a narrower condition
     // (single-line body containing 纯音乐, line-level path only), and does
-    // not run before this decision is made (SPEC §E.4, 2026-09-12 dev-c
+    // not run before this decision is made (decision 70, 2026-09-12 dev-c
     // correction).
     void candidateGlossKaraokeResidualRiskIsAcceptedWhenTheRealTrackIsAbsent()
     {
@@ -2034,12 +2034,12 @@ private Q_SLOTS:
         QVERIFY(isAcceptableMatch({candidate, score}));
     }
 
-    // §E.7 requires `--explain` to keep up (decision 46), the same way
+    // Decision 70 requires `--explain` to keep up (decision 46), the same way
     // decisions 65/66 each pinned their own stripped-variant diagnostics
     // (explainShowsWhyTheDurationGateDidNotBindWhenTheStripWasNotNeeded and
     // friends) -- this is that test for decision 70's candidate-gloss
     // path: titleVia=candidate-gloss, plainTitle= and durationGate= must
-    // all appear and be correct for the §E.1 motivating sample.
+    // all appear and be correct for decision 70's motivating sample.
     void explainShowsCandidateGlossWithinWindowForTheHoshiloopSample()
     {
         const TrackQuery query{QStringLiteral("惑星ループ"), {QStringLiteral("Eve")}, QString(), 207504};
@@ -2054,7 +2054,7 @@ private Q_SLOTS:
     }
 
     // Same field, the rejection-reason side: the Gunjou/Backing-Business
-    // shape (§E.4a) must show up as candidate-gloss-artist-threshold, not
+    // shape (decision 70) must show up as candidate-gloss-artist-threshold, not
     // silently as some other reason or as accepted.
     void explainShowsCandidateGlossArtistThresholdForTheGunjouBackingTrack()
     {
@@ -2122,7 +2122,7 @@ private Q_SLOTS:
 
     // qa-e-2 finding 4: candidate-gloss-duration-unknown also had zero
     // coverage. The realistic shape this hits in production: AMLL never
-    // provides a length at all (decision 65), so §E.1's own hoshiloop
+    // provides a length at all (decision 65), so decision 70's own hoshiloop
     // sample, unmodified except for the candidate's length, lands here
     // instead of within-window.
     void candidateGlossDurationUnknownRejectsEvenWhenTheArtistFloorPasses()
@@ -2165,7 +2165,7 @@ private Q_SLOTS:
     // qa-e-2 finding 5, lead's ruling: keep the rejection, do not add an
     // escape hatch. Unlike the duration half of passesCandidateGlossGate
     // (which inherited decision 66's hatch for "the plain match alone would
-    // already have cleared both bars"), the artist floor §E.4a added
+    // already have cleared both bars"), the artist floor decision 70 added
     // carries none -- so a candidate whose PLAIN title match alone already
     // clears isAcceptableMatch can still be demoted the moment the
     // candidate-side strip wins the tie, purely because the strip's own
