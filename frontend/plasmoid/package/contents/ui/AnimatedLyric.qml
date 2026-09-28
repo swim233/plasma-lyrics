@@ -69,11 +69,18 @@ Item {
     // still finish their flight after the line switches to one without words.
     readonly property real particlesAliveUntilMs: particles.particlesAliveUntilMs
 
-    // Kirigami.Units.longDuration is 0 when the user turned animations off
-    // in System Settings; every line then switches straight away, as with
-    // "none". Writable only so that tests can turn it off: Kirigami.Units is
-    // a global the suite cannot vary.
-    property bool transitionsAnimate: Kirigami.Units.longDuration > 0
+    // Animations turned off in System Settings (AnimationDurationFactor 0)
+    // leave Kirigami.Units.longDuration at 1, not 0 -- measured under the
+    // org.kde.desktop and org.kde.breeze styles, against 100 at factor 0.5
+    // and 200 at 1 -- so "off" reads as <= 1, as in LyricLine's
+    // envelopesAnimate and LyricsView's fade. Every line then switches
+    // straight away, as with "none". A function so that the reading can be
+    // tested, and the property writable so that tests can turn it off:
+    // Kirigami.Units is a global the suite cannot vary.
+    function animatesWith(longDuration) {
+        return longDuration > 1;
+    }
+    property bool transitionsAnimate: root.animatesWith(Kirigami.Units.longDuration)
     readonly property string effectiveAnimationMode: root.transitionsAnimate
         ? root.animationMode : "none"
 

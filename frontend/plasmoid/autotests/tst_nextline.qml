@@ -1,5 +1,6 @@
 import QtQuick
 import QtTest
+import org.kde.kirigami as Kirigami
 import io.github.swim233.lyrics
 import "../package/contents/ui" as LyricsUi
 
@@ -730,6 +731,19 @@ TestCase {
         verify(!isTween(tweenOf(t.lyric.currentBlock, "slide")));
         compare(t.lyric.nextBlock.scale, 0.75);
         verify(blurLoaderOf(t.lyric.nextBlock).active);
+    }
+
+    // Animations turned off in System Settings leave longDuration at 1, not
+    // 0: 1 and below read as off, anything longer as on. The suite cannot
+    // vary Kirigami.Units itself, so the binding is only seen reading it.
+    function test_aLongDurationOfOneMeansAnimationsOff() {
+        const t = createView();
+        verify(!t.lyric.animatesWith(0));
+        verify(!t.lyric.animatesWith(1));
+        verify(t.lyric.animatesWith(2));
+        verify(t.lyric.animatesWith(100));
+        verify(t.lyric.animatesWith(200));
+        compare(t.lyric.transitionsAnimate, t.lyric.animatesWith(Kirigami.Units.longDuration));
     }
 
     function test_noneAndAnimationsOffSwitchAtOnce_data() {
