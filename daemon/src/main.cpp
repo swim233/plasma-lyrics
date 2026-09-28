@@ -296,19 +296,20 @@ int main(int argc, char **argv)
     // Set unconditionally, and before the single-instance lock check below
     // (DESIGN.md #49's ordering). mirrorMessage is installed unconditionally
     // too and does its own per-sink formatting on the normal path, so this
-    // pattern no longer drives normal output. What still reads it: Qt's
-    // default handler when stderr is a tty, and on Qt builds without a
-    // journald-aware default handler -- on this project's own Arch build,
-    // Qt links libsystemd and its default handler calls sd_journal_send()
-    // directly when stderr is not a tty (unless QT_FORCE_STDERR_LOGGING or
+    // pattern no longer drives normal output. What still reads it is Qt's
+    // default handler whenever that writes to stderr: on Qt builds without a
+    // journald-aware default handler, and on this project's own Arch build
+    // (Qt links libsystemd) when the process has a controlling terminal or
+    // stderr is a tty. With neither, the Arch build's default handler calls
+    // sd_journal_send() directly (unless QT_FORCE_STDERR_LOGGING or
     // QT_LOGGING_TO_CONSOLE forces the stderr path instead), bypassing this
-    // pattern entirely. So in the daemon's actual deployment (journald,
-    // non-tty, neither of those set), this call only matters for the
-    // narrow shutdown window after loggingGuard
-    // uninstalls mirrorMessage -- and even then it is inert whenever
-    // QT_MESSAGE_PATTERN is set: Qt reads that env var once and from then
-    // on treats qSetMessagePattern() as a no-op, not something the env var
-    // "overrides" after the fact.
+    // pattern entirely. So in the daemon's actual deployment (a systemd user
+    // service: journald, no controlling terminal, stderr not a tty, neither
+    // of those set), this call only matters for the narrow shutdown window
+    // after loggingGuard uninstalls mirrorMessage -- and even then it is
+    // inert whenever QT_MESSAGE_PATTERN is set: Qt reads that env var once
+    // and from then on treats qSetMessagePattern() as a no-op, not something
+    // the env var "overrides" after the fact.
     qSetMessagePattern(QStringLiteral(
         "[%{time yyyy-MM-dd hh:mm:ss.zzz}] %{type} %{category} %{message}"));
     stderrSink = detectStderrSink();

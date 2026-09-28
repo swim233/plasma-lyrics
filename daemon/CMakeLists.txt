@@ -47,11 +47,11 @@ endif()
 if(BUILD_TESTING)
     find_package(Qt6 6.6 REQUIRED COMPONENTS Test)
     # Every test binary below links Qt and so can print Qt's one-time
-    # non-UTF8-locale warning at startup; under a systemd-journal-connected
-    # environment that warning's default Qt handler reaches the real
-    # journal via sd_journal_send() regardless of how ctest captures this
-    # process's own stdout/stderr (see core/tests/CMakeLists.txt for the
-    # full explanation). LC_ALL=C.UTF-8 removes the warning at the source.
+    # non-UTF8-locale warning at startup; in a ctest run without a
+    # controlling terminal stderr is only ctest's pipe, so that warning's
+    # default Qt handler sends it to the real journal via sd_journal_send()
+    # (see core/tests/CMakeLists.txt for the full explanation).
+    # LC_ALL=C.UTF-8 removes the warning at the source.
     add_executable(tst_logmirrorformat
         tests/tst_logmirrorformat.cpp
         src/logmirrorformat.cpp
