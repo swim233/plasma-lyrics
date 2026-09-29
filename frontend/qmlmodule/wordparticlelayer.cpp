@@ -116,8 +116,10 @@ void WordParticleLayer::setActive(bool value)
     Q_EMIT activeChanged();
 }
 
-// DESIGN.md decision 77: the widget moved between the desktop and a panel.
-// Nothing of the old look stays in the air.
+// DESIGN.md decision 77. A safeguard: both of main.qml's representations
+// set panelMode as a literal, and a widget moved between the desktop and a
+// panel swaps the representation instead. Should it change all the same,
+// nothing of the old look stays in the air.
 void WordParticleLayer::setPanelMode(bool value)
 {
     if (value == m_panelMode) {

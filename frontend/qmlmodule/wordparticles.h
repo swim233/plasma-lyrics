@@ -21,10 +21,12 @@
 // grows ever slower above it. Birth positions and ψ are not scaled: they are
 // measured on the glyphs as drawn.
 //
-// There are two looks, chosen by where the widget is (LyricsView.panelMode):
-// the panel's light dot and the desktop's star. Everything below is the
-// dot's unless it says star; the star keeps the dot's births, shared current
-// and colour and changes only what its kStar* constants and functions name.
+// There are two looks, chosen by LyricsView.panelMode: the panel's light
+// dot, in a panel's compact representation, and the desktop's star, in the
+// full one -- the desktop widget, and a panel widget's popup. Everything
+// below is the dot's unless it says star; the star keeps the dot's births,
+// shared current and colour and changes only what its kStar* constants and
+// functions name.
 namespace WordParticles {
 
 enum class Look {

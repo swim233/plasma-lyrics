@@ -499,10 +499,11 @@ TestCase {
         compare(t.view.wordClockRunning, false);
     }
 
-    // LyricsView.panelMode reaches the layer. Moving the widget between the
-    // desktop and a panel drops what is in the air, as turning particles off
-    // and on again does: every kept line goes, and the line being sung is
-    // captured again in the new look, with that look's life.
+    // LyricsView.panelMode reaches the layer. A change -- a safeguard, since
+    // both of main.qml's representations set it as a literal -- drops what is
+    // in the air, as turning particles off and on again does: every kept line
+    // goes, and the line being sung is captured again in the new look, with
+    // that look's life.
     function test_thePanelModeReachesTheLayerAndAChangeClearsIt() {
         const t = createView({ panelMode: false });
         compare(t.layer.panelMode, false);
