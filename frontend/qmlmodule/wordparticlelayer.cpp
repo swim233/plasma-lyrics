@@ -9,7 +9,8 @@
 #include <cstddef>
 #include <limits>
 
-// WordParticles::writeSprite fills the geometry's vertex buffer directly.
+// WordParticles::writeSprite and writeStar fill the geometry's vertex buffer
+// directly.
 static_assert(sizeof(WordParticles::Vertex) == sizeof(QSGGeometry::ColoredPoint2D));
 static_assert(offsetof(WordParticles::Vertex, x) == offsetof(QSGGeometry::ColoredPoint2D, x));
 static_assert(offsetof(WordParticles::Vertex, y) == offsetof(QSGGeometry::ColoredPoint2D, y));
@@ -38,6 +39,11 @@ WordParticleLayer::WordParticleLayer(QQuickItem *parent)
 bool WordParticleLayer::active() const
 {
     return m_active;
+}
+
+bool WordParticleLayer::panelMode() const
+{
+    return m_panelMode;
 }
 
 QString WordParticleLayer::fingerprint() const
@@ -106,10 +112,20 @@ void WordParticleLayer::setActive(bool value)
         return;
     }
     m_active = value;
-    m_field = WordParticles::Field();
-    m_field.setLiveFollow(m_lineOffset.x(), m_lineOffset.y(), m_lineOpacity);
-    recaptureLine();
+    restart();
     Q_EMIT activeChanged();
+}
+
+// DESIGN.md decision 77: the widget moved between the desktop and a panel.
+// Nothing of the old look stays in the air.
+void WordParticleLayer::setPanelMode(bool value)
+{
+    if (value == m_panelMode) {
+        return;
+    }
+    m_panelMode = value;
+    restart();
+    Q_EMIT panelModeChanged();
 }
 
 void WordParticleLayer::setFingerprint(const QString &value)
@@ -334,6 +350,7 @@ WordParticles::LineLayout WordParticleLayer::layoutOfLine() const
     const double scale = m_lineScale;
     layout.startMs = m_lineStartMs;
     layout.text = m_lineText;
+    layout.look = m_panelMode ? WordParticles::Look::PanelDot : WordParticles::Look::DesktopStar;
     layout.ascent = m_cjkAscent * scale;
     layout.words.reserve(m_words.size());
     for (const MeasuredWord &word : m_words) {
@@ -346,6 +363,15 @@ WordParticles::LineLayout WordParticleLayer::layoutOfLine() const
         layout.words.append(span);
     }
     return layout;
+}
+
+// Every kept line and everything of the line being sung goes; that line,
+// if on, is captured afresh, following what it already follows.
+void WordParticleLayer::restart()
+{
+    m_field = WordParticles::Field();
+    m_field.setLiveFollow(m_lineOffset.x(), m_lineOffset.y(), m_lineOpacity);
+    recaptureLine();
 }
 
 void WordParticleLayer::recaptureLine()
@@ -458,16 +484,26 @@ QSGNode *WordParticleLayer::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDat
     const qreal ratio = window() ? window()->effectiveDevicePixelRatio() : 1;
     const double devicePixel = 1 / (ratio > 0 ? ratio : 1);
 
+    // As many vertices and indices as each particle's look takes.
+    int vertexCount = 0;
+    int indexCount = 0;
+    for (const WordParticles::Sprite &sprite : std::as_const(m_sprites)) {
+        vertexCount += WordParticles::vertexCount(sprite.look);
+        indexCount += WordParticles::indexCount(sprite.look);
+    }
     QSGGeometry *geometry = node->geometry();
-    const int count = static_cast<int>(m_sprites.size());
-    geometry->allocate(count * WordParticles::kVerticesPerSprite, count * WordParticles::kIndicesPerSprite);
+    geometry->allocate(vertexCount, indexCount);
     auto *vertices = static_cast<WordParticles::Vertex *>(geometry->vertexData());
     quint32 *indices = geometry->indexDataAsUInt();
-    for (int i = 0; i < count; ++i) {
-        WordParticles::writeSprite(m_sprites.at(i), red, green, blue, additive, devicePixel,
-                                   vertices + i * WordParticles::kVerticesPerSprite,
-                                   static_cast<quint32>(i * WordParticles::kVerticesPerSprite),
-                                   indices + i * WordParticles::kIndicesPerSprite);
+    int vertex = 0;
+    int index = 0;
+    for (const WordParticles::Sprite &sprite : std::as_const(m_sprites)) {
+        const auto write = sprite.look == WordParticles::Look::DesktopStar ? WordParticles::writeStar
+                                                                           : WordParticles::writeSprite;
+        write(sprite, red, green, blue, additive, devicePixel, vertices + vertex, static_cast<quint32>(vertex),
+              indices + index);
+        vertex += WordParticles::vertexCount(sprite.look);
+        index += WordParticles::indexCount(sprite.look);
     }
     node->markDirty(QSGNode::DirtyGeometry);
     return node;

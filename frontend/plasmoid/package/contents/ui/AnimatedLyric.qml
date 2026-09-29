@@ -71,8 +71,8 @@ Item {
     property string particleFingerprint: ""
     // Where the particles may go, in this item's coordinates. LyricsView
     // makes it cover the whole widget: the words' own clipper leaves only a
-    // few pixels above the glyphs, and a particle rises up to 45 px at the
-    // 34 px default size.
+    // few pixels above the glyphs, and at the 34 px default size a particle
+    // rises up to 45 px in a panel, 37.5 px on the desktop.
     property rect particleArea: Qt.rect(0, 0, root.width, root.height)
     // Until when some particle is still in the air, -Infinity when none is.
     // LyricsView keeps its frame clock running until then, so particles
@@ -762,7 +762,7 @@ Item {
     // as its block slides, fades and grows in and as the marquee scrolls it;
     // lines already switched away from are kept inside the layer itself,
     // since a block lets go of its words when it has left and a particle
-    // lives 2050 ms.
+    // lives 2050 ms in a panel, 1800 ms on the desktop.
     WordParticleLayer {
         id: particles
         objectName: "wordParticles"
@@ -773,6 +773,7 @@ Item {
         height: root.particleArea.height
         clip: true
         active: root.particlesEnabled
+        panelMode: root.panelMode
         fingerprint: root.particleFingerprint
         positionMs: root.positionMs
         fontSize: root.fontSize

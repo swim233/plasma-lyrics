@@ -478,6 +478,140 @@ private Q_SLOTS:
         layer.setColor(Qt::blue);
         QCOMPARE(layer.updateRequests(), requests + 2);
     }
+
+    // The desktop's stars: 283 vertices and 1512 indices each, every
+    // triangle within its own star, a core of R = 2.2 s at 34 px (s in
+    // [1.4, 3.5), no floor reached) and births from the raised band.
+    void theDesktopDrawsStars()
+    {
+        Layer layer;
+        QVERIFY(layer.panelMode());
+        layer.setPanelMode(false);
+        setUp(layer, twoWords(), 1500);
+        const QSGGeometryNode *node = layer.paint();
+        QVERIFY(node);
+        const int vertices = node->geometry()->vertexCount();
+        QCOMPARE(vertices % WordParticles::kVerticesPerStar, 0);
+        const int stars = vertices / WordParticles::kVerticesPerStar;
+        QVERIFY(stars >= 2);
+        QCOMPARE(node->geometry()->indexCount(), stars * WordParticles::kIndicesPerStar);
+        const quint32 *index = node->geometry()->indexDataAsUInt();
+        const auto *v = node->geometry()->vertexDataAsColoredPoint2D();
+        for (int star = 0; star < stars; ++star) {
+            const auto first = quint32(star * WordParticles::kVerticesPerStar);
+            for (int i = 0; i < WordParticles::kIndicesPerStar; ++i) {
+                const quint32 at = index[star * WordParticles::kIndicesPerStar + i];
+                QVERIFY2(at >= first && at < first + WordParticles::kVerticesPerStar,
+                         qPrintable(QStringLiteral("star %1, index %2").arg(star).arg(i)));
+            }
+            const int centre = star * WordParticles::kVerticesPerStar;
+            const double radius = distance(v[centre], v[centre + 1 + 9 * WordParticles::kRingSegments]);
+            QVERIFY2(radius >= 2.2 * 1.4 - 1e-3 && radius < 2.2 * 3.5, qPrintable(QString::number(radius)));
+            // Each ray's middle cross-section is on the centre.
+            for (int ray = 0; ray < 2; ++ray) {
+                const int axis = centre + WordParticles::kVerticesPerSprite + ray * WordParticles::kVerticesPerRay + 9;
+                QVERIFY(distance(v[axis], v[centre]) < 1e-4);
+                QVERIFY(v[axis].r > 0);
+            }
+        }
+
+        // Births from 6.3% of the CJK ascent above the glyph top to 28.7%
+        // below it, where the panel's run from the top to 35% below.
+        const double ascent = layer.describeLine().value(QStringLiteral("ascent")).toDouble();
+        QVERIFY(ascent > 0);
+        const double top = 40 - ascent;
+        for (const QPointF &birth : births(layer)) {
+            QVERIFY(birth.y() >= top - 0.063 * ascent - 1e-9);
+            QVERIFY(birth.y() < top + 0.287 * ascent);
+        }
+    }
+
+    // Moved between the desktop and a panel: every kept line goes, and the
+    // line being sung is captured again in the new look -- what a layer of
+    // that look holds when turned off and on again at the same moment.
+    void aLookChangeClearsLikeTurningOffAndOn()
+    {
+        const auto play = [](Layer &layer) {
+            setUp(layer, twoWords(), 1500);
+            layer.detach();
+            layer.setLine(line(2000, {word(2000, 2400, QStringLiteral("ef"), 0)}));
+            layer.setPositionMs(2100);
+        };
+        Layer layer;
+        play(layer);
+        QCOMPARE(layer.snapshotCount(), 2);
+        int changes = 0;
+        connect(&layer, &WordParticleLayer::panelModeChanged, this, [&changes] { ++changes; });
+        layer.setPanelMode(true);
+        QCOMPARE(changes, 0);
+        QCOMPARE(layer.snapshotCount(), 2);
+
+        const int requests = layer.updateRequests();
+        layer.setPanelMode(false);
+        QCOMPARE(changes, 1);
+        QVERIFY(!layer.panelMode());
+        QCOMPARE(layer.snapshotCount(), 1);
+        QVERIFY(layer.updateRequests() > requests);
+        const QVariantList stars = layer.describeSnapshots();
+        QCOMPARE(stars.first().toMap().value(QStringLiteral("startMs")).toLongLong(), 2000);
+        QVERIFY(stars.first().toMap().value(QStringLiteral("current")).toBool());
+        const QSGGeometryNode *node = layer.paint();
+        QVERIFY(node);
+        QCOMPARE(node->geometry()->vertexCount() % WordParticles::kVerticesPerStar, 0);
+
+        Layer desktop;
+        desktop.setPanelMode(false);
+        play(desktop);
+        desktop.setActive(false);
+        desktop.setActive(true);
+        QCOMPARE(stars, desktop.describeSnapshots());
+        QCOMPARE(layer.particlesAliveUntilMs(), desktop.particlesAliveUntilMs());
+
+        // And back: dots again, from the same draws.
+        layer.setPanelMode(true);
+        QCOMPARE(changes, 2);
+        QCOMPARE(layer.snapshotCount(), 1);
+        node = layer.paint();
+        QVERIFY(node);
+        QCOMPARE(node->geometry()->vertexCount() % WordParticles::kVerticesPerSprite, 0);
+        Layer panel;
+        play(panel);
+        panel.setActive(false);
+        panel.setActive(true);
+        QCOMPARE(layer.describeSnapshots(), panel.describeSnapshots());
+
+        // Turned off, a change leaves nothing either.
+        layer.setActive(false);
+        layer.setPanelMode(false);
+        QCOMPARE(layer.snapshotCount(), 0);
+        QCOMPARE(layer.paint(), nullptr);
+    }
+
+    // A star lives 1800 ms: its line is kept, and the frame clock held,
+    // until the last one goes out, where a dot's would last to 2050 ms.
+    void aStarsLifeHoldsItsLineAndTheClock()
+    {
+        Layer dots;
+        setUp(dots, twoWords(), 1500);
+        QVERIFY(dots.particlesAliveUntilMs() >= 1400 + 2050);
+
+        Layer layer;
+        layer.setPanelMode(false);
+        setUp(layer, twoWords(), 1500);
+        const double until = layer.particlesAliveUntilMs();
+        QVERIFY2(until >= 1400 + 1800 && until < 1490 + 1800, qPrintable(QString::number(until)));
+        layer.detach();
+        layer.setLine(QVariant());
+        QCOMPARE(layer.snapshotCount(), 1);
+        QCOMPARE(layer.particlesAliveUntilMs(), until);
+        layer.setPositionMs(until - 1);
+        QCOMPARE(layer.snapshotCount(), 1);
+        QVERIFY(layer.paint());
+        layer.setPositionMs(until);
+        QCOMPARE(layer.snapshotCount(), 0);
+        QCOMPARE(layer.particlesAliveUntilMs(), -std::numeric_limits<qreal>::infinity());
+        QCOMPARE(layer.paint(), nullptr);
+    }
 };
 
 QTEST_MAIN(WordParticleLayerTest)

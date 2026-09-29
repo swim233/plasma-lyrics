@@ -35,6 +35,12 @@ class WordParticleLayer : public QQuickItem
 
     // Off clears everything at once, the line being sung included.
     Q_PROPERTY(bool active READ active WRITE setActive NOTIFY activeChanged)
+    // LyricsView.panelMode: the panel's light dots, or the desktop's stars
+    // (WordParticles::Look). A change clears everything, as turning the
+    // layer off and on again does, and the line being sung is captured
+    // again in the new look. True unless bound, the look every function of
+    // WordParticles takes unless told otherwise.
+    Q_PROPERTY(bool panelMode READ panelMode WRITE setPanelMode NOTIFY panelModeChanged)
     // A change is a new track: every kept line goes, and so does every
     // particle of the line being sung born by now -- what is in the air. The
     // words of that line still to come spawn as usual, since a new track
@@ -80,6 +86,7 @@ public:
     explicit WordParticleLayer(QQuickItem *parent = nullptr);
 
     bool active() const;
+    bool panelMode() const;
     QString fingerprint() const;
     qreal positionMs() const;
     int fontSize() const;
@@ -94,6 +101,7 @@ public:
     int snapshotCount() const;
 
     void setActive(bool value);
+    void setPanelMode(bool value);
     void setFingerprint(const QString &value);
     void setPositionMs(qreal value);
     void setFontSize(int value);
@@ -127,6 +135,7 @@ public:
 
 Q_SIGNALS:
     void activeChanged();
+    void panelModeChanged();
     void fingerprintChanged();
     void positionMsChanged();
     void fontSizeChanged();
@@ -156,12 +165,14 @@ private:
 
     void measureLine();
     WordParticles::LineLayout layoutOfLine() const;
+    void restart();
     void recaptureLine();
     void requestUpdate();
     void redraw();
     void fieldChanged();
 
     bool m_active = false;
+    bool m_panelMode = true;
     QString m_fingerprint;
     qreal m_positionMs = 0;
     int m_fontSize = 34;

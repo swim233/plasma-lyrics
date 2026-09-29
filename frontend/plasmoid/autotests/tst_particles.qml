@@ -138,6 +138,13 @@ TestCase {
         tryVerify(() => t.lyric.shownText === text);
     }
 
+    // Where particles are born, as fractions of the CJK ascent above and
+    // below the glyph top: the panel's dots from the top to 35% below it,
+    // the desktop's stars in that band moved up by 6.3%.
+    function birthBand(panelMode) {
+        return panelMode ? { above: 0, below: 0.35 } : { above: 0.063, below: 0.287 };
+    }
+
     function wordsOf(texts, start, duration) {
         return texts.map((text, i) => ({ startMs: start + duration * i,
                                          endMs: start + duration * (i + 1), text: text }));
@@ -341,13 +348,16 @@ TestCase {
         const cjk = createTemporaryObject(textMetricsComponent, this, { font: font, text: "国" });
         const ascent = (cjk.tightBoundingRect.height > 0 ? -cjk.tightBoundingRect.y
             : createTemporaryObject(fontMetricsComponent, this, { font: font }).ascent) * next.scale;
+        // The desktop's stars.
+        compare(t.layer.panelMode, false);
+        const band = birthBand(false);
         const bands = glyphs.map(glyph => {
             const ink = createTemporaryObject(textMetricsComponent, this,
                 { font: font, text: glyph.text }).advanceWidth * next.scale;
             const left = glyph.mapToItem(t.layer, 0, 0).x;
             const baseline = glyph.parent.mapToItem(t.layer, 0, glyph.baselineOffset).y;
             return { left: left + 0.1 * ink, right: left + 0.9 * ink,
-                     top: baseline - ascent, bottom: baseline - 0.65 * ascent };
+                     top: baseline - (1 + band.above) * ascent, bottom: baseline - (1 - band.below) * ascent };
         });
         const live = current(t.layer);
         compare(live.startMs, 2000);
@@ -463,6 +473,62 @@ TestCase {
         compare(t.lyric.particlesAliveUntilMs, t.layer.particlesAliveUntilMs);
     }
 
+    // On the desktop a star lives 1800 ms: the line being sung, and once
+    // switched away from its copy, holds the frame clock until then. Each
+    // word spawns up to four.
+    function test_theDesktopsStarsHoldTheClockForTheirOwnLife() {
+        const t = createView({ panelMode: false });
+        compare(t.layer.panelMode, false);
+        tryCompare(t.layer, "snapshotCount", 1);
+        const live = current(t.layer);
+        verify(live.births.length >= 2 && live.births.length <= 8, live.births.length);
+        const until = t.layer.particlesAliveUntilMs;
+        verify(until >= 1400 + 1800 && until < 1490 + 1800, until);
+        compare(t.lyric.particlesAliveUntilMs, until);
+
+        switchToPlainLine(t);
+        compare(t.layer.snapshotCount, 1);
+        compare(t.layer.particlesAliveUntilMs, until);
+        compare(t.view.wordClockRunning, true);
+        step(t.view, t.source, until - 1);
+        compare(t.view.wordClockRunning, true);
+        compare(t.layer.snapshotCount, 1);
+        step(t.view, t.source, until);
+        compare(t.layer.snapshotCount, 0);
+        compare(t.layer.particlesAliveUntilMs, -Infinity);
+        compare(t.view.wordClockRunning, false);
+    }
+
+    // LyricsView.panelMode reaches the layer. Moving the widget between the
+    // desktop and a panel drops what is in the air, as turning particles off
+    // and on again does: every kept line goes, and the line being sung is
+    // captured again in the new look, with that look's life.
+    function test_thePanelModeReachesTheLayerAndAChangeClearsIt() {
+        const t = createView({ panelMode: false });
+        compare(t.layer.panelMode, false);
+        tryCompare(t.layer, "snapshotCount", 1);
+        step(t.view, t.source, 2100);
+        switchTo(t, "efgh", lineB);
+        tryCompare(t.layer, "snapshotCount", 2);
+
+        t.view.panelMode = true;
+        compare(t.layer.panelMode, true);
+        compare(t.layer.snapshotCount, 1);
+        compare(current(t.layer).startMs, 2000);
+        verify(t.layer.particlesAliveUntilMs >= 2300 + 2050, t.layer.particlesAliveUntilMs);
+        const dots = current(t.layer).birthTimes;
+
+        t.view.panelMode = false;
+        compare(t.layer.panelMode, false);
+        compare(t.layer.snapshotCount, 1);
+        compare(current(t.layer).startMs, 2000);
+        verify(t.layer.particlesAliveUntilMs >= 2300 + 1800 && t.layer.particlesAliveUntilMs < 2390 + 1800,
+               t.layer.particlesAliveUntilMs);
+        // The same word timings, drawn anew: stars come up to four a word.
+        verify(current(t.layer).birthTimes.length >= 2 && current(t.layer).birthTimes.length <= 8);
+        verify(dots.length >= 2 && dots.length <= 6);
+    }
+
     // The layer covers the whole widget, so particles have room to rise above
     // the line; the words' own clipper would leave them a few pixels.
     function test_theLayerCoversTheWholeView() {
@@ -482,11 +548,19 @@ TestCase {
     }
 
     // Every birth point lies on a word's glyphs as laid out, mapped into the
-    // layer: across the middle 80% of that word's ink and in the top 35% of
-    // the line's CJK ascent. Measured here with the glyphs' own font, never
-    // compared against pixel values -- the CI container has no CJK font and
-    // draws boxes of whatever size its fallback has.
-    function test_particlesAreBornOnTheGlyphs() {
+    // layer: across the middle 80% of that word's ink and, in a panel, in
+    // the top 35% of the line's CJK ascent; on the desktop in that band
+    // moved up by 6.3% of the ascent, a little of it above the glyph top.
+    // Measured here with the glyphs' own font, never compared against pixel
+    // values -- the CI container has no CJK font and draws boxes of whatever
+    // size its fallback has.
+    function test_particlesAreBornOnTheGlyphs_data() {
+        return [
+            { tag: "panel", panelMode: true },
+            { tag: "desktop", panelMode: false },
+        ];
+    }
+    function test_particlesAreBornOnTheGlyphs(data) {
         // A Latin word first: it sits on a baseline of its own, apart from
         // the CJK words after it.
         const texts = ["up "].concat("粒子从每个字上飘起来一颗颗光点".split(""));
@@ -494,9 +568,11 @@ TestCase {
         const source = createTemporaryObject(fakeSourceComponent, this,
             { currentText: texts.join(""), currentWords: words, positionMs: 1500 });
         const view = createTemporaryObject(lyricsViewComponent, this,
-            { source: source, panelMode: true, fontSize: 40, width: 800 });
+            { source: source, panelMode: data.panelMode, fontSize: 40, width: 800 });
         const layer = layerOf(view);
         compare(layer.fontSize, 40);
+        compare(layer.panelMode, data.panelMode);
+        const band = birthBand(data.panelMode);
         tryCompare(layer, "snapshotCount", 1);
         const glyphs = findAll(view, o => o.objectName === "lyricWord");
         compare(glyphs.length, texts.length);
@@ -508,29 +584,32 @@ TestCase {
         verify(ascent > 0);
         const inks = glyphs.map(glyph => createTemporaryObject(textMetricsComponent, this,
             { font: font, text: glyph.text.replace(/\s+$/, "") }).advanceWidth);
+        let aboveTheTop = 0;
         function misplaced() {
             const bands = [];
             for (let i = 0; i < glyphs.length; ++i) {
-                // Nothing is lifted in a panel, so the glyphs are at rest.
-                // Each word has a baseline of its own.
+                // Each word has a baseline of its own, at rest: the lift on
+                // the desktop moves the glyph, not its delegate.
                 const glyph = glyphs[i];
                 const left = glyph.mapToItem(layer, 0, 0).x;
-                const baseline = glyph.mapToItem(layer, 0, glyph.baselineOffset).y;
-                bands.push({ left: left + 0.1 * inks[i], right: left + 0.9 * inks[i],
-                             top: baseline - ascent, bottom: baseline - 0.65 * ascent });
+                const baseline = glyph.parent.mapToItem(layer, 0, glyph.baselineOffset).y;
+                bands.push({ left: left + 0.1 * inks[i], right: left + 0.9 * inks[i], glyphTop: baseline - ascent,
+                             top: baseline - (1 + band.above) * ascent, bottom: baseline - (1 - band.below) * ascent });
             }
             const births = current(layer).births;
             if (births.length < texts.length) {
                 return "too few: " + births.length;
             }
+            aboveTheTop = 0;
             for (const p of births) {
-                const band = bands.find(b => p.x >= b.left - 0.01 && p.x <= b.right + 0.01);
-                if (!band) {
+                const on = bands.find(b => p.x >= b.left - 0.01 && p.x <= b.right + 0.01);
+                if (!on) {
                     return "x " + p.x + " outside " + JSON.stringify(bands);
                 }
-                if (p.y < band.top - 0.01 || p.y > band.bottom + 0.01) {
-                    return "y " + p.y + " outside " + JSON.stringify(band);
+                if (p.y < on.top - 0.01 || p.y > on.bottom + 0.01) {
+                    return "y " + p.y + " outside " + JSON.stringify(on);
                 }
+                aboveTheTop += p.y < on.glyphTop - 0.01;
             }
             return "";
         }
@@ -539,6 +618,11 @@ TestCase {
         tryVerify(() => glyphs.every((g, i) => g.baselineOffset > 0
             && (i === 0 || g.parent.x > glyphs[i - 1].parent.x)));
         compare(misplaced(), "");
+        if (data.panelMode) {
+            compare(aboveTheTop, 0);
+        } else {
+            verify(aboveTheTop > 0);
+        }
     }
 
     Component {

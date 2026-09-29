@@ -20,7 +20,19 @@
 // the particle's size by g(x) (sizeScale), which follows x up to 34 px and
 // grows ever slower above it. Birth positions and ψ are not scaled: they are
 // measured on the glyphs as drawn.
+//
+// There are two looks, chosen by where the widget is (LyricsView.panelMode):
+// the panel's light dot and the desktop's star. Everything below is the
+// dot's unless it says star; the star keeps the dot's births, shared current
+// and colour and changes only what its kStar* constants and functions name.
 namespace WordParticles {
+
+enum class Look {
+    // A Gaussian core in a wide halo, 1-4 px.
+    PanelDot,
+    // A small core with a cross of two rays, one star in ten twinkling once.
+    DesktopStar,
+};
 
 constexpr double kReferencePixelSize = 34;
 constexpr double kLifeMs = 2050;
@@ -41,6 +53,27 @@ constexpr double kHaloRadius = 3.5; // R, times s
 constexpr double kHaloStrength = 0.8; // h
 constexpr double kCoreMinWidth = 1.5; // device pixels, at half the core's height
 constexpr double kHalfWidthPerSigma = 2.355; // a Gaussian's width at half height, in σ
+
+constexpr double kStarLifeMs = 1800;
+constexpr double kStarFadeInMs = 30;
+constexpr double kStarFadeOutFromMs = 1300;
+constexpr double kStarMinSize = 1.4; // s = 1.4 × 2.5^r, so s is in [1.4, 3.5)
+constexpr double kStarSizeRange = 2.5;
+constexpr double kStarBirthLift = 0.063; // of the CJK ascent: the dot's band, moved up
+constexpr double kStarRiseHeight = 30;
+constexpr double kStarSway = 1.2;
+constexpr double kStarHaloRadius = 2.2; // R, times s ...
+constexpr double kStarHaloSigmas = 3; // ... or 3σ, whichever is larger
+constexpr double kStarHaloStrength = 0.2; // h
+constexpr double kTwinkleOdds = 0.1; // q under this twinkles
+constexpr double kTwinkleFromMs = 350; // t_f = 350 + 850τ
+constexpr double kTwinkleSpreadMs = 850;
+constexpr double kTwinkleMs = 260;
+constexpr double kTwinklePeak = 0.5;
+constexpr double kStarAngle = 0.35; // θ0 in [-0.35, 0.35) rad
+constexpr double kStarSpin = 0.4; // ω in [-0.4, 0.4) rad/s
+constexpr double kVerticalRay = 0.8; // of the horizontal ray's length
+constexpr double kRayHalfWidth = 0.6; // at the centre, times s
 
 /// splitmix64, with its own mapping to [0, 1). Not std::uniform_*_distribution:
 /// those are implementation-defined, so one seed gives different particles on
@@ -77,17 +110,32 @@ struct Particle
     double phase1 = 0;
     double phase2 = 0;
     double phase3 = 0;
+
+    Look look = Look::PanelDot;
+    // The star's own, drawn after all of the above. Its k comes from the
+    // draw its size did, as the dot's would: (4^r - 1) / 3.
+    double starDepth = 0;
+    double twinkleDraw = 1; // q, in [0, 1): the star twinkles when under 0.1
+    double twinkleFromMs = 0; // t_f, in [350, 1200), of its age
+    double angle = 0; // θ0, in [-0.35, 0.35) rad
+    double spin = 0; // ω, in [-0.4, 0.4) rad/s
 };
 
 /// k = (s - 1) / 3: 0 for the smallest particle, 1 for the largest.
 double depth(double size);
+/// The particle's k: depth(s) for the dot, the star's own starDepth.
+double depth(const Particle &particle);
 
+/// How long a particle of this look lives: 2050 ms, 1800 for the star.
+double lifeMs(Look look);
 /// b(t) before the depth factor: 0 -> 1 over the first 50 ms, held until
-/// 1550 ms, back to 0 at 2050 ms, and 0 outside [0, 2050].
-double envelope(double ageMs);
-/// b(t) × (0.45 + 0.55k).
+/// 1550 ms, back to 0 at 2050 ms, and 0 outside [0, 2050]; the star's is
+/// 30, 1300 and 1800 ms.
+double envelope(double ageMs, Look look = Look::PanelDot);
+/// b(t) × (0.45 + 0.55k), the star's × (0.55 + 0.45k).
 double brightness(const Particle &particle, double ageMs);
-/// How far the particle has risen, upward positive, before scaling.
+/// How far the particle has risen, upward positive, before scaling: the
+/// star's H is 30 px, over its own life.
 double rise(const Particle &particle, double ageMs);
 /// smoothstep(0, 700 ms): 0 at birth, so the particle leaves the glyph
 /// straight up and only starts to sway after it.
@@ -102,6 +150,10 @@ double drift(const Particle &particle, double ageMs);
 /// Vertical offset from the birth point, downward positive, before scaling:
 /// the bob minus the rise.
 double fall(const Particle &particle, double ageMs);
+/// f(t), how far the star is into its one twinkle: 0.5 sin²(π (t - t_f) /
+/// 260) within [t_f, t_f + 260] for a star whose q is under 0.1, and 0 for
+/// any other star, at any other age and for the dot.
+double twinkle(const Particle &particle, double ageMs);
 
 struct WordSpan
 {
@@ -121,9 +173,11 @@ struct WordSpan
 /// A word's particles: none for a zero-length token, otherwise 1, 2 or 3
 /// with equal odds, each born within the first min(90, endMs - startMs) ms.
 /// glyphTop is the word's CJK glyph top in the layer, ascent the height of
-/// that glyph above its baseline.
+/// that glyph above its baseline. Stars come 1 to 4, from the same draws in
+/// the same order and four more each after them, and are born 0.063 ×
+/// ascent higher.
 QList<Particle> spawn(qint64 lineStartMs, int wordIndex, const WordSpan &word,
-                      double glyphTop, double ascent);
+                      double glyphTop, double ascent, Look look = Look::PanelDot);
 
 struct LineLayout
 {
@@ -134,6 +188,7 @@ struct LineLayout
     // The CJK ascent at the line's font size.
     double ascent = 0;
     QList<WordSpan> words;
+    Look look = Look::PanelDot;
 };
 
 struct Snapshot
@@ -142,6 +197,8 @@ struct Snapshot
     QString text;
     QList<Particle> particles;
     double lastBirthMs = 0;
+    // Every particle's, and with it how long the last one lives.
+    Look look = Look::PanelDot;
     // What the line was following when it was the current one: the block's
     // slide and the marquee scroll, and the block's opacity. Frozen once the
     // line is detached.
@@ -149,7 +206,7 @@ struct Snapshot
     double offsetY = 0;
     double opacity = 1;
 
-    double aliveUntilMs() const { return lastBirthMs + kLifeMs; }
+    double aliveUntilMs() const { return lastBirthMs + lifeMs(look); }
     bool sameLine(const Snapshot &other) const
     {
         return startMs == other.startMs && text == other.text;
@@ -181,8 +238,8 @@ public:
     /// seek back before the line or past its last particle. A started word
     /// keeps all its particles, even those born within its 90 ms after the
     /// switch; a word not started yet spawns nothing from the copy. So the
-    /// last of it goes out 90 + 2050 ms after positionMs at the latest. The
-    /// current line itself is left alone until
+    /// last of it goes out 90 + 2050 ms after positionMs at the latest, 90 +
+    /// 1800 for stars. The current line itself is left alone until
     /// the next setLive() or dedupe(), which is where a line switch that
     /// turns out to land on the same line again (only the second line
     /// changed) drops that copy, the line going on with all its words.
@@ -236,6 +293,12 @@ struct Sprite
     // s after g(x), in logical pixels.
     double size = 0;
     double brightness = 0;
+
+    Look look = Look::PanelDot;
+    // The star's k, f(t) and the angle of its horizontal ray, θ0 + ω t.
+    double depth = 0;
+    double twinkle = 0;
+    double angle = 0;
 };
 
 /// Where, how large and how bright the particle is at positionMs, following
@@ -253,7 +316,22 @@ double coreSigma(double size, double devicePixel);
 /// 1 at the centre and never rising outwards. At R the halo term reaches 0
 /// with slope 0 and the Gaussian is e^-34 at the full σ; only a sprite whose
 /// σ is held at its floor keeps a little of it there, which p cuts to 0.
-double profile(double r, double radius, double sigma);
+/// The star's core passes its own h of 0.2.
+double profile(double r, double radius, double sigma, double haloStrength = kHaloStrength);
+
+/// The star core's R: 2.2 s, or 3σ where σ's floor makes that larger --
+/// 2.2 s would leave the floored Gaussian a step at R, 3σ leaves about 1%.
+double starHaloRadius(double size, double devicePixel);
+/// L, the star's horizontal ray from its centre to either tip:
+/// s (3.2 + 2.2k)(0.3 + 0.7f). The vertical one is 0.8 L.
+double rayLength(double size, double depth, double twinkle);
+/// A ray's brightness on its axis at u, the distance from the centre over
+/// the ray's length: 1, 0.32, 0.08 and 0 at |u| = 0, 0.24, 0.56 and 1,
+/// linear in between, and 0 past the tip.
+double rayBrightness(double u);
+/// W(u), how far a ray's cross-section reaches either side of its axis:
+/// 0.6 s (1 - |u|), never under one device pixel.
+double rayHalfWidth(double size, double u, double devicePixel);
 
 /// Relative luminance of the sRGB components as they are, no linearisation:
 /// 0.2126R + 0.7152G + 0.0722B >= 0.5 is additive, anything darker is
@@ -293,5 +371,27 @@ constexpr int kIndicesPerSprite = 3 * kRingSegments + 6 * (kRings - 1) * kRingSe
 /// device pixel in logical pixels, for σ's floor.
 void writeSprite(const Sprite &sprite, double red, double green, double blue, bool additive,
                  double devicePixel, Vertex *vertices, quint32 firstVertex, quint32 *indices);
+
+constexpr int kRaySections = 7; // at u = -1, -0.56, -0.24, 0, 0.24, 0.56, 1
+constexpr int kVerticesPerRay = 3 * kRaySections;
+constexpr int kIndicesPerRay = 4 * 3 * (kRaySections - 1);
+constexpr int kVerticesPerStar = kVerticesPerSprite + 2 * kVerticesPerRay;
+constexpr int kIndicesPerStar = kIndicesPerSprite + 2 * kIndicesPerRay;
+
+/// Writes one star's kVerticesPerStar vertices and kIndicesPerStar indices,
+/// like writeSprite: first its core, the dot's rings at R =
+/// starHaloRadius(), with h 0.2 and times 0.7 + 0.3f; then the horizontal
+/// ray, at the sprite's angle, and the vertical one, 0.8 times as long, so
+/// that blended normally the rays lie over the core. Each ray is seven
+/// cross-sections of three vertices -- on the axis rayBrightness(u) times
+/// the colour, the brightness and 0.15 + 0.85f, and at rayHalfWidth(u) on
+/// either side 0 -- with four triangles between neighbours: a ridge, not a
+/// solid diamond, whose edges the scene graph would leave unsmoothed.
+void writeStar(const Sprite &sprite, double red, double green, double blue, bool additive,
+               double devicePixel, Vertex *vertices, quint32 firstVertex, quint32 *indices);
+
+/// What writeSprite or writeStar takes for one particle of this look.
+int vertexCount(Look look);
+int indexCount(Look look);
 
 } // namespace WordParticles

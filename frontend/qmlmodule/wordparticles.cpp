@@ -63,16 +63,99 @@ std::array<quint32, kIndicesPerSprite> spriteIndices()
     return out;
 }
 
+// A ray's cross-sections, tip to tip through the centre, as u.
+constexpr std::array<double, kRaySections> kRaySectionAt = {-1, -0.56, -0.24, 0, 0.24, 0.56, 1};
+
+// One ray's triangles, cross-section i being vertices 3i (on the axis), 3i + 1
+// and 3i + 2 (its two edges): between neighbouring sections a quad on either
+// side of the axis, each cut along the same diagonal.
+std::array<quint32, kIndicesPerRay> rayIndices()
+{
+    std::array<quint32, kIndicesPerRay> out{};
+    quint32 *index = out.data();
+    for (int i = 0; i + 1 < kRaySections; ++i) {
+        const auto axis = static_cast<quint32>(3 * i);
+        const quint32 axisNext = axis + 3;
+        for (quint32 side : {1u, 2u}) {
+            for (quint32 vertex : {axis, axis + side, axisNext + side, axis, axisNext + side, axisNext}) {
+                *index++ = vertex;
+            }
+        }
+    }
+    return out;
+}
+
 unsigned char toByte(double value)
 {
     return static_cast<unsigned char>(std::lround(std::clamp(value, 0.0, 1.0) * 255));
+}
+
+bool isStar(const Particle &particle)
+{
+    return particle.look == Look::DesktopStar;
 }
 
 // The factor every length of one particle is scaled by before its own
 // fontSize scaling: the smaller (dimmer) ones also rise and sway less.
 double depthScale(const Particle &particle)
 {
-    return 0.6 + 0.4 * depth(particle.size);
+    return 0.6 + 0.4 * depth(particle);
+}
+
+// A: the amplitude of the wander, the current and the bob.
+double sway(const Particle &particle)
+{
+    return (isStar(particle) ? kStarSway : kSway) * depthScale(particle);
+}
+
+// The centre vertex and the rings around it, carrying p (with halo strength
+// h, over radius R) times amount.
+void writeGlow(double x, double y, double radius, double sigma, double haloStrength, double amount,
+               double red, double green, double blue, bool additive,
+               Vertex *vertices, quint32 firstVertex, quint32 *indices)
+{
+    static const auto circle = unitCircle<kRingSegments>();
+    static const auto rings = ringFractions();
+    static const auto pattern = spriteIndices();
+
+    *vertices++ = colourVertex(x, y, red, green, blue, amount, additive);
+    for (int ring = 0; ring < kRings; ++ring) {
+        // The last fraction is exactly 1, so the outermost ring is at R and
+        // p gives it 0.
+        const double r = radius * rings[ring];
+        const Vertex shade = colourVertex(0, 0, red, green, blue,
+                                          profile(r, radius, sigma, haloStrength) * amount, additive);
+        for (int i = 0; i < kRingSegments; ++i) {
+            Vertex vertex = shade;
+            vertex.x = static_cast<float>(x + r * circle[2 * i]);
+            vertex.y = static_cast<float>(y + r * circle[2 * i + 1]);
+            *vertices++ = vertex;
+        }
+    }
+    for (int i = 0; i < kIndicesPerSprite; ++i) {
+        indices[i] = firstVertex + pattern[i];
+    }
+}
+
+// One ray through (x, y) along the unit direction (dx, dy), length from the
+// centre to either tip.
+void writeRay(double x, double y, double dx, double dy, double length, double size, double devicePixel,
+              double amount, double red, double green, double blue, bool additive,
+              Vertex *vertices, quint32 firstVertex, quint32 *indices)
+{
+    static const auto pattern = rayIndices();
+
+    for (double u : kRaySectionAt) {
+        const double axisX = x + u * length * dx;
+        const double axisY = y + u * length * dy;
+        const double halfWidth = rayHalfWidth(size, u, devicePixel);
+        *vertices++ = colourVertex(axisX, axisY, red, green, blue, rayBrightness(u) * amount, additive);
+        *vertices++ = colourVertex(axisX - halfWidth * dy, axisY + halfWidth * dx, red, green, blue, 0, additive);
+        *vertices++ = colourVertex(axisX + halfWidth * dy, axisY - halfWidth * dx, red, green, blue, 0, additive);
+    }
+    for (int i = 0; i < kIndicesPerRay; ++i) {
+        indices[i] = firstVertex + pattern[i];
+    }
 }
 
 } // namespace
@@ -107,29 +190,45 @@ double depth(double size)
     return (size - 1) / 3;
 }
 
-double envelope(double ageMs)
+double depth(const Particle &particle)
 {
-    if (ageMs <= 0 || ageMs >= kLifeMs) {
+    return isStar(particle) ? particle.starDepth : depth(particle.size);
+}
+
+double lifeMs(Look look)
+{
+    return look == Look::DesktopStar ? kStarLifeMs : kLifeMs;
+}
+
+double envelope(double ageMs, Look look)
+{
+    const bool star = look == Look::DesktopStar;
+    const double life = lifeMs(look);
+    const double fadeIn = star ? kStarFadeInMs : kFadeInMs;
+    const double fadeOutFrom = star ? kStarFadeOutFromMs : kFadeOutFromMs;
+    if (ageMs <= 0 || ageMs >= life) {
         return 0;
     }
-    if (ageMs < kFadeInMs) {
-        return ageMs / kFadeInMs;
+    if (ageMs < fadeIn) {
+        return ageMs / fadeIn;
     }
-    if (ageMs <= kFadeOutFromMs) {
+    if (ageMs <= fadeOutFrom) {
         return 1;
     }
-    return (kLifeMs - ageMs) / (kLifeMs - kFadeOutFromMs);
+    return (life - ageMs) / (life - fadeOutFrom);
 }
 
 double brightness(const Particle &particle, double ageMs)
 {
-    return envelope(ageMs) * (0.45 + 0.55 * depth(particle.size));
+    const double k = depth(particle);
+    return envelope(ageMs, particle.look) * (isStar(particle) ? 0.55 + 0.45 * k : 0.45 + 0.55 * k);
 }
 
 double rise(const Particle &particle, double ageMs)
 {
-    const double u = std::clamp(ageMs / kLifeMs, 0.0, 1.0);
-    return kRiseHeight * depthScale(particle) * (1 + 0.25 * particle.jitter) * (1 - (1 - u) * (1 - u));
+    const double u = std::clamp(ageMs / lifeMs(particle.look), 0.0, 1.0);
+    const double height = isStar(particle) ? kStarRiseHeight : kRiseHeight;
+    return height * depthScale(particle) * (1 + 0.25 * particle.jitter) * (1 - (1 - u) * (1 - u));
 }
 
 double swayRamp(double ageMs)
@@ -140,7 +239,7 @@ double swayRamp(double ageMs)
 
 double wander(const Particle &particle, double ageMs)
 {
-    const double a = kSway * depthScale(particle);
+    const double a = sway(particle);
     const double turn = kTwoPi * ageMs / particle.periodMs;
     return swayRamp(ageMs) * a * particle.amplitude * 2
         * (0.62 * std::sin(turn + particle.phase1)
@@ -150,7 +249,7 @@ double wander(const Particle &particle, double ageMs)
 
 double wind(const Particle &particle, double ageMs)
 {
-    const double a = kSway * depthScale(particle);
+    const double a = sway(particle);
     const double omega = kTwoPi / kWindPeriodMs;
     const double psi = kWindPhasePerPixel * particle.x;
     return 1.2 * a * (std::cos(omega * particle.birthMs + psi) - std::cos(omega * (particle.birthMs + ageMs) + psi));
@@ -163,38 +262,63 @@ double drift(const Particle &particle, double ageMs)
 
 double fall(const Particle &particle, double ageMs)
 {
-    const double a = kSway * depthScale(particle);
+    const double a = sway(particle);
     const double bob = swayRamp(ageMs) * a * 0.35
         * std::sin(kTwoPi * ageMs / (0.8 * particle.periodMs) + particle.phase2);
     return bob - rise(particle, ageMs);
 }
 
+double twinkle(const Particle &particle, double ageMs)
+{
+    if (!isStar(particle) || particle.twinkleDraw >= kTwinkleOdds) {
+        return 0;
+    }
+    const double into = ageMs - particle.twinkleFromMs;
+    if (into < 0 || into > kTwinkleMs) {
+        return 0;
+    }
+    const double wave = std::sin(std::numbers::pi * into / kTwinkleMs);
+    return kTwinklePeak * wave * wave;
+}
+
 QList<Particle> spawn(qint64 lineStartMs, int wordIndex, const WordSpan &word,
-                      double glyphTop, double ascent)
+                      double glyphTop, double ascent, Look look)
 {
     QList<Particle> out;
     if (word.endMs <= word.startMs) {
         return out;
     }
+    const bool star = look == Look::DesktopStar;
     Random random(seedFor(lineStartMs, wordIndex));
-    const int count = 1 + std::min(2, static_cast<int>(random.unit() * 3));
+    const int count = star ? 1 + std::min(3, static_cast<int>(random.unit() * 4))
+                           : 1 + std::min(2, static_cast<int>(random.unit() * 3));
     const double spreadMs = std::min(kBirthSpreadMs, static_cast<double>(word.endMs - word.startMs));
     out.reserve(count);
     // One fixed order of draws per particle: reordering these reshuffles
-    // every particle of every line.
+    // every particle of every line. A star takes the dot's, then four more.
     for (int i = 0; i < count; ++i) {
         Particle p;
+        p.look = look;
         p.wordStartMs = static_cast<double>(word.startMs);
         p.birthMs = word.startMs + random.unit() * spreadMs;
-        p.size = std::pow(kMaxSize, random.unit());
+        const double sizeDraw = random.unit();
+        p.size = star ? kStarMinSize * std::pow(kStarSizeRange, sizeDraw) : std::pow(kMaxSize, sizeDraw);
         p.x = word.left + word.width * (kInkFrom + (kInkTo - kInkFrom) * random.unit());
-        p.y = glyphTop + ascent * kBirthDepth * random.unit();
+        p.y = star ? glyphTop + ascent * (kBirthDepth * random.unit() - kStarBirthLift)
+                   : glyphTop + ascent * kBirthDepth * random.unit();
         p.jitter = 2 * random.unit() - 1;
         p.amplitude = 0.6 + 0.8 * random.unit();
         p.periodMs = 1400 + 800 * random.unit();
         p.phase1 = kTwoPi * random.unit();
         p.phase2 = kTwoPi * random.unit();
         p.phase3 = kTwoPi * random.unit();
+        if (star) {
+            p.starDepth = depth(std::pow(kMaxSize, sizeDraw));
+            p.twinkleDraw = random.unit();
+            p.twinkleFromMs = kTwinkleFromMs + kTwinkleSpreadMs * random.unit();
+            p.angle = kStarAngle * (2 * random.unit() - 1);
+            p.spin = kStarSpin * (2 * random.unit() - 1);
+        }
         out.append(p);
     }
     return out;
@@ -205,10 +329,11 @@ Snapshot capture(const LineLayout &line)
     Snapshot snapshot;
     snapshot.startMs = line.startMs;
     snapshot.text = line.text;
+    snapshot.look = line.look;
     snapshot.lastBirthMs = -std::numeric_limits<double>::infinity();
     for (int i = 0; i < line.words.size(); ++i) {
         const WordSpan &word = line.words.at(i);
-        const QList<Particle> born = spawn(line.startMs, i, word, word.top, line.ascent);
+        const QList<Particle> born = spawn(line.startMs, i, word, word.top, line.ascent, line.look);
         for (const Particle &p : born) {
             snapshot.lastBirthMs = std::max(snapshot.lastBirthMs, p.birthMs);
         }
@@ -344,6 +469,10 @@ bool evaluate(const Particle &particle, double positionMs, double scale,
     sprite->y = particle.y + offsetY + scale * fall(particle, ageMs);
     sprite->size = sizeScale(scale) * particle.size;
     sprite->brightness = amount;
+    sprite->look = particle.look;
+    sprite->depth = depth(particle);
+    sprite->twinkle = twinkle(particle, ageMs);
+    sprite->angle = particle.angle + particle.spin * ageMs / 1000;
     return true;
 }
 
@@ -362,14 +491,43 @@ double coreSigma(double size, double devicePixel)
     return std::max(size, kCoreMinWidth * devicePixel) / kHalfWidthPerSigma;
 }
 
-double profile(double r, double radius, double sigma)
+double profile(double r, double radius, double sigma, double haloStrength)
 {
     if (r >= radius) {
         return 0;
     }
     const double q = r / radius;
     const double halo = (1 - q * q) * (1 - q * q);
-    return (std::exp(-r * r / (2 * sigma * sigma)) + kHaloStrength * halo) / (1 + kHaloStrength);
+    return (std::exp(-r * r / (2 * sigma * sigma)) + haloStrength * halo) / (1 + haloStrength);
+}
+
+double starHaloRadius(double size, double devicePixel)
+{
+    return std::max(kStarHaloRadius * size, kStarHaloSigmas * coreSigma(size, devicePixel));
+}
+
+double rayLength(double size, double depth, double twinkle)
+{
+    return size * (3.2 + 2.2 * depth) * (0.3 + 0.7 * twinkle);
+}
+
+double rayBrightness(double u)
+{
+    // (|u|, brightness) at each knot, from the centre out.
+    static constexpr double knots[][2] = {{0, 1}, {0.24, 0.32}, {0.56, 0.08}, {1, 0}};
+    const double at = std::abs(u);
+    for (std::size_t i = 0; i + 1 < std::size(knots); ++i) {
+        if (at <= knots[i + 1][0]) {
+            const double t = (at - knots[i][0]) / (knots[i + 1][0] - knots[i][0]);
+            return (1 - t) * knots[i][1] + t * knots[i + 1][1];
+        }
+    }
+    return 0;
+}
+
+double rayHalfWidth(double size, double u, double devicePixel)
+{
+    return std::max(kRayHalfWidth * size * (1 - std::abs(u)), devicePixel);
 }
 
 bool isAdditive(double red, double green, double blue)
@@ -388,29 +546,38 @@ Vertex colourVertex(double x, double y, double red, double green, double blue,
 void writeSprite(const Sprite &sprite, double red, double green, double blue, bool additive,
                  double devicePixel, Vertex *vertices, quint32 firstVertex, quint32 *indices)
 {
-    static const auto circle = unitCircle<kRingSegments>();
-    static const auto rings = ringFractions();
-    static const auto pattern = spriteIndices();
+    writeGlow(sprite.x, sprite.y, kHaloRadius * sprite.size, coreSigma(sprite.size, devicePixel), kHaloStrength,
+              sprite.brightness, red, green, blue, additive, vertices, firstVertex, indices);
+}
 
-    const double radius = kHaloRadius * sprite.size;
-    const double sigma = coreSigma(sprite.size, devicePixel);
-    *vertices++ = colourVertex(sprite.x, sprite.y, red, green, blue, sprite.brightness, additive);
-    for (int ring = 0; ring < kRings; ++ring) {
-        // The last fraction is exactly 1, so the outermost ring is at R and
-        // p gives it 0.
-        const double r = radius * rings[ring];
-        const Vertex shade = colourVertex(0, 0, red, green, blue,
-                                          profile(r, radius, sigma) * sprite.brightness, additive);
-        for (int i = 0; i < kRingSegments; ++i) {
-            Vertex vertex = shade;
-            vertex.x = static_cast<float>(sprite.x + r * circle[2 * i]);
-            vertex.y = static_cast<float>(sprite.y + r * circle[2 * i + 1]);
-            *vertices++ = vertex;
-        }
-    }
-    for (int i = 0; i < kIndicesPerSprite; ++i) {
-        indices[i] = firstVertex + pattern[i];
-    }
+void writeStar(const Sprite &sprite, double red, double green, double blue, bool additive,
+               double devicePixel, Vertex *vertices, quint32 firstVertex, quint32 *indices)
+{
+    const double f = sprite.twinkle;
+    writeGlow(sprite.x, sprite.y, starHaloRadius(sprite.size, devicePixel), coreSigma(sprite.size, devicePixel),
+              kStarHaloStrength, sprite.brightness * (0.7 + 0.3 * f), red, green, blue, additive,
+              vertices, firstVertex, indices);
+    const double length = rayLength(sprite.size, sprite.depth, f);
+    const double amount = sprite.brightness * (0.15 + 0.85 * f);
+    const double dx = std::cos(sprite.angle);
+    const double dy = std::sin(sprite.angle);
+    quint32 first = firstVertex + kVerticesPerSprite;
+    writeRay(sprite.x, sprite.y, dx, dy, length, sprite.size, devicePixel, amount, red, green, blue, additive,
+             vertices + kVerticesPerSprite, first, indices + kIndicesPerSprite);
+    first += kVerticesPerRay;
+    writeRay(sprite.x, sprite.y, -dy, dx, kVerticalRay * length, sprite.size, devicePixel, amount,
+             red, green, blue, additive, vertices + kVerticesPerSprite + kVerticesPerRay, first,
+             indices + kIndicesPerSprite + kIndicesPerRay);
+}
+
+int vertexCount(Look look)
+{
+    return look == Look::DesktopStar ? kVerticesPerStar : kVerticesPerSprite;
+}
+
+int indexCount(Look look)
+{
+    return look == Look::DesktopStar ? kIndicesPerStar : kIndicesPerSprite;
 }
 
 } // namespace WordParticles
