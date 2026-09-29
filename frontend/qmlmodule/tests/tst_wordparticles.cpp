@@ -36,6 +36,23 @@ class WordParticlesTest : public QObject
         return out;
     }
 
+    // The same, as the desktop's stars.
+    static QList<Particle> manyStars(int words)
+    {
+        QList<Particle> out;
+        for (int i = 0; i < words; ++i) {
+            out.append(spawn(123456, i, span(i * 300, i * 300 + 250), 10, 30, Look::DesktopStar));
+        }
+        return out;
+    }
+
+    // p(r) as decision 77 writes it, for a halo of strength h.
+    static double restatedProfile(double r, double radius, double sigma, double h)
+    {
+        const double q = r / radius;
+        return (std::exp(-r * r / (2 * sigma * sigma)) + h * (1 - q * q) * (1 - q * q)) / (1 + h);
+    }
+
     static Snapshot snapshotAt(qint64 startMs, const QString &text, qint64 wordMs = 250)
     {
         LineLayout line;
@@ -1023,6 +1040,652 @@ private Q_SLOTS:
                     covering += inside(t, x, y);
                 }
                 QVERIFY2(covering == 1, qPrintable(QStringLiteral("%1 at r %2, angle %3").arg(covering).arg(r).arg(angle)));
+            }
+        }
+    }
+
+    // The desktop's star takes the dot's draws in the dot's order, only the
+    // count mapped to four and the size and height to its own ranges, and
+    // then q, τ, θ0 and ω, in that order, before the next particle's.
+    void aStarDrawsTheDotsDrawsThenFourMore()
+    {
+        const WordSpan word = span(1000, 1300, 50, 40);
+        const QList<Particle> first = spawn(777, 3, word, 5, 30, Look::DesktopStar);
+        const QList<Particle> second = spawn(777, 3, word, 5, 30, Look::DesktopStar);
+        QCOMPARE(first.size(), second.size());
+        for (int i = 0; i < first.size(); ++i) {
+            QVERIFY(first.at(i).look == Look::DesktopStar);
+            QCOMPARE(first.at(i).birthMs, second.at(i).birthMs);
+            QCOMPARE(first.at(i).size, second.at(i).size);
+            QCOMPARE(first.at(i).y, second.at(i).y);
+            QCOMPARE(first.at(i).starDepth, second.at(i).starDepth);
+            QCOMPARE(first.at(i).twinkleDraw, second.at(i).twinkleDraw);
+            QCOMPARE(first.at(i).twinkleFromMs, second.at(i).twinkleFromMs);
+            QCOMPARE(first.at(i).angle, second.at(i).angle);
+            QCOMPARE(first.at(i).spin, second.at(i).spin);
+        }
+
+        // Every draw restated from the generator itself, for a word of four
+        // stars and one of a single star, and the same word's dots.
+        int fours = 0;
+        for (int wordIndex = 0; wordIndex < 40; ++wordIndex) {
+            const WordSpan sung = span(2000, 2400, 10, 60);
+            const QList<Particle> stars = spawn(4242, wordIndex, sung, 20, 40, Look::DesktopStar);
+            const QList<Particle> dots = spawn(4242, wordIndex, sung, 20, 40);
+            Random random(seedFor(4242, wordIndex));
+            const double countDraw = random.unit();
+            QCOMPARE(stars.size(), 1 + static_cast<int>(countDraw * 4));
+            QCOMPARE(dots.size(), 1 + static_cast<int>(countDraw * 3));
+            fours += stars.size() == 4;
+            for (const Particle &p : stars) {
+                QCOMPARE(p.birthMs, 2000 + random.unit() * 90);
+                const double r = random.unit();
+                QCOMPARE(p.size, 1.4 * std::pow(2.5, r));
+                QCOMPARE(p.starDepth, (std::pow(4.0, r) - 1) / 3);
+                QCOMPARE(p.x, 10 + 60 * (0.1 + 0.8 * random.unit()));
+                QCOMPARE(p.y, 20 + 40 * (0.35 * random.unit() - 0.063));
+                QCOMPARE(p.jitter, 2 * random.unit() - 1);
+                QCOMPARE(p.amplitude, 0.6 + 0.8 * random.unit());
+                QCOMPARE(p.periodMs, 1400 + 800 * random.unit());
+                QCOMPARE(p.phase1, 2 * std::numbers::pi * random.unit());
+                QCOMPARE(p.phase2, 2 * std::numbers::pi * random.unit());
+                QCOMPARE(p.phase3, 2 * std::numbers::pi * random.unit());
+                QCOMPARE(p.twinkleDraw, random.unit());
+                QCOMPARE(p.twinkleFromMs, 350 + 850 * random.unit());
+                QCOMPARE(p.angle, 0.35 * (2 * random.unit() - 1));
+                QCOMPARE(p.spin, 0.4 * (2 * random.unit() - 1));
+            }
+            // The first star shares all of the first dot's draws.
+            QCOMPARE(stars.first().birthMs, dots.first().birthMs);
+            QCOMPARE(stars.first().x, dots.first().x);
+            QCOMPARE(stars.first().jitter, dots.first().jitter);
+            QCOMPARE(stars.first().phase3, dots.first().phase3);
+            QVERIFY(std::abs(stars.first().starDepth - depth(dots.first().size)) < 1e-12);
+        }
+        QVERIFY(fours > 0);
+    }
+
+    void eachWordSpawnsOneToFourStarsWithEqualOdds()
+    {
+        int counts[5] = {0, 0, 0, 0, 0};
+        const int words = 8000;
+        for (int i = 0; i < words; ++i) {
+            const qsizetype n = spawn(98765, i, span(i * 300, i * 300 + 250), 10, 30, Look::DesktopStar).size();
+            QVERIFY(n >= 1 && n <= 4);
+            ++counts[n];
+        }
+        for (int n = 1; n <= 4; ++n) {
+            QVERIFY2(std::abs(counts[n] / double(words) - 0.25) < 0.03,
+                     qPrintable(QStringLiteral("%1: %2").arg(n).arg(counts[n])));
+        }
+        // Zero-length tokens and the 90 ms birth window are the dot's.
+        QVERIFY(spawn(0, 0, span(500, 500), 0, 30, Look::DesktopStar).isEmpty());
+        for (int i = 0; i < 500; ++i) {
+            for (const Particle &p : spawn(2, i, span(10000, 10040), 0, 30, Look::DesktopStar)) {
+                QVERIFY(p.birthMs >= 10000 && p.birthMs < 10040);
+            }
+        }
+    }
+
+    // s = 1.4 × 2.5^r: log2.5(s / 1.4) uniform over [0, 1), the same r
+    // giving k = (4^r - 1) / 3 -- the dot's k for that draw, not (s - 1) / 3.
+    void starSizesAreLogUniformBetweenOnePointFourAndThreePointFive()
+    {
+        const QList<Particle> stars = manyStars(8000);
+        int buckets[4] = {0, 0, 0, 0};
+        double smallest = 9;
+        double largest = 0;
+        for (const Particle &p : stars) {
+            QVERIFY(p.size >= 1.4);
+            QVERIFY(p.size < 3.5);
+            smallest = std::min(smallest, p.size);
+            largest = std::max(largest, p.size);
+            const double r = std::log(p.size / 1.4) / std::log(2.5);
+            ++buckets[std::min(3, static_cast<int>(r * 4))];
+            QVERIFY(std::abs(p.starDepth - (std::pow(4.0, r) - 1) / 3) < 1e-9);
+            QVERIFY(p.starDepth >= 0 && p.starDepth < 1);
+            QCOMPARE(depth(p), p.starDepth);
+        }
+        const double n = stars.size();
+        for (int bucket : buckets) {
+            QVERIFY2(std::abs(bucket / n - 0.25) < 0.02, qPrintable(QString::number(bucket / n)));
+        }
+        QVERIFY(smallest < 1.41);
+        QVERIFY(largest > 3.49);
+
+        // k from the draw, not from s: a star of s = 2.5 has k of about
+        // 0.47, where a dot of that size has 0.5.
+        Particle star;
+        star.look = Look::DesktopStar;
+        star.size = 2.5;
+        star.starDepth = 0.25;
+        QCOMPARE(depth(star), 0.25);
+        Particle dot;
+        dot.size = 2.5;
+        QCOMPARE(depth(dot), 0.5);
+    }
+
+    // The dot's band, moved up by 0.063 of the CJK ascent: from 6.3% above
+    // the glyph top to 28.7% below it. Across the ink as the dot.
+    void starsAreBornInABandRaisedByAFractionOfTheAscent()
+    {
+        double highest = 1e9;
+        double deepest = -1e9;
+        double leftmost = 1e9;
+        double rightmost = -1e9;
+        for (int i = 0; i < 2000; ++i) {
+            for (const Particle &p : spawn(5, i, span(0, 300, 100, 50), 20, 40, Look::DesktopStar)) {
+                QVERIFY(p.y >= 20 - 0.063 * 40);
+                QVERIFY(p.y < 20 + 0.287 * 40);
+                QVERIFY(p.x >= 105 && p.x < 145);
+                highest = std::min(highest, p.y);
+                deepest = std::max(deepest, p.y);
+                leftmost = std::min(leftmost, p.x);
+                rightmost = std::max(rightmost, p.x);
+            }
+        }
+        QVERIFY(highest < 20 - 0.063 * 40 + 0.02);
+        QVERIFY(deepest > 20 + 0.287 * 40 - 0.02);
+        QVERIFY(leftmost < 105.2);
+        QVERIFY(rightmost > 144.8);
+        // capture() hands the line's look to every word.
+        LineLayout line;
+        line.look = Look::DesktopStar;
+        line.ascent = 40;
+        for (int i = 0; i < 40; ++i) {
+            WordSpan word = span(i * 100, i * 100 + 100, i * 40, 40);
+            word.top = 60;
+            line.words.append(word);
+        }
+        const Snapshot snapshot = capture(line);
+        QVERIFY(snapshot.look == Look::DesktopStar);
+        QVERIFY(snapshot.particles.size() > 40);
+        bool anyAboveTheTop = false;
+        for (const Particle &p : snapshot.particles) {
+            QVERIFY(p.look == Look::DesktopStar);
+            QVERIFY(p.y >= 60 - 0.063 * 40 && p.y < 60 + 0.287 * 40);
+            anyAboveTheTop = anyAboveTheTop || p.y < 60;
+        }
+        QVERIFY(anyAboveTheTop);
+    }
+
+    // b(t): up over 30 ms, held to 1300 ms, down to 0 at 1800 ms, times
+    // 0.55 + 0.45k.
+    void starBrightnessRisesHoldsAndFades()
+    {
+        const Look star = Look::DesktopStar;
+        QCOMPARE(kStarLifeMs, 1800.0);
+        QCOMPARE(lifeMs(star), 1800.0);
+        QCOMPARE(lifeMs(Look::PanelDot), 2050.0);
+        QCOMPARE(envelope(-10, star), 0.0);
+        QCOMPARE(envelope(0, star), 0.0);
+        QCOMPARE(envelope(15, star), 0.5);
+        QCOMPARE(envelope(30, star), 1.0);
+        QCOMPARE(envelope(800, star), 1.0);
+        QCOMPARE(envelope(1300, star), 1.0);
+        QCOMPARE(envelope(1550, star), 0.5);
+        QCOMPARE(envelope(1800, star), 0.0);
+        QCOMPARE(envelope(2000, star), 0.0);
+
+        Particle p;
+        p.look = star;
+        p.size = 1.4;
+        p.starDepth = 0;
+        QCOMPARE(brightness(p, 800), 0.55);
+        p.starDepth = 1;
+        QCOMPARE(brightness(p, 800), 1.0);
+        QCOMPARE(brightness(p, 15), 0.5);
+        QCOMPARE(brightness(p, 1800), 0.0);
+        p.starDepth = 0.5;
+        QCOMPARE(brightness(p, 800), 0.55 + 0.45 * 0.5);
+        QCOMPARE(brightness(p, 1550), 0.5 * (0.55 + 0.45 * 0.5));
+    }
+
+    // H = 30 over u = t / 1800, A = 1.2 (0.6 + 0.4k), k being the star's
+    // own; the rest is the dot's formula.
+    void starsRiseAndSwayByTheirOwnConstants()
+    {
+        Particle p;
+        p.look = Look::DesktopStar;
+        p.birthMs = 61234;
+        p.x = 317;
+        p.size = 3.1; // k would be 0.7 from this s; the star's own is 0.3
+        p.starDepth = 0.3;
+        p.jitter = -0.3;
+        p.amplitude = 1.1;
+        p.periodMs = 1800;
+        p.phase1 = 0.7;
+        p.phase2 = 2.2;
+        p.phase3 = 4.9;
+        const double k = 0.3;
+        const double a = 1.2 * (0.6 + 0.4 * k);
+        QCOMPARE(drift(p, 0), 0.0);
+        QCOMPARE(fall(p, 0), 0.0);
+        for (double t : {100.0, 450.0, 1200.0, 1790.0}) {
+            const double x = std::min(1.0, t / 700);
+            const double ramp = x * x * (3 - 2 * x);
+            const double w = ramp * a * 1.1 * 2
+                * (0.62 * std::sin(2 * std::numbers::pi * t / 1800 + 0.7)
+                   + 0.28 * std::sin(2 * std::numbers::pi * 1.73 * t / 1800 + 2.2)
+                   + 0.10 * std::sin(2 * std::numbers::pi * 2.9 * t / 1800 + 4.9));
+            const double omega = 2 * std::numbers::pi / 3400;
+            const double psi = 0.012 * 317;
+            const double current = 1.2 * a * (std::cos(omega * 61234 + psi) - std::cos(omega * (61234 + t) + psi));
+            QVERIFY(std::abs(wander(p, t) - w) < 1e-9);
+            QVERIFY(std::abs(wind(p, t) - current) < 1e-9);
+            QVERIFY(std::abs(drift(p, t) - (current + 0.5 * w)) < 1e-9);
+            const double bob = ramp * a * 0.35 * std::sin(2 * std::numbers::pi * t / (0.8 * 1800) + 2.2);
+            const double u = t / 1800;
+            const double up = 30 * (0.6 + 0.4 * k) * (1 - 0.25 * 0.3) * (1 - (1 - u) * (1 - u));
+            QVERIFY(std::abs(rise(p, t) - up) < 1e-9);
+            QVERIFY(std::abs(fall(p, t) - (bob - up)) < 1e-9);
+        }
+        // Still rising when it goes out, and no further after.
+        QVERIFY(rise(p, 1790) > rise(p, 1700));
+        QCOMPARE(rise(p, 1800), 30 * (0.6 + 0.4 * k) * (1 - 0.25 * 0.3));
+        QCOMPARE(rise(p, 2500), rise(p, 1800));
+    }
+
+    // Exactly the stars whose q is under 0.1 twinkle, once, only within
+    // [t_f, t_f + 260]: f = 0.5 sin²(π (t - t_f) / 260), peaking at 0.5
+    // half-way, 0 at birth. The dot never does.
+    void oneStarInTenTwinklesOnceInItsFlight()
+    {
+        const QList<Particle> stars = manyStars(2000);
+        int twinkling = 0;
+        double earliest = 1e9;
+        double latest = 0;
+        for (const Particle &p : stars) {
+            QVERIFY(p.twinkleDraw >= 0 && p.twinkleDraw < 1);
+            QVERIFY(p.twinkleFromMs >= 350 && p.twinkleFromMs < 1200);
+            earliest = std::min(earliest, p.twinkleFromMs);
+            latest = std::max(latest, p.twinkleFromMs);
+            QCOMPARE(twinkle(p, 0), 0.0);
+            const bool twinkles = p.twinkleDraw < 0.1;
+            twinkling += twinkles;
+            double peak = 0;
+            // Every millisecond of its life, so a plain check per step.
+            for (double t = 0; t <= 1800; t += 1) {
+                const double f = twinkle(p, t);
+                const bool within = twinkles && t >= p.twinkleFromMs && t <= p.twinkleFromMs + 260;
+                const double wave = within ? std::sin(std::numbers::pi * (t - p.twinkleFromMs) / 260) : 0;
+                if (f < 0 || f > 0.5 || (within ? std::abs(f - 0.5 * wave * wave) > 1e-12 : f != 0)) {
+                    QFAIL(qPrintable(QStringLiteral("%1 at %2").arg(f).arg(t)));
+                }
+                peak = std::max(peak, f);
+            }
+            if (twinkles) {
+                QVERIFY(peak > 0.4999);
+                QVERIFY(std::abs(twinkle(p, p.twinkleFromMs + 130) - 0.5) < 1e-12);
+                QVERIFY(twinkle(p, p.twinkleFromMs) < 1e-12);
+                QVERIFY(twinkle(p, p.twinkleFromMs + 260) < 1e-12);
+            }
+        }
+        const double n = stars.size();
+        QVERIFY2(std::abs(twinkling / n - 0.1) < 0.015, qPrintable(QString::number(twinkling / n)));
+        QVERIFY(earliest < 352);
+        QVERIFY(latest > 1198);
+
+        // The boundary: q of exactly 0.1 does not.
+        Particle edge;
+        edge.look = Look::DesktopStar;
+        edge.twinkleFromMs = 500;
+        edge.twinkleDraw = 0.1;
+        QCOMPARE(twinkle(edge, 630), 0.0);
+        edge.twinkleDraw = std::nextafter(0.1, 0.0);
+        QVERIFY(twinkle(edge, 630) > 0.4999);
+        Particle dot;
+        dot.twinkleDraw = 0;
+        dot.twinkleFromMs = 500;
+        QCOMPARE(twinkle(dot, 630), 0.0);
+    }
+
+    // R = max(2.2 s, 3σ): 2.2 s whenever σ is the core's own, 3σ once σ's
+    // floor of 1.5 device pixels holds it wider.
+    void theStarsCoreRadiusIsTheLargerOfTwoPointTwoSizesAndThreeSigmas()
+    {
+        QCOMPARE(starHaloRadius(3.5, 1), 2.2 * 3.5);
+        QCOMPARE(starHaloRadius(1.4, 1), 2.2 * 1.4);
+        QCOMPARE(starHaloRadius(1.4, 0.5), 2.2 * 1.4);
+        // Floored: σ = 1.5 / 2.355, 3σ = 1.91 against 2.2 × 0.6 = 1.32.
+        QCOMPARE(starHaloRadius(0.6, 1), 3 * 1.5 / 2.355);
+        // At ratio 2 the floor is 0.75 logical pixels: 3σ = 0.96, 2.2 s wins.
+        QCOMPARE(starHaloRadius(0.6, 0.5), 2.2 * 0.6);
+        QCOMPARE(starHaloRadius(0.3, 0.5), 3 * 0.75 / 2.355);
+        for (double s = 0.1; s < 4; s += 0.01) {
+            for (double devicePixel : {1.0, 0.5}) {
+                const double sigma = coreSigma(s, devicePixel);
+                QCOMPARE(starHaloRadius(s, devicePixel), std::max(2.2 * s, 3 * sigma));
+                // At 3σ the Gaussian is down to about 1%.
+                QVERIFY(std::exp(-std::pow(starHaloRadius(s, devicePixel), 2) / (2 * sigma * sigma)) < 0.012);
+            }
+        }
+    }
+
+    // L = s (3.2 + 2.2k)(0.3 + 0.7f), the vertical 0.8 L; on the axis 1,
+    // 0.32, 0.08 and 0 at |u| = 0, 0.24, 0.56 and 1, linear in between;
+    // across it W(u) = 0.6 s (1 - |u|), never under one device pixel.
+    void theRaysFollowTheirFormulas()
+    {
+        QCOMPARE(rayLength(2, 0, 0), 2 * 3.2 * 0.3);
+        QCOMPARE(rayLength(2, 1, 0.5), 2 * 5.4 * 0.65);
+        QVERIFY(std::abs(rayLength(3, 0.4, 0.2) - 3 * (3.2 + 2.2 * 0.4) * (0.3 + 0.7 * 0.2)) < 1e-12);
+        // Resting at 30% of the longest, at 65% when the twinkle peaks.
+        QVERIFY(std::abs(rayLength(3, 0.4, 0) / rayLength(3, 0.4, 1) - 0.3) < 1e-12);
+        QVERIFY(std::abs(rayLength(3, 0.4, 0.5) / rayLength(3, 0.4, 1) - 0.65) < 1e-12);
+
+        const double knots[][2] = {{0, 1}, {0.24, 0.32}, {0.56, 0.08}, {1, 0}};
+        for (const auto &knot : knots) {
+            QCOMPARE(rayBrightness(knot[0]), knot[1]);
+            QCOMPARE(rayBrightness(-knot[0]), knot[1]);
+        }
+        QVERIFY(std::abs(rayBrightness(0.12) - 0.66) < 1e-12);
+        QVERIFY(std::abs(rayBrightness(-0.4) - 0.2) < 1e-12);
+        QVERIFY(std::abs(rayBrightness(0.78) - 0.04) < 1e-12);
+        QCOMPARE(rayBrightness(1.2), 0.0);
+        QCOMPARE(rayBrightness(-3), 0.0);
+        double last = 1;
+        for (double u = 0; u <= 1; u += 0.001) {
+            QVERIFY(rayBrightness(u) <= last);
+            last = rayBrightness(u);
+        }
+
+        QCOMPARE(rayHalfWidth(3, 0, 1), 0.6 * 3);
+        QVERIFY(std::abs(rayHalfWidth(3, 0.24, 1) - 0.6 * 3 * 0.76) < 1e-12);
+        QVERIFY(std::abs(rayHalfWidth(3, -0.24, 1) - 0.6 * 3 * 0.76) < 1e-12);
+        QCOMPARE(rayHalfWidth(3, 1, 1), 1.0);
+        QCOMPARE(rayHalfWidth(3, 0.56, 1), 1.0); // 0.79 held at a pixel
+        QCOMPARE(rayHalfWidth(3, 0.56, 0.5), 0.6 * 3 * (1 - 0.56));
+        QCOMPARE(rayHalfWidth(3, 1, 0.5), 0.5);
+        QCOMPARE(rayHalfWidth(0.5, 0, 1), 1.0);
+    }
+
+    // A star in flight: the size after g(x), the brightness with the line's
+    // opacity, and its k, its twinkle and its angle, θ0 + ω t with t in
+    // seconds. θ0 and ω are drawn over their ranges.
+    void evaluateGivesTheStarsAngleAndTwinkle()
+    {
+        Particle p;
+        p.look = Look::DesktopStar;
+        p.birthMs = 1000;
+        p.x = 50;
+        p.y = 80;
+        p.size = 2;
+        p.starDepth = 0.4;
+        p.twinkleDraw = 0.05;
+        p.twinkleFromMs = 400;
+        p.angle = 0.2;
+        p.spin = -0.3;
+        Sprite sprite;
+        QVERIFY(!evaluate(p, 1000, 1, 0, 0, 1, &sprite));
+        QVERIFY(!evaluate(p, 1000 + 1800, 1, 0, 0, 1, &sprite));
+        QVERIFY(evaluate(p, 1000 + 1799, 1, 0, 0, 1, &sprite));
+        QVERIFY(evaluate(p, 1530, 48.0 / 34, 7, -3, 0.5, &sprite));
+        QVERIFY(sprite.look == Look::DesktopStar);
+        QVERIFY(std::abs(sprite.x - (50 + 7 + 48.0 / 34 * drift(p, 530))) < 1e-9);
+        QVERIFY(std::abs(sprite.y - (80 - 3 + 48.0 / 34 * fall(p, 530))) < 1e-9);
+        QCOMPARE(sprite.size, sizeScale(48.0 / 34) * 2);
+        QCOMPARE(sprite.brightness, 0.5 * brightness(p, 530));
+        QCOMPARE(sprite.depth, 0.4);
+        QCOMPARE(sprite.twinkle, twinkle(p, 530));
+        QVERIFY(sprite.twinkle > 0.49);
+        QVERIFY(std::abs(sprite.angle - (0.2 - 0.3 * 0.53)) < 1e-12);
+
+        double angle[2] = {1, -1};
+        double spin[2] = {1, -1};
+        for (const Particle &star : manyStars(4000)) {
+            QVERIFY(star.angle >= -0.35 && star.angle < 0.35);
+            QVERIFY(star.spin >= -0.4 && star.spin < 0.4);
+            angle[0] = std::min(angle[0], star.angle);
+            angle[1] = std::max(angle[1], star.angle);
+            spin[0] = std::min(spin[0], star.spin);
+            spin[1] = std::max(spin[1], star.spin);
+        }
+        QVERIFY(angle[0] < -0.349 && angle[1] > 0.349);
+        QVERIFY(spin[0] < -0.399 && spin[1] > 0.399);
+    }
+
+    // Kept while startMs <= position < last birth + 1800, and a line
+    // switched away from goes out 90 + 1800 ms after the switch at the
+    // latest.
+    void aLineOfStarsLivesEighteenHundredMilliseconds()
+    {
+        LineLayout layout;
+        layout.startMs = 1000;
+        layout.text = QStringLiteral("stars");
+        layout.ascent = 30;
+        layout.look = Look::DesktopStar;
+        layout.words = {span(1000, 1400), span(1990, 2400, 30), span(2001, 2400, 60)};
+        const Snapshot line = capture(layout);
+        double last = 0;
+        for (const Particle &p : line.particles) {
+            last = std::max(last, p.birthMs);
+        }
+        QCOMPARE(line.lastBirthMs, last);
+        QCOMPARE(line.aliveUntilMs(), last + 1800);
+
+        Field field;
+        field.setLive(line);
+        QCOMPARE(field.aliveUntilMs(), last + 1800);
+        field.detach(2000);
+        field.setLive(Snapshot());
+        QCOMPARE(field.snapshots().size(), 1);
+        const Snapshot *kept = field.snapshots().first();
+        QVERIFY(kept->look == Look::DesktopStar);
+        QCOMPARE(kept->aliveUntilMs(), kept->lastBirthMs + 1800);
+        QVERIFY(field.aliveUntilMs() <= 2000 + 90 + 1800);
+        field.prune(kept->aliveUntilMs() - 1);
+        QCOMPARE(field.snapshots().size(), 1);
+        field.prune(field.aliveUntilMs());
+        QCOMPARE(field.snapshots().size(), 0);
+    }
+
+    // A core and two rays: the core is the dot's rings at R = max(2.2 s,
+    // 3σ), h = 0.2, times 0.7 + 0.3f; then the horizontal ray at the
+    // sprite's angle and the vertical one, 0.8 as long, each seven
+    // cross-sections of an axis vertex and two edge vertices of nothing.
+    void aStarIsACoreAndTwoRays()
+    {
+        QCOMPARE(kVerticesPerStar, 283);
+        QCOMPARE(kIndicesPerStar, 1512);
+        QCOMPARE(vertexCount(Look::DesktopStar), 283);
+        QCOMPARE(indexCount(Look::DesktopStar), 1512);
+        QCOMPARE(vertexCount(Look::PanelDot), 241);
+        QCOMPARE(indexCount(Look::PanelDot), 1368);
+
+        Sprite star;
+        star.look = Look::DesktopStar;
+        star.x = 100;
+        star.y = 50;
+        star.size = 3;
+        star.brightness = 0.8;
+        star.depth = 0.6;
+        star.twinkle = 0.5;
+        star.angle = 0.3;
+        // As the second particle in the buffer, after a dot, so the indices
+        // are offset; its neighbours on either side are left alone.
+        const int first = kVerticesPerSprite;
+        std::vector<Vertex> vertices(first + kVerticesPerStar + 1, Vertex{-7, -7, 9, 9, 9, 9});
+        std::vector<quint32> indices(kIndicesPerStar);
+        writeStar(star, 1, 0.5, 0.25, true, 1, vertices.data() + first, first, indices.data());
+        QCOMPARE(vertices[first - 1].x, -7.0f);
+        QCOMPARE(vertices[first + kVerticesPerStar].x, -7.0f);
+        std::vector<bool> used(kVerticesPerStar, false);
+        for (int t = 0; t < kIndicesPerStar / 3; ++t) {
+            for (int corner = 0; corner < 3; ++corner) {
+                const quint32 index = indices[3 * t + corner];
+                QVERIFY2(index >= quint32(first) && index < quint32(first + kVerticesPerStar),
+                         qPrintable(QStringLiteral("triangle %1").arg(t)));
+                used[index - first] = true;
+            }
+        }
+        for (int i = 0; i < kVerticesPerStar; ++i) {
+            QVERIFY2(used[i], qPrintable(QString::number(i)));
+        }
+
+        const Vertex *v = vertices.data() + first;
+        const double radius = 2.2 * 3; // 3σ = 3.8
+        const double sigma = 3 / 2.355;
+        const double core = 0.8 * (0.7 + 0.3 * 0.5);
+        QCOMPARE(v[0].x, 100.0f);
+        QCOMPARE(v[0].y, 50.0f);
+        QCOMPARE(int(v[0].r), int(std::lround(core * 255)));
+        for (int ring = 1; ring <= 10; ++ring) {
+            const double r = radius * std::pow(ring / 10.0, 1.7);
+            for (int i = 0; i < 24; ++i) {
+                const Vertex &here = v[1 + (ring - 1) * 24 + i];
+                const double angle = 2 * std::numbers::pi * i / 24;
+                QVERIFY(std::abs(here.x - (100 + r * std::cos(angle))) < 1e-4);
+                QVERIFY(std::abs(here.y - (50 + r * std::sin(angle))) < 1e-4);
+                QCOMPARE(int(here.a), 0);
+                const double p = ring == 10 ? 0 : restatedProfile(r, radius, sigma, 0.2);
+                QVERIFY2(std::abs(here.r - 255 * core * p) <= 1, qPrintable(QStringLiteral("ring %1").arg(ring)));
+                QVERIFY(std::abs(here.g - 255 * core * 0.5 * p) <= 1);
+            }
+        }
+
+        const double length = 3 * (3.2 + 2.2 * 0.6) * (0.3 + 0.7 * 0.5);
+        const double ray = 0.8 * (0.15 + 0.85 * 0.5);
+        const double at[] = {-1, -0.56, -0.24, 0, 0.24, 0.56, 1};
+        const double onAxis[] = {0, 0.08, 0.32, 1, 0.32, 0.08, 0};
+        for (int which = 0; which < 2; ++which) {
+            const double dx = which == 0 ? std::cos(0.3) : -std::sin(0.3);
+            const double dy = which == 0 ? std::sin(0.3) : std::cos(0.3);
+            const double l = which == 0 ? length : 0.8 * length;
+            const Vertex *section = v + kVerticesPerSprite + which * kVerticesPerRay;
+            for (int i = 0; i < 7; ++i) {
+                const Vertex &axis = section[3 * i];
+                QVERIFY(std::abs(axis.x - (100 + at[i] * l * dx)) < 1e-4);
+                QVERIFY(std::abs(axis.y - (50 + at[i] * l * dy)) < 1e-4);
+                QVERIFY2(std::abs(axis.r - 255 * ray * onAxis[i]) <= 1, qPrintable(QStringLiteral("section %1").arg(i)));
+                QVERIFY(std::abs(axis.b - 255 * ray * 0.25 * onAxis[i]) <= 1);
+                QCOMPARE(int(axis.a), 0);
+                const double halfWidth = std::max(0.6 * 3 * (1 - std::abs(at[i])), 1.0);
+                const Vertex &one = section[3 * i + 1];
+                const Vertex &other = section[3 * i + 2];
+                for (const Vertex *edge : {&one, &other}) {
+                    QCOMPARE(int(edge->r), 0);
+                    QCOMPARE(int(edge->g), 0);
+                    QCOMPARE(int(edge->b), 0);
+                    QCOMPARE(int(edge->a), 0);
+                    const double ex = edge->x - axis.x;
+                    const double ey = edge->y - axis.y;
+                    QVERIFY(std::abs(std::hypot(ex, ey) - halfWidth) < 1e-4);
+                    QVERIFY(std::abs(ex * dx + ey * dy) < 1e-4); // across the axis
+                }
+                QVERIFY(std::abs((one.x - axis.x) + (other.x - axis.x)) < 1e-4);
+                QVERIFY(std::abs((one.y - axis.y) + (other.y - axis.y)) < 1e-4);
+            }
+        }
+        // Tip to tip, the vertical ray is 0.8 of the horizontal one.
+        const auto tipToTip = [&](int which) {
+            const Vertex *section = v + kVerticesPerSprite + which * kVerticesPerRay;
+            return std::hypot(double(section[18].x) - section[0].x, double(section[18].y) - section[0].y);
+        };
+        QVERIFY(std::abs(tipToTip(1) / tipToTip(0) - 0.8) < 1e-5);
+        QVERIFY(std::abs(tipToTip(0) - 2 * length) < 1e-4);
+
+        // Normal blending: alpha = the amount, no channel above it, the
+        // edges nothing at all.
+        std::vector<Vertex> normal(kVerticesPerStar);
+        writeStar(star, 0.1, 0.1, 0.1, false, 1, normal.data(), 0, indices.data());
+        QCOMPARE(int(normal[0].a), int(std::lround(core * 255)));
+        const Vertex *centre = normal.data() + kVerticesPerSprite + 9;
+        QCOMPARE(int(centre->a), int(std::lround(ray * 255)));
+        QVERIFY(centre->r <= centre->a);
+        QCOMPARE(int(centre[1].a), 0);
+        QCOMPARE(int(centre[2].a), 0);
+        for (quint32 index : indices) {
+            QVERIFY(index < quint32(kVerticesPerStar));
+        }
+    }
+
+    // A small star keeps both floors: σ at 1.5 device pixels, so R is 3σ
+    // and the core's rings carry that wider Gaussian, and each ray's edges
+    // at least one device pixel from its axis.
+    void aSmallStarKeepsItsFloors()
+    {
+        Sprite star;
+        star.look = Look::DesktopStar;
+        star.size = 16.0 / 34 * 1.4; // the smallest star at the panel's 16 px
+        star.brightness = 1;
+        star.depth = 0;
+        star.twinkle = 0;
+        std::vector<quint32> indices(kIndicesPerStar);
+        for (double devicePixel : {1.0, 0.5}) {
+            std::vector<Vertex> v(kVerticesPerStar);
+            writeStar(star, 1, 1, 1, true, devicePixel, v.data(), 0, indices.data());
+            const double sigma = 1.5 * devicePixel / 2.355;
+            const double radius = std::max(2.2 * star.size, 3 * sigma);
+            QCOMPARE(starHaloRadius(star.size, devicePixel), radius);
+            QVERIFY(std::abs(std::hypot(v[1 + 9 * 24].x, v[1 + 9 * 24].y) - radius) < 1e-5);
+            for (int ring = 1; ring <= 9; ++ring) {
+                const double r = radius * std::pow(ring / 10.0, 1.7);
+                QVERIFY2(std::abs(v[1 + (ring - 1) * 24].r - 255 * 0.7 * restatedProfile(r, radius, sigma, 0.2)) <= 1,
+                         qPrintable(QStringLiteral("ring %1 at %2").arg(ring).arg(devicePixel)));
+            }
+            for (int which = 0; which < 2; ++which) {
+                const Vertex *section = v.data() + kVerticesPerSprite + which * kVerticesPerRay;
+                for (int i = 0; i < 7; ++i) {
+                    for (int side : {1, 2}) {
+                        const double width = std::hypot(double(section[3 * i + side].x) - section[3 * i].x,
+                                                        double(section[3 * i + side].y) - section[3 * i].y);
+                        QVERIFY2(width >= devicePixel - 1e-6, qPrintable(QString::number(width)));
+                    }
+                }
+            }
+        }
+        QVERIFY(3 * 1.5 / 2.355 > 2.2 * star.size);
+    }
+
+    // Each ray's triangles cover the ridge between its tips exactly once --
+    // no gap along the axis and no sliver drawn twice.
+    void theRayTrianglesTileTheRayOnce()
+    {
+        Sprite star;
+        star.look = Look::DesktopStar;
+        star.size = 3;
+        star.brightness = 1;
+        star.depth = 1;
+        star.twinkle = 0.5;
+        star.angle = 0;
+        std::vector<Vertex> v(kVerticesPerStar);
+        std::vector<quint32> index(kIndicesPerStar);
+        writeStar(star, 1, 1, 1, true, 1, v.data(), 0, index.data());
+        const double length = rayLength(3, 1, 0.5);
+        const double at[] = {-1, -0.56, -0.24, 0, 0.24, 0.56, 1};
+        const auto inside = [&](int triangle, double x, double y) {
+            const Vertex &a = v[index[3 * triangle]];
+            const Vertex &b = v[index[3 * triangle + 1]];
+            const Vertex &c = v[index[3 * triangle + 2]];
+            const double d1 = (x - b.x) * (a.y - b.y) - (a.x - b.x) * (y - b.y);
+            const double d2 = (x - c.x) * (b.y - c.y) - (b.x - c.x) * (y - c.y);
+            const double d3 = (x - a.x) * (c.y - a.y) - (c.x - a.x) * (y - a.y);
+            return (d1 > 0 && d2 > 0 && d3 > 0) || (d1 < 0 && d2 < 0 && d3 < 0);
+        };
+        for (int which = 0; which < 2; ++which) {
+            const double l = which == 0 ? length : 0.8 * length;
+            const int firstTriangle = (kIndicesPerSprite + which * kIndicesPerRay) / 3;
+            for (int i = 0; i + 1 < 7; ++i) {
+                for (double t : {0.1, 0.4, 0.7, 0.95}) {
+                    const double u = at[i] + t * (at[i + 1] - at[i]);
+                    const double wi = std::max(0.6 * 3 * (1 - std::abs(at[i])), 1.0);
+                    const double wj = std::max(0.6 * 3 * (1 - std::abs(at[i + 1])), 1.0);
+                    const double reach = wi + t * (wj - wi);
+                    for (double f : {-0.85, -0.55, -0.2, 0.2, 0.55, 0.85}) {
+                        // Along the ray, then across it.
+                        const double along = u * l;
+                        const double across = f * reach;
+                        const double x = which == 0 ? along : -across;
+                        const double y = which == 0 ? across : along;
+                        int covering = 0;
+                        for (int k = 0; k < kIndicesPerRay / 3; ++k) {
+                            covering += inside(firstTriangle + k, x, y);
+                        }
+                        QVERIFY2(covering == 1, qPrintable(QStringLiteral("%1 on ray %2 at u %3, %4 across")
+                                                                .arg(covering).arg(which).arg(u).arg(f)));
+                    }
+                }
             }
         }
     }
