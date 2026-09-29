@@ -526,16 +526,27 @@ private Q_SLOTS:
         }
     }
 
-    // Moved between the desktop and a panel: every kept line goes, and the
-    // line being sung is captured again in the new look -- what a layer of
-    // that look holds when turned off and on again at the same moment.
+    // panelMode changing -- a safeguard, since both of main.qml's
+    // representations set it as a literal: every kept line goes, and the
+    // line being sung is captured again in the new look, still following the
+    // offset and opacity it had -- what a layer of that look holds when
+    // turned off and on again at the same moment.
     void aLookChangeClearsLikeTurningOffAndOn()
     {
+        // The line being sung follows a scrolled marquee and a block mid-fade.
         const auto play = [](Layer &layer) {
             setUp(layer, twoWords(), 1500);
             layer.detach();
             layer.setLine(line(2000, {word(2000, 2400, QStringLiteral("ef"), 0)}));
+            layer.setLineOffset(QPointF(-40, 9));
+            layer.setLineOpacity(0.6);
             layer.setPositionMs(2100);
+        };
+        const auto followsTheLine = [](const QVariantList &snapshots) {
+            const QVariantMap live = snapshots.first().toMap();
+            return live.value(QStringLiteral("offsetX")).toDouble() == -40
+                && live.value(QStringLiteral("offsetY")).toDouble() == 9
+                && live.value(QStringLiteral("opacity")).toDouble() == 0.6;
         };
         Layer layer;
         play(layer);
@@ -555,6 +566,7 @@ private Q_SLOTS:
         const QVariantList stars = layer.describeSnapshots();
         QCOMPARE(stars.first().toMap().value(QStringLiteral("startMs")).toLongLong(), 2000);
         QVERIFY(stars.first().toMap().value(QStringLiteral("current")).toBool());
+        QVERIFY(followsTheLine(stars));
         const QSGGeometryNode *node = layer.paint();
         QVERIFY(node);
         QCOMPARE(node->geometry()->vertexCount() % WordParticles::kVerticesPerStar, 0);
@@ -571,6 +583,7 @@ private Q_SLOTS:
         layer.setPanelMode(true);
         QCOMPARE(changes, 2);
         QCOMPARE(layer.snapshotCount(), 1);
+        QVERIFY(followsTheLine(layer.describeSnapshots()));
         node = layer.paint();
         QVERIFY(node);
         QCOMPARE(node->geometry()->vertexCount() % WordParticles::kVerticesPerSprite, 0);
