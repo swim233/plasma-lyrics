@@ -22,29 +22,54 @@ void finalizeEndTimes(LyricLines &lines, qint64 maximumDisplayMs)
     }
 }
 
-int currentLineIndex(const LyricLines &lines, qint64 positionMs, int offsetMs)
+qint64 lineEntryMs(const LyricLines &lines, qsizetype index, int leadMs)
 {
+    // DESIGN.md decision 81. Lines are in start order, so the line ahead is
+    // the one just before this line's group. Taking the later of its end and
+    // `startMs - lead` moves a line in as soon as the one ahead is sung when
+    // the gap between them is shorter than the lead; capping at the line's
+    // own start keeps an overlapping line, whose predecessor ends after it
+    // starts, from being held back. With a lead of 0 both bounds collapse
+    // onto startMs.
+    const qint64 lead = std::max(leadMs, 0);
+    const qint64 startMs = lines[index].startMs;
+    qsizetype first = index;
+    while (first > 0 && lines[first - 1].startMs == startMs) {
+        --first;
+    }
+    if (first == 0) {
+        return startMs - lead;
+    }
+    return std::min(startMs, std::max(lines[first - 1].endMs, startMs - lead));
+}
+
+int currentLineIndex(const LyricLines &lines, qint64 positionMs, int offsetMs, int leadMs)
+{
+    // Entries rise strictly from one group to the next: the line ahead of a
+    // group ends after its own start, which no earlier entry is later than.
+    // So the first entered line found from the back is the last line of the
+    // latest group to enter.
     const qint64 adjustedPosition = positionMs - offsetMs;
     for (qsizetype index = lines.size(); index > 0; --index) {
         const auto &line = lines[index - 1];
-        if (line.startMs <= adjustedPosition) {
+        if (lineEntryMs(lines, index - 1, leadMs) <= adjustedPosition) {
             return adjustedPosition < line.endMs ? static_cast<int>(index - 1) : -1;
         }
     }
     return -1;
 }
 
-int nextLineIndex(const LyricLines &lines, qint64 positionMs, int offsetMs)
+int nextLineIndex(const LyricLines &lines, qint64 positionMs, int offsetMs, int leadMs)
 {
     // Lines are in start order (every parser stable-sorts them), the same
-    // assumption currentLineIndex() makes. "Not started" is the complement of
-    // its `startMs <= adjustedPosition`: a line starting exactly at the position
+    // assumption currentLineIndex() makes. "Not entered" is the complement of
+    // its `entry <= adjustedPosition`: a line entering exactly at the position
     // is already current, not next. The answer only moves when the position
-    // passes some line's start, and every start is among nextBoundaryMs()'s
+    // passes some line's entry, and every entry is among nextBoundaryMs()'s
     // candidates.
     const qint64 adjustedPosition = positionMs - offsetMs;
     for (qsizetype index = 0; index < lines.size(); ++index) {
-        if (lines[index].startMs > adjustedPosition) {
+        if (lineEntryMs(lines, index, leadMs) > adjustedPosition) {
             while (index + 1 < lines.size() && lines[index + 1].startMs == lines[index].startMs) {
                 ++index;
             }
@@ -54,18 +79,26 @@ int nextLineIndex(const LyricLines &lines, qint64 positionMs, int offsetMs)
     return -1;
 }
 
-std::optional<qint64> nextBoundaryMs(const LyricLines &lines, qint64 positionMs, int offsetMs)
+std::optional<qint64> nextBoundaryMs(const LyricLines &lines, qint64 positionMs, int offsetMs,
+                                     int leadMs)
 {
-    // Every index change happens on some line's start or end, but ends are not
+    // Every index change happens on some line's entry or end, but ends are not
     // ordered -- an overlapping line can end after the next one begins -- so the
-    // whole list is scanned rather than stopping at the first later start.
+    // whole list is scanned rather than stopping at the first later start. With
+    // no lead every entry is a start, and the candidates are starts and ends
+    // alone (DESIGN.md decision 38); a lead adds each line's entry (decision 81).
     const qint64 adjustedPosition = positionMs - offsetMs;
     std::optional<qint64> boundary;
-    for (const auto &line : lines) {
-        for (const qint64 candidate : {line.startMs, line.endMs}) {
-            if (candidate > adjustedPosition && (!boundary || candidate < *boundary)) {
-                boundary = candidate;
-            }
+    const auto consider = [&](qint64 candidate) {
+        if (candidate > adjustedPosition && (!boundary || candidate < *boundary)) {
+            boundary = candidate;
+        }
+    };
+    for (qsizetype index = 0; index < lines.size(); ++index) {
+        consider(lines[index].startMs);
+        consider(lines[index].endMs);
+        if (leadMs > 0) {
+            consider(lineEntryMs(lines, index, leadMs));
         }
     }
     if (!boundary) {

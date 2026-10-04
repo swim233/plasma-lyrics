@@ -122,6 +122,13 @@ PlasmoidItem {
 
     LyricSource {
         id: lyricSource
+        // DESIGN.md decision 81: the next line moves in early on the desktop
+        // alone. A panel widget's line and its popup both read this one
+        // instance, so both keep a lead of 0. A value out of range in a
+        // hand-edited configuration counts as the nearest end: as the applet
+        // loads, it reads the value unclamped, whatever main.xml's min and
+        // max say.
+        leadInMs: root.onDesktop ? Math.max(0, Math.min(5000, Plasmoid.configuration.desktopLeadInMs)) : 0
     }
 
     // DESIGN.md decision 40. One instance shared by both representations,

@@ -22,16 +22,22 @@ class LyricSource : public QObject
     Q_PROPERTY(QString playbackStatus READ playbackStatus NOTIFY playbackChanged)
     Q_PROPERTY(QString trackTitle READ trackTitle NOTIFY trackChanged)
     Q_PROPERTY(QString trackArtists READ trackArtists NOTIFY trackChanged)
+    // DESIGN.md decision 81: how long before its start the next line may
+    // move into the current place, 0 for at its start. Every current and
+    // next line property below follows it. main.qml sets it on the desktop
+    // alone; a negative value counts as 0.
+    Q_PROPERTY(int leadInMs READ leadInMs WRITE setLeadInMs NOTIFY leadInMsChanged)
     Q_PROPERTY(QString currentText READ currentText NOTIFY currentLineChanged)
     Q_PROPERTY(QString currentTranslation READ currentTranslation NOTIFY currentLineChanged)
     Q_PROPERTY(QString currentRomanization READ currentRomanization NOTIFY currentLineChanged)
     Q_PROPERTY(QVariantList currentWords READ currentWords NOTIFY currentLineChanged)
     // DESIGN.md decision 80: the next line, shown under the current one on
-    // the desktop -- the first line to start after the offset-adjusted
-    // position, the last of them when several share that start. Empty after
-    // the last line. It changes on its own when the position moves between
-    // two lines without passing through a new current line (a seek from the
-    // intro into a long interlude), hence a signal of its own.
+    // the desktop -- the first line to move into the current place after the
+    // offset-adjusted position (at its start, or up to leadInMs earlier), the
+    // last of them when several share that start. Empty after the last line.
+    // It changes on its own when the position moves between two lines without
+    // passing through a new current line (a seek from the intro into a long
+    // interlude), hence a signal of its own.
     Q_PROPERTY(QString nextText READ nextText NOTIFY nextLineChanged)
     // Indices into this document's lines, -1 for none. A new current line
     // arrives in sequence only when its index and currentText both equal the
@@ -60,7 +66,9 @@ class LyricSource : public QObject
     // between the desktop and panel representations (see main.qml's
     // `LyricSource { id: lyricSource }`), so the synthetic-or-not choice
     // cannot live as a writable property on this object -- it has to be
-    // made per-representation, in LyricsView.
+    // made per-representation, in LyricsView. leadInMs can be one because it
+    // follows the widget's form factor, which both representations share:
+    // a panel widget's popup keeps the panel's lead of 0.
     Q_PROPERTY(QVariantList currentSyntheticWords READ currentSyntheticWords NOTIFY currentLineChanged)
     Q_PROPERTY(qint64 currentPositionMs READ currentPositionMs NOTIFY currentPositionChanged)
     // The effective offset; in global mode it already includes the global
@@ -99,6 +107,8 @@ public:
     QString playbackStatus() const;
     QString trackTitle() const;
     QString trackArtists() const;
+    int leadInMs() const;
+    void setLeadInMs(int value);
     QString currentText() const;
     QString currentTranslation() const;
     QString currentRomanization() const;
@@ -152,6 +162,7 @@ Q_SIGNALS:
     void lyricStateChanged();
     void playbackChanged();
     void trackChanged();
+    void leadInMsChanged();
     void currentLineChanged();
     void nextLineChanged();
     void currentPositionChanged();
@@ -220,6 +231,7 @@ private:
     int m_offsetMs = 0;
     int m_trackOffsetMs = 0;
     bool m_globalOffsetEnabled = false;
+    int m_leadInMs = 0;
     int m_currentLine = -1;
     // The text is kept rather than read back from m_lines: by the time
     // updateCurrentLine() runs a new document has replaced the old one, and

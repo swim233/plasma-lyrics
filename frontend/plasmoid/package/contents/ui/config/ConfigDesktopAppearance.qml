@@ -170,13 +170,14 @@ Kirigami.ScrollablePage {
         page.cfg_desktopTrackInfoFontSameAsLyrics, page.cfg_desktopTrackInfoFontFamily,
         page.lyricFamily, Kirigami.Theme.defaultFont.family)
 
-    // DESIGN.md decision 40. Plain top-level properties rather than the
-    // hidden-control-plus-alias dance the appearance keys above need: those
-    // exist only because their actual SpinBox/CheckBox lives one component
-    // down, inside AppearanceSection or TrackInfoSection, and a page-level
-    // "cfg_" property has to bind to it somehow. These four have no such
-    // child component to reach into -- the auto-hide FormLayout below is
-    // declared right here -- so a plain property is the whole story.
+    // DESIGN.md decisions 40 and 81. Plain top-level properties rather than
+    // the hidden-control-plus-alias dance the appearance keys above need:
+    // those exist only because their actual SpinBox/CheckBox lives one
+    // component down, inside AppearanceSection or TrackInfoSection, and a
+    // page-level "cfg_" property has to bind to it somehow. These five have
+    // no such child component to reach into -- the behaviour FormLayout below
+    // is declared right here -- so a plain property is the whole story.
+    property int cfg_desktopLeadInMs
     property bool cfg_desktopAutoHide
     property int cfg_desktopHideDelaySec
     property int cfg_desktopHideAnimationMs
@@ -345,19 +346,47 @@ Kirigami.ScrollablePage {
 
         // A second top-level form rather than a section grafted onto
         // AppearanceSection: the panel tab's equivalent block has three
-        // controls, not four (no animation duration -- the panel never
-        // animates), so sharing a sub-component here would need a
-        // visible-per-form-factor condition threaded through it for no
-        // benefit. twinFormLayouts keeps its label column aligned with
-        // AppearanceSection's above despite being a separate FormLayout.
+        // controls, not five (no next line lead and no animation duration --
+        // the panel neither leads nor animates), so sharing a sub-component
+        // here would need a visible-per-form-factor condition threaded
+        // through it for no benefit. twinFormLayouts keeps its label column
+        // aligned with AppearanceSection's above despite being a separate
+        // FormLayout.
         Kirigami.FormLayout {
             Layout.fillWidth: true
             twinFormLayouts: [appearanceSection]
             wideMode: appearanceSection.wideMode
 
+            // Named after more than auto-hide since the next line lead
+            // (DESIGN.md decision 81) heads it. The panel page keeps its
+            // "Auto-hide" heading: a panel has no lead.
             Kirigami.Separator {
+                objectName: "behaviorSeparator"
                 Kirigami.FormData.isSection: true
-                Kirigami.FormData.label: i18n("Auto-hide")
+                Kirigami.FormData.label: i18n("Behavior")
+            }
+            // Shown whatever auto-hide says, unlike the rows under it.
+            QQC2.SpinBox {
+                objectName: "leadInSpinBox"
+                Kirigami.FormData.label: i18n("Next line lead:")
+                from: 0
+                to: 5000
+                stepSize: 100
+                value: page.cfg_desktopLeadInMs
+                onValueModified: page.cfg_desktopLeadInMs = value
+                textFromValue: (value, locale) => i18n("%1 ms", value)
+            }
+            QQC2.Label {
+                // Named, capped and styled like AppearanceSection's
+                // formDescription labels; the first one's comment there has
+                // the measurements behind the cap.
+                objectName: "formDescription"
+                Layout.fillWidth: true
+                Layout.maximumWidth: Kirigami.Units.gridUnit * 26
+                wrapMode: Text.WordWrap
+                color: Kirigami.Theme.disabledTextColor
+                font: Kirigami.Theme.smallFont
+                text: i18n("The next line becomes the current line up to this long before it is sung. If the gap between lines is shorter, it moves up as soon as the previous line ends. At 0 ms it moves up when it starts.")
             }
             QQC2.CheckBox {
                 Kirigami.FormData.label: i18n("Auto-hide:")
