@@ -386,7 +386,7 @@ Kirigami.ScrollablePage {
                 wrapMode: Text.WordWrap
                 color: Kirigami.Theme.disabledTextColor
                 font: Kirigami.Theme.smallFont
-                text: i18n("The next line moves into place up to this long before it is sung. If the gap between lines is shorter, it moves in as soon as the previous line ends. At 0 ms it moves in when it starts.")
+                text: i18n("The next line becomes the current line up to this long before it is sung. If the gap between lines is shorter, it moves up as soon as the previous line ends. At 0 ms it moves up when it starts.")
             }
             QQC2.CheckBox {
                 Kirigami.FormData.label: i18n("Auto-hide:")

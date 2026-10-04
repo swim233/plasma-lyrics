@@ -151,7 +151,7 @@ TestCase {
         compare([spinBox.from, spinBox.to, spinBox.stepSize], [0, 5000, 100]);
         compare(spinBox.textFromValue(1500, Qt.locale()), i18n("%1 ms", 1500));
         compare(spinBox.value, 1500);
-        compare(description.text, i18n("The next line moves into place up to this long before it is sung. If the gap between lines is shorter, it moves in as soon as the previous line ends. At 0 ms it moves in when it starts."));
+        compare(description.text, i18n("The next line becomes the current line up to this long before it is sung. If the gap between lines is shorter, it moves up as soon as the previous line ends. At 0 ms it moves up when it starts."));
 
         const delay = rows[at + 4];
         compare([spinBox.visible, description.visible, delay.visible], [true, true, false]);

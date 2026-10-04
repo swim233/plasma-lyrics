@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: plasma-lyrics 0.1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-04 09:33+0800\n"
+"POT-Creation-Date: 2026-10-04 09:36+0800\n"
 "PO-Revision-Date: 2026-09-04 00:53+0800\n"
 "Last-Translator: swim\n"
 "Language-Team: Chinese (Simplified)\n"
@@ -635,12 +635,10 @@ msgstr "待唱行提前："
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:389
 msgid ""
-"The next line moves into place up to this long before it is sung. If the gap "
-"between lines is shorter, it moves in as soon as the previous line ends. At "
-"0 ms it moves in when it starts."
-msgstr ""
-"待唱行最多提前这么久进入在唱位；行间空档更短时，上一行唱完立即进场。设为 0 "
-"ms 则开唱时才进场。"
+"The next line becomes the current line up to this long before it is sung. If "
+"the gap between lines is shorter, it moves up as soon as the previous line "
+"ends. At 0 ms it moves up when it starts."
+msgstr "待唱行最多提前这么久升为当前歌词；两句间隔更短时，上一句唱完就升上来。设为 0 毫秒则开唱时才换行。"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:392
 #: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:349
