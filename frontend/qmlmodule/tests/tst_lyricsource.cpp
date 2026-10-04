@@ -175,6 +175,16 @@ private:
         return line;
     }
 
+    // DESIGN.md decision 81. "two" starts 2150 ms after "one" ends, more
+    // than a lead of 2000 ms, so that lead moves it in at 1050 ms, 50 ms past
+    // the anchored position of 1000 ms; "three" starts 500 ms after "two"
+    // ends and moves in as soon as "two" ends.
+    static LyricLines leadDocument()
+    {
+        return {plainLine(500, 900, QStringLiteral("one")), plainLine(3050, 4000, QStringLiteral("two")),
+                plainLine(4500, 5000, QStringLiteral("three"))};
+    }
+
     // One entry per signal, with both lines' indices and texts as the
     // handler sees them.
     static void recordLineSignals(LyricSource &source, QStringList &log)
@@ -477,6 +487,143 @@ private Q_SLOTS:
         QCOMPARE(source.nextLineIndex(), 1);
         QCOMPARE(source.nextText(), QStringLiteral("coda"));
         QCOMPARE(next.size(), 1);
+    }
+
+    void theLeadMovesTheNextLineInAtItsEntry()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        writeDocumentSnapshot(path, 1, leadDocument(), 1049);
+        LyricSource source([] { return 1000000000LL; });
+        source.setLeadInMs(2000);
+        source.setSnapshotPath(path);
+        QCOMPARE(source.currentLineIndex(), -1);
+        QCOMPARE(source.nextLineIndex(), 1);
+        QCOMPARE(source.nextText(), QStringLiteral("two"));
+        QStringList log;
+        recordLineSignals(source, log);
+
+        // In sequence: the new current line is the next line recorded just
+        // before, and its signal comes first (DESIGN.md decision 28).
+        writeDocumentSnapshot(path, 2, leadDocument(), 1050);
+        QTRY_COMPARE(source.currentLineIndex(), 1);
+        QCOMPARE(log, QStringList({
+            QStringLiteral("currentLineChanged -> current 1 [two], next 2 [three]"),
+            QStringLiteral("nextLineChanged -> current 1 [two], next 2 [three]")}));
+
+        log.clear();
+        writeDocumentSnapshot(path, 3, leadDocument(), 4000);
+        QTRY_COMPARE(source.currentLineIndex(), 2);
+        QCOMPARE(log, QStringList({
+            QStringLiteral("currentLineChanged -> current 2 [three], next -1 []"),
+            QStringLiteral("nextLineChanged -> current 2 [three], next -1 []")}));
+    }
+
+    void wakesUpAtTheEntry()
+    {
+        // The start of "two" is 2050 ms away, past the timeout below: only a
+        // timer armed on its entry, 50 ms away, gets there in time.
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        qint64 now = 1000000000;
+        writeDocumentSnapshot(path, 1, leadDocument());
+        LyricSource source([&now] { return now; });
+        source.setLeadInMs(2000);
+        source.setSnapshotPath(path);
+        QCOMPARE(source.currentLineIndex(), -1);
+        now += 100000000;
+        QTRY_COMPARE_WITH_TIMEOUT(source.currentText(), QStringLiteral("two"), 1000);
+        QCOMPARE(source.nextText(), QStringLiteral("three"));
+    }
+
+    void aNewLeadTakesEffectAtOnce()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        qint64 now = 1000000000;
+        writeDocumentSnapshot(path, 1, leadDocument());
+        LyricSource source([&now] { return now; });
+        source.setSnapshotPath(path);
+        QCOMPARE(source.leadInMs(), 0);
+        QCOMPARE(source.currentLineIndex(), -1);
+        QCOMPARE(source.nextLineIndex(), 1);
+        QStringList log;
+        recordLineSignals(source, log);
+        QSignalSpy lead(&source, &LyricSource::leadInMsChanged);
+
+        // 2100 ms puts the entry of "two" at 950 ms, already passed: the
+        // lines change within the call, in sequence.
+        source.setLeadInMs(2100);
+        QCOMPARE(lead.size(), 1);
+        QCOMPARE(log, QStringList({
+            QStringLiteral("currentLineChanged -> current 1 [two], next 2 [three]"),
+            QStringLiteral("nextLineChanged -> current 1 [two], next 2 [three]")}));
+
+        log.clear();
+        source.setLeadInMs(2100);
+        QCOMPARE(lead.size(), 1);
+        QVERIFY(log.isEmpty());
+
+        // A negative lead is none: back to waiting for the start.
+        source.setLeadInMs(-300);
+        QCOMPARE(source.leadInMs(), 0);
+        QCOMPARE(lead.size(), 2);
+        QCOMPARE(log, QStringList({
+            QStringLiteral("currentLineChanged -> current -1 [], next 1 [two]"),
+            QStringLiteral("nextLineChanged -> current -1 [], next 1 [two]")}));
+
+        // An entry still ahead changes no line yet, but the timer is armed
+        // on it: 50 ms rather than the 2050 ms to the start.
+        log.clear();
+        source.setLeadInMs(2000);
+        QVERIFY(log.isEmpty());
+        now += 100000000;
+        QTRY_COMPARE_WITH_TIMEOUT(source.currentText(), QStringLiteral("two"), 1000);
+    }
+
+    void noLeadSwitchesAtTheStart()
+    {
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        writeDocumentSnapshot(path, 1, leadDocument(), 1050);
+        LyricSource source([] { return 1000000000LL; });
+        source.setLeadInMs(0);
+        source.setSnapshotPath(path);
+        QCOMPARE(source.currentLineIndex(), -1);
+        QCOMPARE(source.nextLineIndex(), 1);
+        writeDocumentSnapshot(path, 2, leadDocument(), 3049);
+        QTRY_COMPARE(source.nextLineIndex(), 1);
+        QCOMPARE(source.currentLineIndex(), -1);
+        writeDocumentSnapshot(path, 3, leadDocument(), 3050);
+        QTRY_COMPARE(source.currentLineIndex(), 1);
+        QCOMPARE(source.nextLineIndex(), 2);
+        writeDocumentSnapshot(path, 4, leadDocument(), 4000);
+        QTRY_COMPARE(source.currentLineIndex(), -1);
+        QCOMPARE(source.nextLineIndex(), 2);
+    }
+
+    void aLeadSetWhileTheServiceIsDownWaitsForItsReturn()
+    {
+        // The lines stand still while the daemon is gone, as the stopped frame
+        // timer leaves them; the snapshot that brings it back applies the lead.
+        QTemporaryDir directory;
+        const QString path = directory.filePath(QStringLiteral("runtime/state.json"));
+        writeDocumentSnapshot(path, 1, leadDocument());
+        LyricSource source([] { return 1000000000LL; });
+        source.setSnapshotPath(path);
+        QCOMPARE(source.currentLineIndex(), -1);
+        writeSnapshot(path, 2, 1000000000, QStringLiteral("gone"), 999999999);
+        QTRY_VERIFY(source.stale());
+        QSignalSpy current(&source, &LyricSource::currentLineChanged);
+        source.setLeadInMs(2100);
+        QCOMPARE(source.leadInMs(), 2100);
+        QCOMPARE(source.currentLineIndex(), -1);
+        QCOMPARE(current.size(), 0);
+
+        writeDocumentSnapshot(path, 3, leadDocument());
+        QTRY_VERIFY(!source.stale());
+        QCOMPARE(source.currentLineIndex(), 1);
+        QCOMPARE(source.currentText(), QStringLiteral("two"));
     }
 
     void wordsOfTheCurrentLineReachQml()

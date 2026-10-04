@@ -132,6 +132,7 @@ QString LyricSource::lyricState() const { return m_lyricState; }
 QString LyricSource::playbackStatus() const { return m_playbackStatus; }
 QString LyricSource::trackTitle() const { return m_trackTitle; }
 QString LyricSource::trackArtists() const { return m_trackArtists; }
+int LyricSource::leadInMs() const { return m_leadInMs; }
 qint64 LyricSource::currentPositionMs() const { return m_currentPositionMs; }
 int LyricSource::offsetMs() const { return m_offsetMs; }
 int LyricSource::trackOffsetMs() const { return m_trackOffsetMs; }
@@ -268,6 +269,23 @@ void LyricSource::setSnapshotPath(const QString &path)
     m_sequence = -1;
     Q_EMIT snapshotPathChanged();
     reload();
+}
+
+void LyricSource::setLeadInMs(int value)
+{
+    value = std::max(value, 0);
+    if (value == m_leadInMs) {
+        return;
+    }
+    m_leadInMs = value;
+    Q_EMIT leadInMsChanged();
+    // The lines are recomputed at once, from the same position, with the
+    // signals that go with them. Without a live service the frame timer is
+    // stopped and the lines stand still (setUnavailable()); the next reload
+    // that brings the service back recomputes them under the new lead.
+    if (m_serviceAvailable) {
+        updateCurrentLine(false);
+    }
 }
 
 void LyricSource::rearm()
@@ -488,13 +506,13 @@ void LyricSource::updateCurrentLine(bool lineContentChanged)
         m_currentPositionMs = positionMs;
         Q_EMIT currentPositionChanged();
     }
-    const int line = PlasmaLyrics::currentLineIndex(m_lines, positionMs, m_offsetMs);
+    const int line = PlasmaLyrics::currentLineIndex(m_lines, positionMs, m_offsetMs, m_leadInMs);
     const bool currentChanged = line != m_currentLine || lineContentChanged;
     // Computed on the same position, and on every path that recomputes the
     // current line, so the two indices always describe one document. Only
     // the next line's text is shown, so a new document notifies here only
     // when it puts other text at that index.
-    const int next = PlasmaLyrics::nextLineIndex(m_lines, positionMs, m_offsetMs);
+    const int next = PlasmaLyrics::nextLineIndex(m_lines, positionMs, m_offsetMs, m_leadInMs);
     const QString nextLineText = next >= 0 ? m_lines[next].text : QString();
     const bool nextChanged = next != m_nextLine || nextLineText != m_nextText;
     m_currentLine = line;
@@ -517,7 +535,7 @@ void LyricSource::rearmFrame()
     if (m_playbackStatus != QStringLiteral("Playing") || m_anchorMonotonicNs <= 0 || m_rate <= 0.0) {
         return;
     }
-    const auto boundary = nextBoundaryMs(m_lines, m_currentPositionMs, m_offsetMs);
+    const auto boundary = nextBoundaryMs(m_lines, m_currentPositionMs, m_offsetMs, m_leadInMs);
     if (!boundary) {
         return;
     }
