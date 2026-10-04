@@ -664,10 +664,12 @@ private Q_SLOTS:
     // 5000. It is timing, not looks, so both sets share it -- no row in
     // ThemePolicy.js's table and no desktopLight copy -- and a panel has
     // none. main.qml gives it to its one LyricSource on the desktop alone,
-    // clamped there: the applet reads the key unclamped, since KConfigLoader
-    // applies <min> and <max> only on a load() or read() after it is built,
-    // and Plasma::Applet::configScheme() calls neither (KConfig 6.30.0,
-    // libplasma 6.7.5). So the binding is pinned whole, clamp included.
+    // clamped there, because the applet reads the key unclamped. Measured
+    // with KConfig 6.30.0: a KConfigLoader built from a KConfigGroup, as
+    // libplasma builds it, returns an out of range value as stored until
+    // read() or load() is called. With libplasma 6.7.5 under plasmoidviewer,
+    // gdb saw neither called after Plasma::Applet::configScheme() built the
+    // loader. So the binding is pinned whole, clamp included.
     void leadInEntry()
     {
         const QHash<QString, SchemaEntry> entries = parsedEntries(readAll(schemaPath()));
