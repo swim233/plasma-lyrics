@@ -415,7 +415,9 @@ private Q_SLOTS:
         QCOMPARE(nextBoundaryMs(lines, 2000, 0, 2000).value_or(-1), 4000); // the shared entry
         QCOMPARE(nextBoundaryMs(lines, 4000, 0, 2000).value_or(-1), 6000);
         QCOMPARE(nextBoundaryMs(lines, 2000, 0, 0).value_or(-1), 6000);
-        // A negative lead counts as none.
+        // A negative lead counts as none, the first line's included.
+        QCOMPARE(lineEntryMs(lines, 0, -500), 1000);
+        QCOMPARE(currentLineIndex(lines, 1000, 0, -500), 0);
         QCOMPARE(lineEntryMs(lines, 1, -500), 6000);
         QCOMPARE(nextBoundaryMs(lines, 2000, 0, -500).value_or(-1), 6000);
         QCOMPARE(currentLineIndex(lines, 5999, 0, -500), -1);
