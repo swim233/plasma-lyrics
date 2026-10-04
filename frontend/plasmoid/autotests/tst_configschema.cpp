@@ -660,11 +660,14 @@ private Q_SLOTS:
     }
 
     // DESIGN.md decision 81's key, spelled out for the reason
-    // wordParticleEntries gives: an Int of 2000 ms, held between 0 and 5000,
-    // which KConfigLoader applies to a hand edited value as it reads it. It
-    // is timing, not looks, so both sets share it -- no row in
+    // wordParticleEntries gives: an Int of 2000 ms, declared between 0 and
+    // 5000. It is timing, not looks, so both sets share it -- no row in
     // ThemePolicy.js's table and no desktopLight copy -- and a panel has
-    // none. main.qml gives it to its one LyricSource on the desktop alone.
+    // none. main.qml gives it to its one LyricSource on the desktop alone,
+    // clamped there: the applet reads the key unclamped, since KConfigLoader
+    // applies <min> and <max> only on a load() or read() after it is built,
+    // and Plasma::Applet::configScheme() calls neither (KConfig 6.30.0,
+    // libplasma 6.7.5). So the binding is pinned whole, clamp included.
     void leadInEntry()
     {
         const QHash<QString, SchemaEntry> entries = parsedEntries(readAll(schemaPath()));
@@ -699,7 +702,7 @@ private Q_SLOTS:
         // Without its closing brace, which the last binding would take.
         const QHash<QString, QString> bindings = bindingsOf(block.chopped(1));
         QCOMPARE(compact(bindings.value(QStringLiteral("leadInMs"))),
-                 QStringLiteral("root.onDesktop?Plasmoid.configuration.desktopLeadInMs:0"));
+                 QStringLiteral("root.onDesktop?Math.max(0,Math.min(5000,Plasmoid.configuration.desktopLeadInMs)):0"));
     }
 
     // The sixteen entries decision 78 retires stay declared, with the types

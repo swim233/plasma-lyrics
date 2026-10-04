@@ -163,8 +163,10 @@
          move into the current place. Shared by both sets, like
          desktopHideAnimationMs: it is timing, not looks. No panel
          counterpart: a panel widget, popup included, keeps a lead of 0.
-         KConfigLoader clamps a hand edited value into min and max on read
-         (KConfig 6.30.0). -->
+         min and max do not reach the applet: KConfigLoader reads each entry
+         before it sets them and clamps only on a later load() or read(),
+         which Plasma::Applet::configScheme() never calls (KConfig 6.30.0,
+         libplasma 6.7.5). main.qml clamps a hand edited value itself. -->
     <entry name="desktopLeadInMs" type="Int"><default>2000</default><min>0</min><max>5000</max></entry>
 
     <!-- DESIGN.md decision 76: auto follows whether the Plasma style, which
