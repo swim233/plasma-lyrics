@@ -87,6 +87,27 @@ QHash<QString, SchemaEntry> parsedEntries(const QByteArray &xml)
     return entries;
 }
 
+// The text of each element inside the <entry> named `name` -- <default>,
+// <min>, <max> -- by element name, or nothing when there is no such entry.
+QHash<QString, QString> entryElements(const QByteArray &xml, const QString &name)
+{
+    QHash<QString, QString> elements;
+    QXmlStreamReader reader(xml);
+    bool inside = false;
+    while (!reader.atEnd()) {
+        reader.readNext();
+        if (reader.isStartElement() && reader.name() == QLatin1String("entry")) {
+            inside = reader.attributes().value(QLatin1String("name")) == name;
+        } else if (reader.isEndElement() && reader.name() == QLatin1String("entry")) {
+            inside = false;
+        } else if (inside && reader.isStartElement()) {
+            const QString element = reader.name().toString();
+            elements.insert(element, reader.readElementText());
+        }
+    }
+    return elements;
+}
+
 // One row of ThemePolicy.js's darkDefaults table: a suffix of one form
 // factor and its dark key's default, unquoted.
 struct ThemedKey {
@@ -636,6 +657,49 @@ private Q_SLOTS:
         }
 
         QVERIFY2(problems.isEmpty(), qPrintable(problems.join(QStringLiteral("\n  ")).prepend(QStringLiteral("\n  "))));
+    }
+
+    // DESIGN.md decision 81's key, spelled out for the reason
+    // wordParticleEntries gives: an Int of 2000 ms, held between 0 and 5000,
+    // which KConfigLoader applies to a hand edited value as it reads it. It
+    // is timing, not looks, so both sets share it -- no row in
+    // ThemePolicy.js's table and no desktopLight copy -- and a panel has
+    // none. main.qml gives it to its one LyricSource on the desktop alone.
+    void leadInEntry()
+    {
+        const QHash<QString, SchemaEntry> entries = parsedEntries(readAll(schemaPath()));
+        QVERIFY(!entries.isEmpty());
+
+        const QString key = QStringLiteral("desktopLeadInMs");
+        QVERIFY2(entries.contains(key), qPrintable(key));
+        QCOMPARE(entries.value(key).type, QStringLiteral("Int"));
+        const QHash<QString, QString> elements = entryElements(readAll(schemaPath()), key);
+        QCOMPARE(elements, (QHash<QString, QString>{{QStringLiteral("default"), QStringLiteral("2000")},
+                                                    {QStringLiteral("min"), QStringLiteral("0")},
+                                                    {QStringLiteral("max"), QStringLiteral("5000")}}));
+        for (const QString &other : {QStringLiteral("desktopLightLeadInMs"), QStringLiteral("panelLeadInMs"),
+                                     QStringLiteral("panelLightLeadInMs")}) {
+            QVERIFY2(!entries.contains(other), qPrintable(other));
+        }
+        const QList<ThemedKey> table = themeTable();
+        QVERIFY2(!table.isEmpty(), "ThemePolicy.js lost its darkDefaults markers");
+        for (const ThemedKey &row : table) {
+            QVERIFY2(row.suffix != QLatin1String("LeadInMs"), qPrintable(row.form));
+        }
+
+        const QString mainPath = packageDir + QStringLiteral("/contents/ui/main.qml");
+        const QString main = QString::fromUtf8(readAll(mainPath));
+        QVERIFY2(!main.isEmpty(), qPrintable(QStringLiteral("cannot read %1").arg(mainPath)));
+        const QString opening = QStringLiteral("\n    LyricSource {");
+        QCOMPARE(main.count(QStringLiteral("LyricSource {")), 1);
+        const qsizetype at = main.indexOf(opening);
+        QVERIFY2(at >= 0, qPrintable(opening));
+        const QString block = braceBlock(main, at + opening.size() - 1);
+        QVERIFY(!block.isEmpty());
+        // Without its closing brace, which the last binding would take.
+        const QHash<QString, QString> bindings = bindingsOf(block.chopped(1));
+        QCOMPARE(compact(bindings.value(QStringLiteral("leadInMs"))),
+                 QStringLiteral("root.onDesktop?Plasmoid.configuration.desktopLeadInMs:0"));
     }
 
     // The sixteen entries decision 78 retires stay declared, with the types

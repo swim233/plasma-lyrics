@@ -159,6 +159,13 @@
     <entry name="desktopHideDelaySec" type="Int"><default>5</default></entry>
     <entry name="desktopHideAnimationMs" type="Int"><default>1000</default></entry>
     <entry name="desktopHideNonMusic" type="Bool"><default>true</default></entry>
+    <!-- DESIGN.md decision 81: how long before its start the next line may
+         move into the current place. Shared by both sets, like
+         desktopHideAnimationMs: it is timing, not looks. No panel
+         counterpart: a panel widget, popup included, keeps a lead of 0.
+         KConfigLoader clamps a hand edited value into min and max on read
+         (KConfig 6.30.0). -->
+    <entry name="desktopLeadInMs" type="Int"><default>2000</default><min>0</min><max>5000</max></entry>
 
     <!-- DESIGN.md decision 76: auto follows whether the Plasma style, which
          draws the plate and the panel, is light or dark; light and dark pin

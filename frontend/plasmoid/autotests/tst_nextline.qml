@@ -734,6 +734,79 @@ TestCase {
         }
     }
 
+    // ---- The next line lead (DESIGN.md decision 81)
+
+    // The word delegates of a block's lyric, which know whether their word
+    // has started.
+    function wordsOf(block) {
+        return findAll(block, o => o.started !== undefined && o.shade !== undefined);
+    }
+
+    // On the desktop LyricSource moves the next line in up to leadInMs before
+    // it is sung, straight from the line just ended when the gap is shorter
+    // than that. The signals are those of any line arriving in sequence
+    // (tst_lyricsource pins them), so the line rises on the spring rather
+    // than fading, and its words stay unsung until each one starts.
+    function test_aLineMovingInBeforeItIsSungStillRises() {
+        const words = [{ startMs: 3000, endMs: 3600, text: "second " }, { startMs: 3600, endMs: 4000, text: "line" }];
+        const t = createView({ positionMs: 1000 });
+        const old = t.lyric.currentBlock;
+        const next = t.lyric.nextBlock;
+        advance(t, "second line", "third line", { words: words });
+        verify(t.lyric.currentBlock === next);
+        compare(next.role, "current");
+        compare(old.role, "done");
+        compare(tweenOf(next, "slide").kind, "spring");
+        compare(tweenOf(old, "slide").kind, "spring");
+        tryVerify(() => wordsOf(next).length === 2);
+        const line = lyricLineOf(next);
+        compare(line.activeWordIndex, -1);
+        for (const word of wordsOf(next)) {
+            verify(!word.started, word.modelData.text);
+            verify(Qt.colorEqual(word.shade, line.unsungColor), word.modelData.text);
+        }
+        t.source.positionMs = 2999;
+        t.view.syncLyricPosition();
+        compare(line.activeWordIndex, -1);
+        t.source.positionMs = 3000;
+        t.view.syncLyricPosition();
+        compare(line.activeWordIndex, 0);
+        compare(wordsOf(next).map(word => word.started), [true, false]);
+    }
+
+    // A seek into another line's lead is a jump like any other: both places
+    // fade where they are, and the line it lands on waits unsung.
+    function test_aSeekIntoALeadIsAJump() {
+        const words = [{ startMs: 20000, endMs: 20600, text: "else" }, { startMs: 20600, endMs: 21000, text: "where" }];
+        const t = createView({ positionMs: 1000 });
+        const oldCurrent = t.lyric.currentBlock;
+        const oldNext = t.lyric.nextBlock;
+        const s = t.source;
+        s.positionMs = 18500;
+        s.currentLineIndex = 5;
+        s.currentWords = words;
+        s.currentText = "elsewhere";
+        s.nextLineIndex = 6;
+        s.nextText = "after elsewhere";
+        t.lyric.switchLine();
+        t.view.syncLyricPosition();
+        for (const block of [oldCurrent, oldNext]) {
+            compare(block.role, "gone");
+            compare(tweenOf(block, "opacity").dur, 180);
+            verify(!isTween(tweenOf(block, "slide")));
+        }
+        const current = t.lyric.currentBlock;
+        compare(current.lyricText, "elsewhere");
+        compare(tweenOf(current, "opacity").dur, 180);
+        verify(!isTween(tweenOf(current, "slide")));
+        compare(t.lyric.nextBlock.lyricText, "after elsewhere");
+        tryVerify(() => wordsOf(current).length === 2);
+        compare(lyricLineOf(current).activeWordIndex, -1);
+        for (const word of wordsOf(current)) {
+            verify(!word.started, word.modelData.text);
+        }
+    }
+
     // Lyrics giving way to other text, and back, are jumps -- the way back
     // included, although the line then shown is the next one recorded.
     function test_lyricsAndOtherTextFadeIntoEachOther() {
