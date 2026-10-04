@@ -638,7 +638,9 @@ msgid ""
 "The next line becomes the current line up to this long before it is sung. If "
 "the gap between lines is shorter, it moves up as soon as the previous line "
 "ends. At 0 ms it moves up when it starts."
-msgstr "待唱行最多提前这么久升为当前歌词；两句间隔更短时，上一句唱完就升上来。设为 0 毫秒则开唱时才换行。"
+msgstr ""
+"待唱行最多提前这么久升为当前歌词；两句间隔更短时，上一句唱完就升上来。设为 0 "
+"毫秒则开唱时才换行。"
 
 #: frontend/plasmoid/package/contents/ui/config/ConfigDesktopAppearance.qml:392
 #: frontend/plasmoid/package/contents/ui/config/ConfigPanelAppearance.qml:349
