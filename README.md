@@ -138,103 +138,63 @@ systemctl --user enable --now plasma-lyricsd.service
 
 | 歌词源 | 说明 |
 | ------ | ---- |
-| 本地文件 | 默认首选；先找本地音频同级 `.lrc`，再递归扫描配置的歌词目录，按文件名与 LRC 的 `[ti:]`、`[ar:]`、`[al:]`、`[length:]` 标签匹配标题、歌手、专辑与时长 |
-| 网易云 | 在线检索 LRC 与翻译 |
-| AMLL TTML DB | 默认补充源；缓存元数据索引后本地检索，按需下载 TTML；提供翻译与逐字歌词 |
-| QQ音乐 | 默认排在最后；在线检索，提供逐字歌词、翻译与罗马音（罗马音目前只有该源提供） |
+| 本地文件 | 默认首选。先找音频同级的 `.lrc`，再递归扫描歌词目录，按文件名与 `[ti:]`、`[ar:]`、`[al:]`、`[length:]` 标签匹配 |
+| 网易云 | 在线检索，提供 LRC 与翻译 |
+| AMLL TTML DB | 缓存元数据索引后本地检索，按需下载 TTML；提供翻译与逐字歌词 |
+| QQ音乐 | 默认排在最后；提供逐字歌词、翻译与罗马音（罗马音仅此源提供） |
 
-可在部件的「歌词服务」设置页拖拽调整全局顺序、勾选启用来源、选择本地歌词目录，
-以及调整网易云与 AMLL 的网络地址和超时、AMLL 索引刷新间隔。歌词目录及其子目录中的 `.lrc`
-会建立可复用的搜索索引，目录内容变化后才重新解析；它不同于下面按 provider 与 track id
-精确替换已有结果的覆盖目录。
+在「歌词服务」设置页可拖拽排序、启停各源、选择歌词目录，以及调整网络地址、超时和 AMLL 索引刷新间隔。
 
-播放器报出的标题若带中文译名括号（如 `青さは止んだ (青春已逝)`），匹配会额外用剥掉括号后的
-标题再试一次；这类靠剥离才匹配上的结果需要两侧时长相差 2 秒以内才会被采用，避免撞上同名的无关
-曲目。本地歌词目录里的 `.lrc` 若没有 `[length:mm:ss]` 标签就没有时长可比，这类标题会匹配不到，
-补上该标签即可（音频同级的 sidecar 不受影响，它直接沿用播放器报的时长）。AMLL 的索引不提供
-时长，该源上这类标题始终匹配不到。
+**匹配说明**
 
-本地歌词（音频同级的 `.lrc` 与歌词目录）和覆盖目录中的 `.lrc` 都支持双语：同一时间戳有多行时，
-第一行为原文、第二行为译文，第三行起忽略；前两行中任一行像制作人员信息（如「作词：」）时，
-该时间戳的全部行原样保留。
+- 标题带中文译名括号（如 `青さは止んだ (青春已逝)`）时，会再用去掉括号的标题试一次，要求时长相差 2 秒以内。歌词目录里的 `.lrc` 需带 `[length:mm:ss]` 标签才能比较时长；AMLL 索引不含时长，这类标题匹配不到。
+- 本地 `.lrc` 与覆盖目录里的 `.lrc` 支持双语：同一时间戳的第一行是原文、第二行是译文，其余忽略；若像制作人员信息（如「作词：」）则原样保留。
+- 覆盖目录按 `<provider>:<track-id>.lrc` 精确替换已有结果，不同于可搜索的歌词目录。
 
-AMLL 数据库以 CC0 提供；歌词原作及第三方内容权利仍由相应权利人持有。项目与贡献者信息见
+**网络代理**：「歌词服务」页可选直连、系统代理或自定义地址（`socks5://主机:端口` 或 `http://主机:端口`，可带用户名和密码，**明文保存**）。代理作用于网易云、AMLL 与 QQ音乐，不为回环地址旁路。地址非法时无法保存；已保存的非法地址会让这三个源在重启服务后不可用。
+
+AMLL 数据库以 CC0 提供；歌词原作及第三方内容的权利仍归相应权利人。项目与贡献者信息见
 [AMLL TTML DB](https://github.com/amll-dev/amll-ttml-db)。
-
-「歌词服务」设置页还可设置网络代理：直连、系统代理或自定义地址
-（`socks5://主机:端口` 或 `http://主机:端口`，可写用户名和密码，明文保存），作用于网易云、AMLL 与
-QQ音乐三个网络源，不为回环地址旁路；地址非法时设置页无法保存，已保存的非法地址会使这三个来源在服务
-重启后不可用，只剩本地文件源。
 
 ## ⚙️ 配置与数据文件
 
-| 路径                                              | 用途                                                   |
-| ------------------------------------------------- | ------------------------------------------------------ |
-| `~/.config/plasma-lyrics/plasma-lyricsd.ini`      | 守护进程配置（INI）                                    |
-| `~/.local/share/plasma-lyrics/lyrics.db`          | 歌词缓存（SQLite），含每首歌的偏移、首选源与全局偏移   |
-| `~/.local/share/plasma-lyrics/lyrics/`            | 默认可搜索本地歌词目录                                 |
-| `~/.local/share/plasma-lyrics/overrides/`         | 手工 `.lrc` 覆盖目录（支持双语，见上文「歌词源」一节） |
-| `~/.local/share/plasma-lyrics/plasma-lyricsd.log` | 可选日志文件（默认关闭）                               |
-| `~/.cache/plasma-lyrics/amll-index.jsonl`         | AMLL 元数据索引缓存                                    |
-| `$XDG_RUNTIME_DIR/plasma-lyricsd/state.json`      | 整曲歌词原子快照（部件读取歌词与播放状态的唯一来源）   |
+| 路径                                              | 用途                                                 |
+| ------------------------------------------------- | ---------------------------------------------------- |
+| `~/.config/plasma-lyrics/plasma-lyricsd.ini`      | 守护进程配置（INI）                                  |
+| `~/.local/share/plasma-lyrics/lyrics.db`          | 歌词缓存（SQLite），含每首歌的偏移、首选源与全局偏移 |
+| `~/.local/share/plasma-lyrics/lyrics/`            | 默认的可搜索本地歌词目录                             |
+| `~/.local/share/plasma-lyrics/overrides/`         | 手动 `.lrc` 覆盖目录                                 |
+| `~/.local/share/plasma-lyrics/plasma-lyricsd.log` | 可选日志文件（默认关闭）                             |
+| `~/.cache/plasma-lyrics/amll-index.jsonl`         | AMLL 元数据索引缓存                                  |
+| `$XDG_RUNTIME_DIR/plasma-lyricsd/state.json`      | 整曲歌词原子快照，部件读取歌词与播放状态的唯一来源   |
 
-部件的外观、文本等设置在该部件自身的配置页中修改，桌面与面板部件互不影响。
+部件的外观与文本设置保存在各部件自己的配置页，桌面与面板互不影响。
 
 ## 🔧 诊断
 
+### 离线复现匹配
+
 ```sh
-# 离线复现一首歌的匹配全过程（不依赖正在播放的音乐）
+# 复现一首歌的完整匹配过程，不依赖正在播放的音乐
 plasma-lyricsd --explain "歌名" "歌手"
 
-# 只诊断某个歌词源；也可显式给出播放平台以复现平台相关匹配策略
+# 只诊断某个歌词源，并指定播放平台
 plasma-lyricsd --explain --provider amll --platform apple "歌名" "歌手"
 
-# 给出曲目时长（毫秒），复现依赖时长的判定，如上文带译名括号的标题
+# 给出曲目时长（毫秒），复现依赖时长的判定
 plasma-lyricsd --explain --length-ms 215000 "歌名" "歌手"
-
-# 跟随守护进程日志
-journalctl --user -u plasma-lyricsd.service -f
 ```
 
-诊断会打印当前配置中启用的歌词源链、各源的版本匹配层级与拒绝原因；`--provider` 指定未启用或
-未配置的歌词源时会列出可用来源。
+输出包含歌词源链、各源的匹配过程与拒绝原因；`--provider` 指定的源不可用时，会列出可用来源。
 
-「歌词服务」设置页「诊断」下的「记录调试信息」开关（配置项 `logging/debug`，默认关闭）为以下
-七个分类打开 debug 级日志，重启服务后生效：
-
-| 分类 | 内容 |
-| --- | --- |
-| `plasmalyrics.daemon` | 服务生命周期与控制调用 |
-| `plasmalyrics.resolver` | 歌词解析流程 |
-| `plasmalyrics.mpris` | MPRIS 播放器发现与状态 |
-| `plasmalyrics.provider.netease` | 网易云歌词源请求 |
-| `plasmalyrics.provider.amll` | AMLL TTML 数据库歌词源请求 |
-| `plasmalyrics.provider.local` | 本地歌词目录 |
-| `plasmalyrics.provider.qq` | QQ音乐歌词源请求 |
-
-开启全部分类的调试信息用设置页勾选框即可；只想临时调试某一个分类时，可用 `QT_LOGGING_RULES`
-环境变量单独控制，优先级高于该配置项。守护进程以 `systemd --user` 服务运行，环境变量要先经
-`set-environment` 写入该用户实例再重启服务才会生效：
+### 查看日志
 
 ```sh
-systemctl --user set-environment QT_LOGGING_RULES="plasmalyrics.mpris.debug=true"
-systemctl --user restart plasma-lyricsd
-
-# 用完还原
-systemctl --user unset-environment QT_LOGGING_RULES
-systemctl --user restart plasma-lyricsd
+journalctl --user -u plasma-lyricsd.service -f   # 跟随守护进程日志
+journalctl --user -u plasma-lyricsd -p 4         # 只看警告及以上
 ```
 
-安装 KDE 版部件（`BUILD_PLASMOID=ON`）后，`kdebugsettings` 中会出现八个分类——上表七个加上
-部件自己的 `plasmalyrics.config`（见下文「设置变更日志」）。「记录调试信息」只管上表这七个，
-可按分类单独开关，但仅在该勾选框关闭时生效——勾选框的优先级高于 kdebugsettings，开启时会
-覆盖在那里对单个分类的 debug 开关。`plasmalyrics.config` 不受这个开关影响，只能在
-`kdebugsettings` 里单独开关，或对 plasmashell 所在的环境设置 `QT_LOGGING_RULES`。
-
-**读日志**：输出形态取决于日志的去向。systemd journal 下每行是 `分类 内容`——时间与级别由 journald 自己记录，`journalctl` 因此按级别着色，`journalctl --user -u plasma-lyricsd -p 4` 可只看警告及以上；在终端直接运行时是 `[时间] 级别 分类 内容` 并按级别着色；重定向到文件或管道时同样是 `[时间] 级别 分类 内容`，不带颜色。三种形态与日志文件里分类名都省掉 `plasmalyrics.` 前缀（上表的 `plasmalyrics.mpris` 在日志里显示为 `mpris`），但 `QT_LOGGING_RULES` 与 `kdebugsettings` 仍须写完整名。每次歌词解析都以 `#编号` 开头关联同一次请求
-的全部日志行；编号不连续属正常现象：守护进程发现当前没有可解析的播放内容时（服务启动时无播放器、
-最后一个播放器退出、剩余来源都被过滤且未在播放）会取消进行中的解析，也消耗一个编号。info 级
-默认只在解析的起点、经过的关键节点、终点各打一行：
+日志里的分类名省略 `plasmalyrics.` 前缀。info 级日志会记录关键解析行为，同一次解析共用一个 `#编号`：
 
 ```
 #42 resolve: trigger=track-changed identity="Google Chrome" service=org.mpris.MediaPlayer2.plasma-browser-integration fingerprint="mediaSrc:0f3e…" platform=netease music=true title="劣等上等" artist="鏡音リン"
@@ -245,32 +205,42 @@ systemctl --user restart plasma-lyricsd
 #42 state=ok from=provider source=netease/1294899572 lines=59 tried=local elapsed=2061ms
 ```
 
-起点行的 `trigger=` 说明触发这次解析的原因：
+`trigger=` 表示触发原因：`startup`（启动）、`track-changed`、`player-changed`、`replay`（循环重播）、`research`（手动重搜）、`set-preferred` / `clear-preferred`（指定 / 清除首选源）。
 
-| 取值 | 含义 |
+### 调试日志
+
+在「歌词服务」→「诊断」打开「记录调试信息」（默认关闭，重启服务后生效），下列分类会额外输出 debug 级日志，如候选打分、缓存查找：
+
+| 分类 | 内容 |
 | --- | --- |
-| `startup` | 服务启动后的首次解析 |
-| `track-changed` | 同一播放器切到新曲目 |
-| `player-changed` | 当前活动播放器发生变化 |
-| `replay` | 同一曲目循环播放进入新一轮 |
-| `research` | 部件菜单「重新搜索歌词」 |
-| `set-preferred` | 为当前曲目指定了首选歌词源 |
-| `clear-preferred` | 清除了当前曲目的首选歌词源 |
+| `plasmalyrics.daemon` | 服务生命周期与控制调用 |
+| `plasmalyrics.resolver` | 歌词解析流程 |
+| `plasmalyrics.mpris` | MPRIS 播放器发现与状态 |
+| `plasmalyrics.provider.netease` / `.amll` / `.local` / `.qq` | 各歌词源的请求与目录扫描 |
 
-开启「记录调试信息」后还会打印候选打分明细、缓存查找细节等 debug 级行。
+只想调试单个分类时，可用 `QT_LOGGING_RULES`（优先级更高）。守护进程由 `systemd --user` 管理，需先写入用户实例再重启服务：
 
-**设置变更日志**：「歌词服务」「全局设置」两页保存、桌面外观/面板外观/文本三页的每个设置项、
-以及「保存并重启服务」的请求与结果，都会各记一行，例如：
+```sh
+systemctl --user set-environment QT_LOGGING_RULES="plasmalyrics.mpris.debug=true"
+systemctl --user restart plasma-lyricsd
+
+# 用完还原
+systemctl --user unset-environment QT_LOGGING_RULES
+systemctl --user restart plasma-lyricsd
+```
+
+`QT_LOGGING_RULES` 与 `kdebugsettings` 里要写完整分类名。`kdebugsettings` 也能单独开关这些分类，但勾选「记录调试信息」后以勾选为准。部件自己的 `plasmalyrics.config` 不受该开关影响，只能用 `kdebugsettings` 或 plasmashell 环境里的 `QT_LOGGING_RULES` 控制。
+
+### 设置变更日志
+
+修改设置时会记录变更，例如：
 
 ```
 config changed store=db key=globalOffsetMs old="0" new="-300"
 config changed store=applet applet=12 form=desktop key=desktopFontSize old="34" new="36"
 ```
 
-部件这一份落在 plasmashell 的日志里，用 `journalctl --user QT_CATEGORY=plasmalyrics.config`
-查看；守护进程会收到相同的一行并计入 `plasmalyrics.daemon`，因此同时出现在
-`journalctl --user -u plasma-lyricsd` 与可选的日志文件里——服务未运行时守护进程这一份不存在，
-只有部件那份。`network/proxyUrl` 一项记录时不带凭据。
+部件侧的记录在 plasmashell 日志里，用 `journalctl --user QT_CATEGORY=plasmalyrics.config` 查看；守护进程也会收到同一条。代理地址记录时不带凭据。
 
 ## 🛠️ 开发检查
 
@@ -287,13 +257,9 @@ xmllint --noout frontend/plasmoid/package/contents/config/main.xml
 QML2_IMPORT_PATH="$PWD/build/bin" plasmoidviewer -a io.github.swim233.plasma-lyrics -f planar
 ```
 
-qmllint 要用 Qt 6 的 `/usr/lib/qt6/bin/qmllint`，参数与 CI 相同，只多了 `--bare -I /usr/lib/qt6/qml`：
-本机装有本项目的软件包时，不加它会先解析到系统里已安装的 QML 模块，而不是 `build/bin` 里新构建的那份。
-两个翻译脚本分别检查提交的 `.pot` 是否与源码里的界面文字同步、`messages.sh` 是否覆盖了全部 `.qml` 文件。
-
-CI 在 Arch Linux 与 Debian 13 上分别构建并运行测试。Arch 上还会检查翻译文件、以
-`-Wall -Wextra -Wpedantic -Werror` 另行构建并测试、运行 qmllint，并构建 Arch 包、用 namcap
-检查；Debian 上打出 `.deb` 包。各版本变更见 [CHANGELOG.md](CHANGELOG.md)。
+- qmllint 要用 Qt 6 的 `/usr/lib/qt6/bin/qmllint`；`--bare` 让它不去解析本机已安装的本项目模块，只用 `build/bin` 里新构建的。
+- 两个翻译脚本分别检查翻译模板是否过期、是否漏掉 `.qml` 文件。
+- CI 在 Arch Linux 与 Debian 13 上构建并测试；Arch 另有 `-Werror` 构建、qmllint、翻译检查和 namcap，Debian 打 `.deb` 包。各版本变更见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## 📄 许可证
 
